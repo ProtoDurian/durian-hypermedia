@@ -34,14 +34,19 @@ split layers
 send "GET /" a1 -> a2
 @step TCP cuts it into numbered segments.
 send "encrypted" a2 -> a3
+camera a3 close turn=left
 @step IP addresses each one: packets.
 send "segments" a3 -> a4
+camera a4 close turn=left
 @step The link layer makes them signals.
 send "packets" a4 -> a5
+camera a5 close turn=left tilt=low
 @step The signals cross the wire to the other machine.
 send "bits" a5 -> b5
+camera a5 b5 turn=front tilt=low
 @step Going up, each layer undoes its twin's work: to IP.
 send "bits" b5 -> b4
+camera all
 @step IP hands the segments to TCP.
 send "packets" b4 -> b3
 @step TCP puts them in order, for TLS.

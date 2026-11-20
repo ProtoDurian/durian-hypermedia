@@ -20,6 +20,7 @@ highlight apple grape tone=warn
 say h.2: two keys, one bucket
 @step The bucket keeps a chain. Finding grape starts at bucket 2, which leads to apple.
 send "find grape" h.2 -> apple
+camera h.2 close
 @step apple is not grape, so the search follows the chain one more link, to grape.
 send "find grape" apple -> grape
 ```

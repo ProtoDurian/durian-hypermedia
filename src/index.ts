@@ -16,5 +16,5 @@ import type { InlineDef } from "./markdown";
 export function defineInline<D = unknown, C = unknown>(def: InlineDef<D, C>): InlineDef<D, C> { return def; }
 export type * from "./types";
 /** This package's version (package.json); a consumer can check the one it pinned. */
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "mermaid", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "llm"] as const;

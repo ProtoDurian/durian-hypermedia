@@ -12,7 +12,8 @@ const ids = (md: string, opts = {}) => parse(md, opts).headings.map((h) => h.id)
 const heads = (...t: string[]) => t.map((x) => `## ${x}`).join("\n\n");
 
 describe("slug()", () => {
-  test("is exported from the package entry", () => { expect(typeof slug).toBe("function"); expect(VERSION).toBe("0.4.0"); });
+  // VERSION equals package.json and the CHANGELOG (pure.test.ts); here only that it is a version
+  test("is exported from the package entry", () => { expect(typeof slug).toBe("function"); expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/); });
   test("punctuation is dropped, not turned into a dash", () => {
     expect(slug("cyan.yaml")).toBe("cyanyaml");
     expect(slug("Case: big file")).toBe("case-big-file");

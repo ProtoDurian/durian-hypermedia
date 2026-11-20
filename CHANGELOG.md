@@ -4,6 +4,52 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.5.0
+
+Format version 9 (SPEC.md section 11): more control over animation for the author, and fixes to how scenes move.
+`FORMAT_VERSION` is 9; `Document.format` says 9.
+
+### Added (animation words; SPEC.md 6.5, one example each)
+
+- **Beats:** a line `then` in a step starts the next beat; what comes after it waits for what came before. A thing
+  added in one beat can move in the next. At most 6 beats. `Compiled.beats[k]` holds the frames at the end of each
+  beat but the last; `Fx.beats`, `Fx.sendBeat`, `Fx.sayBeat`.
+- **Pace:** `pace slow` / `pace fast` in a step, ```` ```animation pace=slow ```` for a whole scene.
+- **Emphasis and placement:** `spotlight <id> ...` dims everything else for one step; `say <id> above: text` (below,
+  left, right); `move <id> to <c> path=arc`.
+- **Camera:** `camera <id> close` / `far`, `turn=front|left|right|back`, `tilt=low|mid|high|top` (3D; 2D uses close and
+  far). The camera glides between steps; it is clamped above the planes and outside blocks, never refused for that.
+- **Tokens:** a token can wait in a container (`token t "x" in q`, `move t into q`); `split msg into 4 "seg"` and
+  `merge msg`; several ids in one move are one hop (`move a b c to x`); `drop <token> [at <thing>]`;
+  `send ... as <id>` keeps the sent token; `pop q to x` takes a token from a queue.
+- **Insides:** `closed=yes` on a container draws its inside faint and without words; `zoom into <id>` flies in and
+  opens it, `zoom out` closes it (a semantic zoom: nothing around it moves).
+- **LLM view:** what tokens do is listed under each caption (`msg splits into: seg 1, ...`, `ha -> q: seg 4, dropped
+  there (lost)`, `zoom into r`); a closed thing says `closed` in the setup line. Scenes that move tokens now show those
+  moves in their LLM view.
+- **Checks:** `src/core/still9.ts` `stillCheck(compiled)` lists things that move although their step did not change
+  them. doccheck refuses the new words used wrongly, each with the fix (SPEC.md 6.7).
+
+### Changed (how scenes are drawn; SPEC.md 6.8)
+
+- **Things a step does not change stay still.** In a group, a grid, a graph and the stage, a thing that leaves keeps
+  its place empty; two things never there together share one place. Layouts change for every scene where something
+  came or went (positions of untouched things no longer close up). Data structures and trees still close up.
+- **Lines have room:** at least 32 units of line; things a line joins are laid out 38 apart (was the size's gap, 18
+  for size m), lists and buckets 38. Scenes with joined neighbours get wider.
+- **The laptop view never cuts a thing in half** at the stage's edge.
+- **One-line hint:** the line under the stage is one line (short on a phone) with a `?` button for the whole text.
+  New UI strings: `hintShort`, `hintShortOn`, `hintShort3d`, `hintShortOn3d`, `howTo` (6 languages).
+- **3D:** the camera stays above every shown plane and layers in the way fade; a scene with no declared layers stands
+  on one floor in 3D (its contents no longer hang under their container); a lit container lifts its contents; a
+  moving token's label keeps its offset while it moves (no jumps or flicker); 3D names take their spots in order and
+  fade to a ghost when there is no room.
+
+### Fixed
+
+- The fence's `fill=` was never passed to the scene (it is now, with `pace=`).
+- A token's `split` and `merge` put the pieces into the stage's own row.
+
 ## 0.4.0
 
 ### Changed

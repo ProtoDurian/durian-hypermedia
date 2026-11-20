@@ -331,6 +331,8 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-ent.cc .scn-person .scn-shape { fill: var(--k-soft); }
 .scn-ent.cc.fill-none .scn-person .scn-shape { fill: var(--surface); }
 .scn-ent.cc .scn-chip { stroke: var(--k); } .scn-ent.cc .scn-chip-dot { fill: var(--k); } .scn-ent.cc .scn-chip-t { fill: var(--k-ink); }
+/* a dropped token (format version 9): red, then crossed out as it fades */
+.scn-ent.k-token.tone-hot .scn-chip { stroke: var(--hot); fill: var(--hot-soft); } .scn-ent.k-token.tone-hot .scn-chip-dot { fill: var(--hot); } .scn-ent.k-token.tone-hot .scn-chip-t { fill: var(--hot-ink); }
 .scn-ent.cc .scn-ptr { stroke: var(--k); } .scn-ent.cc .scn-ptr-t { fill: var(--k-ink); }
 .scn-conn.cc path { stroke: var(--k); stroke-width: 1.8; } .scn-conn.cc .scn-conn-t { fill: var(--k-ink); } .scn-mk.cc path { fill: var(--k); }
 .scn-conn.cc .scn-conn-l rect { stroke: color-mix(in srgb, var(--k) 45%, transparent); }
@@ -358,7 +360,12 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-kind { font: 500 11px var(--font-mono); color: var(--faint); }
 .scn-nonote { color: var(--faint); font-style: italic; }
 /* how to move (format version 7): a line under the stage, always there; it changes once the reader takes the stage */
-.scn-hint { margin: 0; padding: 5px 14px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.45; color: var(--faint); background: var(--surface); }
+.scn-hint { margin: 0; padding: 3px 6px 3px 14px; border-top: 1px solid var(--line); font-size: 11.5px; line-height: 1.45; color: var(--faint); background: var(--surface); display: flex; align-items: center; gap: 8px; }
+/* format version 9: always one line; the whole text is behind the ? button */
+.scn-hint-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scn-how { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: 600 12px/1 inherit; cursor: pointer; padding: 0; }
+.scn-how[aria-expanded="true"] { border-color: var(--acc); color: var(--ink); }
+.scn-how-full { margin: 0; padding: 6px 14px 8px; font-size: 12px; line-height: 1.5; color: var(--muted); background: var(--surface); border-top: 1px dashed var(--line); }
 .scn.is-active .scn-hint { color: var(--muted); }
 .scn-stage:focus { outline: none; }
 .scn.is-active .scn-stage { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--acc) 55%, transparent); }
@@ -381,6 +388,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
   .scn-tools button { min-width: 40px; height: 40px; border-radius: 10px; }
   .scn-tools .scn-back { padding: 0 12px; font-size: 13px; }
   .scn-hint { font-size: 12px; }
+  .scn-how { width: 40px; height: 40px; }
   .scn3-l.is-cont.sz-s { font-size: 11px; }
 }
 .scn-more { position: absolute; inset: 0; pointer-events: none; }

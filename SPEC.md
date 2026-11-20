@@ -1,6 +1,6 @@
 # Durian Hypermedia: the format
 
-> Format version 8 (pass 8, 2026-11-20 Pacific time). Version 7 is in SPEC.v7.md, version 6 in SPEC.v6.md, version 5 in SPEC.v5.md, version 4 in SPEC.v4.md, version 3 in SPEC.v3.md, version 2 in SPEC.v2.md.
+> Format version 9 (pass 9, 2026-11-20 Pacific time). Version 8 is in SPEC.v8.md, version 7 in SPEC.v7.md, version 6 in SPEC.v6.md, version 5 in SPEC.v5.md, version 4 in SPEC.v4.md, version 3 in SPEC.v3.md, version 2 in SPEC.v2.md.
 
 **Answer first.** Durian Hypermedia is plain Markdown plus a few parts. Plain Markdown is used wherever it already says the thing. A part with data is a fenced code block whose info string names the part (```` ```terminal ````, ```` ```animation ````). A part that holds prose is one of four containers (`:::tabs`, `:::accordion`, `:::human`, `:::llm`). Steps are not a part: any part becomes step by step when it holds `@step` lines. An animation is one engine for everything: entities, layouts, a camera the reader can move, and steps (section 6). The same scene draws flat (2D) or in 3D, where its layers can be split apart and zoomed into (section 6.9). Every size, colour and placement on the stage comes from a small design system (section 6.10). The LLM view takes the wrapper off and keeps the content; only a chart (its data, as a table), a tier list (one line per tier), an alignment grid (a table of cells or points) and an animation (what it starts with, then its captions) get something in their place.
 
@@ -291,9 +291,9 @@ A setup line, or `add <line>` in a step:
 | `graph`, `grid` | a frame with that layout (`grid g cols=3`) |
 | `buckets` | a hash table's buckets: `buckets h "hash table" count=5` makes `h.0` ... `h.4`; put entities `in h.2` |
 | `table`, `row` | `table t "users": id, name`, then `row r1 in t: 1, alice`; columns line up |
-| `token`, `pointer` | sit **on** an entity: `token t "req" at api`, `pointer i "i" at a.0`; `move t to db` |
+| `token`, `pointer` | sit **on** an entity: `token t "req" at api`, `pointer i "i" at a.0`; `move t to db`. A token can also **wait in** a container (format version 9): `token f "photo.jpg" in sender`; it is laid out with what the container holds, and a queue keeps tokens in order like any item |
 
-Keys: `size=s|m|l` (its size; a container's size also sizes what it holds, section 6.10), `is=<family>` (the family it stands for, which gives its colour, section 6.10), `fill=soft|none` (its family tint on or off, section 6.10), `layer=` (the layer it sits on, section 6.9), `tone=` (plain, acc, good, warn, hot, muted), `dim=yes`, `down=yes` (crossed out: a machine that died), `level=0..100` (a meter along its bottom: load, a buffer's fill, progress; its fill is a colour of its own, the theme's `--meter`, never the family's or the tone's, so it stands apart from the box's border), `note="..."` (what a click shows), and for containers `layout=`, `dir=`, `cols=`, and `pos=2,1` for a child of a `free` layout (columns and rows of 40). **Only these hold things:** `group`, `array`, `list`, `stack`, `queue`, `tree`, `graph`, `grid`, `buckets` (in one bucket, `h.2`) and `table` (rows only). A shape (`box`, `pill`, `cloud` ...) holds nothing: to give a worker jobs, declare it as `group w1 "worker 1"`. Anything can go inside a container, at any depth: a list inside a pod inside a node is fine.
+Keys: `size=s|m|l` (its size; a container's size also sizes what it holds, section 6.10), `is=<family>` (the family it stands for, which gives its colour, section 6.10), `fill=soft|none` (its family tint on or off, section 6.10), `layer=` (the layer it sits on, section 6.9), `tone=` (plain, acc, good, warn, hot, muted), `dim=yes`, `down=yes` (crossed out: a machine that died), `level=0..100` (a meter along its bottom: load, a buffer's fill, progress; its fill is a colour of its own, the theme's `--meter`, never the family's or the tone's, so it stands apart from the box's border), `note="..."` (what a click shows), `closed=yes` (format version 9; a container only: its inside is drawn faint and without words until the story zooms into it with `zoom into`; for a thing whose parts matter only up close, such as a router's queue and ports), and for containers `layout=`, `dir=`, `cols=`, and `pos=2,1` for a child of a `free` layout (columns and rows of 40). **Only these hold things:** `group`, `array`, `list`, `stack`, `queue`, `tree`, `graph`, `grid`, `buckets` (in one bucket, `h.2`) and `table` (rows only). A shape (`box`, `pill`, `cloud` ...) holds nothing: to give a worker jobs, declare it as `group w1 "worker 1"`. Anything can go inside a container, at any depth: a list inside a pod inside a node is fine.
 
 **Connectors** follow their ends wherever they move: `a -> b` (arrow), `a --> b` (dashed), `a -- b` (a line), `a <-> b` (both ways), a chain `a -> b -> c`, and a label last: `app -> db "writes"`; `is=<family>` after it colours it. In a step a connector line adds one; `remove a -> b` takes it away.
 
@@ -317,12 +317,25 @@ Positions come from layouts, not numbers. `row` and `column` line children up; `
 | `note <id>: text` | the note a click shows (also in the setup) |
 | `send [arrow \| both \| stream] ["label"] a -> b [is=<family>]` | **one hop per step** (format version 7): a request moves from one thing to the next, and the next hop is a step of its own with its own caption; only a `send stream` (a steady flow, not one request) may run a longer path `a -> b -> c`. The movement, shown as a small token that travels the path and waits at the end (the default), an arrow that draws itself from source to target (`send arrow`), both (`send both`), or a stream of small dots that keep flowing along the path for the whole step (`send stream`: traffic, a feed, readings; with reduced motion the dots stand still along the path; a stream that runs in the step before and in this one, along the same path, keeps flowing when the reader steps on (format version 8): it does not fade in or start again, even when its label changes; it fades out in the step that drops it); it needs no connector, and runs beside one when there is one. Its colour is its family's, else that of the thing it starts from |
 | `push <stack, queue or list> "label" [as <id>]` | a new item at the top or the end (also in the setup) |
-| `pop <stack or queue> [to <container>]` | a stack gives its newest item, a queue its oldest; `to` moves it there (it keeps its id) instead of removing it |
-| `split <id> into <id> ["label"] <id> ["label"] ...` | one shape becomes several, which grow out of it and keep its connectors |
-| `merge <id> <id> ... into <id> ["label"]` | several shapes become one |
-| `camera <id> [<id> ...]`, `camera all` | the story's camera frames those things (default: everything); it stays until changed |
+| `pop <stack or queue> [to <container>]` | a stack gives its newest item, a queue its oldest; `to` moves it there (it keeps its id) instead of removing it; a token taken from a queue goes into the target if it is a container, else it sits at it: `pop q to port2` |
+| `move <id> [<id> ...] to <thing>` | (format version 9) several things move together, as **one hop**: `move seg1 seg2 seg3 to router` |
+| `move <token> into <container> [after <id> \| before <id> \| first]` | (format version 9) a token goes **into** a container and waits there; in a queue it joins at the back: `move msg.1 msg.2 into q`. (`to` still means "sit at": `move bill to house`) |
+| `split <token> into <n> ["label"]` | (format version 9) a token becomes n tokens (2 to 8), `<token>.1` … `<token>.n`, labelled "label 1" … (without a label: "1/n" …), where the token was: `split msg into 4 "seg"` |
+| `merge <token>` | (format version 9) the pieces of a split token become it again, with its label; every piece must be on the stage, in one place: `merge msg` |
+| `drop <token> [<token> ...] [at <thing>]` | (format version 9) a token is lost: with `at`, it first travels there (one hop); it turns red, is crossed out and fades: `drop msg.4 at router` |
+| `send ... as <id>` | (format version 9) the sent token stays where it arrives, as token `<id>`, which later lines can move, split or drop: `send "GET /" browser -> api as req`; at a queue, a stack or a list it joins it as an item |
+| `zoom into <id>` | (format version 9) the camera flies in (as `camera <id> close`) and the thing's inside opens: its words fade in: `zoom into router` |
+| `zoom out` | (format version 9) the inside closes again, and the camera goes back to what it was before the zoom |
+| `split <id> into <id> ["label"] <id> ["label"] ...` | one shape becomes several, which grow out of it and keep its connectors (format version 9: a token too) |
+| `merge <id> <id> ... into <id> ["label"]` | several shapes become one (format version 9: tokens too) |
+| `camera <id> [<id> ...] [close \| far] [turn=...] [tilt=...]`, `camera all [far] [turn=...] [tilt=...]` | the story's camera frames those things (default: everything), from the angle and at the distance named (format version 9); it stays until the next `camera` line. `close` flies in until they fill the stage (up to 2.6 times natural size; the plain camera stops at 1.5): `camera grape close`; `far` pulls back: `camera all far`; `turn=front\|left\|right\|back` (3D) is where the camera stands around the scene: `camera db3 turn=right`; `tilt=low\|mid\|high\|top` (3D) how high it looks from: `camera a5 b5 tilt=low`. A `camera` line sets the whole camera: a word it leaves out goes back to its default. 2D ignores `turn=` and `tilt=` |
 | `split layers`, `stack layers` | the layers move apart (an exploded view), or back together (section 6.9); also in the setup |
 | `focus <layer>`, `focus all` | the camera flies to one layer and the others fade; `focus all` ends it; also in the setup |
+| `then` | (format version 9; a line alone in a step) the next **beat**: the changes after it start when the ones before it end, so a thing added in one beat can move in the next. At most 6 beats; more is several steps |
+| `pace slow`, `pace fast` | (format version 9; a line alone in a step) this step plays slower or faster; ```` ```animation pace=slow ```` sets every step |
+| `spotlight <id> [<id> ...]` | (format version 9) for this step only, everything else dims; these things, what holds them and what they hold stay lit |
+| `say <id> above: text` | (format version 9) `above`, `below`, `left` or `right`: where the speech goes, if that spot covers no word (else the nearest free one) |
+| `move <id> to <c> path=arc` | (format version 9) it travels over an arc instead of straight (`path=straight`, the default) |
 
 ### 6.6 One example
 
@@ -359,6 +372,12 @@ It replays every step with the engine the page draws with, and names the line:
 - a step with no caption; fewer than 2 steps; a version 3 kind word after `animation` (only `3d` or `2d` may follow it);
 - a `layer=` or `focus` naming a layer that is not declared (the message lists the layers); a layer declared twice, or under a `@step`; `focus` in a scene with no layers.
 
+- (format version 9) `then` first or last in a step, or two in a row (a change must come before and after it); more than 6 beats in a step; a `pace` other than slow, normal or fast (also on the fence); `say <id> <side>:` with a side other than above, below, left or right; a move's `path=` other than straight or arc, or another key on a move; `spotlight` with no id or an unknown one.
+
+- (format version 9, tokens and insides) a split into more than 8 pieces or fewer than 2, or of a pointer; a `merge` of tokens that are not all in one place (the message says which to move first), of tokens with shapes, or `merge msg` when `msg` was never split or a piece is gone; **one hop per step for tokens**: a token that moves twice in one step (two moves, a move and a drop, or `send … as t` and a move of `t`); `move t into x` when `x` is not a container, or a pointer moved into one; `drop` on what is not a token (use `remove`); `send arrow … as m` or `send stream … as m` (only a token stays); `zoom into x` when `x` holds nothing or is a shape; `zoom out` with nothing zoomed into; `closed=` on a shape, or other than yes or no; **a step that points at what a closed thing hides** (`highlight`, `say`, a send that is not a stream, `move … into` or `drop … at` a thing inside a closed thing not zoomed into): zoom in, in that step or before. A `send stream` may run through a closed thing, and a token may leave one.
+
+- (format version 9, the camera) `close` with `all` or with no thing (`camera db close`); `close` and `far` together; a `turn=` or `tilt=` value not in its list; the words `near`, `in` or `zoom` (write `close`); the keys `zoom=`, `dist=`, `distance=` or any other; `all` with things.
+
 It warns (and does not refuse) when a token's label is over 18 characters: the stage cuts a token's chip with "…"; put the detail in the caption or a note, or write `send arrow`, whose label may be longer.
 
 ### 6.8 How it is drawn, and what an LLM reads
@@ -366,8 +385,14 @@ It warns (and does not refuse) when a token's label is over 18 characters: the s
 - **A fixed stage** for the whole story: its shape comes from everything the story ever shows (between 1.25 and 2.4 wide per unit of height, at least 260 pixels tall), so the buttons never move.
 - **The controls sit in a bar above the stage** (the colour legend, reset the view, the 2D/3D button, zoom out, zoom in, show everything, "Back to the story"), never over the scene; **how to move** is a line under the stage, always shown. Only a thing's note, which the reader opens by clicking, shows on the stage.
 - **The story's camera** frames what the author asked for (`camera`, `focus`, else everything) **plus everything the step touches**: what it adds, moves, changes, sends along, highlights or makes speak, with their words and their tokens, and a margin. It never draws larger than 1.5 times natural size. On a stage under 480 pixels wide (a phone) a wide scene (more than 1.4 wide per unit of height) uses its **narrow layout**: the stage's own row or left-to-right graph runs top to bottom, so words stay readable; on a wider stage it is drawn smaller, down to 0.65, before anything is left out.
-- **On a phone** (format version 8; a stage under 480 pixels wide) every scene is drawn with the phone's spacing: the same type sizes (a heading at least 11), tighter padding and gaps, and labels, speech and line labels that wrap sooner. The story's camera never draws the smallest words under **11 pixels** on the screen; what the step touches is still always in frame, and the reader moves to see the rest. The part runs edge to edge (the width of the page without its scrollbar), the camera's buttons sit under the stage at a finger's size (40 pixels), an edge with more of the scene beyond it is shaded with a small arrow, and the line under the stage says how to move by touch (tap the stage, then one finger moves and two fingers zoom; in 3D one finger turns). A tap on a thing frames it no smaller than the same 11 pixels. In 3D, every word is 11 pixels or more.
+- **On a phone** (format version 8; a stage under 480 pixels wide) every scene is drawn with the phone's spacing: the same type sizes (a heading at least 11), tighter padding and gaps, and labels, speech and line labels that wrap sooner. The story's camera never draws the smallest words under **11 pixels** on the screen; what the step touches is still always in frame, and the reader moves to see the rest. The part runs edge to edge (the width of the page without its scrollbar), the camera's buttons sit under the stage at a finger's size (40 pixels), an edge with more of the scene beyond it is shaded with a small arrow, and the line under the stage says how to move by touch (tap the stage, then one finger moves and two fingers zoom; in 3D one finger turns). Since format version 9 that line is always one line: a short one on a phone ("Tap, then drag to move"; in 3D "Drag to turn"), and a **?** button beside it opens the whole text, every key and gesture. A tap on a thing frames it no smaller than the same 11 pixels. In 3D, every word is 11 pixels or more.
+- **Things a step does not change stay still** (format version 9). In a group, a grid, a graph and the stage itself, a thing that leaves (moves out, is removed, or is not added yet) leaves its place empty, so nothing around it closes up or slides: only what the step adds, moves, swaps, splits, merges, pushes or pops moves, with what it holds. Two things that are never in a container at the same time, of the same kind and size, share one place (the job a worker finishes and the next job it takes). Data structures (array, list, stack, queue, bucket, table) and trees still close up: a queue moving up is what a pop means. If the author reorders things in a group (`move a to g after b`), that group closes up. A test checks every step of every sample, wide and on a phone: no untouched thing moves or changes size.
+- **Lines have room** (format version 9): every connector and every arrow between list items shows at least 32 units of line between its two shapes. Things side by side that a line joins are laid out 38 apart, and layer bands that a line crosses leave the same room. A test measures every line of every step, wide and on a phone.
+- **Whole things at the edge** (format version 9): on a laptop the story's view never cuts a thing, or a container's heading, in half at the stage's edge; it grows to show it whole, or slides to take it in or leave it out, keeping what the step touches in frame. (On a phone a big scene still runs past the stage on purpose, with shaded edges.)
+- **Beats** (format version 9): a step with `then` lines plays its beats one after another; each beat moves the stage from the end of the beat before to its own end, and a send or a speech bubble shows in its own beat. Going back a step is one move.
 - **One size per thing for the whole story.** The engine lays out every step, keeps each thing's largest size and lays out again, so nothing grows or shrinks as things come and go: a group that will hold three items has their room from the start, and a lift keeps its size full or empty. A container's contents start at its left in a row (centred in any other layout); in layer bands, containers in one column share its width. A thing that moves to another layer with no `after`/`before`/`first` keeps its place in the row: what moves between floors goes straight up or down.
+- **A closed thing** (format version 9) keeps one size and one place for the whole story. Its inside is drawn faint (about a quarter strength) with no words; lines into it keep full strength, so a stream or a connector still visibly goes in. `zoom into` flies the story's camera in and the inside fades in with its words; `zoom out` fades it back. A closed thing's hidden words never count for the smallest words a step shows. This is a **semantic zoom**, not a second scene: nothing around it moves, and it is the same in 2D and 3D.
+- **Split, merge, drop** (format version 9): a split's pieces grow out of the token; a merge's pieces flow into the result; a dropped token travels to where it is lost, turns red, is crossed out, sinks a little and fades. A step that moves or drops a token runs as long as a send.
 - **Small things never cover words.** A token, a pointer, a sent token at rest, an arrow's label, speech and a connector's label are each placed by the engine: it tries spots around what they belong to (above first, then the sides, then further out) and takes the first that covers no label, no shape and no line, and prefers one off container edges. doccheck and the tests count overlaps for every step of every sample (pass 6: 0).
 - **Lines never cross words.** A connector or an arrow that would run through a thing it does not end at, or a word, bows around it (the least bow that clears it). A container's heading slides along its top (left, right, middle) to the one place no line crosses in the whole story, so it never moves between steps. An arrow drawn beside a connector moves further off when the connector's own label is in its way. The tests count lines over words (every label, heading, layer name and chip, except a line's own label and the words of what it ends at) and lines through things, for every step of every sample, in the wide and the phone layout (pass 6: 0 and 0). In 3D, words are drawn over the lines, and a container's name keeps a clear gap from the words of what it holds.
 - **Motion:** what moved slides to its new place (items that trade places pass on an arc), what is new fades in, what is gone fades out, a split grows out of its source, a merge flows into its result, a sent token (a dot) travels the path, an arrow draws itself along it, the camera glides. Reduced motion shows each step's end at once.
@@ -383,6 +408,7 @@ Animation, 2 steps. Starts with: pill router; group s1 "shard 1"; group s2 "shar
 2. A third shard joins, and the range 301–400 moves to it.
 ```
 
+- **Tokens in the LLM view** (format version 9): under each caption, after its sends, what tokens do, in the same shape (`from -> to: what`): `msg splits into: seg 1, seg 2, seg 3, seg 4`; `zoom into r`; `ha -> q: seg 4, dropped there (lost)`; `q -> p2: seg 1`; `seg 1, seg 2, seg 3, seg 4 merge into msg: message`. A closed thing says so in the setup line: `group r "router" closed [queue q "input queue": empty, ...]`.
 - **Families in the LLM view:** a scene that names families adds one line: `Families, one colour each: app "apps" (a, b); proxy "sidecar proxies" (pxa, pxb, pxa -> pxb).`
 - **Layers in the LLM view:** a scene that declares layers adds one line: `Layers, top to bottom: app "application" (a1, b1); tls "TLS" (a2, b2); ...`, each with the outermost things on it.
 
@@ -403,6 +429,10 @@ focus <layer> | focus all              (fly to one layer, the others fade; or en
 - **No layers declared:** each nesting level is a layer (top-level things, what they hold, what that holds ...). `split layers` works; `focus` needs a declared layer.
 - **In 2D,** when the top-level things sit on two or more layers, the stage is a column of bands, one per layer, with its name; the n-th thing of every band shares a column, so two stacks stand side by side. Otherwise layers change nothing in 2D. `focus` frames that layer and dims the others; `split layers` and `stack layers` show only in 3D.
 - **The 3D stage:** layers are planes; shapes are blocks, cylinders and spheres on them; containers are thin slabs, and what they hold stands on them; connectors are tubes, curving over things on the same layer and running straight between layers; sent tokens travel through the layers. Every word is a flat label over the 3D view, in the page's font and colours.
+- **The author's camera in 3D** (format version 9): the camera glides between steps (the short way round), and the reader still moves freely; "Back to the story" returns to the author's camera for that step. What would break is clamped, never drawn: the camera never goes below the top plane that is shown (a low tilt stops above it, then the camera backs off), never inside a block, and what the step touches stays in frame (so `close` flies in only as far as all of it fits). `focus` keeps the angle and looks from nearly in front.
+- **Looking into a lower layer** (format version 9; a click on a thing there, or a story camera that frames things there): the layers between the camera and that layer fade, as with `focus`, so nothing stands between the camera and what it looks at.
+- **A scene with no declared layers, in 3D** (format version 9; every 2D scene opened with the button) stands on one floor: what a container holds stands on its slab; `split layers` lifts each nesting level above its container, never below. A lit container lifts what stands on it.
+- **Words in 3D** (format version 9): names take their spot in order (the layer in focus, what the step touches or lights, other layer names, then the nearest); each takes its own spot, else moves a little, else fades to a ghost the reader zooms in to read. A small label on a moving token keeps its offset while the token moves (it travels with it, in the same frame) and eases to a free spot only at rest, so it never jumps or flickers.
 - **The reader in 3D:** left-drag to turn; right-drag, Shift + drag or two fingers to move; the wheel (once the stage is taken), Ctrl + wheel, a pinch, `+` and `−` or the buttons to zoom; arrows move across the screen, W A S D walk over the ground; click a thing for its note, click a layer to zoom into it; the reset button and "Back to the story" put the story's camera back. **The camera never goes below the top plane** (nor the highest thing): turning down stops a margin above it, so a plane is never seen from underneath.
 - **Things rest on their planes:** a thing's bottom is at its layer plane's top surface; a thing in a container stands on the container's slab; words float above. The draw order follows: lower layers first, on each layer its plane, then its slabs (outer first), then its things; a thing at full opacity is drawn solid, so no see-through plane or slab can paint over it. A test checks every thing of every step of every sample (its bottom at or above its plane's top and its container's slab), and the lowest camera tilt. The **2D/3D** button on every stage switches and keeps the step. Without WebGL, or when the reader asks for reduced motion, the stage stays 2D and the button is hidden.
 - **Stage:** a scene with layers, or one that opens in 3D, has a stage at most 1.5 wide per unit of height (taller than a flat scene may be), the same in 2D and 3D, so buttons never move.
@@ -505,7 +535,7 @@ The Document JSON (what `parse()` returns, and what `dh json` prints; `ast: 1`) 
 - **Keys** are typed names: `:kbd[Esc]`, `:kbd[Ctrl+Shift+P]`, a sequence `:kbd[Ctrl+K, Ctrl+S]`, and `:kbd[Left]`, `:kbd[Right]`, `:kbd[Up]`, `:kbd[Down]`, `:kbd[Enter]`, `:kbd[Cmd]`. The page draws the symbol (←, →, ↵, ⌘); doccheck refuses a symbol in the source.
 - **Mouse** is one icon and the action: `:mouse[click Next]`, `:mouse[right-click src/]`. Action words: click, double-click, right-click, middle-click, drag, drop, scroll, hover, select. The icon is about two lines tall and **fills the button the action presses**: the left button for click, double-click, drag and select; the right one for right-click; the wheel for middle-click and scroll. A double click adds a "2" badge, so it never looks like a single click; scroll adds arrows by the wheel, drag a move arrow, drop a down arrow, hover motion lines, select a text cursor. The Format page shows all nine.
 
-## 9. doccheck's checks (format version 8)
+## 9. doccheck's checks (format version 9)
 
 | Check | Refuses |
 | --- | --- |
@@ -524,7 +554,22 @@ The Document JSON (what `parse()` returns, and what `dh json` prints; `ast: 1`) 
 
 A translation keeps every part, attribute, code reference and code block of its source, in order; doccheck's "translation shape" compares them. Translated: prose, headings, list items, table cells, callout text, front matter `title`, `description` and `banner.text`, `:::llm` texts, mermaid labels, terminal and file tree step titles, code walk notes, chart `title`/`label`/`name` (a second axis's `label` too; the category names in `x` stay as they are), a tier list's title, tier names, item names and notes, an alignment grid's title, axis names, cell labels, item names and notes (translate a tier or axis name the same way everywhere it is written, on the `tiers:` line and in the tier lines, on the axis lines and in the cell lines; never the colours in square brackets, the keys `tiers:`, `x:`, `y:` or the `@ x, y` numbers), and an animation's captions, its quoted labels and its say and note texts (never its ids, entity kinds or change words). No native speaker has read the five translations yet.
 
-## 11. What changed from version 6
+## 11. What changed from version 8
+
+| Version 8 | Version 9 |
+| --- | --- |
+| when a thing left a group (a lift left its floor), the things around it closed up and slid | things a step does not change stay still: a thing that leaves leaves its place empty; two things never there together share one place; a test checks every step |
+| a line between two things side by side could be a stub with an arrow head | every line shows at least 32 units; joined things are laid out 38 apart (tested) |
+| on a phone the line under the stage ran to 3 lines | one short line, and a ? button with the whole text |
+| the laptop's story view could cut a thing in half at the stage's edge | it grows, or slides, to show it whole or leave it out |
+| every change of a step ran at once, at one speed | `then` (beats), `pace slow`/`fast`, `spotlight`, `say <id> above:`, `move ... path=arc` |
+| the camera framed things; nothing more | `camera <id> close`/`far`, `turn=`, `tilt=`; it glides between steps; clamped above the planes |
+| in 3D, clicking a thing on a lower layer put the camera between planes; 2D scenes opened in 3D hung their contents under their container; a lit container swallowed its contents | the camera stays above every shown plane and layers in the way fade; such scenes stand on one floor; a lit container lifts its contents; a check of what is drawn covers every step, 11 camera paths, 1280, 390 and 360 and a resize |
+| a token's tag jumped and flickered as the token moved in 3D | it keeps its offset while moving and eases at rest; 3D names take their spots in order |
+| a token could only sit at a thing; split and merge were for shapes | tokens wait in containers and queues, split into pieces and merge back, move several as one hop, `drop`, `send ... as`; `closed=yes` with `zoom into` and `zoom out` (a semantic zoom) |
+| the fence's `fill=` was not passed to the scene | it is, with `pace=` |
+
+## 12. What changed from version 6
 
 | Version 6 | Version 7 |
 | --- | --- |
@@ -535,7 +580,7 @@ A translation keeps every part, attribute, code reference and code block of its 
 | the 3D stage read the colour tokens only on a dark-mode switch | it reads them again on any theme or palette switch; no colour value in the engine (tested) |
 | a code walk always morphed between steps | `animate=on|off|auto`: a move between different functions or files is still (open and highlighted, the rest folded); a morph only when the same code changes |
 
-## 12. What changed from version 5
+## 13. What changed from version 5
 
 | Version 5 | Version 6 |
 | --- | --- |
@@ -549,7 +594,7 @@ A translation keeps every part, attribute, code reference and code block of its 
 | colour came from tones only | families: `family app "apps"` and `is=app`, one palette colour per family, with soft and ink variants, light and dark; a legend |
 | the LLM view: captions only | each caption is followed by its sends as `a -> b: label`; a line names the families |
 
-## 13. What changed from version 4
+## 14. What changed from version 4
 
 | Version 4 | Version 5 |
 | --- | --- |
@@ -559,7 +604,7 @@ A translation keeps every part, attribute, code reference and code block of its 
 | the LLM view: what the stage starts with, then captions | the same, plus one line naming the layers, top to bottom, with what is on each |
 | doccheck refused any word after `animation` | `3d` and `2d` are allowed; an unknown layer and a focus on an undeclared layer are refused |
 
-## 14. What changed from version 3
+## 15. What changed from version 3
 
 | Version 3 | Version 4 |
 | --- | --- |

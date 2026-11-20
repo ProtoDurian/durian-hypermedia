@@ -34,11 +34,13 @@ send arrow "change 41" db1 -> db3 is=copy
 highlight db2 tone=good
 highlight db3 tone=warn
 say db3: still at 40
+camera db2 db3 turn=right tilt=low
 @step Look at ap-south alone: a read here now gets the cart without the new item. That gap is replication lag.
 focus ap
 send "read cart" u3 -> db3
 @step A moment later change 41 arrives, and every region reads the same cart.
 focus all
+camera all
 highlight db3 tone=good
 send "read cart" u3 -> db3
 ```

@@ -5,10 +5,11 @@
 // this file tweens between frames, draws with page tokens only, and lets the reader explore with a camera:
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, union, pad, center, fitAspect, storyView, connGeom, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, union, pad, center, edgePoint, fitAspect, storyView, connGeom, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
+import { FAINT } from "../core/story";
 
 // 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle
 function can3d(): boolean {
@@ -37,7 +38,10 @@ export type SceneSrc = { head: string; steps: { title: string; raw: string; line
 // ly: its y inside its layer's band; L: its layer (both tweened, for the 3D stage)
 // anchorY: a pointer's anchor top (a pointer below its anchor points up)
 // lv: its meter (level=) at this moment, tweened
-type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number };
+// g (format version 9): how fully it is drawn, FAINT inside a closed thing (its words hidden) to 1 when open, tweened
+type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number };
+const gOf = (b?: Box) => (b?.faint ? FAINT : 1);
+const wordsO = (g?: number) => (g == null ? 1 : Math.max(0, Math.min(1, (g - FAINT) / (1 - FAINT))));
 const bandOff = (b: Box) => b.y - b.ly;
 
 export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: string | null }) {
@@ -55,6 +59,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const [i, setI] = useState(0);
   const [from, setFrom] = useState(0);
   const [t, setT] = useState(1);
+  const [howOpen, setHowOpen] = useState(false); // the ? button under the stage: the whole "how to move" text
   const [playing, setPlaying] = useState(false);
   const [user, setUser] = useState<Rect | null>(null);   // the reader's own camera; null follows the story
   const [sel, setSel] = useState<number | null>(null);    // the entity whose note is open
@@ -123,7 +128,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
   }, [mode]);
-  const dur = (k: number) => (c.fx[k]?.sends.length ? 1500 : 850);
+  // a step's length: longer with sends (or a token that moves or is dropped); each beat (a "then" line) is that long again; pace slow or fast (format version 9)
+  const PACE: Record<string, number> = { slow: 1.8, normal: 1, fast: 0.55 };
+  const dur = (k: number) => (c.fx[k]?.sends.length || c.fx[k]?.moved?.length || c.fx[k]?.dropped?.length ? 1500 : 850) * (c.fx[k]?.beats ?? 1) * (PACE[c.fx[k]?.pace && c.fx[k]?.pace !== "normal" ? c.fx[k]!.pace! : src.info.pace ?? "normal"] ?? 1);
 
   const go = (k: number, keepCam = false) => {
     const to = Math.max(0, Math.min(n - 1, k));
@@ -174,41 +181,72 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const forward = i === from + 1;
   const te = ease(t);
   const fx = c.fx[i];
+  // beats (format version 9): a change after a "then" line starts when the ones before it end: the stage moves from
+  // the frame at the end of one beat to the frame at the end of the next; backwards, everything moves at once
+  const NB = forward ? Math.max(1, fx.beats ?? 1) : 1;
+  const local = (b: number) => Math.max(0, Math.min(1, t * NB - b));
+  // the beat now: things move from the frame at the end of the beat before to the frame at the end of this one
+  const seg = NB < 2 ? 0 : Math.min(NB - 1, Math.floor(t * NB));
+  const beatF = forward ? c.beats?.[i] ?? [] : [];
+  const SA = NB < 2 || seg === 0 ? A : beatF[seg - 1] ?? A, SB = NB < 2 || seg === NB - 1 ? B : beatF[seg] ?? B;
+  const tSeg = NB < 2 ? te : ease(local(seg));
+  const teOf = (_b: Box) => tSeg;
+  // spotlight (format version 9): this step dims everything but these things, what holds them and what they hold
+  const spot = forward || i === from ? new Set(fx.spot ?? []) : new Set<number>();
+  const lit = (b: Box): boolean => {
+    if (!spot.size || spot.has(b.key)) return true;
+    const by = new Map(B.boxes.filter((x) => x.key > 0).map((x) => [x.id, x]));
+    for (let x: string | null = b.ent.parent ?? b.ent.anchor, n = 0; x && n < 64; x = by.get(x)?.ent.parent ?? null, n++) if (spot.has(by.get(x)?.key ?? NaN)) return true;
+    return B.boxes.some((x) => spot.has(x.key) && x.container && (() => { for (let y: string | null = b.ent.parent, n = 0; y && n < 64; y = by.get(y)?.ent.parent ?? null, n++) if (y === x.id) return true; return false; })()) || B.boxes.some((x) => spot.has(x.key) && x.ent.parent === b.id);
+  };
+  const dimOf = (b: Box) => (lit(b) ? 1 : lerp(1, 0.22, i === from ? 1 : te));
+  const arc = new Set(forward ? fx.arc ?? [] : []);
   // the story's focus (a layer) dims the other layers; the reader's own pick of a layer does the same
   const off = (f: Frame, L: number | undefined) => (f.focus != null && L !== f.focus ? 0.12 : 1);
   const fo = (b: Box, p?: Box) => lerp(off(A, (p ?? b).layer), off(B, b.layer), te) * (pickL != null && b.layer !== pickL ? 0.2 : 1);
 
   // ---- where every entity is at this moment
-  const prev = new Map(A.boxes.map((b) => [b.key, b]));
+  const prev = new Map(SA.boxes.map((b) => [b.key, b]));
   const cur = new Map(B.boxes.map((b) => [b.key, b]));
+  const curSeg = new Map(SB.boxes.map((b) => [b.key, b]));
   const shown: Shown[] = [];
-  for (const b of B.boxes) {
+  for (const b of SB.boxes) {
     const p = prev.get(b.key);
     if (p) {
-      const r = lerpR(p, b, te);
+      const tb = teOf(b);
+      const r = lerpR(p, b, tb);
+      // move ... path=arc: it travels over an arc, not straight (format version 9)
+      if (arc.has(b.id) && (Math.abs(b.x - p.x) > 4 || Math.abs(b.y - p.y) > 4)) r.y -= Math.sin(Math.PI * tb) * Math.max(40, Math.hypot(b.x - p.x, b.y - p.y) * 0.35);
       // items of an array, list, stack or queue that trade places pass each other on an arc, not through each other
       if (b.parentKind && ["array", "list", "stack", "queue", "bucket"].includes(b.parentKind) && Math.abs(b.x - p.x) > 4 && b.parentKind !== "stack") r.y += Math.sin(Math.PI * te) * b.h * 0.75 * (b.x > p.x ? -1 : 1);
-      shown.push({ box: b, r, o: fo(b, p), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), te), L: lerp(p.layer, b.layer, te) });
+      shown.push({ box: b, r, o: fo(b, p) * dimOf(b), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), tb), L: lerp(p.layer, b.layer, tb), g: lerp(gOf(p), gOf(b), tb) });
       continue;
     }
     const src0 = forward ? prev.get(fx.spawn[b.key]) : undefined;
-    if (src0) { const r = lerpR(src0, b, te); shown.push({ box: b, r, o: Math.min(1, te * 2) * fo(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), te), L: lerp(src0.layer, b.layer, te) }); }
-    else { const s = lerp(0.85, 1, te); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: te * fo(b), enter: true, ly: r.y - bandOff(b), L: b.layer }); }
+    const tb = teOf(b);
+    if (src0) { const r = lerpR(src0, b, tb); shown.push({ box: b, r, o: Math.min(1, tb * 2) * fo(b) * dimOf(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), tb), L: lerp(src0.layer, b.layer, tb), g: gOf(b) }); }
+    else { const s = lerp(0.85, 1, tb); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: tb * fo(b) * dimOf(b), enter: true, ly: r.y - bandOff(b), L: b.layer, g: gOf(b) }); }
   }
-  if (t < 1) for (const p of A.boxes) {
-    if (cur.has(p.key)) continue;
+  if (t < 1) for (const p of SA.boxes) {
+    if (curSeg.has(p.key)) continue;
     const into = forward ? cur.get(c.fx[i].merge[p.key]) : undefined;
-    const r = into ? lerpR(p, into, te) : p;
-    shown.push({ box: p, r, o: (1 - te) * fo(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer });
+    const tp = teOf(p);
+    // a dropped token (format version 9) travels to where it is lost, turns red, is crossed out and fades
+    const dr = forward ? c.fx[i].dropped?.find((d) => d.key === p.key) : undefined;
+    if (dr) { const s = droppedAt(p, dr.at != null ? cur.get(dr.at) ?? prev.get(dr.at) : undefined, tp); shown.push({ ...s, ly: s.r.y - bandOff(p), L: p.layer, g: gOf(p), o: s.o * fo(p) }); continue; }
+    const r = into ? lerpR(p, into, tp) : p;
+    shown.push({ box: p, r, o: (1 - tp) * fo(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer, g: gOf(p) });
   }
   for (const s of shown) if (s.box.kind === "pointer") s.anchorY = B.boxes.find((x) => x.id === s.box.ent.anchor)?.y;
   for (const s of shown) if (s.box.ent.level != null) { const p = prev.get(s.box.key)?.ent.level; s.lv = lerp(p ?? s.box.ent.level, s.box.ent.level, te); }
   const at = new Map(shown.map((s) => [s.box.key, s]));
   const edgesNow: { e: Edge; o: number }[] = [];
-  const prevEdges = new Set(A.edges.map((e) => e.key));
-  const curEdges = new Set(B.edges.map((e) => e.key));
-  for (const e of B.edges) edgesNow.push({ e, o: prevEdges.has(e.key) ? 1 : te });
-  if (t < 1) for (const e of A.edges) if (!curEdges.has(e.key)) edgesNow.push({ e, o: 1 - te });
+  const prevEdges = new Set(SA.edges.map((e) => e.key));
+  const curEdges = new Set(SB.edges.map((e) => e.key));
+  const teEdge = (_e: Edge) => tSeg;
+  const litEdge = (e: Edge) => { if (!spot.size) return 1; const a = at.get(e.from), b = at.get(e.to); return a && b && lit(a.box) && lit(b.box) ? 1 : dimOf(a?.box ?? b!.box); };
+  for (const e of SB.edges) edgesNow.push({ e, o: (prevEdges.has(e.key) ? 1 : teEdge(e)) * litEdge(e) });
+  if (t < 1) for (const e of SA.edges) if (!curEdges.has(e.key)) edgesNow.push({ e, o: 1 - teEdge(e) });
 
   // ---- the camera: the story's, unless the reader moved it
   // the story's camera (tools/scene.ts storyView): what the author framed plus everything this step touches, in frame
@@ -324,19 +362,21 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const streamKey = (g: SendGeom) => `st:${g.path.join(">")}`;
   const prevStreams = new Set(A.sends.filter(isStream).map(streamKey));
   const curStreams = new Set(B.sends.filter(isStream).map(streamKey));
-  const sendPOf = (g: SendGeom) => (isStream(g) && prevStreams.has(streamKey(g)) ? 1 : sendP);
+  // a send runs in its own beat (format version 9)
+  const sendPOf = (g: SendGeom, k = 0) => (isStream(g) && prevStreams.has(streamKey(g)) ? 1 : NB < 2 ? sendP : Math.max(0, Math.min(1, (local(fx.sendBeat?.[k] ?? 0) - 0.12) / 0.88)));
+  const sayO = (k: number) => (!forward ? 1 : NB < 2 ? fxO : Math.max(0, Math.min(1, (local(fx.sayBeat?.[k] ?? 0) - 0.55) / 0.45)));
   const seenKey = new Map<string, number>();
   const sendKey = (g: SendGeom, k: number) => { if (!isStream(g)) return `s${i}-${k}`; const b = streamKey(g), n = seenKey.get(b) ?? 0; seenKey.set(b, n + 1); return n ? `${b}#${n}` : b; };
   const endingStreams = t < 1 && A !== B ? A.sends.filter((g) => isStream(g) && !curStreams.has(streamKey(g))) : [];
   if (mode === "3d") {
     const keyOf = new Map<string, number>([...A.boxes, ...B.boxes].map((b) => [b.id, b.key]));
-    const items: Item3[] = shown.map((s) => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth }));
+    const items: Item3[] = shown.map((s) => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, ...(s.g != null && s.g < 1 ? { faint: s.g } : {}), size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth }));
     view3.current = {
       items, edges: edgesNow.map(({ e, o }) => ({ ...e, o })),
-      sends: B.sends.map((g) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g) })),
-      says: fx.says.map((sy) => ({ key: sy.key, text: sy.text, o: forward ? fxO : 1 })),
+      sends: B.sends.map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k) })),
+      says: fx.says.map((sy, k) => ({ key: sy.key, text: sy.text, o: sayO(k) })),
       hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), sel,
-      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: B.look, touched: B.touched, foot, stepKey: String(i),
+      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: B.look, touched: B.touched, foot, stepKey: String(i), cam: B.view ?? null,
     };
   }
   const legend = families.length > 0 ? <ul className="scn-legend" aria-label={(ui as any).legend ?? "Colours"}>{families.map((k, n) => <li key={k.id} className={`scn-key cc cc-${n + 1}`}>{k.label}</li>)}</ul> : <span className="scn-legend" />;
@@ -352,6 +392,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
     : (active ? U.hintTouchOn ?? "One finger: move · two fingers: zoom · tap outside the stage to scroll the page" : U.hintTouch ?? "Tap the stage, then drag with one finger to move · pinch to zoom") + (more.length ? ` · ${U.hintMore ?? "a shaded edge has more that way"}` : "");
+  const shortHint = mode === "3d" ? (active ? U.hintShortOn3d ?? "1 finger: turn · 2: move, zoom" : U.hintShort3d ?? "Drag to turn") : (active ? U.hintShortOn ?? "Drag: move · pinch: zoom" : U.hintShort ?? "Tap, then drag to move");
   const hint = phone ? touchHint
     : !active
     ? (mode === "3d" ? (ui as any).hintOff3d ?? "Drag to turn, right-drag or Shift + drag to move · click the stage to use the wheel and the keys" : (ui as any).hintOff ?? "Drag to move · click the stage to use the wheel and the arrow keys")
@@ -387,17 +428,19 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
           {conts.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={a.r} b={b.r} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
           {leaves.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {B.sends.map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g)} />)}
+          {B.sends.map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} />)}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
           {overlays.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {B.marks.filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={forward ? fxO : 1} /> : null; })}
+          {B.marks.filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
         {more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}</div>}
         {selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{selBox.kind}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
         {!selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note">{B.layers[pickL].note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>
       {/* how to move: always shown, under the stage, so it never covers the scene */}
-      <p className="scn-hint" aria-hidden="true">{hint}</p>
+      {/* format version 9: one line; on a phone a short one; the ? button shows the whole of it */}
+      <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>
+      {howOpen && <p className="scn-how-full" role="note">{hint}</p>}
       <div className="scn-caps" aria-live="polite">
         {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span>{s.title}</span></div>)}
       </div>
@@ -419,7 +462,8 @@ function Words({ lines, x, y, z, cls = "scn-label", font }: { lines: string[]; x
   return <text x={x} y={y0} className={cls} dominantBaseline="central" textAnchor="middle" style={{ fontSize: font ?? z.font }}>{lines.map((l, k) => <tspan key={k} x={x} y={y0 + k * lh}>{l}</tspan>)}</text>;
 }
 function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok> }) {
-  const { box: b, r, o } = s;
+  const { box: b, r } = s;
+  const o = s.o * (s.g ?? 1), wo = wordsO(s.g);
   const e = b.ent;
   const z = Z[b.size] ?? Z.m;
   const tone = `tone-${e.tone}`;
@@ -431,13 +475,14 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   const lb = labelBox(b.kind, r, b.lines, z, e.level != null);
   // a meter (level=): a thin bar along the bottom, filled to the level
   const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 : 9); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={4} rx={2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={4} rx={2} /></g>; })() : null;
-  const words = lb ? <Words lines={b.lines} x={tx} y={lb.y + lb.h / 2} z={z} /> : null;
+  // inside a closed thing the words are hidden; they fade in as it opens
+  const words = lb && wo > 0.02 ? <g style={wo < 1 ? { opacity: wo } : undefined}><Words lines={b.lines} x={tx} y={lb.y + lb.h / 2} z={z} /></g> : null;
   const title = <title>{[b.label || b.id, e.note].filter(Boolean).join(" · ")}</title>;
   const shadow = { filter: `url(#${sh}-sh)` };
   let body: React.ReactNode;
   if (b.kind === "layer") body = <><rect className="scn-band" x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 6} /><text x={r.x + 12} y={ty} className="scn-band-t" dominantBaseline="central" style={{ fontSize: z.head }}>{b.label}</text></>;
   else if (b.container) {
-    const head = b.head ? <text x={r.x + (b.lbl ? b.lbl.x - b.x : z.pad)} y={r.y + b.head / 2 + 2} className="scn-head" dominantBaseline="central" style={{ fontSize: z.head }}>{b.label}</text> : null;
+    const head = b.head && wo > 0.02 ? <text x={r.x + (b.lbl ? b.lbl.x - b.x : z.pad)} y={r.y + b.head / 2 + 2} className="scn-head" dominantBaseline="central" style={{ fontSize: z.head, ...(wo < 1 ? { opacity: wo } : {}) }}>{b.label}</text> : null;
     if (b.kind === "array" || b.kind === "list") body = head;
     else if (b.kind === "stack") body = <>{head}<path className="scn-frame scn-open" d={`M${r.x} ${r.y + b.head}V${r.y + r.h}H${r.x + r.w}V${r.y + b.head}`} /></>;
     else if (b.kind === "queue") body = <>{head}<path className="scn-frame scn-open" d={`M${r.x} ${r.y + b.head}H${r.x + r.w}M${r.x} ${r.y + r.h}H${r.x + r.w}`} /></>;
@@ -445,7 +490,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
     else if (b.kind === "table") {
       const cols: number[] = (e as any)._cols ?? [];
       let x = r.x + z.pad;
-      body = <>{<rect className={cx("scn-frame", `d-${b.depth % 2}`)} x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 4} />}{head}{(e.cells ?? []).map((v, k) => { const el = <text key={k} x={x + (cols[k] ?? 60) / 2} y={r.y + b.head + z.pad + (z.minH - 8) / 2} className="scn-th" textAnchor="middle" dominantBaseline="central" style={{ fontSize: z.head }}>{v}</text>; x += cols[k] ?? 60; return el; })}</>;
+      body = <>{<rect className={cx("scn-frame", `d-${b.depth % 2}`)} x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 4} />}{head}{(e.cells ?? []).map((v, k) => { const el = <text key={k} x={x + (cols[k] ?? 60) / 2} y={r.y + b.head + z.pad + (z.minH - 8) / 2} className="scn-th" textAnchor="middle" dominantBaseline="central" style={{ fontSize: z.head, opacity: wo }}>{wo > 0.02 ? v : ""}</text>; x += cols[k] ?? 60; return el; })}</>;
     }
     else body = <><rect className={cx("scn-frame", `d-${b.depth % 2}`)} x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 4} />{head}</>;
   } else switch (b.kind) {
@@ -458,7 +503,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
     case "text": body = <Words lines={b.lines} x={tx} y={ty} z={z} cls="scn-label scn-text" />; break;
     case "dot": body = <><circle className="scn-shape scn-dot" cx={tx} cy={r.y + 8} r={6} />{words}</>; break;
     // a token is small: a dot and a short word, next to what it sits on
-    case "token": body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} /><text x={r.x + 10 + (r.w - 10) / 2} y={ty} className="scn-chip-t" textAnchor="middle" dominantBaseline="central">{b.lines[0] ?? b.label}</text></>; break;
+    case "token": body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} />{wo > 0.02 && <text x={r.x + 10 + (r.w - 10) / 2} y={ty} className="scn-chip-t" textAnchor="middle" dominantBaseline="central" style={wo < 1 ? { opacity: wo } : undefined}>{b.lines[0] ?? b.label}</text>}</>; break;
     case "pointer": {
       // above its anchor it points down; below it, up
       const up = s.anchorY != null && r.y > s.anchorY;
@@ -470,7 +515,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
     case "row": {
       const cols: number[] = (e as any)._cols ?? [];
       let x = r.x;
-      body = <><rect className="scn-shape scn-row" x={r.x} y={r.y} width={r.w} height={r.h} />{(e.cells ?? []).map((v, k) => { const w = cols[k] ?? 60; const el = <g key={k}>{k > 0 && <line className="scn-line" x1={x} x2={x} y1={r.y} y2={r.y + r.h} />}<text x={x + w / 2} y={ty} className="scn-label" textAnchor="middle" dominantBaseline="central" style={{ fontSize: z.font }}>{v}</text></g>; x += w; return el; })}</>;
+      body = <><rect className="scn-shape scn-row" x={r.x} y={r.y} width={r.w} height={r.h} />{(e.cells ?? []).map((v, k) => { const w = cols[k] ?? 60; const el = <g key={k}>{k > 0 && <line className="scn-line" x1={x} x2={x} y1={r.y} y2={r.y + r.h} />}<text x={x + w / 2} y={ty} className="scn-label" textAnchor="middle" dominantBaseline="central" style={{ fontSize: z.font, opacity: wo }}>{wo > 0.02 ? v : ""}</text></g>; x += w; return el; })}</>;
       break;
     }
     default: body = <><rect className="scn-shape" style={b.parentKind && ["array", "stack", "queue", "list", "bucket"].includes(b.parentKind) ? undefined : shadow} x={r.x} y={r.y} width={r.w} height={r.h} rx={b.parentKind && ["array", "stack", "queue", "list", "bucket"].includes(b.parentKind) ? Math.max(4, z.r - 3) : z.r} />{words}</>;
@@ -480,7 +525,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   const rp = b.parentKind && ["array", "stack", "queue"].includes(b.parentKind) ? 1.5 : 4;
   const ring = (hl || sel) && !["text", "token", "pointer"].includes(b.kind) ? <rect className="scn-ring" x={r.x - rp} y={r.y - rp} width={r.w + 2 * rp} height={r.h + 2 * rp} rx={rr - 4 + rp} /> : null;
   const x = e.down ? <path className="scn-x" d={`M${r.x + 6} ${r.y + 6}L${r.x + r.w - 6} ${r.y + r.h - 6}M${r.x + r.w - 6} ${r.y + 6}L${r.x + 6} ${r.y + r.h - 6}`} /> : null;
-  const idx = b.index != null ? <text x={b.x + b.w / 2} y={b.y + b.h + 11} className="scn-idx" textAnchor="middle" dominantBaseline="central">{b.index}</text> : null;
+  const idx = b.index != null && wo > 0.02 ? <text x={b.x + b.w / 2} y={b.y + b.h + 11} className="scn-idx" textAnchor="middle" dominantBaseline="central">{b.index}</text> : null;
   return <g className={cls} data-key={b.key} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;
 }
 
@@ -565,4 +610,13 @@ function Say({ m, r, o }: { m: Mark; r: Rect; o: number }) {
       <Words lines={m.lines} x={x + w / 2} y={y + h / 2} z={DESIGN.s} cls="scn-say-t" font={CHIP.font + 0.5} />
     </g>
   );
+}
+// a dropped token (format version 9): it travels to the side of where it is lost (the first part of the step), then
+// turns red, is crossed out, sinks a little and fades
+function droppedAt(p: Box, at: Box | undefined, te: number): { box: Box; r: Rect; o: number; enter: boolean } {
+  const k = Math.min(1, te / 0.55);
+  const hitAt = at ? edgePoint(at, center(p), at.kind) : center(p);
+  const r = lerpR(p, { x: hitAt.x - p.w / 2, y: hitAt.y - p.h / 2, w: p.w, h: p.h }, k);
+  const lost = te > 0.5;
+  return { box: lost ? { ...p, ent: { ...p.ent, tone: "hot", down: true } } : p, r: lost ? { ...r, y: r.y + (te - 0.5) * 16 } : r, o: te < 0.6 ? 1 : Math.max(0, 1 - (te - 0.6) / 0.4), enter: false };
 }

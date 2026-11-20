@@ -6,7 +6,8 @@ import {
   type Doc as DhDoc, type Node as DhNode, type PartNode, type MdNode as DhMd,
 } from "./core/dh-lib";
 import { checkDoc } from "./core/doccheck";
-import { mdBlocks, mdInline, type MdContext, type InlineDef } from "./markdown";
+import GithubSlugger from "github-slugger";
+import { countHeading, mdBlocks, mdInline, type MdContext, type InlineDef } from "./markdown";
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
@@ -84,7 +85,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const defs = registeredBlocks(opts.blocks ?? []);
   const refused = new Set<PartNode>();
   const hosts: Kept["hosts"] = new Map();
-  const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, ids: new Set(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
+  const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
   let count = 0, stopped = false;
 
   return withHostParts(defs, problems, () => {
@@ -128,6 +129,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       const fm = (dh.fm && typeof dh.fm === "object" && !Array.isArray(dh.fm) ? dh.fm : {}) as Record<string, any>;
       const b = fm.banner;
       const banner = b && typeof b === "object" && b.text != null ? { kind: BANNER_KINDS.includes(b.kind) ? String(b.kind) : "info", text: mdInline(String(b.text).slice(0, 2000), { ...ctx, line: 1 }) } : null;
+      // a heading id and a part id (or a tab or accordion item id) share one namespace on the page: name a clash
+      const partIds = new Map<string, number>();
+      const collect = (bs: any[]) => { for (const x of bs) { if (x.id) partIds.set(x.id, x.line); for (const it of x.items ?? []) { if (it.id) for (const k of x.type === "tabs" ? [it.id + "-t", it.id + "-p"] : [it.id]) partIds.set(k, x.line); collect(it.body ?? []); } collect(x.type === "human" ? x.body : []); } };
+      collect(blocks);
+      for (const h of ctx.heads) if (partIds.has(h.id)) problems.push({ line: partIds.get(h.id)!, level: "warn", message: `the heading "${h.text}" and a part both have the id "${h.id}"; a link to #${h.id} reaches only one of them. Rename the part's #id` });
       // a table of contents lists the headings after the walk
       fillTocs(blocks, ctx.heads);
       for (const p of ctx.problems) problems.push({ line: p.line, level: "error", message: p.message });
@@ -189,7 +195,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (def.steps && p.steps.length > lim.maxSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxSteps}`);
       if (def.form === "container") {
         if (p.name === "tabs" || p.name === "accordion") {
-          const items = p.items.map((it, k) => ({ title: it.title, id: `${p.attrs.id ? idPrefix + p.attrs.id : `${idPrefix}${p.name}-${p.line}`}-${k}`, body: walk(it.nodes) }));
+          const items = p.items.map((it, k) => (countHeading(it.heading, ctx), { title: it.title, id: `${p.attrs.id ? idPrefix + p.attrs.id : `${idPrefix}${p.name}-${p.line}`}-${k}`, body: walk(it.nodes) }));
           return { type: p.name, items, ...base(p) } as Block;
         }
         if (p.name === "human") return { type: "human", body: walk(p.nodes), ...base(p) } as Block;

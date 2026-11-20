@@ -1,6 +1,7 @@
 // Markdown to a small, safe tree. marked tokenises (GFM); this file turns the tokens into plain data:
 // no HTML string ever leaves this module. Raw HTML in the source becomes text. Links and images pass the URL policy.
 // Inline parts: :kbd[Ctrl+K, Ctrl+S] and :mouse[double-click index.ts]; a link to code:<repo>/<path>#<symbol> is a code reference.
+import GithubSlugger, { slug as githubSlug } from "github-slugger";
 import { Marked, type Token, type Tokens, type TokenizerAndRendererExtension } from "marked";
 import { KEY_GLYPHS, MOUSE_PRESS } from "./core/dh-lib";
 import { applyUrlPolicy, decodeRefs, type UrlPolicy } from "./safety";
@@ -40,7 +41,7 @@ export interface InlineDef<D = unknown, C = unknown> {
   /** the React component that draws it: receives { text, data } (only the React entry reads this) */
   Component?: C;
 }
-export interface MdContext { inlines?: InlineDef<any, any>[]; policy?: UrlPolicy; idPrefix: string; ids: Set<string>; maxDepth: number; problems: { line: number; message: string }[]; line: number; heads: { depth: number; text: string; id: string }[] }
+export interface MdContext { inlines?: InlineDef<any, any>[]; policy?: UrlPolicy; idPrefix: string; slugger: GithubSlugger; maxDepth: number; problems: { line: number; message: string }[]; line: number; heads: { depth: number; text: string; id: string }[] }
 
 export const CALLOUT_WORDS: Record<string, CalloutKind> = { Note: "note", Tip: "tip", Important: "important", "Watch out": "warn", "Security finding": "security" };
 const KEY_WORDS: Record<string, string> = { left: "Left arrow", right: "Right arrow", up: "Up arrow", down: "Down arrow" };
@@ -75,18 +76,53 @@ function lexerFor(defs: InlineDef<any, any>[] | undefined): Marked {
   return m;
 }
 
-export function slug(s: string): string {
-  return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 80) || "s";
-}
-export function uniqueId(base: string, ctx: MdContext): string {
-  let id = ctx.idPrefix + base;
-  while (ctx.ids.has(id)) id += "-2";
-  ctx.ids.add(id);
-  return id;
+/** The anchor GitHub gives a heading (github-slugger 2.0.0): lower case, punctuation dropped, each space becomes "-",
+ *  letters and digits of any script kept, no length cut. "cyan.yaml" is "cyanyaml". It does not count repeats (see headingId). */
+export function slug(s: string): string { return githubSlug(s); }
+/** The id of the next heading of a document: GitHub's slug, a repeat numbered the GitHub way (x, x-1, x-2), then idPrefix.
+ *  ctx.slugger holds the repeats, one per document. A heading with no slug at all (no letter, digit, "-" or "_") gets "S" when there is no prefix (a slug is never upper case, so "S" never repeats one). */
+export function headingId(text: string, ctx: MdContext): string {
+  return ctx.idPrefix + ctx.slugger.slug(text) || "S";
 }
 /** The plain text of an inline tree (what a heading's id is made from; a table cell's label). */
 export const inlineText = (c: MdInline[]): string => c.map((x) => (x.t === "ref" ? x.text : "v" in x ? x.v : "c" in x ? inlineText(x.c) : x.t === "kbd" ? x.label : x.t === "mouse" ? `${x.act} ${x.target}`.trim() : x.t === "img" ? x.alt : "")).join("");
 const plain = inlineText;
+/** The text github.com reads a heading's anchor from: the rendered text content. Code spans, links, emphasis and escapes give their text;
+ *  an image, a line break and the tags of raw HTML give nothing; numeric character references and amp, lt, gt, quot, apos, nbsp are decoded
+ *  (any other named reference stays as typed: this page shows it as typed too); every other syntax (:kbd[], :mouse[], a host's inline
+ *  reference) GitHub does not know, so it reads as the source text. */
+const GH_NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
+function ghRefs(s: string): string {
+  return s.replace(/&(?:#(\d{1,7})|#[xX]([0-9a-fA-F]{1,6})|(amp|lt|gt|quot|apos|nbsp));/g, (m, d, h, n) => {
+    if (n) return GH_NAMED[n];
+    const c = d !== undefined ? parseInt(d, 10) : parseInt(h, 16);
+    return c > 0 && c < 0x110000 && !(c >= 0xd800 && c < 0xe000) ? String.fromCodePoint(c) : "\ufffd";
+  });
+}
+/** The text of raw HTML as GitHub's page shows it: comments, processing instructions and tags (an attribute may hold ">") give nothing;
+ *  the tags GitHub's tag filter turns into literal text (title, textarea, style, xmp, iframe, noembed, noframes, script, plaintext) stay as typed. */
+const FILTERED = /^<\/?(?:title|textarea|style|xmp|iframe|noembed|noframes|script|plaintext)(?=[\s/>])/i;
+function htmlText(h: string): string {
+  return h.replace(/<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<\/?[A-Za-z][^\s/>]*(?:"[^"]*"|'[^']*'|[^>"'])*>/g, (m) => (FILTERED.test(m) ? m : ""));
+}
+function ghText(toks: Token[] | undefined): string {
+  return (toks ?? []).map((t) => {
+    switch (t.type) {
+      case "text": { const x = t as Tokens.Text; return x.tokens?.length ? ghText(x.tokens) : ghRefs(x.text); }
+      case "escape": return ghRefs((t as Tokens.Escape).text);
+      case "codespan": return (t as Tokens.Codespan).text;
+      case "strong": case "em": case "del": case "link": return ghText((t as Tokens.Strong).tokens);
+      case "image": case "br": return "";
+      case "html": return htmlText((t as Tokens.HTML).text);
+      default: return ghRefs(t.raw);
+    }
+  }).join("");
+}
+/** Count a heading that carries no id of its own (a tab or an accordion title) in the document's repeat counter, as GitHub counts every heading. */
+export function countHeading(line: string, ctx: MdContext): void {
+  const h = lexerFor(ctx.inlines).lexer(line).find((t) => t.type === "heading") as Tokens.Heading | undefined;
+  if (h) ctx.slugger.slug(ghText(h.tokens));
+}
 
 /** Markdown text to blocks. Never throws: a problem becomes a "raw" block and a message in ctx.problems. */
 export function mdBlocks(src: string, ctx: MdContext): MdBlock[] {
@@ -106,7 +142,7 @@ function blocks(toks: Token[], ctx: MdContext, depth: number): MdBlock[] {
       case "space": case "def": break;
       case "paragraph": out.push({ t: "p", c: inl((t as Tokens.Paragraph).tokens, ctx, depth) }); break;
       case "text": { const x = t as Tokens.Text; out.push({ t: "text", c: x.tokens ? inl(x.tokens, ctx, depth) : [{ t: "text", v: x.text }] }); break; }
-      case "heading": { const h = t as Tokens.Heading; const c = inl(h.tokens, ctx, depth); const text = plain(c); const id = uniqueId(slug(text), ctx); ctx.heads.push({ depth: h.depth, text, id }); out.push({ t: "h", depth: h.depth, id, text, c }); break; }
+      case "heading": { const h = t as Tokens.Heading; const c = inl(h.tokens, ctx, depth); const text = plain(c); const id = headingId(ghText(h.tokens), ctx); ctx.heads.push({ depth: h.depth, text, id }); out.push({ t: "h", depth: h.depth, id, text, c }); break; }
       case "code": { const c = t as Tokens.Code; const info = (c.lang ?? "").trim(); const meta = info.replace(/^\S*\s*/, "").slice(0, 500); out.push({ t: "code", lang: info.split(/\s/)[0].slice(0, 30), ...(meta ? { meta } : {}), text: c.text }); break; }
       case "hr": out.push({ t: "hr" }); break;
       case "list": { const l = t as Tokens.List; out.push({ t: "list", ordered: l.ordered, start: l.ordered ? (typeof l.start === "number" ? l.start : 1) : null, items: l.items.map((it) => ({ task: !!it.task, checked: !!it.checked, c: blocks(it.tokens.filter((x) => x.type !== "checkbox"), ctx, depth + 1) })) }); break; }
@@ -181,7 +217,8 @@ function decodeEntities(s: string): string {
 
 /** Inline Markdown (a code walk's note) to the inline tree. */
 export function mdInline(src: string, ctx: MdContext): MdInline[] {
-  const b = mdBlocks(src, ctx);
+  // a heading inside an inline text (a code walk note, a banner) has no id on the page and is not in its table of contents: it must not take a number from the page's counter
+  const b = mdBlocks(src, { ...ctx, slugger: new GithubSlugger(), heads: [] });
   const flat = (x: MdBlock): MdInline[] => (x.t === "p" || x.t === "text" || x.t === "h" ? x.c : x.t === "raw" ? [{ t: "text", v: x.text }] : x.t === "code" ? [{ t: "code", v: x.text }] : []);
   return b.flatMap((x, i) => [...(i ? [{ t: "br" } as MdInline] : []), ...flat(x)]);
 }

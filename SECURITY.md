@@ -59,6 +59,19 @@ default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src
 A page rendered only in the browser, without mermaid, works under `style-src 'self'`: React sets styles through the
 DOM, which CSP allows (0 violations on every other part).
 
+## Trusted Types
+
+No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements, and the mermaid
+part attaches its cleaned SVG as nodes. For a page under `require-trusted-types-for 'script'`:
+
+- `durian-hypermedia/react/strict` reaches neither mermaid nor DOMPurify; its whole import graph (dependencies
+  included, React left out) has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`).
+- `bun run tt` renders every fixture (hostile ones included) in the browser only, through the strict entry, under the
+  policy: 0 violations. A control page that puts a plain string into `innerHTML` must be refused, or the check fails.
+- Mermaid diagrams go to the host's `Mermaid` slot. The full entry's in-page mermaid uses `innerHTML` inside the
+  library and is refused under the policy (`bun scripts/csp-check.ts --trusted-types --full`).
+
 ## Reporting
 
 Report a security problem privately to the maintainers (contact to be set when the repo opens), not in a public issue.

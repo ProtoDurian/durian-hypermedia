@@ -5,15 +5,15 @@ view, the theme tokens to map, the sizes, what is optional, and how to add the h
 
 ## 0. Pin a version
 
-Releases are git tags `v<version>` (`v0.1.0` is the first); the package is not on a registry. Pin the tag, never a
+Releases are git tags `v<version>` (`v0.1.0` was the first, `v0.3.0` is the latest); the package is not on a registry. Pin the tag, never a
 branch, so the renderer under your pages only changes when you move the pin:
 
 ```sh
-bun add git+https://github.com/<owner>/durian-hypermedia.git#v0.1.0
+bun add git+https://github.com/<owner>/durian-hypermedia.git#v0.3.0
 ```
 
 ```json
-{ "dependencies": { "durian-hypermedia": "git+https://github.com/<owner>/durian-hypermedia.git#v0.1.0" } }
+{ "dependencies": { "durian-hypermedia": "git+https://github.com/<owner>/durian-hypermedia.git#v0.3.0" } }
 ```
 
 Bun reads the TypeScript sources directly (the `bun` export condition); for Node and other bundlers the install runs
@@ -28,8 +28,9 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 | `durian-hypermedia` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `defaultUrlPolicy`, every type |
 | `durian-hypermedia/server` | Bun or Node | `highlight(doc)`: colours for code (Code Hike on WebAssembly) |
 | `durian-hypermedia/react` | React 18 or 19 | `DhDocument` (every part), each part component, `DEFAULT_SLOTS`, `UI` |
+| `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; mermaid drawn by your `Mermaid` slot; no mermaid, no DOMPurify, no HTML-string sink |
 | `durian-hypermedia/react/document` | React | `DocumentView`: the document with only the parts you pass |
-| `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
+| `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `mermaid-host` (no library), `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
 | `durian-hypermedia/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
 | `durian-hypermedia/styles.css` | CSS | every rule under `.dh-doc` |
 
@@ -79,6 +80,10 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   theme="dark"               // or leave it to <html data-theme> / the system
   motion="off"               // still everything (also: prefers-reduced-motion)
   slots={{ Frame, Callout, Banner, Error, Spinner }}   // swap the chrome
+  // and draw Markdown your way (no default: leave one out and the renderer draws it):
+  //   Code {lang,text,meta,hl}, InlineCode {text}, Link {href,title,external,children},
+  //   Table {align,head,rows,headText}, Heading {depth,level,id,text,children}, Mermaid {src,title,step,active}
+  demoteHeadings={2}         // "#" draws as <h3>
   blocks={[terminalSession, taskBlock]}
   inlines={[fileRef, taskRef]}
   urlPolicy={policy}         // checked again at render time
@@ -98,6 +103,15 @@ headless Chrome (`bun run csp`). `style-src 'unsafe-inline'` is needed for the `
 server-rendered HTML (code colours, sizes) and for mermaid, which puts a `<style>` element and style attributes in its SVG, even in the browser. Without
 `'unsafe-inline'` a page rendered only in the browser works for every part (mermaid draws, but unstyled; React sets styles through
 the DOM, which CSP allows); see the notes in SECURITY.md.
+
+**Trusted Types.** Under `require-trusted-types-for 'script'`, use `durian-hypermedia/react/strict` and give a
+`Mermaid` slot (for example, draw in your own sandboxed frame and show the SVG as an `<img>`). That entry's import graph
+holds no mermaid, no DOMPurify and no HTML-string sink (`test/trusted-types.test.ts`), and every fixture renders under
+the policy with 0 violations (`bun run tt`). The full entry works there too except its in-page mermaid, which the
+browser refuses (the diagram's source stays on the page).
+
+**Messages, not pages.** For chat-like text where a leading `---` is a rule, not front matter:
+`parse(text, { frontMatter: false })`.
 
 **Phones.** Every part has a layout for 390 and 360 px wide screens (stacked, or a scrollable part with a visible hint);
 nothing pushes the page sideways. Touch steps the parts and moves the animation stage.

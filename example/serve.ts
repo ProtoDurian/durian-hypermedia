@@ -2,12 +2,14 @@
 // Serve the example site with a strict Content-Security-Policy header.
 //   bun example/serve.ts [dir] [port] [--strict-style]
 // --strict-style also drops 'unsafe-inline' from style-src, to see what still needs it.
+// --trusted-types adds require-trusted-types-for 'script' (no HTML string may reach a DOM sink).
 import { join, resolve, normalize } from "node:path";
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const DIR = resolve(args[0] ?? join(import.meta.dir, "dist"));
 const PORT = +(args[1] ?? 4517);
 const style = process.argv.includes("--strict-style") ? "style-src 'self'" : "style-src 'self' 'unsafe-inline'";
-export const CSP = `default-src 'self'; script-src 'self'; ${style}; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`;
+const tt = process.argv.includes("--trusted-types") ? "; require-trusted-types-for 'script'" : "";
+export const CSP = `default-src 'self'; script-src 'self'; ${style}; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'${tt}`;
 const TYPES: Record<string, string> = { html: "text/html; charset=utf-8", js: "text/javascript", css: "text/css", json: "application/json", svg: "image/svg+xml", png: "image/png", woff2: "font/woff2" };
 Bun.serve({
   port: PORT, hostname: "127.0.0.1",

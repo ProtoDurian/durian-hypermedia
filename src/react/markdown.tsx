@@ -5,6 +5,7 @@ import { Pre, type HighlightedCode } from "codehike/code";
 import { mark, add, del } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
+import { inlineText } from "../markdown";
 import type { MdBlock, MdInline, MarkdownBlock } from "../types";
 
 // the mouse icon: the button the action presses is filled; a double click adds a "2", a scroll arrows, a drag a move arrow
@@ -27,19 +28,20 @@ function MouseIcon({ press, badge }: { press: string; badge: string }) {
 }
 
 export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
-  const { urlPolicy, hostInlines } = useDh();
+  const { urlPolicy, hostInlines, slots } = useDh();
   return <>{c.map((x, i) => {
     switch (x.t) {
       case "text": return <React.Fragment key={i}>{x.v}</React.Fragment>;
       case "strong": return <strong key={i}><Inline c={x.c} /></strong>;
       case "em": return <em key={i}><Inline c={x.c} /></em>;
       case "del": return <del key={i}><Inline c={x.c} /></del>;
-      case "code": return <code key={i}>{x.v}</code>;
+      case "code": return slots.InlineCode ? <slots.InlineCode key={i} text={x.v} /> : <code key={i}>{x.v}</code>;
       case "br": return <br key={i} />;
       case "link": {
         const href = x.href == null ? null : applyUrlPolicy(x.href, "link", x.href.startsWith("#") ? undefined : urlPolicy);
         if (href == null) return <span key={i} className="dh-link-off"><Inline c={x.c} /></span>;
         const external = /^[a-z][a-z0-9+.-]*:|^\/\//i.test(href);
+        if (slots.Link) return <slots.Link key={i} href={href} title={x.title} external={external}><Inline c={x.c} /></slots.Link>;
         return <a key={i} href={href} title={x.title} {...(external ? { rel: "noreferrer noopener", target: "_blank" } : {})}><Inline c={x.c} /></a>;
       }
       case "img": {
@@ -64,12 +66,15 @@ export function CodeBlock({ text, lang, hl }: { text: string; lang: string; hl?:
 }
 
 export function Md({ blocks }: { blocks: MdBlock[] }): React.ReactElement {
-  const { slots } = useDh();
+  const { slots, demoteHeadings } = useDh();
   return <>{blocks.map((b, i) => {
     switch (b.t) {
       case "p": return <p key={i}><Inline c={b.c} /></p>;
       case "text": return <React.Fragment key={i}><Inline c={b.c} /></React.Fragment>;
-      case "h": { const H = `h${Math.min(6, Math.max(1, b.depth))}` as "h2"; return <H key={i} id={b.id}><a className="h-anchor" href={`#${b.id}`} aria-hidden="true" tabIndex={-1}>#</a><Inline c={b.c} /></H>; }
+      case "h": {
+        const level = Math.min(6, Math.max(1, b.depth + demoteHeadings));
+        if (slots.Heading) return <slots.Heading key={i} depth={b.depth} level={level} id={b.id} text={b.text}><Inline c={b.c} /></slots.Heading>;
+        const H = `h${level}` as "h2"; return <H key={i} id={b.id}><a className="h-anchor" href={`#${b.id}`} aria-hidden="true" tabIndex={-1}>#</a><Inline c={b.c} /></H>; }
       case "list": {
         const items = b.items.map((it, k) => <li key={k} className={it.task ? "task" : undefined}>{it.task ? <input type="checkbox" checked={it.checked} disabled readOnly /> : null}<Md blocks={it.c} /></li>);
         return b.ordered ? <ol key={i} start={b.start != null && b.start !== 1 ? b.start : undefined}>{items}</ol> : <ul key={i}>{items}</ul>;
@@ -82,8 +87,11 @@ export function Md({ blocks }: { blocks: MdBlock[] }): React.ReactElement {
           <Md blocks={rest} />
         </slots.Callout>;
       }
-      case "code": return <CodeBlock key={i} text={b.text} lang={b.lang} hl={b.hl} />;
-      case "table": return (
+      case "code": return slots.Code ? <slots.Code key={i} lang={b.lang} text={b.text} meta={b.meta ?? ""} hl={b.hl} /> : <CodeBlock key={i} text={b.text} lang={b.lang} hl={b.hl} />;
+      case "table": return slots.Table ? (
+        <slots.Table key={i} align={b.align} headText={b.head.map(inlineText)}
+          head={b.head.map((c, k) => <Inline key={k} c={c} />)} rows={b.rows.map((r) => r.map((c, j) => <Inline key={j} c={c} />))} />
+      ) : (
         <div key={i} className="table-wrap"><table>
           <thead><tr>{b.head.map((c, k) => <th key={k} style={b.align[k] ? { textAlign: b.align[k]! } : undefined}><Inline c={c} /></th>)}</tr></thead>
           <tbody>{b.rows.map((r, k) => <tr key={k}>{r.map((c, j) => <td key={j} style={b.align[j] ? { textAlign: b.align[j]! } : undefined}><Inline c={c} /></td>)}</tr>)}</tbody>

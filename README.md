@@ -19,7 +19,7 @@ This package holds:
 | the styles | `durian-hypermedia/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
 | fixtures | `fixtures/` | one page per part and option, plus a hostile set |
 
-Licence: to be decided.
+Licence: to be decided (see [Licence](#licence)).
 
 ## Quick start
 
@@ -80,6 +80,32 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | `blocks` | none | the host's own fenced blocks (ADOPT.md) |
 | `inlines` | none | the host's own inline references, like `@src/a.ts` (ADOPT.md) |
 | `publicView` | `false` | drop `> **Security finding:**` callouts from the LLM view |
+| `frontMatter` | `true` | `false`: a leading `---` block is Markdown (a rule and text the reader sees), not front matter |
+
+## Drawing Markdown your own way
+
+`slots` also take the Markdown elements. Each has no default: leave it out and the renderer draws the element itself.
+
+| Slot | Gets | For |
+| --- | --- | --- |
+| `Code` | `{ lang, text, meta, hl }` | fenced code blocks: your own colours, a Copy button |
+| `InlineCode` | `{ text }` | inline code spans |
+| `Link` | `{ href, title, external, children }` | every link the URL policy let through; nothing sets `target` when you draw it |
+| `Table` | `{ align, head, rows, headText }` | tables; cells arrive as React children, never HTML |
+| `Heading` | `{ depth, level, id, text, children }` | headings; `demoteHeadings={2}` turns `#` into `<h3>` with or without the slot |
+| `Mermaid` | `{ src, title, step, active }` | each step of a mermaid diagram, drawn your way (mermaid is then never loaded) |
+
+```tsx
+<DhDocument doc={doc} demoteHeadings={2}
+  slots={{ Code: MyCode, InlineCode: MyInlineCode, Link: MyLink, Table: MyTable, Mermaid: MyDiagram }} />
+```
+
+## Trusted Types
+
+`durian-hypermedia/react/strict` is every part for a page under `require-trusted-types-for 'script'`: it imports
+neither mermaid nor DOMPurify (diagrams go to your `Mermaid` slot, or show their source), and no module it reaches sets
+an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
+policy in headless Chrome (0 violations).
 
 ## Theming
 
@@ -95,6 +121,7 @@ bun test ./test/            # parser, renderer, hostile input, caps, host blocks
 bun run typecheck
 bun run example             # every fixture at http://127.0.0.1:4517/, served with a strict CSP
 bun run csp                 # opens every example page in headless Chrome and counts CSP violations (needs Chrome)
+bun run tt                  # every fixture through the strict entry under require-trusted-types-for 'script' (needs Chrome)
 bun run sizes               # bundle size per entry, minified and gzipped
 bun run hygiene             # fails on machine paths, emails, tokens, names
 bun run build               # dist/ (ESM per entry) and dist/styles.css
@@ -102,6 +129,11 @@ bun run build               # dist/ (ESM per entry) and dist/styles.css
 
 This package is the source of `src/core/`, `src/ui/` and `SPEC.md`: edit them here. `scripts/sync.ts` copied them from a
 private prototype once and is frozen: running it would overwrite this package's files with that older copy.
+
+## Licence
+
+To be decided. Until a `LICENSE` file is in this repo, no licence is granted. It will land in a tagged release with a
+CHANGELOG entry.
 
 ## Versions
 

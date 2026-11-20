@@ -40,6 +40,8 @@ export interface ParseOptions {
   inlines?: InlineDef<any, any>[];
   /** drop "> **Security finding:**" callouts from the LLM view (a public render) */
   publicView?: boolean;
+  /** false: a leading "---" block is Markdown (a rule and text the reader sees), not front matter (default true) */
+  frontMatter?: boolean;
 }
 
 // what parse() keeps for llmView() and check() of the same Document in this process
@@ -88,7 +90,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   return withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
-    const fmText = clean.match(/^---\n([\s\S]*?)\n---\n/)?.[1];
+    const fmOn = opts.frontMatter !== false;
+    const fmText = fmOn ? clean.match(/^---\n([\s\S]*?)\n---\n/)?.[1] : undefined;
     if (fmText != null && tooManyAliases(fmText)) {
       problems.push({ line: 1, level: "error", message: "the front matter uses too many YAML anchors and aliases; it is ignored" });
       return finish(parseSafe(clean.replace(/^---\n[\s\S]*?\n---\n/, "\n".repeat(fmText.split("\n").length + 2))));
@@ -97,11 +100,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
     function parseSafe(t: string): DhDoc | null {
       const path = opts.path ?? "page.dh.md";
-      try { return parseDoc(path, t); }
+      try { return parseDoc(path, t, { frontMatter: fmOn }); }
       catch (e) {
         if (e instanceof ParseError) { problems.push({ line: e.line, level: "error", message: e.message }); return null; }
         // most often the front matter is not valid YAML: read the page without it
-        const m = t.match(/^---\n[\s\S]*?\n---\n/);
+        const m = fmOn ? t.match(/^---\n[\s\S]*?\n---\n/) : null;
         if (m) {
           problems.push({ line: 1, level: "error", message: `the front matter could not be read (${(e as Error).message}); it is ignored` });
           try { return parseDoc(path, "\n".repeat(m[0].split("\n").length - 1) + t.slice(m[0].length)); } catch (e2) { if (e2 instanceof ParseError) problems.push({ line: e2.line, level: "error", message: e2.message }); return null; }

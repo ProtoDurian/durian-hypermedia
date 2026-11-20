@@ -3,8 +3,8 @@ import React, { useMemo } from "react";
 import type { HighlightedCode } from "codehike/code";
 import { CodeWalk, type WalkStep } from "../ui/parts";
 import { packCode, walkRuns, type Packed } from "../ui/codewalk";
-import { inlineHtml } from "../markdown";
 import { useDh, plainCode } from "./context";
+import { Inline } from "./markdown";
 import type { CodeWalkBlock } from "../types";
 const dedent = (text: string) => { const ls = text.split("\n"); const by = Math.min(...ls.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)![0].length)); const n = Number.isFinite(by) ? by : 0; return { text: ls.map((l) => l.slice(n)).join("\n"), by: n }; };
 export function codewalkProps(b: CodeWalkBlock) {
@@ -23,8 +23,8 @@ export function codewalkProps(b: CodeWalkBlock) {
       if (s.hl) code = s.hl as HighlightedCode; else { const d = dedent(s.code); by = d.by; code = plainCode(d.text, s.lang); }
       rows = Math.max(rows, s.code.split("\n").length);
     }
-    // the note is the safe inline tree from parse(), turned into escaped HTML here (the shared component takes HTML)
-    steps.push({ file: s.file, repo: s.repo, commit: s.commit, lines: s.lines, focus: s.focus, marks: s.marks, code, dedent: by, note: inlineHtml(s.note ?? []), error: s.error, animated: !!s.animated, key: s.key });
+    // the note is the safe inline tree from parse(), drawn as React children (no HTML string)
+    steps.push({ file: s.file, repo: s.repo, commit: s.commit, lines: s.lines, focus: s.focus, marks: s.marks, code, dedent: by, note: <Inline c={s.note ?? []} />, error: s.error, animated: !!s.animated, key: s.key });
   });
   return { steps, files, rows: Math.min(rows, 20) };
 }

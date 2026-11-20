@@ -4,6 +4,63 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.3.0 (git tag v0.3.0)
+
+A host can draw the Markdown elements itself, and the renderer runs under Trusted Types
+(`require-trusted-types-for 'script'`). No change to the format (still version 8) or to the `Document` shape's number
+(`ast: 1`; one optional field added).
+
+### Added
+
+- **Markdown slots** on `DocumentView` / `DhDocument` `slots`. They have no default: without one the renderer draws
+  the element exactly as in 0.1.0.
+  - `Code` gets `{ lang, text, meta, hl }` for a fenced code block (not a part): the host's colours, Copy button, references.
+  - `InlineCode` gets `{ text }`.
+  - `Link` gets `{ href, title, external, children }` for every link the URL policy let through. With the slot given,
+    nothing sets `target`; the default renderer still opens external links in a new tab.
+  - `Table` gets `{ align, head, rows, headText }`: the parsed header and rows, each cell drawn as React children (no
+    HTML), and the header as plain text for phone row labels.
+  - `Heading` gets `{ depth, level, id, text, children }` (`level` is after `demoteHeadings`).
+  - `Mermaid` gets `{ src, title, step, active }` and draws one step of a mermaid diagram. With it given, the mermaid
+    part never loads mermaid or DOMPurify.
+- **`demoteHeadings`** on `DocumentView` / `DhDocument`: adds n to every Markdown heading's level (at most h6), so a
+  message's `#` sits below the host's own headings.
+- **`parse(text, { frontMatter: false })`**: a leading `---` block is Markdown (a rule and the text after it), not
+  front matter; line numbers stay the same. `llmView` and `check` take the same option.
+- **`durian-hypermedia/react/strict`**: every part, for pages under Trusted Types. Its mermaid part is
+  `HostMermaidPart`: it imports neither mermaid nor DOMPurify, draws each step with the host's `Mermaid` slot, and
+  without one shows the diagram's source as text.
+- **`durian-hypermedia/react/mermaid-host`**: `HostMermaidPart` alone.
+- **`meta` on Markdown code blocks** in the tree (`{ t: "code", lang, meta?, text }`): the info string after the
+  language, only when there is one.
+- **`inlineText(c)`**: the plain text of an inline tree.
+- **Tests.** `test/slots.test.tsx`: each slot, heading demotion, front matter off, code walk notes, mermaid drawn by the
+  host, and every fixture through the strict entry. `test/trusted-types.test.ts`: the strict entry's whole import
+  graph (dependencies included, React left out) holds no mermaid, no DOMPurify and no HTML-string sink
+  (`dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `createContextualFragment`,
+  `document.write`, `srcdoc`), with a control on the full entry. `bun run tt`: every fixture (85 pages) rendered in
+  headless Chrome by the strict entry, in the browser only, under `require-trusted-types-for 'script'`: 0 violations;
+  a control page whose plain-string `innerHTML` must be refused proves the check sees violations.
+
+### Changed
+
+- **Code walk notes are React children**: the parsed inline tree, drawn by the renderer, so the `Link` and
+  `InlineCode` slots reach notes too. They no longer go through `dangerouslySetInnerHTML`. A note's external link now
+  opens in a new tab like every other link (in 0.1.0 it did not).
+
+### Removed
+
+- The legacy `Tabs` component with an `html` prop (`src/ui/parts.tsx`). No entry used it; `TabsPart` draws parsed
+  blocks. Nothing under `src/` sets an HTML string any more.
+- The internal `inlineHtml` helper (`src/markdown.ts`; it was never exported from an entry).
+
+### Known limits
+
+- The full entry (`durian-hypermedia/react`) still draws mermaid in the page when no `Mermaid` slot is given. Under
+  Trusted Types the browser refuses mermaid's own `innerHTML` (4 fixture pages; see
+  `bun scripts/csp-check.ts --trusted-types --full`): the diagram's source stays on the page. Use the strict entry or
+  the slot there.
+- Licence: still to be decided; no LICENSE file in this release (README, "Licence").
 ## 0.2.0
 
 ### Added

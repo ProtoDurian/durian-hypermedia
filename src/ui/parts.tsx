@@ -35,11 +35,17 @@ function onArrows(e: React.KeyboardEvent, go: (d: number) => void) {
 }
 
 // ---------------------------------------------------------------- code walk: Code Hike slideshow with a step slider
-export type WalkStep = { file: string; repo: string; commit: string | null; lines: [number, number] | null; focus: [number, number] | null; marks: number[]; code: HighlightedCode | null; dedent: number; note: string; error: string | null; animated?: boolean; key?: string };
+// note: React children (the package draws the parsed inline tree); the site passes an HTML string with its own Note (codewalk-html.tsx)
+export type WalkStep = { file: string; repo: string; commit: string | null; lines: [number, number] | null; focus: [number, number] | null; marks: number[]; code: HighlightedCode | null; dedent: number; note: React.ReactNode; error: string | null; animated?: boolean; key?: string };
+export type WalkNoteProps = { k: number; active: boolean; note: React.ReactNode };
+// the default note: React children only, so no HTML string reaches the DOM
+export function WalkNote({ k, active, note }: WalkNoteProps) {
+  return <div className={cx("cw-note", active && "is-active")} aria-hidden={!active}><span className="cw-num">{k + 1}</span>{note}</div>;
+}
 // Two modes (format version 7). Animated: only for the same code changing, the morph of Code Hike. Still: the whole file, the
 // step's lines open and marked, the rest folded; a move switches marks and folds at once. Steps joined by animated moves form
 // a run; a run of one step is still.
-export function CodeWalk({ steps, files, ui, rows }: { steps: WalkStep[]; files?: Record<string, Packed>; ui: Ui; rows: number }) {
+export function CodeWalk({ steps, files, ui, rows, Note = WalkNote }: { steps: WalkStep[]; files?: Record<string, Packed>; ui: Ui; rows: number; Note?: React.ComponentType<WalkNoteProps> }) {
   const [i, setI] = useState(0);
   const [opened, setOpened] = useState<{ i: number; keys: string[] }>({ i: 0, keys: [] });
   const go = (k: number) => setI(Math.max(0, Math.min(steps.length - 1, k)));
@@ -74,7 +80,7 @@ export function CodeWalk({ steps, files, ui, rows }: { steps: WalkStep[]; files?
           : <div className="cw-error">{s.error ?? "no code"}</div>}
       </div>
       <div className="cw-notes">
-        {steps.map((st, k) => <div key={k} className={cx("cw-note", k === i && "is-active")} aria-hidden={k !== i} dangerouslySetInnerHTML={{ __html: `<span class="cw-num">${k + 1}</span>${st.note}` }} />)}
+        {steps.map((st, k) => <Note key={k} k={k} active={k === i} note={st.note} />)}
       </div>
       <Controls ui={ui} i={i} n={steps.length} onGo={go} label={ui.step} />
     </div>
@@ -316,28 +322,19 @@ export function Terminal({ steps, ui, title }: { steps: { title: string; lines: 
   );
 }
 
-// ---------------------------------------------------------------- tabs
-export function Tabs({ tabs, id }: { tabs: { label: string; html: string }[]; id: string }) {
-  const [i, setI] = useState(0);
-  return (
-    <div className="tabs">
-      <div className="tab-bar" role="tablist">
-        {tabs.map((t, k) => <button key={k} type="button" role="tab" id={`${id}-t${k}`} aria-controls={`${id}-p${k}`} aria-selected={k === i} tabIndex={k === i ? 0 : -1} onClick={() => setI(k)} onKeyDown={(e) => onArrows(e, (d) => { const n = (i + d + tabs.length) % tabs.length; setI(n); document.getElementById(`${id}-t${n}`)?.focus(); })}>{t.label}</button>)}
-      </div>
-      {tabs.map((t, k) => <div key={k} role="tabpanel" id={`${id}-p${k}`} aria-labelledby={`${id}-t${k}`} hidden={k !== i} className="tab-panel" dangerouslySetInnerHTML={{ __html: t.html }} />)}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- diagram: a mermaid block; with steps it builds up one step at a time
 // Every step is drawn at once into one grid cell, so the stage is as tall as the biggest step and never jumps.
-export function Diagram({ steps, ui }: { steps: { title: string; src: string }[]; ui: Ui }) {
+// Draw: a host's own renderer for each step (it gets the mermaid source); without it the page's script draws [data-mermaid] boxes.
+export type DiagramDrawProps = { src: string; title: string; step: number; active: boolean };
+export function Diagram({ steps, ui, Draw }: { steps: { title: string; src: string }[]; ui: Ui; Draw?: React.ComponentType<DiagramDrawProps> }) {
   const [i, setI] = useState(0);
   const go = (k: number) => setI(Math.max(0, Math.min(steps.length - 1, k)));
   return (
     <div className="dg" tabIndex={steps.length > 1 ? 0 : undefined} onKeyDown={(e) => steps.length > 1 && onArrows(e, (d) => go(i + d))}>
       <div className="dg-stack">
-        {steps.map((s, k) => <div key={k} className={cx("diagram", k === i && "is-active")} data-mermaid aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre></div>)}
+        {steps.map((s, k) => Draw
+          ? <div key={k} className={cx("diagram", "is-drawn", k === i && "is-active")} data-dh-host-diagram aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre><div className="mermaid-svg"><Draw src={s.src} title={s.title} step={k} active={k === i} /></div></div>
+          : <div key={k} className={cx("diagram", k === i && "is-active")} data-mermaid aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre></div>)}
       </div>
       {steps.length > 1 && <>
         <div className="anim-cap" aria-live="polite"><span className="cw-num">{i + 1}</span><span>{steps[i].title}</span></div>

@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 // Prove the CSP: serve the example site with a strict Content-Security-Policy and open every page in headless Chrome.
-//   bun example/build.tsx && bun scripts/csp-check.ts [--strict-style] [--only <regex>] [--out results.json]
+//   bun example/build.tsx && bun scripts/csp-check.ts [--strict-style] [--trusted-types [--full]] [--only <regex>] [--out results.json]
+// --trusted-types: serve with require-trusted-types-for 'script' and open the tt-*.html pages (every fixture, rendered in
+// the browser only by the strict entry); with --full, the ttfull-*.html pages (the full entry, mermaid in the page) instead.
 // For each page it counts: CSP violations (securitypolicyviolation events), script errors, alert() calls, and
 // dangerous nodes left in the document (script, iframe, object, embed, foreignObject, on* attributes, script URLs).
 // It also opens the 3D view of the first animation (three.js under the CSP), steps every stepped part once, and
@@ -12,11 +14,14 @@ import { readdirSync } from "node:fs";
 const PKG = resolve(import.meta.dir, "..");
 const DIR = join(PKG, "example/dist");
 const strictStyle = process.argv.includes("--strict-style");
+const trusted = process.argv.includes("--trusted-types");
+const full = process.argv.includes("--full");
+const ttPrefix = full ? "ttfull-" : "tt-";
 const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
 const outFile = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : "";
 const PORT = 4600 + Math.floor(Math.random() * 300);
 
-const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), DIR, String(PORT), ...(strictStyle ? ["--strict-style"] : [])], { stdout: "pipe", stderr: "inherit" });
+const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), DIR, String(PORT), ...(strictStyle ? ["--strict-style"] : []), ...(trusted ? ["--trusted-types"] : [])], { stdout: "pipe", stderr: "inherit" });
 await new Promise((r) => setTimeout(r, 800));
 
 const COLLECT = `(() => {
@@ -35,7 +40,7 @@ const DANGER = `(() => {
   return out;
 })()`;
 
-const pages = readdirSync(DIR).filter((f) => f.endsWith(".html") && f !== "index.html" && f !== "_control.html" && (!only || new RegExp(only).test(f))).sort();
+const pages = readdirSync(DIR).filter((f) => f.endsWith(".html") && !f.startsWith("_") && f !== "index.html" && (trusted ? f.startsWith(ttPrefix) : !/^tt(full)?-/.test(f)) && (!only || new RegExp(only).test(f))).sort();
 const p = await launch();
 await p.send("Page.addScriptToEvaluateOnNewDocument", { source: COLLECT });
 await p.viewport(1280, 900, false);
@@ -47,6 +52,15 @@ await p.viewport(1280, 900, false);
   const inline = await p.eval<number | undefined>(`window.__inline`);
   console.log(`control: ${c.csp.length} violation(s) seen, inline code ran: ${inline ? "yes" : "no"}`);
   if (c.csp.length < 2 || inline) { console.error("the control page did not report its violations: the check is broken"); process.exit(2); }
+}
+// under Trusted Types, a second control: a plain string into innerHTML must throw and be reported
+if (trusted) {
+  await p.goto(`http://127.0.0.1:${PORT}/_tt-control.html`);
+  await p.sleep(500);
+  const c = await p.eval<{ csp: string[] }>(`window.__dh`);
+  const threw = await p.eval<boolean | undefined>(`window.__ttThrew`);
+  console.log(`trusted types control: ${c.csp.length} violation(s) seen, the plain-string assignment threw: ${threw ? "yes" : "no"}`);
+  if (!c.csp.some((x) => x.startsWith("require-trusted-types-for")) || !threw) { console.error("the Trusted Types control did not report: the check is broken"); process.exit(2); }
 }
 const results: { page: string; csp: string[]; errors: string[]; alerts: number; danger: string[]; drawn: Record<string, number> }[] = [];
 for (const f of pages) {
@@ -72,6 +86,6 @@ for (const f of pages) {
 await p.close();
 server.kill();
 const total = { pages: results.length, csp: results.reduce((a, r) => a + r.csp.length, 0), errors: results.reduce((a, r) => a + r.errors.length, 0), alerts: results.reduce((a, r) => a + r.alerts, 0), danger: results.reduce((a, r) => a + r.danger.length, 0) };
-console.log(`\n${strictStyle ? "strict style-src 'self'" : "style-src 'self' 'unsafe-inline'"}: ${JSON.stringify(total)}`);
+console.log(`\n${strictStyle ? "strict style-src 'self'" : "style-src 'self' 'unsafe-inline'"}${trusted ? `, require-trusted-types-for 'script' (${full ? "full entry" : "strict entry"})` : ""}: ${JSON.stringify(total)}`);
 if (outFile) await Bun.write(outFile, JSON.stringify({ strictStyle, total, results }, null, 1));
 process.exit(total.csp + total.errors + total.alerts + total.danger ? 1 : 0);

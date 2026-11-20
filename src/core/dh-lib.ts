@@ -229,9 +229,10 @@ function splitItems(lines: string[], start: number, end: number, base: number, i
   return items;
 }
 
-export function parseDoc(path: string, text?: string): Doc {
+// frontMatter: false reads a leading "---" block as Markdown (a rule, then text), not as front matter
+export function parseDoc(path: string, text?: string, opts: { frontMatter?: boolean } = {}): Doc {
   const src = text ?? readFileSync(path, "utf8");
-  const m = src.match(/^---\n([\s\S]*?)\n---\n/);
+  const m = opts.frontMatter === false ? null : src.match(/^---\n([\s\S]*?)\n---\n/);
   const fmRaw = m ? m[1] : "";
   let fm: any = {};
   if (m) fm = yamlParse(fmRaw) ?? {};

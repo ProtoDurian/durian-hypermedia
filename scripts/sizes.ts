@@ -13,6 +13,7 @@ const PKG = resolve(import.meta.dir, "..");
 export const ENTRIES: [string, string][] = [
   ["durian-hypermedia (parse, llmView, check)", "src/index.ts"],
   ["durian-hypermedia/react (every part)", "src/react/index.tsx"],
+  ["durian-hypermedia/react/strict (every part, host draws mermaid)", "src/react/strict.tsx"],
   ["durian-hypermedia/react/document (no part)", "src/react/document.tsx"],
   ["react/terminal", "src/react/terminal.tsx"],
   ["react/filetree", "src/react/filetree.tsx"],
@@ -20,6 +21,7 @@ export const ENTRIES: [string, string][] = [
   ["react/codewalk", "src/react/codewalk.tsx"],
   ["react/chart", "src/react/chart.tsx"],
   ["react/mermaid", "src/react/mermaid.tsx"],
+  ["react/mermaid-host", "src/react/mermaid-host.tsx"],
   ["react/animation", "src/react/animation.tsx"],
   ["react/tierlist", "src/react/tierlist.tsx"],
   ["react/alignment", "src/react/alignment.tsx"],

@@ -26,6 +26,7 @@ export const ALL_PARTS: Components = {
 export function DhDocument(p: DocumentProps) { return <DocumentView {...p} components={{ ...ALL_PARTS, ...(p.components ?? {}) }} />; }
 export default DhDocument;
 export { DocumentView, Blocks, MarkdownPart, TerminalPart, FileTreePart, EditorPart, CodeWalkPart, ChartPart, MermaidPart, AnimationPart, TierListPart, AlignmentPart, TabsPart, AccordionPart, HumanPart };
-export { DEFAULT_SLOTS, plainCode, useDh, type Slots, type Components, type PartComponent } from "./context";
+export { DEFAULT_SLOTS, plainCode, useDh, type Slots, type Components, type PartComponent, type CodeSlotProps, type InlineCodeSlotProps, type LinkSlotProps, type TableSlotProps, type HeadingSlotProps, type MermaidSlotProps } from "./context";
+export { HostMermaidPart } from "./mermaid-host";
 export { UI, type Ui } from "../ui/ui";
 export type { DocumentProps };

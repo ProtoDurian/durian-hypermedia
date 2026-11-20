@@ -48,7 +48,9 @@ export interface CodeWalkBlock extends PartBase { type: "codewalk"; steps: CodeW
 
 export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string } }
 export interface MermaidBlock extends PartBase { type: "mermaid"; steps: { title: string; src: string }[] }
-export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> } }
+export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
+  /** what a reader sees as text in this animation, in story order: quoted labels, captions, say and note texts (animationTexts(block)) */
+  texts: string[] }
 export interface TierListBlock extends PartBase { type: "tierlist"; tier: TierSpec }
 export interface AlignmentBlock extends PartBase { type: "alignment"; align: AlignSpec }
 

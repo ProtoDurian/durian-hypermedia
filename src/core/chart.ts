@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // chart: The chart shape (kind, x, y, series with name and data) plus controls and let.
 // Pure: no node modules, so the browser evaluates a chart with the same code doccheck checks it with.
 import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, type Val } from "./expr";

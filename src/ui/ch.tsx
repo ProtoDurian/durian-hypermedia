@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // Code Hike (codehike.org, v1.1.0) annotation handlers used by every code view on the pages.
 // - SmoothPre: token transitions between steps (Code Hike's token-transitions util) and scroll-to-focus.
 // - focus / mark / add / del: block annotations, added from the part's data (the code itself carries no comments).

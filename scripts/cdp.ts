@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // A tiny headless-Chrome driver over the DevTools protocol (no Playwright on this box).
 // Real input: Input.dispatchMouseEvent / dispatchTouchEvent / dispatchKeyEvent go through
 // the browser's input pipeline, the same path as a person's mouse, finger and keyboard.

@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // Code walk, still mode (format version 7): no morph. The step's file is shown whole; the step's lines are open and
 // marked, the rest is folded into one-line "… 12 lines" bars the reader can open. Moving to the next step switches the
 // marks and the folds at once (with a short fade, which reduced motion drops).

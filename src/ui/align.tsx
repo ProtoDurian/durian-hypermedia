@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The alignment grid part (format version 8): a 2x2 or 3x3 grid with named axis ends. Items sit in cells, or at points
 // (a dot, and its label placed where it overlaps no other). Rendered at build time, hydrated in the browser, where the
 // point labels are placed by measuring and a tap (or hover) on an item with a note shows the note under the grid.

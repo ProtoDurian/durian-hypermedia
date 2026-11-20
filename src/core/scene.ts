@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // scene: the Durian Hypermedia animation engine, format version 6.
 // One language for every animation: a free 2D space of entities (shapes, containers, data structures, tokens),
 // connectors that follow their ends, layouts that place things, a camera, and steps of changes.

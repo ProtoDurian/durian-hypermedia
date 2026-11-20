@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // chart-config: turns an evaluated chart (tools/chart.ts) into a Chart.js config. Pure apart from reading CSS tokens
 // through the `tok` function it is given, so a test can run it without a browser.
 import { chartMeta, type ChartSeries } from "../core/chart";

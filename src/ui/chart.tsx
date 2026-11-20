@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The chart part: Chart.js, with the reader's controls feeding the chart's declared functions (tools/chart.ts, tools/expr.ts).
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { evalChart, chartMeta, type ChartControl } from "../core/chart";

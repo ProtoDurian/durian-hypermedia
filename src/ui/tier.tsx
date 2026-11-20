@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The tier list part (format version 8): rows of chips, one row per tier. Rendered to HTML at build time and
 // hydrated in the browser, where a tap (or hover) on an item with a note shows the note under the list.
 import React, { useState } from "react";

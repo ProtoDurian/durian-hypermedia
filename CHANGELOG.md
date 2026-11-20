@@ -4,6 +4,52 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.4.0
+
+### Changed
+
+- **Changed: anchors follow GitHub's slug rule.** A heading's id (`doc.headings[].id`, the `id` of a Markdown `h`
+  block, the table of contents' links, the `id` and the `#` link in the rendered HTML, the `Heading` slot's `id`) is now
+  what github.com gives the heading (`github-slugger` 2.0.0, SPEC.md section 1): lower case, punctuation dropped, each
+  space becomes `-`, unicode letters kept. Before, any run of non-letters became one `-`, the slug was cut at 80
+  characters, and a repeat got `-2`, `-2-2`. **Rendered anchors that change** (the old one stops working):
+  - A heading with punctuation inside a word: `cyan.yaml` is `#dh-cyanyaml` (was `#dh-cyan-yaml`); `A host's own block`
+    is `#dh-a-hosts-own-block` (was `#dh-a-host-s-own-block`); `v1.2` is `v12` (was `v1-2`).
+  - A heading with punctuation and a space: `Case: big file` is `case-big-file` (same as before), but `C++ / C#` is
+    `c--c` (was `c-c`), and a run of spaces is a run of dashes.
+  - A repeated heading: `x`, `x-1`, `x-2` (was `x`, `x-2`, `x-2-2`). The numbering counts every heading of any level, and
+    a tab or accordion title (it has no id) counts too, as on GitHub.
+  - A heading over 80 characters is no longer cut.
+  - Anchors that do not change: a heading of plain words (`Why this way` is `why-this-way`), the `dh-` prefix, a
+    unicode heading without punctuation.
+  - The text read: an image in a heading adds nothing to the id (its alt is still the shown text); raw HTML tags add
+    nothing; `:kbd[]`, `:mouse[]` and host inline references read as their source text; numeric character references
+    and `&amp; &lt; &gt; &quot; &apos; &nbsp;` are decoded; a code span is its source text.
+  - A heading with no slug characters (`!!!`) gets the id `S` when `idPrefix` is empty (the prefix alone otherwise).
+  - **Links**: a prose link `[x](#frag)` is treated as before (the `idPrefix` is put before the fragment unless the
+    fragment already begins with it). Write the GitHub anchor (`#cyanyaml`). A link to an old anchor
+    (`#dh-cyan-yaml`, `#dh-a-host-s-own-block`) now points nowhere, and an old repeat link such as `#dh-x-2` (the
+    second repeat) now reaches the third `x`: check every link to a repeated heading; and a stored link to `#dh-cyan-yaml` in a
+    page's own text must be edited. Persisted `Document` JSON keeps its old ids until the page is parsed again.
+  - **Fixtures**: of the example site only the pages of two fixtures change, `#dh-a-host-s-own-block` becomes
+    `#dh-a-hosts-own-block` (host-block) and `#dh-3d-not-only-code-a-building-s-floors` becomes
+    `#dh-3d-not-only-code-a-buildings-floors` (format 61).
+  - A heading in a code walk step note or in the banner no longer takes an id or a number from the page's counter
+    (before it could shift the numbers of the repeats on the page).
+  - **New warning**: when a heading and a part (or a tab or accordion item) get the same id, `problems` has a `warn`
+    naming both. `cyan.yaml` and a part `#cyanyaml` now clash, which they did not before.
+  - **Known differences from github.com** are listed in SPEC.md section 1 (named references beyond six, emoji shortcodes,
+    reference links defined elsewhere, `:::llm` headings, two letters `github-slugger` lower-cases differently).
+  Nothing else changes: on every fixture the LLM view (it prints no ids), the checks, `format` (still 8) and every other
+  field of the parse tree are byte-equal to 0.3.0.
+
+### Added
+
+- **`slug(text)`** exported from `durian-hypermedia`: the one anchor rule (GitHub's), for a tool that links to or checks a
+  heading anchor. SPEC.md section 1 states it.
+- Dependency `github-slugger` 2.0.0 (exact version, the one doccheck pins).
+
+
 ## 0.3.0 (git tag v0.3.0)
 
 A host can draw the Markdown elements itself, and the renderer runs under Trusted Types

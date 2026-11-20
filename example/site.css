@@ -1,0 +1,27 @@
+/* The example site's own page (not part of the package): a header and a column. Colours come from the package's tokens. */
+html, body { margin: 0; }
+body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif; }
+:root[data-theme="dark"] body { background: #0B1020; color: #D3D9E6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body { background: #0B1020; color: #D3D9E6; } }
+.ex-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-bottom: 1px solid rgba(127,127,127,.3); }
+.ex-brand { font-weight: 600; color: inherit; text-decoration: none; }
+.ex-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ex-tools button { font: inherit; font-size: 14px; padding: 4px 10px; border: 1px solid rgba(127,127,127,.5); border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.ex-tools button[aria-pressed="true"] { background: #555FFF; border-color: #555FFF; color: #fff; }
+.ex-label { font-size: 13px; opacity: .8; }
+.ex-main { max-width: 52rem; margin: 0 auto; padding: 16px; box-sizing: border-box; }
+.ex-crumb { font-size: 13px; opacity: .85; overflow-wrap: anywhere; }
+.ex-crumb a, .ex-list a { color: inherit; }
+.ex-list { padding-left: 1.2em; }
+.ex-list li { margin: 4px 0; overflow-wrap: anywhere; }
+.ex-list code, .ex-crumb code { font-size: 12px; opacity: .75; }
+.ex-problems { margin: 8px 0 16px; font-size: 14px; }
+/* the example host block */
+.fy-task { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--acc); border-radius: var(--r-s); background: var(--surface); color: var(--ink); }
+.fy-task-id { font: 600 13px/1 var(--font-mono); color: var(--acc-ink); }
+.fy-task-title { flex: 1; min-width: 8rem; }
+.fy-task-state { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); }
+.fy-task[data-state="done"] { border-left-color: var(--good); }
+.fy-task[data-state="doing"] { border-left-color: var(--warn); }
+.fy-ref { font: 500 .92em/1 var(--font-mono); padding: 1px 6px; border-radius: 6px; background: var(--acc-softer); color: var(--acc-ink); text-decoration: none; }
+.fy-ref-task { border: 1px solid var(--acc-soft); }

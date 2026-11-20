@@ -1,0 +1,63 @@
+// What every part component reads: the renderer's words, the URL policy, the style variant, the host's slots and blocks.
+import React, { createContext, useContext } from "react";
+import type { HighlightedCode } from "codehike/code";
+import { UI, type Ui } from "../ui/ui";
+import type { Block, BlockType, ErrorBlock, HostBlock } from "../types";
+import type { BlockDef } from "../blocks";
+import type { UrlPolicy } from "../safety";
+
+/** Chrome a host style may swap. Each gets the default's props; return any React node. */
+export interface Slots {
+  /** the box around every part (default: <figure class="part part-<type>">) */
+  Frame: React.ComponentType<{ block: Block; children: React.ReactNode }>;
+  /** a "> **Note:**" callout */
+  Callout: React.ComponentType<{ kind: string; label: string; children: React.ReactNode }>;
+  /** the front matter banner */
+  Banner: React.ComponentType<{ kind: string; children: React.ReactNode }>;
+  /** a part that went over a cap or could not be read */
+  Error: React.ComponentType<{ block: ErrorBlock }>;
+  /** shown while a part loads (mermaid, the 3D stage's library) */
+  Spinner: React.ComponentType<{ label: string }>;
+}
+export type PartComponent<B extends Block = any> = React.ComponentType<{ block: B }>;
+export type Components = Partial<Record<BlockType, PartComponent>>;
+
+export interface DhSettings {
+  ui: Ui;
+  urlPolicy?: UrlPolicy;
+  slots: Slots;
+  components: Components;
+  hostBlocks: Map<string, BlockDef<any, any>>;
+  /** components for host inline references, by name */
+  hostInlines: Map<string, React.ComponentType<{ text: string; data: any }>>;
+  /** show "What an LLM reads here" under each part */
+  llmPeek: boolean;
+}
+export const DhContext = createContext<DhSettings | null>(null);
+export function useDh(): DhSettings {
+  const c = useContext(DhContext);
+  return c ?? { ui: UI.en, slots: DEFAULT_SLOTS, components: {}, hostBlocks: new Map(), hostInlines: new Map(), llmPeek: false };
+}
+
+/** Code with no colours, in the shape Code Hike draws (used when highlight() did not run on the server). */
+export function plainCode(text: string, lang = "text"): HighlightedCode {
+  return { value: text, code: text, annotations: [], tokens: [text], lang, meta: "", themeName: "github-from-css", style: {} } as unknown as HighlightedCode;
+}
+
+const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
+export const DEFAULT_SLOTS: Slots = {
+  Frame: ({ block, children }) => <figure className={cx("part", `part-${block.type === "host" ? `host part-${(block as HostBlock).name}` : block.type}`)} id={"id" in block && block.id ? block.id : undefined} data-dh-part={block.type === "host" ? (block as HostBlock).name : block.type}>{children}</figure>,
+  Callout: ({ kind, children }) => <aside className={`callout callout-${kind}`}><span className="callout-icon">{CALLOUT_ICON[kind] ?? CALLOUT_ICON.note}</span><div className="callout-body">{children}</div></aside>,
+  Banner: ({ kind, children }) => <div className={`banner banner-${kind}`} role="note"><span className="banner-icon">{CALLOUT_ICON[BANNER_ICON[kind] ?? "note"]}</span><div><p>{children}</p></div></div>,
+  Error: ({ block }) => <div className="dh-error" role="alert"><b>{block.part ? `${block.part}: ` : ""}not shown</b> <span>{block.message}</span>{block.line ? <span className="dh-error-line"> (line {block.line})</span> : null}</div>,
+  Spinner: ({ label }) => <div className="dh-spinner" role="status"><span className="dh-spin" aria-hidden="true" /><span>{label}</span></div>,
+};
+const BANNER_ICON: Record<string, string> = { info: "note", new: "tip", draft: "important", deprecated: "warn" };
+export const CALLOUT_ICON: Record<string, React.ReactNode> = {
+  note: <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4" r="1.4" fill="currentColor" /><rect x="6.9" y="6.6" width="2.2" height="6.8" rx="1" fill="currentColor" /></svg>,
+  tip: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a4.6 4.6 0 0 0-2.7 8.3c.5.4.8.9.8 1.5v.4h3.8v-.4c0-.6.3-1.1.8-1.5A4.6 4.6 0 0 0 8 1.5z" fill="currentColor" /><rect x="6.1" y="12.6" width="3.8" height="1.9" rx=".9" fill="currentColor" /></svg>,
+  important: <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="6.8" y="2" width="2.4" height="8" rx="1.1" fill="currentColor" /><circle cx="8" cy="13" r="1.4" fill="currentColor" /></svg>,
+  warn: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /><rect x="7.1" y="6" width="1.8" height="4.4" rx=".8" fill="currentColor" /><circle cx="8" cy="12" r="1" fill="currentColor" /></svg>,
+  security: <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7.5" rx="1.6" fill="currentColor" /><path d="M5.3 7V5.2a2.7 2.7 0 0 1 5.4 0V7" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>,
+};
+export { cx };

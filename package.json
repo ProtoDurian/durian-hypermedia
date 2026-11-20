@@ -1,0 +1,154 @@
+{
+  "name": "durian-hypermedia",
+  "version": "0.1.0",
+  "description": "Durian Hypermedia: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "license": "SEE LICENSE IN README.md",
+  "files": [
+    "dist",
+    "src",
+    "fixtures",
+    "SPEC.md",
+    "README.md",
+    "CHANGELOG.md",
+    "ADOPT.md",
+    "THEME.md",
+    "SECURITY.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "bun": "./src/server.ts",
+      "import": "./dist/server.js"
+    },
+    "./react": {
+      "types": "./src/react/index.tsx",
+      "bun": "./src/react/index.tsx",
+      "import": "./dist/react/index.js"
+    },
+    "./react/document": {
+      "types": "./src/react/document.tsx",
+      "bun": "./src/react/document.tsx",
+      "import": "./dist/react/document.js"
+    },
+    "./react/markdown": {
+      "types": "./src/react/markdown.tsx",
+      "bun": "./src/react/markdown.tsx",
+      "import": "./dist/react/markdown.js"
+    },
+    "./react/terminal": {
+      "types": "./src/react/terminal.tsx",
+      "bun": "./src/react/terminal.tsx",
+      "import": "./dist/react/terminal.js"
+    },
+    "./react/filetree": {
+      "types": "./src/react/filetree.tsx",
+      "bun": "./src/react/filetree.tsx",
+      "import": "./dist/react/filetree.js"
+    },
+    "./react/editor": {
+      "types": "./src/react/editor.tsx",
+      "bun": "./src/react/editor.tsx",
+      "import": "./dist/react/editor.js"
+    },
+    "./react/codewalk": {
+      "types": "./src/react/codewalk.tsx",
+      "bun": "./src/react/codewalk.tsx",
+      "import": "./dist/react/codewalk.js"
+    },
+    "./react/chart": {
+      "types": "./src/react/chart.tsx",
+      "bun": "./src/react/chart.tsx",
+      "import": "./dist/react/chart.js"
+    },
+    "./react/mermaid": {
+      "types": "./src/react/mermaid.tsx",
+      "bun": "./src/react/mermaid.tsx",
+      "import": "./dist/react/mermaid.js"
+    },
+    "./react/animation": {
+      "types": "./src/react/animation.tsx",
+      "bun": "./src/react/animation.tsx",
+      "import": "./dist/react/animation.js"
+    },
+    "./react/tierlist": {
+      "types": "./src/react/tierlist.tsx",
+      "bun": "./src/react/tierlist.tsx",
+      "import": "./dist/react/tierlist.js"
+    },
+    "./react/alignment": {
+      "types": "./src/react/alignment.tsx",
+      "bun": "./src/react/alignment.tsx",
+      "import": "./dist/react/alignment.js"
+    },
+    "./react/containers": {
+      "types": "./src/react/containers.tsx",
+      "bun": "./src/react/containers.tsx",
+      "import": "./dist/react/containers.js"
+    },
+    "./react/hydrate": {
+      "types": "./src/react/hydrate.tsx",
+      "bun": "./src/react/hydrate.tsx",
+      "import": "./dist/react/hydrate.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./fixtures/*": "./fixtures/*",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "sync": "bun scripts/sync.ts",
+    "build": "bun scripts/build.ts",
+    "test": "bun test ./test/",
+    "typecheck": "tsc -p .",
+    "hygiene": "bun scripts/hygiene.ts",
+    "sizes": "bun scripts/sizes.ts --md",
+    "theme": "bun scripts/theme-doc.ts",
+    "example": "bun example/build.tsx && bun example/serve.ts",
+    "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
+    "prepare": "bun scripts/build.ts"
+  },
+  "peerDependencies": {
+    "react": ">=18 <20",
+    "react-dom": ">=18 <20",
+    "mermaid": "^11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mermaid": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "chart.js": "4.5.1",
+    "codehike": "1.1.0",
+    "dompurify": "3.4.18",
+    "marked": "15.0.12",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.13",
+    "@types/react": "18.3.27",
+    "@types/react-dom": "18.3.7",
+    "@types/three": "0.180.0",
+    "mermaid": "11.17.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typescript": "5.9.3"
+  },
+  "keywords": [
+    "markdown",
+    "documentation",
+    "llm",
+    "react",
+    "diagrams",
+    "charts",
+    "animation"
+  ]
+}

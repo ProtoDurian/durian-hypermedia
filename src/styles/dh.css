@@ -1,0 +1,84 @@
+/* The package's own rules: the document root, the safe-render pieces, the two shipped variants, motion and phones.
+   Everything reads theme tokens (THEME.md); nothing here names a colour. */
+
+.dh-doc {
+  color: var(--ink-2);
+  font: var(--w-body) var(--fs-m)/var(--lh-body) var(--font-sans);
+  overflow-wrap: break-word;
+  max-width: 100%;
+  min-width: 0;
+}
+.dh-doc img { max-width: 100%; height: auto; }
+.dh-doc pre { max-width: 100%; }
+.dh-doc li.task { list-style: none; margin-left: -1.3em; }
+.dh-doc li.task > input { margin: 0 .5em 0 0; vertical-align: -2px; accent-color: var(--acc); }
+.dh-doc .dh-link-off { text-decoration: underline dotted var(--faint); text-underline-offset: 3px; }
+.dh-doc .dh-img-off { display: inline-block; padding: 0 6px; border: 1px dashed var(--line-2); border-radius: var(--r-s); color: var(--faint); font-size: var(--fs-s); }
+
+/* what parse() refused, and raw HTML shown as text */
+.dh-doc .dh-error {
+  margin: var(--s-4) 0; padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--bad); border-left-width: 4px; border-radius: var(--r-s);
+  background: var(--bad-soft); color: var(--ink); font-size: var(--fs-s); line-height: 1.45;
+}
+.dh-doc .dh-error b { color: var(--bad-ink); font-weight: var(--w-strong); }
+.dh-doc .dh-error-line { color: var(--muted); }
+.dh-doc .dh-raw, .dh-doc .dh-fallback {
+  margin: var(--s-3) 0; padding: var(--s-3); overflow-x: auto;
+  border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface-2);
+  color: var(--ink-2); font: 400 var(--fs-s)/1.5 var(--font-mono); white-space: pre-wrap;
+}
+.dh-doc .dh-fallback::before { content: attr(data-dh-missing); display: block; margin-bottom: 4px; color: var(--faint); font: 600 11px/1.3 var(--font-sans); letter-spacing: .06em; text-transform: uppercase; }
+
+/* the loading spinner (mermaid); a slot can replace it */
+.dh-doc .dh-spinner { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; color: var(--muted); font-size: var(--fs-s); }
+.dh-doc .dh-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--acc); animation: dh-spin .8s linear infinite; }
+@keyframes dh-spin { to { transform: rotate(360deg); } }
+.dh-doc .dh-mermaid { position: relative; }
+.dh-doc .dh-mermaid .dh-spinner { position: absolute; top: 4px; right: 8px; padding: 0; }
+.dh-doc .dh-mermaid-missing .dh-spinner { display: none; }
+
+/* "What an LLM reads here", when the host asks for it */
+.dh-doc .llm-peek .pane-llm { white-space: pre-wrap; overflow-x: auto; max-height: 24rem; }
+
+/* ---- motion: the reader's setting, or a host style that turns motion off ---- */
+.dh-doc[data-dh-motion="off"] *, .dh-doc[data-dh-motion="off"] *::before, .dh-doc[data-dh-motion="off"] *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) {
+  .dh-doc *, .dh-doc *::before, .dh-doc *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ---- phones: nothing pushes the page sideways ---- */
+.dh-doc .table-wrap, .dh-doc .code-block, .dh-doc .ch-pre { max-width: 100%; overflow-x: auto; }
+.dh-doc figure.part { min-width: 0; max-width: 100%; }
+@media (max-width: 520px) {
+  .dh-doc { font-size: max(15px, var(--fs-s)); }
+}
+
+/* =====================================================================================================
+   Variants: <DhDocument variant="flat"> or variant="bold" sets data-dh-variant on the root.
+   A host style may write its own the same way: override the shape and motion tokens, then any selector.
+   ===================================================================================================== */
+
+/* flat: hairlines, small corners, no shadows, quicker motion */
+.dh-doc[data-dh-variant="flat"] {
+  --r-s: 3px; --r-m: 4px; --r-l: 6px;
+  --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
+  --dur-fast: 100ms; --dur: 160ms; --dur-slow: 240ms;
+}
+.dh-doc[data-dh-variant="flat"] :is(.term, .cw, .ide, .fx, .chart, .scn, .dg, .tl, .al, .code-block, .callout, .banner, .acc-item, .tabs) { box-shadow: none; }
+
+/* bold: square corners, thick ink borders, hard offset shadows, monospace headings and buttons, no motion */
+.dh-doc[data-dh-variant="bold"] {
+  --r-s: 0; --r-m: 0; --r-l: 0; --r-pill: 0;
+  --shadow-sm: 3px 3px 0 var(--ink); --shadow-md: 4px 4px 0 var(--ink); --shadow-lg: 6px 6px 0 var(--ink);
+  --font-display: var(--font-mono);
+  --dur-fast: 0ms; --dur: 0ms; --dur-slow: 0ms; --stagger: 0ms;
+}
+.dh-doc[data-dh-variant="bold"] :is(.term, .cw, .ide, .fx, .chart, .scn, .dg, .tl, .al, .code-block, .table-wrap) { border: 2px solid var(--ink); box-shadow: var(--shadow-md); }
+.dh-doc[data-dh-variant="bold"] :is(.callout, .banner) { border: 2px solid var(--ink); box-shadow: var(--shadow-sm); }
+.dh-doc[data-dh-variant="bold"] :is(h1, h2, h3, h4) { font-family: var(--font-mono); letter-spacing: 0; text-transform: uppercase; }
+.dh-doc[data-dh-variant="bold"] .btn { border: 2px solid var(--ink); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .04em; box-shadow: var(--shadow-sm); }
+.dh-doc[data-dh-variant="bold"] .btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.dh-doc[data-dh-variant="bold"] .tab-bar [role="tab"][aria-selected="true"] { background: var(--ink); color: var(--surface); }
+.dh-doc[data-dh-variant="bold"] .dh-spin { border-radius: 0; border-width: 3px; }
+.dh-doc[data-dh-variant="bold"] *, .dh-doc[data-dh-variant="bold"] *::before, .dh-doc[data-dh-variant="bold"] *::after { transition: none !important; animation-duration: 0s !important; }

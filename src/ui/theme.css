@@ -1,0 +1,225 @@
+/* ==========================================================================
+   THEME FILE — the ONLY place visual tokens live.
+   Contract: reference/theme.md (in the skill). Swap the look = replace this
+   file (and theme/fonts/). Kit CSS (src/kit.css) only reads var(--token).
+
+   Default theme "lavender-ink": light lavender-grey page, white cards, deep
+   navy ink, indigo accent, hot pink second accent, green/orange status.
+   Poppins + IBM Plex Mono, self-hosted (SIL OFL 1.1, licences in fonts/).
+   Dark mode is derived from the same family (the "terminal" navy).
+   ========================================================================== */
+
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 300; font-display: swap; src: url("fonts/poppins-300-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/poppins-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/poppins-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/poppins-600-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibmplexmono-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/ibmplexmono-600-latin.woff2") format("woff2"); }
+
+:root {
+  color-scheme: light;
+
+  /* --- surfaces ----------------------------------------------------------- */
+  --bg: #E6E8F2;            /* page plane */
+  --bg-glow-1: rgba(85, 95, 255, .13);   /* top-right radial glow */
+  --bg-glow-2: rgba(249, 25, 116, .07);  /* bottom-left radial glow */
+  --surface: #FFFFFF;       /* cards, panels, chart surface */
+  --surface-2: #F2F4F9;     /* inset rows, zebra, inactive tabs */
+  --surface-3: #E3E7F0;     /* pressed / track */
+  --line: #D0D6E3;          /* hairline borders */
+  --line-2: #B6BFD3;        /* stronger borders, axes */
+
+  /* --- ink (text). Contrast on --surface AND --bg checked by shoot audit -- */
+  --ink: #00081C;           /* headings, key text */
+  --ink-2: #273143;         /* body text (thin weight needs >= 7:1) */
+  --muted: #3A4560;         /* secondary text, captions (>= 7:1 on surface and page) */
+  --faint: #56627C;         /* meta text, only at weight >= 400 (>= 4.5:1) */
+
+  /* --- accents ------------------------------------------------------------- */
+  --acc: #555FFF;           /* primary accent: links, focus, "the answer" */
+  --acc-ink: #3039C8;       /* accent as text (>= 7:1 on surface) */
+  --acc-2: #7F87FF;
+  --acc-soft: #DEE0FF;
+  --acc-softer: #EEEFFF;
+  --hot: #F91974;           /* second accent: the problem, "not this" */
+  --hot-ink: #A80C4D;
+  --hot-soft: #FDD9E8;
+
+  /* --- status (fixed meaning; always paired with an icon + word) ---------- */
+  --good: #1CAA53;   --good-ink: #0B6B33;  --good-soft: #DCF1E3;
+  --warn: #FF760D;   --warn-ink: #9A4200;  --warn-soft: #FFE3CE;
+  --bad: #F91974;    --bad-ink: #A80C4D;   --bad-soft: #FDD9E8;
+  /* family colours (format version 6): an animation names its families, and each gets one of these, in order;
+     the base colour for lines, arrows and dots, -soft for fills, -ink for words */
+  --c1: #555FFF; --c1-soft: #E3E5FF; --c1-ink: #3039C8;
+  --c2: #0E9F9A; --c2-soft: #D3F2EF; --c2-ink: #0A6662;
+  --c3: #D99A00; --c3-soft: #FBEFC9; --c3-ink: #7A5600;
+  --c4: #9A5CF5; --c4-soft: #EDE2FF; --c4-ink: #5F2DB3;
+  --c5: #F26B1D; --c5-soft: #FFE4D3; --c5-ink: #9E4008;
+  --c6: #1F8FE0; --c6-soft: #D8ECFB; --c6-ink: #0F5D99;
+  --c7: #E2408A; --c7-soft: #FCDDEB; --c7-ink: #9C1C56;
+  --c8: #3FA34D; --c8-soft: #DDF1DF; --c8-ink: #216D2B;
+  /* a meter's fill and track (format version 8): a colour of its own, never a family's, so a progress bar stands
+     apart from the border of the box it sits in; a tone (warn, good, hot) still recolours the fill */
+  --meter: #1B2540; --meter-track: #D5DAE6;
+  --info: #555FFF;   --info-ink: #3039C8;  --info-soft: #EEEFFF;
+  --untested: #56627C; --untested-ink: #3A4560; --untested-soft: #E3E7F0;
+
+  /* --- text techniques ----------------------------------------------------- */
+  --mark-bg: #FFF0A8;       /* highlight marker */
+  --mark-ink: #00081C;
+  --strike-ink: #4E5873;    /* the "old" text in strike-then-replace (weight 400) */
+  --new-bg: #555FFF;        /* the "new" chip in strike-then-replace */
+  --new-ink: #FFFFFF;
+  --on-acc: #FFFFFF;        /* text on a solid accent / status fill */
+  --comment-mark: rgba(249, 25, 116, .20);  /* reader's comment highlight */
+  --ul-line: rgba(85, 95, 255, .55);        /* UL word underline (strong) */
+  --ul-line-soft: rgba(85, 95, 255, .25);   /* UL word underline (later uses) */
+
+  /* --- terminal / code (dark in both modes, like the reference deck) ------ */
+  --term: #0F1424;  --term-2: #171D30;  --term-line: #232B44;
+  --term-ink: #D3D9E6; --term-faint: #95A2BC;
+  --ch-1: #8D9AB5;  /* comment */      --ch-2: #FFB27A;  /* constant */
+  --ch-3: #9AD8FF;  /* entity/var */   --ch-4: #D3D9E6;  /* foreground */
+  --ch-5: #FF8DBA;  /* function */     --ch-6: #8FE3B0;  /* tag */
+  --ch-7: #B9BEFF;  /* keyword */      --ch-8: #A8E6C0;  /* string */
+  --ch-9: #FF6B8E;  /* invalid */      --ch-10: #0F1424;
+  --ch-11: rgba(249, 25, 116, .22);   /* diff deleted bg */
+  --ch-12: rgba(28, 170, 83, .22);    /* diff inserted bg */
+  --ch-13: rgba(255, 118, 13, .22);   /* diff changed bg */
+  --ch-14: #D3D9E6; --ch-15: #95A2BC; --ch-16: #0F1424; /* editor bg */
+  --ch-17: rgba(85, 95, 255, .20);    /* line highlight */
+  --ch-18: rgba(85, 95, 255, .14);    --ch-19: #95A2BC;
+  --ch-20: rgba(127, 135, 255, .35);  --ch-21: #555FFF;
+  --ch-22: #0A0E1B; /* tab strip */   --ch-23: #232B44; /* borders */
+  --ch-24: #56627C; /* line numbers */ --ch-25: #232B44; --ch-26: #171D30;
+
+  /* --- chart palette (validated with dataviz validate_palette.js) ---------
+     light on #FFFFFF: ALL CHECKS PASS (worst adjacent CVD dE 8.4).
+     Fixed order, never cycled. Max 5 series; fold the rest into "Other". */
+  --series-1: #555FFF; --series-2: #F91974; --series-3: #0E9FB8;
+  --series-4: #F2690B; --series-5: #1CAA53;
+  --grid: #E3E7F0;     --axis: #B6BFD3;
+
+  /* --- type ---------------------------------------------------------------- */
+  --font-sans: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --w-thin: 300;            /* body prose: thin, so ink must be >= 7:1 */
+  --w-body: 300;
+  --w-medium: 500;
+  --w-strong: 600;          /* bold = the ONE key point */
+  --w-head: 600;
+  --fs-xs: .8125rem;        /* 13px: meta, kicker */
+  --fs-s: .9375rem;         /* 15px: captions, chips */
+  --fs-m: 1.0625rem;        /* 17px: body */
+  --fs-l: 1.25rem;          /* 20px: lead */
+  --fs-xl: clamp(1.375rem, 3.6vw, 1.75rem);   /* h3 */
+  --fs-2xl: clamp(1.75rem, 5.4vw, 2.75rem);   /* h2 band title */
+  --fs-3xl: clamp(2.25rem, 8vw, 4.25rem);     /* h1 page title */
+  --fs-num: clamp(2.125rem, 8.5vw, 4.5rem);   /* BigNumber */
+  --lh-body: 1.62;
+  --lh-tight: 1.25;
+  --lh-head: 1.06;
+  --ls-head: -.03em;
+  --ls-kicker: .18em;
+
+  /* --- space (4px base) ---------------------------------------------------- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px; --s-5: 24px;
+  --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px; --s-10: 128px;
+  --gutter: clamp(16px, 4.5vw, 48px);         /* page side gutter (16px on phones) */
+  --band-gap: clamp(44px, 7vw, 80px);         /* vertical space between sections of the article */
+  --measure: 38rem;                            /* article column: ~65 characters */
+  --page-max: 72rem;
+
+  /* --- shape --------------------------------------------------------------- */
+  --r-s: 8px; --r-m: 14px; --r-l: 20px; --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 8, 28, .06), 0 2px 6px rgba(0, 8, 28, .05);
+  --shadow-md: 0 6px 16px rgba(0, 8, 28, .10), 0 1px 3px rgba(0, 8, 28, .06);
+  --shadow-lg: 0 18px 44px rgba(0, 8, 28, .18), 0 4px 12px rgba(0, 8, 28, .08);
+  --ring: 0 0 0 4px rgba(85, 95, 255, .16);
+  --ring-hot: 0 0 0 4px rgba(249, 25, 116, .13);
+
+  /* --- motion (every duration < 600ms; nothing loops forever) -------------- */
+  --ease: cubic-bezier(.2, .75, .25, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --dur-fast: 160ms;
+  --dur: 320ms;
+  --dur-slow: 560ms;
+  --stagger: 90ms;
+}
+
+/* ---------------- dark: same family, stepped for a navy page -------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #070B16; --bg-glow-1: rgba(108, 116, 255, .16); --bg-glow-2: rgba(240, 48, 126, .08);
+    --surface: #0F1424; --surface-2: #151B2E; --surface-3: #1D2439;
+    --line: #232B44; --line-2: #36415F;
+    --ink: #F4F6FB; --ink-2: #DCE1EC; --muted: #B4BDD1; --faint: #98A3BC;
+    --acc: #8D94FF; --acc-ink: #B9BEFF; --acc-2: #6C74FF; --acc-soft: #272D5C; --acc-softer: #1A1F42;
+    --hot: #FF4F96; --hot-ink: #FF8DBA; --hot-soft: #3B1529;
+    --good: #34C76E; --good-ink: #7BE3A4; --good-soft: #11301F;
+    --warn: #FF8F3A; --warn-ink: #FFB984; --warn-soft: #3A2410;
+    --bad: #FF4F96; --bad-ink: #FF8DBA; --bad-soft: #3B1529;
+    --c1: #8A92FF; --c1-soft: #262B57; --c1-ink: #B4B9FF;
+    --c2: #2DD4BF; --c2-soft: #143633; --c2-ink: #7EE8DA;
+    --c3: #F2C94C; --c3-soft: #3A3112; --c3-ink: #F7DD8C;
+    --c4: #B794FF; --c4-soft: #2E2350; --c4-ink: #D2BCFF;
+    --c5: #FF8A3D; --c5-soft: #3A2414; --c5-ink: #FFB27F;
+    --c6: #5AB4FF; --c6-soft: #15304A; --c6-ink: #9CD2FF;
+    --c7: #FF6FAE; --c7-soft: #3D1A2A; --c7-ink: #FF9DC8;
+    --c8: #6FD67E; --c8-soft: #17351C; --c8-ink: #A2E8AC;
+    --meter: #EEF1F8; --meter-track: #36415F;
+    --info: #8D94FF; --info-ink: #B9BEFF; --info-soft: #1A1F42;
+    --untested: #98A3BC; --untested-ink: #C5CDDD; --untested-soft: #1D2439;
+    --mark-bg: #5B4A00; --mark-ink: #FFF6CC;
+    --strike-ink: #A3ADC4; --new-bg: #8D94FF; --new-ink: #070B16; --on-acc: #070B16;
+    --comment-mark: rgba(255, 79, 150, .30);
+    --ul-line: rgba(141, 148, 255, .70); --ul-line-soft: rgba(141, 148, 255, .32);
+    --term: #060914; --term-2: #0D1120; --term-line: #232B44; --ch-16: #060914; --ch-22: #03050D; --ch-26: #0D1120;
+    --series-1: #6C74FF; --series-2: #F0307E; --series-3: #1496AC; --series-4: #E2620C; --series-5: #1E9C4F;
+    --grid: #1D2439; --axis: #36415F;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .40);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .30);
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, .55), 0 4px 12px rgba(0, 0, 0, .35);
+    --ring: 0 0 0 4px rgba(141, 148, 255, .22);
+    --ring-hot: 0 0 0 4px rgba(255, 79, 150, .18);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #070B16; --bg-glow-1: rgba(108, 116, 255, .16); --bg-glow-2: rgba(240, 48, 126, .08);
+  --surface: #0F1424; --surface-2: #151B2E; --surface-3: #1D2439;
+  --line: #232B44; --line-2: #36415F;
+  --ink: #F4F6FB; --ink-2: #DCE1EC; --muted: #B4BDD1; --faint: #98A3BC;
+  --acc: #8D94FF; --acc-ink: #B9BEFF; --acc-2: #6C74FF; --acc-soft: #272D5C; --acc-softer: #1A1F42;
+  --hot: #FF4F96; --hot-ink: #FF8DBA; --hot-soft: #3B1529;
+  --good: #34C76E; --good-ink: #7BE3A4; --good-soft: #11301F;
+  --warn: #FF8F3A; --warn-ink: #FFB984; --warn-soft: #3A2410;
+  --bad: #FF4F96; --bad-ink: #FF8DBA; --bad-soft: #3B1529;
+  --c1: #8A92FF; --c1-soft: #262B57; --c1-ink: #B4B9FF;
+  --c2: #2DD4BF; --c2-soft: #143633; --c2-ink: #7EE8DA;
+  --c3: #F2C94C; --c3-soft: #3A3112; --c3-ink: #F7DD8C;
+  --c4: #B794FF; --c4-soft: #2E2350; --c4-ink: #D2BCFF;
+  --c5: #FF8A3D; --c5-soft: #3A2414; --c5-ink: #FFB27F;
+  --c6: #5AB4FF; --c6-soft: #15304A; --c6-ink: #9CD2FF;
+  --c7: #FF6FAE; --c7-soft: #3D1A2A; --c7-ink: #FF9DC8;
+  --c8: #6FD67E; --c8-soft: #17351C; --c8-ink: #A2E8AC;
+  --meter: #EEF1F8; --meter-track: #36415F;
+  --info: #8D94FF; --info-ink: #B9BEFF; --info-soft: #1A1F42;
+  --untested: #98A3BC; --untested-ink: #C5CDDD; --untested-soft: #1D2439;
+  --mark-bg: #5B4A00; --mark-ink: #FFF6CC;
+  --strike-ink: #A3ADC4; --new-bg: #8D94FF; --new-ink: #070B16; --on-acc: #070B16;
+  --comment-mark: rgba(255, 79, 150, .30);
+  --ul-line: rgba(141, 148, 255, .70); --ul-line-soft: rgba(141, 148, 255, .32);
+  --term: #060914; --term-2: #0D1120; --term-line: #232B44; --ch-16: #060914; --ch-22: #03050D; --ch-26: #0D1120;
+  --series-1: #6C74FF; --series-2: #F0307E; --series-3: #1496AC; --series-4: #E2620C; --series-5: #1E9C4F;
+  --grid: #1D2439; --axis: #36415F;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .40);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, .45), 0 1px 3px rgba(0, 0, 0, .30);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, .55), 0 4px 12px rgba(0, 0, 0, .35);
+  --ring: 0 0 0 4px rgba(141, 148, 255, .22);
+  --ring-hot: 0 0 0 4px rgba(255, 79, 150, .18);
+}

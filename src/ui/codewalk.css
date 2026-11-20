@@ -1,0 +1,10 @@
+/* Code walk, still mode (format version 7): fold bars, and the short fade when a step switches. */
+.cw-still .ch-pre { animation: cw-in .16s ease-out; }
+@keyframes cw-in { from { opacity: .35; } to { opacity: 1; } }
+.ch-fold-row { align-items: center; padding: 2px 0; }
+.cw-fold { all: unset; box-sizing: border-box; cursor: pointer; margin: 2px 0; padding: 1px 10px; border-radius: 999px; font: 500 12px/1.6 var(--font-mono); color: var(--term-faint); border: 1px dashed var(--term-line); background: transparent; transition: color .15s, border-color .15s, background .15s; }
+.cw-fold:hover { color: var(--term-ink); border-color: var(--term-faint); }
+.cw-fold:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+.cw-fold-range { opacity: .7; }
+.ch-pre:has(.ch-focus) .ch-fold-row { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .cw-still .ch-pre { animation: none; } .cw-fold { transition: none; } }

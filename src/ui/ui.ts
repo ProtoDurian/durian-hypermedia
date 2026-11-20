@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The renderer's own words (buttons, labels), per language. The article text comes from the dh JSON.
 export type Ui = {
   back: string; next: string; play: string; pause: string; step: string; changed: string; line: string; lines: string; pinned: string;

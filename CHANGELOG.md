@@ -4,6 +4,24 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.2.0
+
+### Added
+
+- **`texts` on every animation block** of the parse tree (`Document`, the JSON that `dh json` prints): an array of strings,
+  the labels, captions, say texts and note texts the scene compiler reads, in story order (SPEC.md section 6.11).
+  A scene with none has `[]`. Additive: no field is renamed or removed, and every other part of the output is
+  byte-equal to 0.1.0 (`ast` stays 1).
+- **`animationTexts(block)`** exported from `durian-hypermedia`: the same list for an `AnimationBlock`, compiled from
+  `block.anim`, so a tool never reaches into scene internals and a block from older JSON still works.
+
+### Changed
+
+- `AnimationBlock` now has a required `texts: string[]` (type level: code that builds an `AnimationBlock` by hand must add it;
+  `parse()` always fills it). `animationTexts` takes any block with an `anim`, so a block read from 0.1.0 JSON still works.
+- This package is now the source of `src/core`, `src/ui` and `SPEC.md`. The file headers say so; `scripts/sync.ts`
+  (a copy from the first private prototype) is frozen and no longer to be run.
+
 ## 0.1.0 (first public version; git tag v0.1.0)
 
 ### Added

@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The tier list part (format version 8): pure, shared by the parser (dh-lib), doccheck and the browser (site/src/tier.tsx).
 //
 //   ```tierlist title="Databases for a small team"

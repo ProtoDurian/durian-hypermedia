@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // Where things stand in the 3D stage (format version 7), as plain numbers, so a test can check them without WebGL.
 // y is up. Layer L's plane is a thin slab whose top surface is at planeTop(L); a thing on layer L stands on it, a thing
 // inside a container on the same layer stands on the container's slab, and the camera never goes below the top plane.

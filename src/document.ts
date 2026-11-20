@@ -9,9 +9,21 @@ import { checkDoc } from "./core/doccheck";
 import { mdBlocks, mdInline, type MdContext, type InlineDef } from "./markdown";
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
-import type { Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
+import { compileScene } from "./core/scene";
+import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 8;
+
+/**
+ * The texts a reader sees in an animation block, in story order: the quoted labels, the captions (step titles), the
+ * say texts and the note texts the scene compiler reads. The same list as `block.texts` (parse() fills it); this
+ * function compiles the block's own source again, so it also works on a block read from older JSON that has no
+ * `texts`. Tools use it instead of reaching into scene internals.
+ */
+export function animationTexts(block: Pick<AnimationBlock, "anim">): string[] {
+  const a = block.anim;
+  return [...compileScene(a.head, a.steps, a.base, a.info).scene.texts];
+}
 
 export interface ParseOptions {
   /** the page's file name; decides the .md / .dh.md check (default: page.dh.md, or page.md when there is no part) */
@@ -181,6 +193,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         return refuse(p, `:::${p.name} stands alone here`);
       }
       // caps that must hold before the part is compiled or evaluated
+      let animTexts: string[] = [];
       if (p.name === "animation") {
         if (p.body.length > lim.maxAnimChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxAnimChars.toLocaleString("en-US")}`);
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
@@ -188,6 +201,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         const values = [...p.body.matchAll(/\[([^\]]*)\]/g)].reduce((a, m) => a + m[1].split(",").length, 0);
         if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
         const c = animOf(p);
+        animTexts = [...c.scene.texts];
         const most = Math.max(0, ...c.frames.map((f) => f.boxes.length));
         if (most > lim.maxAnimEntities) return refuse(p, `${most} things on the stage; the limit is ${lim.maxAnimEntities}`);
       }
@@ -202,6 +216,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       delete j.source; delete j.size; delete j.type; delete j.id; delete j.attrs; delete j.line; delete j.llm; delete j.llmKind;
       const blk: Record<string, any> = { type: p.name, ...base(p), ...j };
       switch (p.name) {
+        case "animation": blk.texts = animTexts; break;
         case "chart": {
           const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
           if (pts > lim.maxChartPoints) return refuse(p, `${pts.toLocaleString("en-US")} data points; the limit is ${lim.maxChartPoints.toLocaleString("en-US")}`);

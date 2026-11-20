@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The interactive parts. Each is rendered to HTML at build time and hydrated in the browser with the same props.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pre, type HighlightedCode } from "codehike/code";

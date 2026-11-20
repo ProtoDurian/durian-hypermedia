@@ -470,6 +470,20 @@ send both "pay order 7" a -> pxa        (takes a's colour; is=proxy would give i
 - **A tone is a state and wins over a family:** `tone=good` (a new pod), `warn`, `hot`, `muted`, `acc` show what happened to a thing (its border and tint); `is=` shows what it is. A thing with a tone shows the tone; its words stay in ink. A highlight rings a thing and thickens its border, and keeps its colours.
 - **Without families** a scene is drawn as before: neutral shapes, the accent for highlights and arrows, pink for sent tokens.
 
+### 6.11 The animation's texts in the Document JSON
+
+The Document JSON (what `parse()` returns, and what `dh json` prints; `ast: 1`) gives every animation block one more field, `texts`, so a tool that reads only the JSON, such as a word checker, sees every text a reader sees in a scene:
+
+```json
+{ "type": "animation", "anim": { "head": "...", "steps": [], "base": 0, "info": {} }, "texts": ["Web server", "Database", "The page asks the database.", "reads"] }
+```
+
+- **`texts` is an array of strings, always present** on a block of type `animation` (also inside tabs, accordions and `:::human`). A scene with none of the texts below has `"texts": []`. A part that was refused (an `error` block) has none, as it has no `anim`.
+- **What is in it:** the quoted label of a thing, a family or a connector (`pill web "Web server"`, `app -> db "reads"`, a `send`'s label, the labels of `split` and `merge`, a `push` label, `set x label=...`); each step's caption (its `@step` title); each `say` text; each `note` text (a `note x: text` line, or `note="..."` on a thing); and the cells and items of `array`, `list`, `stack`, `queue`, `table` and `row` (a cell that is only a number is left out).
+- **Order, and repeats:** the order the scene is read in: the setup lines first, top to bottom; then each step in turn, its caption first, then its own changes. A text is listed once for each place it is written, so the same label used twice is listed twice. A `note x:` line with no text gives an empty string.
+- **What is not in it:** ids, entity kinds, change words, `tone=`, `is=` and other keys. This includes an id that the stage shows in place of a label because the thing, family or layer was declared without one (`pill worker` shows "worker" but adds no text): `texts` lists what the author wrote as text, not what the drawing falls back to.
+- **One list, one source:** `texts` is exactly what the scene compiler (section 6.7) collects while it reads the block; `animationTexts(block)`, exported from the package entry (`import { animationTexts } from "durian-hypermedia"`), returns the same list for a block and compiles `block.anim` again, so it also works on a block read from JSON made before `texts` existed. Nothing else in the Document JSON changes: the field is additive, and `ast` stays 1.
+
 ## 7. Charts
 
 - **Kinds.** `bar`, `line`, `area` (a line with its fill): `x` lists the categories and each series' `data` holds one number per category (`null` leaves a gap). `scatter`: no category list; `data` is points `[x, y]`. `bubble`: points `[x, y, size]`; the bubble's area follows the size. `radar`: `x` names the axes (at least three), each series is one outline. `pie`, `doughnut`, `polar` (polar area): `x` names the slices, values are 0 or more, and the slice colours follow the default colour order. `x` is always the category (or point-x) axis and `y` always the value axis, also when `horizontal: true` turns them on their side.

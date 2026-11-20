@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // expr: the small, safe expression language of Durian Hypermedia.
 // Used by chart `let` entries and series `data`, and by `{...}` holes in animation loops.
 // No property access, no assignment, no loops, no host functions: a parse tree evaluated by a tiny interpreter.

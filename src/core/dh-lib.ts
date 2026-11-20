@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse } from "../host/yaml";
 // dh-lib: the Durian Hypermedia parser and writers, shared by dh (parse and write) and doccheck (checks).
 // Format version 3: plain Markdown first.

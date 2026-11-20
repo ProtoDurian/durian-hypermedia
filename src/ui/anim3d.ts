@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The 3D stage for the animation engine (format version 6). It draws the same frames as the 2D stage (tools/scene.ts):
 // each entity keeps its floor-plan place (x, and its y inside its layer as depth) and is lifted to its layer's height.
 // Layers are planes, stacked top to bottom; "split layers" pulls them apart; "focus" flies the camera to one.

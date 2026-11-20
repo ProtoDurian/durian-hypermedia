@@ -69,7 +69,8 @@ import { ChartPart } from "durian-hypermedia/react/chart";
 `parse(text, options)` returns a `Document`: front matter, a banner, `blocks` (one typed object per Markdown run or
 part), `headings`, `problems` (what it refused or changed) and `llm` (the LLM view). Every block kind has an exported
 TypeScript type (`TerminalBlock`, `ChartBlock`, `AnimationBlock` ...). Markdown arrives as a small tree (paragraphs,
-lists, tables, links ...), never as HTML.
+lists, tables, links ...), never as HTML. Every animation block also has `texts`, its labels, captions, say and note texts in
+story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that read only the JSON.
 
 | Option | Default | What it does |
 | --- | --- | --- |
@@ -99,8 +100,8 @@ bun run hygiene             # fails on machine paths, emails, tokens, names
 bun run build               # dist/ (ESM per entry) and dist/styles.css
 ```
 
-`scripts/sync.ts` copies the format's shared sources (the parser, the parts, the stylesheets, SPEC.md) into `src/core/`,
-`src/ui/` and `SPEC.md`, and remakes `fixtures/format/` from the Format page source. Edit the sources, not those copies.
+This package is the source of `src/core/`, `src/ui/` and `SPEC.md`: edit them here. `scripts/sync.ts` copied them from a
+private prototype once and is frozen: running it would overwrite this package's files with that older copy.
 
 ## Versions
 

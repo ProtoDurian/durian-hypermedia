@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The animation part, format version 6: one engine for every scene (tools/scene.ts), drawn here in SVG, or in 3D
 // (site/src/anim3d.ts, loaded only when a reader opens the 3D view; ```animation 3d opens in it). A toggle keeps the step.
 // The engine gives each step a frame (where every entity sits) and its effects (highlights, speech, tokens sent);

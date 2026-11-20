@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse } from "../host/yaml";
 // doccheck, Durian Hypermedia part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
 // Usage: bun tools/doccheck.ts check <docs-dir|file...> [--src <code-root>]

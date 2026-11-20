@@ -1,4 +1,4 @@
-// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.
+// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // chart-llm: what an LLM reads in place of a chart with fixed data: a header line, a short note when the chart
 // needs one (mixed, second axis, log scale, floating bars, 100% stacked, bubble size), and the data as a table.
 import { evalChart, chartMeta } from "./chart";

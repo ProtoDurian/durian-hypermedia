@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+// FROZEN: this package is now the source of src/core, src/ui and SPEC.md. Running this script overwrites them with the
+// private prototype's older copy and loses every change made here (such as animation texts). Keep it only as history.
 // Copy the current Durian Hypermedia sources into the package, with the rewrites the package needs.
 //   bun scripts/sync.ts [<source folder>]      (default: the folder above this package)
 // Re-runnable: it only writes src/core/, src/ui/, SPEC.md and scripts/cdp.ts. Package-only code lives elsewhere
@@ -23,7 +25,7 @@ const SRC = resolve(process.argv[2] ?? join(PKG, ".."));
 const CORE_ROOTS = ["dh-lib.ts", "expr.ts", "chart.ts", "scene.ts", "doccheck.ts"];
 const UI_SKIP = new Set(["client.tsx"]);
 const HOST: Record<string, string> = { "node:fs": "fs", "node:path": "path", "node:child_process": "child_process", "node:crypto": "crypto" };
-const MARK = "// Synced from the Durian Hypermedia sources by scripts/sync.ts: edit the source, not this copy.\n";
+const MARK = "// This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).\n";
 
 const read = (p: string) => readFileSync(p, "utf8");
 const nRewrites = loadRewrites(SRC);

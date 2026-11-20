@@ -17,6 +17,8 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 ### Changed
 
+- `AnimationBlock` now has a required `texts: string[]` (type level: code that builds an `AnimationBlock` by hand must add it;
+  `parse()` always fills it). `animationTexts` takes any block with an `anim`, so a block read from 0.1.0 JSON still works.
 - This package is now the source of `src/core`, `src/ui` and `SPEC.md`. The file headers say so; `scripts/sync.ts`
   (a copy from the first private prototype) is frozen and no longer to be run.
 

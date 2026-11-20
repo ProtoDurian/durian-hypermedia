@@ -20,7 +20,7 @@ export const FORMAT_VERSION = 8;
  * function compiles the block's own source again, so it also works on a block read from older JSON that has no
  * `texts`. Tools use it instead of reaching into scene internals.
  */
-export function animationTexts(block: AnimationBlock): string[] {
+export function animationTexts(block: Pick<AnimationBlock, "anim">): string[] {
   const a = block.anim;
   return [...compileScene(a.head, a.steps, a.base, a.info).scene.texts];
 }

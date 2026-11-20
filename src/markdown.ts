@@ -24,7 +24,7 @@ export type MdBlock =
   | { t: "list"; ordered: boolean; start: number | null; items: { task: boolean; checked: boolean; c: MdBlock[] }[] }
   | { t: "quote"; c: MdBlock[] }
   | { t: "callout"; kind: CalloutKind; label: string; c: MdBlock[] }
-  | { t: "code"; lang: string; text: string; hl?: unknown }   // hl: Code Hike tokens, added by highlight() on the server
+  | { t: "code"; lang: string; meta?: string; text: string; hl?: unknown }   // meta: the info string after the language; hl: Code Hike tokens, added by highlight() on the server
   | { t: "table"; align: ("left" | "right" | "center" | null)[]; head: MdInline[][]; rows: MdInline[][][] }
   | { t: "hr" }
   | { t: "raw"; text: string };                         // raw HTML from the source, shown as text
@@ -84,7 +84,9 @@ export function uniqueId(base: string, ctx: MdContext): string {
   ctx.ids.add(id);
   return id;
 }
-const plain = (c: MdInline[]): string => c.map((x) => (x.t === "ref" ? x.text : "v" in x ? x.v : "c" in x ? plain(x.c) : x.t === "kbd" ? x.label : x.t === "mouse" ? `${x.act} ${x.target}`.trim() : x.t === "img" ? x.alt : "")).join("");
+/** The plain text of an inline tree (what a heading's id is made from; a table cell's label). */
+export const inlineText = (c: MdInline[]): string => c.map((x) => (x.t === "ref" ? x.text : "v" in x ? x.v : "c" in x ? inlineText(x.c) : x.t === "kbd" ? x.label : x.t === "mouse" ? `${x.act} ${x.target}`.trim() : x.t === "img" ? x.alt : "")).join("");
+const plain = inlineText;
 
 /** Markdown text to blocks. Never throws: a problem becomes a "raw" block and a message in ctx.problems. */
 export function mdBlocks(src: string, ctx: MdContext): MdBlock[] {
@@ -105,7 +107,7 @@ function blocks(toks: Token[], ctx: MdContext, depth: number): MdBlock[] {
       case "paragraph": out.push({ t: "p", c: inl((t as Tokens.Paragraph).tokens, ctx, depth) }); break;
       case "text": { const x = t as Tokens.Text; out.push({ t: "text", c: x.tokens ? inl(x.tokens, ctx, depth) : [{ t: "text", v: x.text }] }); break; }
       case "heading": { const h = t as Tokens.Heading; const c = inl(h.tokens, ctx, depth); const text = plain(c); const id = uniqueId(slug(text), ctx); ctx.heads.push({ depth: h.depth, text, id }); out.push({ t: "h", depth: h.depth, id, text, c }); break; }
-      case "code": { const c = t as Tokens.Code; out.push({ t: "code", lang: (c.lang ?? "").split(/\s/)[0].slice(0, 30), text: c.text }); break; }
+      case "code": { const c = t as Tokens.Code; const info = (c.lang ?? "").trim(); const meta = info.replace(/^\S*\s*/, "").slice(0, 500); out.push({ t: "code", lang: info.split(/\s/)[0].slice(0, 30), ...(meta ? { meta } : {}), text: c.text }); break; }
       case "hr": out.push({ t: "hr" }); break;
       case "list": { const l = t as Tokens.List; out.push({ t: "list", ordered: l.ordered, start: l.ordered ? (typeof l.start === "number" ? l.start : 1) : null, items: l.items.map((it) => ({ task: !!it.task, checked: !!it.checked, c: blocks(it.tokens.filter((x) => x.type !== "checkbox"), ctx, depth + 1) })) }); break; }
       case "blockquote": {
@@ -184,23 +186,3 @@ export function mdInline(src: string, ctx: MdContext): MdInline[] {
   return b.flatMap((x, i) => [...(i ? [{ t: "br" } as MdInline] : []), ...flat(x)]);
 }
 
-// ---- safe HTML for the few places the shared components take an HTML string (a code walk's note)
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-export function inlineHtml(c: MdInline[]): string {
-  return c.map((x) => {
-    switch (x.t) {
-      case "text": return esc(x.v);
-      case "strong": return `<strong>${inlineHtml(x.c)}</strong>`;
-      case "em": return `<em>${inlineHtml(x.c)}</em>`;
-      case "del": return `<del>${inlineHtml(x.c)}</del>`;
-      case "code": return `<code>${esc(x.v)}</code>`;
-      case "br": return "<br>";
-      case "link": return x.href == null ? inlineHtml(x.c) : `<a href="${esc(x.href)}" rel="noreferrer noopener">${inlineHtml(x.c)}</a>`;
-      case "img": return esc(x.alt);
-      case "coderef": return `<span class="coderef" title="${esc(x.ref)}">${inlineHtml(x.c)}</span>`;
-      case "kbd": return `<span class="dh-keys" aria-label="${esc(x.label)}">${x.chords.map((ch) => `<span class="dh-chord">${ch.map((k) => `<kbd>${esc(k)}</kbd>`).join('<span class="dh-plus">+</span>')}</span>`).join('<span class="dh-then">then</span>')}</span>`;
-      case "ref": return `<span class="dh-ref" data-dh-ref="${esc(x.name)}">${esc(x.text)}</span>`;
-      case "mouse": return `<span class="dh-mouse"><span class="dh-mouse-act">${esc(x.act)}</span>${x.target ? ` <b>${esc(x.target)}</b>` : ""}</span>`;
-    }
-  }).join("");
-}

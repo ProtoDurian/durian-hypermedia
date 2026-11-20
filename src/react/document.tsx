@@ -29,8 +29,11 @@ export interface DocumentProps {
   theme?: "light" | "dark";
   /** "off" stills every animation, morph, typing and chart transition (also set by prefers-reduced-motion) */
   motion?: "on" | "off";
-  /** swap the chrome: the part frame, callouts, the banner, error blocks, the spinner */
+  /** swap the chrome (the part frame, callouts, the banner, error blocks, the spinner) and draw Markdown elements
+   *  yourself (Code, InlineCode, Link, Table, Heading) or mermaid diagrams (Mermaid) */
   slots?: Partial<Slots>;
+  /** add this to every Markdown heading's level, so a page's "#" sits below the host's own headings (default 0) */
+  demoteHeadings?: number;
   /** links and images are checked again with this policy at render time (default: the parser's default policy) */
   urlPolicy?: UrlPolicy;
   /** show "What an LLM reads here" under each part */
@@ -74,7 +77,8 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     hostBlocks: registeredBlocks(p.blocks ?? []),
     hostInlines: new Map((p.inlines ?? []).filter((d) => d.Component).map((d) => [d.name, d.Component!])),
     llmPeek: !!p.llmPeek,
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek]);
+    demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings]);
   const { doc } = p;
   const Banner = settings.slots.Banner;
   return (

@@ -1,6 +1,6 @@
 {
   "name": "durian-hypermedia",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Durian Hypermedia: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
   "type": "module",
   "sideEffects": [
@@ -33,6 +33,11 @@
       "types": "./src/react/index.tsx",
       "bun": "./src/react/index.tsx",
       "import": "./dist/react/index.js"
+    },
+    "./react/strict": {
+      "types": "./src/react/strict.tsx",
+      "bun": "./src/react/strict.tsx",
+      "import": "./dist/react/strict.js"
     },
     "./react/document": {
       "types": "./src/react/document.tsx",
@@ -74,6 +79,11 @@
       "bun": "./src/react/mermaid.tsx",
       "import": "./dist/react/mermaid.js"
     },
+    "./react/mermaid-host": {
+      "types": "./src/react/mermaid-host.tsx",
+      "bun": "./src/react/mermaid-host.tsx",
+      "import": "./dist/react/mermaid-host.js"
+    },
     "./react/animation": {
       "types": "./src/react/animation.tsx",
       "bun": "./src/react/animation.tsx",
@@ -113,7 +123,8 @@
     "theme": "bun scripts/theme-doc.ts",
     "example": "bun example/build.tsx && bun example/serve.ts",
     "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
-    "prepare": "bun scripts/build.ts"
+    "prepare": "bun scripts/build.ts",
+    "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types"
   },
   "peerDependencies": {
     "react": ">=18 <20",

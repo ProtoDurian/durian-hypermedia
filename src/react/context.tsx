@@ -5,6 +5,7 @@ import { UI, type Ui } from "../ui/ui";
 import type { Block, BlockType, ErrorBlock, HostBlock } from "../types";
 import type { BlockDef } from "../blocks";
 import type { UrlPolicy } from "../safety";
+import type { DiagramDrawProps } from "../ui/parts";
 
 /** Chrome a host style may swap. Each gets the default's props; return any React node. */
 export interface Slots {
@@ -18,7 +19,60 @@ export interface Slots {
   Error: React.ComponentType<{ block: ErrorBlock }>;
   /** shown while a part loads (mermaid, the 3D stage's library) */
   Spinner: React.ComponentType<{ label: string }>;
+  // The Markdown slots below have no default: without one the renderer draws the element itself.
+  /** a fenced code block (not a part): the host draws it (its own colours, a Copy button) */
+  Code?: React.ComponentType<CodeSlotProps>;
+  /** an inline code span */
+  InlineCode?: React.ComponentType<InlineCodeSlotProps>;
+  /** every link that passed the URL policy (a link the policy refused stays a span.dh-link-off) */
+  Link?: React.ComponentType<LinkSlotProps>;
+  /** a Markdown table: the parsed header and rows, each cell already drawn as React children */
+  Table?: React.ComponentType<TableSlotProps>;
+  /** a Markdown heading, at its level after demoteHeadings */
+  Heading?: React.ComponentType<HeadingSlotProps>;
+  /** draws one step of a mermaid diagram instead of the in-page mermaid library (see the mermaid part) */
+  Mermaid?: React.ComponentType<MermaidSlotProps>;
 }
+export interface CodeSlotProps {
+  /** the first word of the fence's info string ("" when none) */
+  lang: string;
+  /** the code, as written */
+  text: string;
+  /** the rest of the info string after the language ("" when none), e.g. `title="a.ts" {3}` */
+  meta: string;
+  /** Code Hike tokens when highlight() ran on the server; ignore it to colour the code yourself */
+  hl?: unknown;
+}
+export interface InlineCodeSlotProps { text: string }
+export interface LinkSlotProps {
+  /** the URL after the URL policy */
+  href: string;
+  title?: string;
+  /** the URL has a scheme or starts with // (the default renderer opens these in a new tab) */
+  external: boolean;
+  children: React.ReactNode;
+}
+export interface TableSlotProps {
+  align: ("left" | "right" | "center" | null)[];
+  /** the header cells, drawn */
+  head: React.ReactNode[];
+  /** the body rows, each cell drawn */
+  rows: React.ReactNode[][];
+  /** the header cells as plain text (labels for a phone layout) */
+  headText: string[];
+}
+export interface HeadingSlotProps {
+  /** the level written in the page (1 for "#") */
+  depth: number;
+  /** the level to draw, after demoteHeadings (at most 6) */
+  level: number;
+  /** the heading's id (prefixed, unique in the page) */
+  id: string;
+  /** the heading as plain text */
+  text: string;
+  children: React.ReactNode;
+}
+export type MermaidSlotProps = DiagramDrawProps;
 export type PartComponent<B extends Block = any> = React.ComponentType<{ block: B }>;
 export type Components = Partial<Record<BlockType, PartComponent>>;
 
@@ -32,11 +86,13 @@ export interface DhSettings {
   hostInlines: Map<string, React.ComponentType<{ text: string; data: any }>>;
   /** show "What an LLM reads here" under each part */
   llmPeek: boolean;
+  /** added to every Markdown heading's level (at most 6) */
+  demoteHeadings: number;
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {
   const c = useContext(DhContext);
-  return c ?? { ui: UI.en, slots: DEFAULT_SLOTS, components: {}, hostBlocks: new Map(), hostInlines: new Map(), llmPeek: false };
+  return c ?? { ui: UI.en, slots: DEFAULT_SLOTS, components: {}, hostBlocks: new Map(), hostInlines: new Map(), llmPeek: false, demoteHeadings: 0 };
 }
 
 /** Code with no colours, in the shape Code Hike draws (used when highlight() did not run on the server). */

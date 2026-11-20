@@ -2,9 +2,12 @@
 // diagram's source stays on the page as text. Drawn in the browser with securityLevel "strict" and no HTML labels
 // (so no <foreignObject>), then the SVG is cleaned with DOMPurify (no script, no foreignObject, no event handlers)
 // and attached as nodes, never through innerHTML. The diagram is redrawn when the theme changes.
+// A host that gives the Mermaid slot draws every step itself: this part then never loads mermaid or DOMPurify. To keep
+// both out of the bundle too, use HostMermaidPart ("durian-hypermedia/react/mermaid-host") or "durian-hypermedia/react/strict".
 import React, { useEffect, useRef, useState } from "react";
 import { Diagram } from "../ui/parts";
 import { useDh } from "./context";
+import { HostMermaidPart } from "./mermaid-host";
 import type { MermaidBlock } from "../types";
 
 let n = 0;
@@ -40,8 +43,10 @@ export async function drawMermaid(root: HTMLElement): Promise<number> {
 export function MermaidPart({ block }: { block: MermaidBlock }) {
   const { ui, slots } = useDh();
   const ref = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState(true);
+  const host = !!slots.Mermaid;
+  const [busy, setBusy] = useState(!host);
   useEffect(() => {
+    if (host) return;
     let dead = false;
     const draw = () => { if (ref.current) drawMermaid(ref.current).finally(() => { if (!dead) setBusy(false); }); };
     draw();
@@ -50,7 +55,8 @@ export function MermaidPart({ block }: { block: MermaidBlock }) {
     const doc = ref.current?.closest(".dh-doc");
     if (doc) mo.observe(doc, { attributes: true, attributeFilter: ["data-theme"] });
     return () => { dead = true; mo.disconnect(); };
-  }, [block]);
+  }, [block, host]);
+  if (host) return <HostMermaidPart block={block} />;
   return <div ref={ref} className="dh-mermaid">{busy && <slots.Spinner label={(ui as any).drawing ?? "Drawing the diagram…"} />}<Diagram steps={block.steps} ui={ui} /></div>;
 }
 export default MermaidPart;

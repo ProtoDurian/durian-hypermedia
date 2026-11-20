@@ -149,7 +149,7 @@ A host style writes its own the same way: override the shape and motion tokens u
 \`\`\`
 
 For changes CSS cannot make, \`slots\` swap the chrome components: \`Frame\` (the box around each part), \`Callout\`, \`Banner\`,
-\`Error\` and \`Spinner\` (see ADOPT.md).
+\`Error\` and \`Spinner\`; they also draw Markdown elements your own way (\`Code\`, \`InlineCode\`, \`Link\`, \`Table\`, \`Heading\`) and mermaid diagrams (\`Mermaid\`): see ADOPT.md.
 
 ## Motion
 

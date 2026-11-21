@@ -25,7 +25,7 @@ send "write" app -> d1
 @step The primary copies the write to both replicas.
 send "copy" d1 -> d2 is=copy
 send "copy" d1 -> d3 is=copy
-@step The primary's machine dies. The app's writes fail.
+@step The primary's machine dies, so it can take no more writes.
 set d1 down=yes
 say d1: no heartbeat
 @step db-2 has the newest copy, so it is promoted: it moves to the primary's place, and the app writes to it.

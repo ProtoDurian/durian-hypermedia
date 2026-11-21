@@ -19,8 +19,12 @@
 // Version 5 adds layers: `layer app "App"` declares one (top to bottom, in order), `layer=app` puts a thing on it, and
 // steps may `split layers`, `stack layers` and `focus <layer>`. The 2D stage shows layers as bands; the 3D stage
 // (site/src/anim3d.ts) stacks them as planes it can pull apart. One scene, two renderers.
+// Version 9 adds the story words (tools/story.ts): a token splits into pieces and merges back, waits in a container,
+// is dropped; several things move together; a closed thing shows its inside when the story zooms into it.
+import { MAX_PIECES, piecesOf, moveToken, splitToken, mergeTokens, applyStory, stepChecks, hiddenBy, openSet, llmLines, type Ctx } from "./story";
 
 // ---------------------------------------------------------------- the vocabulary (SPEC.md section 6)
+import { parseCamera, CLOSE_SCALE, FAR_GROW, type CamView } from "./camera";
 export const SHAPES = ["box", "circle", "pill", "cylinder", "cloud", "person", "diamond", "text", "dot"] as const;
 export const CONTAINERS = ["group", "array", "list", "stack", "queue", "tree", "graph", "grid", "buckets", "table"] as const;
 export const OVERLAYS = ["token", "pointer"] as const;
@@ -28,11 +32,19 @@ export const KINDS = [...SHAPES, ...CONTAINERS, ...OVERLAYS, "row"] as const;
 export const LAYOUTS = ["row", "column", "grid", "tree", "graph", "free"] as const;
 export const TONES = ["plain", "acc", "good", "warn", "hot", "muted"] as const;
 export const ARROWS = ["->", "-->", "--", "<->"] as const;
-export const OPS = ["add", "remove", "move", "swap", "set", "highlight", "say", "note", "send", "push", "pop", "split", "merge", "camera", "focus"] as const;
+export const OPS = ["add", "remove", "move", "swap", "set", "highlight", "say", "note", "send", "push", "pop", "split", "merge", "camera", "focus", "spotlight", "zoom", "drop"] as const;
+// format version 9: the author's control of motion. In a step, a line "then" starts the next beat: the changes after it
+// start when the ones before it end. "pace slow" or "pace fast" sets the step's speed. "spotlight <id> ..." dims
+// everything else for this step. "say <id> above: text" (or below, left, right) says where the speech goes.
+// "move <id> to <c> path=arc" travels on an arc instead of straight
+export const PACES = ["slow", "normal", "fast"] as const;
+export const SIDES = ["above", "below", "left", "right"] as const;
+export const PATHS = ["straight", "arc"] as const;
+export const MAX_BEATS = 6;
 // the layer words (format version 5): "layer" declares one in the setup; "split layers", "stack layers" and "focus" change the view
 export const LAYER_OPS = ["split layers", "stack layers", "focus <layer>", "focus all"] as const;
 const SETUP_OPS = ["note", "push", "camera", "set", "focus"];
-const DECL_KEYS = ["tone", "dim", "down", "layout", "dir", "cols", "pos", "count", "note", "layer", "size", "is", "level", "fill"];
+const DECL_KEYS = ["tone", "dim", "down", "layout", "dir", "cols", "pos", "count", "note", "layer", "size", "is", "level", "fill", "closed"];
 const SET_KEYS = ["label", "tone", "dim", "down", "layout", "dir", "cols", "layer", "size", "is", "level", "fill"];
 // fill (format version 7): a family's thing has its family's border; its soft fill is on (soft, the default) or off (none),
 // per scene (```animation fill=none) or per thing (fill=none). Words stay in ink either way
@@ -58,23 +70,31 @@ export type Op =
   | { op: "add"; decl: Decl; line: number }
   | { op: "conn"; chain: string[]; styles: string[]; label: string; is: string | null; line: number }
   | { op: "remove"; ids: string[]; conns: [string, string][]; line: number }
-  | { op: "move"; id: string; to: string; place: Place; under: string | null; side: "left" | "right" | null; line: number }
+  // ids: several things that move together (one hop); into: a token goes into a container instead of sitting at it
+  | { op: "move"; id: string; to: string; place: Place; under: string | null; side: "left" | "right" | null; path?: string; line: number; ids?: string[]; into?: boolean }
   | { op: "swap"; a: string; b: string; line: number }
   | { op: "set"; id: string; kv: Record<string, string>; line: number }
   | { op: "highlight"; ids: string[]; tone: string; line: number }
-  | { op: "say"; id: string; text: string; line: number }
+  | { op: "say"; id: string; text: string; at?: string; line: number }
+  | { op: "spotlight"; ids: string[]; line: number }
   | { op: "note"; id: string; text: string; line: number }
-  | { op: "send"; label: string; path: string[]; show: string; is: string | null; line: number }
+  | { op: "send"; label: string; path: string[]; show: string; is: string | null; line: number; as?: string | null }
   | { op: "push"; s: string; label: string; as: string | null; line: number }
   | { op: "pop"; s: string; to: string | null; line: number }
   | { op: "split"; id: string; into: { id: string; label: string | null }[]; line: number }
   | { op: "merge"; ids: string[]; into: { id: string; label: string | null }; line: number }
-  | { op: "camera"; ids: string[] | null; line: number }
+  | { op: "camera"; ids: string[] | null; view: CamView; line: number }
   | { op: "layer"; id: string; label: string | null; note: string; line: number }
   | { op: "family"; id: string; label: string | null; line: number }
   | { op: "layers"; mode: "split" | "stack"; line: number }
-  | { op: "focus"; layer: string | null; line: number };
-export interface SceneStep { caption: string; line: number; ops: Op[] }
+  | { op: "focus"; layer: string | null; line: number }
+  // format version 9 (tools/story.ts): zoom into a thing's inside (id) or out (null); drop a token (lost), at a thing it
+  // travels to; join: the pieces of a split token become it again (merge msg)
+  | { op: "zoom"; id: string | null; line: number }
+  | { op: "drop"; ids: string[]; at: string | null; line: number }
+  | { op: "join"; id: string; line: number };
+// beat: for each op, the beat it is in (0, then 1 after a "then" line ...); beats: how many; pace: slow, normal or fast
+export interface SceneStep { caption: string; line: number; ops: Op[]; beat?: number[]; beats?: number; pace?: string }
 // narrow: the phone layout (the renderer asks for it on a stage under NARROW pixels): the stage's own row or
 // left-to-right graph runs top to bottom instead, so a wide scene is not drawn tiny
 // phone: the phone's spacing (PHONE: the same type sizes, tighter padding, gaps and wrap widths), so more of a scene
@@ -118,6 +138,7 @@ export function parseScene(head: string, steps: { title: string; raw: string; li
   if (info.layout && ![...LAYOUTS, "auto"].includes(info.layout)) errors.push({ line: base - 1, msg: `layout=${info.layout} is not a layout (${LAYOUTS.join(", ")})` });
   if (info.dir && !["right", "down"].includes(info.dir)) errors.push({ line: base - 1, msg: `dir=${info.dir}: dir is right or down` });
   if (info.size && !(SIZE_NAMES as readonly string[]).includes(info.size)) errors.push({ line: base - 1, msg: `size=${info.size}: a size is s, m or l (small, medium, large)` });
+  if (info.pace && !(PACES as readonly string[]).includes(info.pace)) errors.push({ line: base - 1, msg: `pace=${info.pace}: pace is slow, normal or fast` });
   if (info.kind) errors.push({ line: base - 1, msg: `animation kinds are gone since format version 4 (got "${info.kind}"): write \`\`\`animation (or \`\`\`animation 3d), then entities and steps (SPEC.md section 6)` });
   const read = (text: string, line: number, setup: boolean, into: Op[]) => {
     const t = text.trim();
@@ -128,9 +149,28 @@ export function parseScene(head: string, steps: { title: string; raw: string; li
   for (const s of steps) {
     if (!s.title) errors.push({ line: s.line, msg: "@step needs a caption: the sentence a reader sees for this step" });
     else scene.texts.push(s.title);
-    const ops: Op[] = [];
-    s.raw.split("\n").forEach((l, i) => read(l, s.line + 1 + i, false, ops));
-    scene.steps.push({ caption: s.title, line: s.line, ops });
+    const ops: Op[] = [], beat: number[] = [];
+    let b = 0, pace = "normal", thenLine = 0;
+    s.raw.split("\n").forEach((l, i) => {
+      const ln = s.line + 1 + i, x = l.trim();
+      if (x === "then") {
+        if (!ops.length || beat[beat.length - 1] !== b) errors.push({ line: ln, msg: "then starts the next beat of a step: put at least one change before it, and one after it" });
+        else if (b + 1 >= MAX_BEATS) errors.push({ line: ln, msg: `a step has at most ${MAX_BEATS} beats; split it into steps, each with its own caption` });
+        else { b++; thenLine = ln; }
+        return;
+      }
+      const pm = x.match(/^pace\b\s*(.*)$/);
+      if (pm) {
+        if (!(PACES as readonly string[]).includes(pm[1])) errors.push({ line: ln, msg: `pace is slow, normal or fast: pace slow` });
+        else pace = pm[1];
+        return;
+      }
+      const before = ops.length;
+      read(l, ln, false, ops);
+      for (let k = before; k < ops.length; k++) beat.push(b);
+    });
+    if (b > 0 && beat[beat.length - 1] !== b) errors.push({ line: thenLine, msg: "then starts the next beat of a step: put at least one change after it" });
+    scene.steps.push({ caption: s.title, line: s.line, ops, beat, beats: b + 1, pace });
   }
   if (steps.length < 2) errors.push({ line: base - 1, msg: "an animation needs at least 2 @step lines" });
   return { scene, errors };
@@ -201,12 +241,18 @@ function parseLine(text: string, line: number, setup: boolean, texts: string[]):
       return { op: "remove", ids, conns, line };
     }
     case "move": {
-      // move <id> to|into <id> [under <id> [left|right]] [after <id>|before <id>|first]
-      const w = words;
-      if (w.length < 3 || !["to", "into"].includes(w[1])) throw new Error("move needs: move <id> to <container or anchor>");
-      const { place, under, side } = clauses(w.slice(3));
+      // move <id> [<id> ...] to|into <id> [under <id> [left|right]] [after <id>|before <id>|first]
+      // several ids move together, as one hop (format version 9); a token goes "into" a container, or sits "at" a thing with "to"
+      const w = words, k = w.findIndex((x) => x === "to" || x === "into");
+      if (k < 1 || !w[k + 1]) throw new Error("move needs: move <id> to <container or anchor> (several move together: move a b to c)");
+      const ids = w.slice(0, k);
+      const dup = ids.find((x, j) => ids.indexOf(x) !== j);
+      if (dup) throw new Error(`move names ${dup} twice`);
+      const { place, under, side } = clauses(w.slice(k + 2));
       noTail();
-      return { op: "move", id: w[0], to: w[2], place, under, side, line };
+      for (const kk of Object.keys(kv)) if (kk !== "path") throw new Error(`move: unknown key "${kk}" (move takes path=arc or path=straight)`);
+      if (kv.path && !(PATHS as readonly string[]).includes(kv.path)) throw new Error(`path=${kv.path}: a move's path is straight (the default) or arc`);
+      return { op: "move", id: ids[0], ...(ids.length > 1 ? { ids } : {}), ...(w[k] === "into" ? { into: true } : {}), to: w[k + 1], place, under, side, ...(kv.path ? { path: kv.path } : {}), line };
     }
     case "swap": need(2, "two ids: swap a.0 a.1"); noTail(); return { op: "swap", a: words[0], b: words[1], line };
     case "set": {
@@ -218,7 +264,12 @@ function parseLine(text: string, line: number, setup: boolean, texts: string[]):
       return { op: "set", id: words[0], kv, line };
     }
     case "highlight": need(1, "one id or more: highlight a.0 a.1"); noTail(); if (kv.tone && !(TONES as readonly string[]).includes(kv.tone)) throw new Error(`tone=${kv.tone} is not a tone (${TONES.join(", ")})`); return { op: "highlight", ids: words, tone: kv.tone ?? "acc", line };
-    case "say": need(1, "an id and a text: say db: 3 rows"); if (!tail) throw new Error("say needs a text after a colon: say db: 3 rows"); texts.push(tail); return { op: "say", id: words[0], text: tail, line };
+    case "say": {
+      need(1, "an id and a text: say db: 3 rows"); if (!tail) throw new Error("say needs a text after a colon: say db: 3 rows");
+      if (words.length > 2 || (words[1] && !(SIDES as readonly string[]).includes(words[1]))) throw new Error(`say takes an id, then where (above, below, left or right) if you want one: say db above: 3 rows`);
+      texts.push(tail); return { op: "say", id: words[0], text: tail, ...(words[1] ? { at: words[1] } : {}), line };
+    }
+    case "spotlight": need(1, "one id or more: spotlight db cache"); noTail(); return { op: "spotlight", ids: words, line };
     case "note": need(1, "an id and a text: note db: holds users"); texts.push(tail ?? ""); return { op: "note", id: words[0], text: tail ?? "", line };
     case "push": {
       need(1, `a stack or queue and a label: push q "job 1"`);
@@ -235,6 +286,13 @@ function parseLine(text: string, line: number, setup: boolean, texts: string[]):
       const isKv = rest.filter((x) => x.t === "kv");
       for (const x of isKv) if (x.k !== "is") throw new Error(`send takes is=<family> only, not ${x.k}=`);
       rest = rest.filter((x) => x.t !== "kv");
+      // send ... as <id> (format version 9): the token stays where it arrives, as a token entity later lines can move
+      let as: string | null = null;
+      const ai = rest.findIndex((x, j) => x.t === "word" && x.v === "as" && j > 0 && rest[j - 1].t === "word" && rest[j - 2]?.t === "arrow");
+      if (ai >= 0) {
+        if (ai !== rest.length - 2 || rest[ai + 1].t !== "word" || !ID_RE.test(rest[ai + 1].v)) throw new Error(`"as <id>" comes last and names the token: send "msg" a -> b as m`);
+        as = rest[ai + 1].v; rest = rest.slice(0, ai);
+      }
       const show = rest[0]?.t === "word" && (SEND_SHOWS as readonly string[]).includes(rest[0].v) && rest[1] && rest[1].t !== "arrow" ? rest.shift()!.v : "token";
       const label = rest[0]?.t === "str" ? rest.shift()!.v : "";
       const path: string[] = [];
@@ -244,22 +302,47 @@ function parseLine(text: string, line: number, setup: boolean, texts: string[]):
       // its own step, with its own caption. A stream is a steady flow, not one request: it may run a longer path
       if (path.length > 2 && show !== "stream") throw new Error(`one hop per step: "${path.join(" -> ")}" moves ${path.length - 1} hops at once; send ${path[0]} -> ${path[1]} in this step, and ${path[1]} -> ${path[2]} in a step of its own with its own caption`);
       noTail(); if (label) texts.push(label);
-      return { op: "send", label, path, show, is: isKv[0]?.v ?? null, line };
+      if (as && (show === "arrow" || show === "stream")) throw new Error(`send ${show} leaves no token behind; "as ${as}" works with a token: send "${label || "msg"}" ${path.join(" -> ")} as ${as}`);
+      return { op: "send", label, path, show, is: isKv[0]?.v ?? null, line, ...(as ? { as } : {}) };
     }
     case "split": case "merge": {
       // split a into b ["label"] c ["label"];  merge a b into c ["label"]
       const i = rest.findIndex((x) => x.t === "word" && x.v === "into");
-      if (i < 0) throw new Error(w0 === "split" ? `split needs: split <id> into <id> ["label"] <id> ["label"]` : `merge needs: merge <id> <id> into <id> ["label"]`);
+      // merge <token> (format version 9): the pieces of a split token become it again
+      if (i < 0 && w0 === "merge" && rest.length === 1 && rest[0].t === "word") { noTail(); return { op: "join", id: rest[0].v, line }; }
+      if (i < 0) throw new Error(w0 === "split" ? `split needs: split <id> into <id> ["label"] <id> ["label"], or split <token> into 4 ["label"]` : `merge needs: merge <id> <id> into <id> ["label"], or merge <token> (its pieces become it again)`);
       const before = rest.slice(0, i).filter((x) => x.t === "word").map((x) => x.v);
+      // split <id> into <n> ["label"] (format version 9): n pieces, <id>.1 ... <id>.n, labelled "label 1" ... (or "1/n" ...)
+      if (w0 === "split" && rest[i + 1]?.t === "word" && /^\d+$/.test(rest[i + 1].v)) {
+        const lab = rest[i + 2]?.t === "str" ? rest[i + 2].v : null;
+        if (before.length !== 1 || rest.length !== i + (lab != null ? 3 : 2)) throw new Error(`split by count takes one id, a number and an optional label: split msg into 4 "seg"`);
+        noTail();
+        const into = piecesOf(before[0], +rest[i + 1].v, lab);
+        texts.push(...into.map((n) => n.label));
+        return { op: "split", id: before[0], into, line };
+      }
       const after: { id: string; label: string | null }[] = [];
       for (const x of rest.slice(i + 1)) { if (x.t === "word") after.push({ id: x.v, label: null }); else if (x.t === "str" && after.length) { after[after.length - 1].label = x.v; texts.push(x.v); } }
       noTail();
-      if (w0 === "split") { if (before.length !== 1 || after.length < 2) throw new Error(`split takes one id and at least two new ids: split s1 into s1a "a-m" s1b "n-z"`); return { op: "split", id: before[0], into: after, line }; }
+      if (w0 === "split") { if (before.length !== 1 || after.length < 2) throw new Error(`split takes one id and at least two new ids: split s1 into s1a "a-m" s1b "n-z"`); if (after.length > MAX_PIECES) throw new Error(`split ${before[0]} makes ${after.length} pieces; a split makes 2 to ${MAX_PIECES} (more cannot be read on the stage)`); return { op: "split", id: before[0], into: after, line }; }
       if (before.length < 2 || after.length !== 1) throw new Error(`merge takes at least two ids and one new id: merge a b into ab "a-z"`);
       return { op: "merge", ids: before, into: after[0], line };
     }
-    case "camera": noTail(); if (!words.length) throw new Error("camera needs ids, or all: camera db, camera all"); return { op: "camera", ids: words.length === 1 && words[0] === "all" ? null : words, line };
+    // the author's camera words (format version 9, tools/camera.ts): close, far, turn=, tilt=
+    case "camera": { noTail(); const c = parseCamera(words, kv); return { op: "camera", ids: c.ids, view: c.view, line }; }
     case "focus": noTail(); if (words.length !== 1) throw new Error("focus takes one layer, or all: focus app, focus all"); return { op: "focus", layer: words[0] === "all" ? null : words[0], line };
+    // format version 9 (tools/story.ts)
+    case "zoom":
+      noTail();
+      if (words.length === 2 && words[0] === "into" && !strs.length) return { op: "zoom", id: words[1], line };
+      if (words.length === 1 && words[0] === "out" && !strs.length) return { op: "zoom", id: null, line };
+      throw new Error(`zoom takes: zoom into <id> (the camera flies in and its inside opens), or zoom out`);
+    case "drop": {
+      noTail();
+      const k = words.indexOf("at"), ids = k < 0 ? words : words.slice(0, k), at = k < 0 ? null : words[k + 1] ?? null;
+      if (!ids.length || strs.length || (k >= 0 && (!at || words.length !== k + 2))) throw new Error(`drop needs a token: drop seg3 (lost where it is), or drop seg3 at router (it travels there and is lost)`);
+      return { op: "drop", ids, at, line };
+    }
   }
   return null;
 }
@@ -306,8 +389,12 @@ function parseDecl(toks: Tok[], tail: string | null, texts: string[]): Decl {
   const takesValues = ["array", "list", "stack", "queue", "table", "row"];
   if (vals && !takesValues.includes(kind)) throw new Error(`${kind} takes no ": values" (only ${takesValues.join(", ")} do)`);
   if ((kind === "row" || kind === "table") && !vals?.length) throw new Error(`${kind} needs its cells after a colon: ${kind} ${id}${kind === "row" ? " in t" : ""}: 1, alice`);
-  if ((OVERLAYS as readonly string[]).includes(kind) && !c.anchor) throw new Error(`a ${kind} sits on something: ${kind} ${id} "label" at <id>`);
+  // a token sits at a thing, or (format version 9) waits in a container: a queue, a host's buffer
+  if (kind === "pointer" && !c.anchor) throw new Error(`a pointer sits on something: pointer ${id} "label" at <id>`);
+  if (kind === "token" && !c.anchor && !c.parent) throw new Error(`a token sits at a thing or waits in a container: token ${id} "label" at <id>, or token ${id} "label" in <container>`);
+  if (kind === "token" && c.anchor && c.parent) throw new Error(`token ${id} is either at a thing or in a container, not both`);
   if (c.anchor && !(OVERLAYS as readonly string[]).includes(kind)) throw new Error(`only a token or a pointer sits "at" an entity; use "in <container>" to put ${id} inside one`);
+  if (kv.closed && !/^(yes|no)$/.test(kv.closed)) throw new Error(`closed=${kv.closed}: closed is yes or no`);
   if (kind === "buckets" && !kv.count) throw new Error(`buckets needs count=: buckets h "hash table" count=5`);
   if (vals) texts.push(...vals.filter((v) => !/^-?\d+(\.\d+)?$/.test(v)));
   return { kind, id, label, parent: c.parent, under: c.under, side: c.side, place: c.place, anchor: c.anchor, kv, values: vals };
@@ -337,24 +424,34 @@ export interface Ent {
   fill: string | null;  // soft or none (fill=); null: the scene's
   family: string | null; // is=: the family it stands for, which gives its colour
   level: number | null;   // level=: a meter from 0 to 100, or none
+  closed?: boolean;       // closed=yes (format version 9): its inside is drawn faint, without words, until the story zooms in
+  ghost?: string;         // a kept slot (format version 9): the id of the thing that is here in other steps; takes room, never drawn
 }
 export interface Layer { id: string; label: string; note: string }
 export interface Conn { key: number; from: string; to: string; style: string; label: string; family: string | null }
 export interface Family { id: string; label: string }
-export interface State { ents: Record<string, Ent>; root: string[]; conns: Conn[]; camera: string[] | null; next: number; counters: Record<string, number>; layers: Layer[]; spread: boolean; focus: string | null; families: Family[] }
+export interface State extends StoryState { ents: Record<string, Ent>; root: string[]; conns: Conn[]; camera: string[] | null; view?: CamView; next: number; counters: Record<string, number>; layers: Layer[]; spread: boolean; focus: string | null; families: Family[] }
+// format version 9: the thing the story zoomed into and the camera (and its words) before it; the pieces of each split token
+export interface StoryState { zoom?: string | null; zoomCam?: string[] | null; zoomView?: CamView; pieces?: Record<string, { ids: string[]; label: string }> }
 // what one step does on top of the state: shown in that step only
 // touched: the ids this step adds, moves, changes, sends along, highlights or makes speak; the story camera keeps them in frame
-export interface Fx { highlights: { key: number; tone: string }[]; says: { key: number; text: string }[]; sends: { label: string; path: number[]; show: string; family: string | null }[]; spawn: Record<number, number>; merge: Record<number, number>; enter: number[]; touched: string[] }
+// beats (format version 9): beat[id] is the beat that changes it, sendBeat/sayBeat by index, connBeat by connector key;
+// spot: the keys a spotlight keeps lit (everything else dims); arc: the ids that travel on an arc
+export interface Fx { beats?: number; pace?: string; beat?: Record<string, number>; sendBeat?: number[]; sayBeat?: number[]; connBeat?: Record<number, number>; spot?: number[]; arc?: string[]; highlights: { key: number; tone: string }[]; says: { key: number; text: string; at?: string }[]; sends: { label: string; path: number[]; show: string; family: string | null; as?: string }[]; spawn: Record<number, number>; merge: Record<number, number>; enter: number[]; touched: string[]; dropped?: { key: number; at: number | null }[]; moved?: { id: string; line: number }[] }
+// dropped (format version 9): tokens lost this step (at: the thing each travelled to first); moved: tokens that moved this step (one hop each)
 
 const isContainer = (k: string) => (CONTAINERS as readonly string[]).includes(k) || k === "bucket";
 const isOverlay = (k: string) => (OVERLAYS as readonly string[]).includes(k);
 const clone = (s: State): State => JSON.parse(JSON.stringify(s));
 class Refuse extends Error {}
 
-export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneError[] } {
+export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneError[]; subs: State[][] } {
   const errors: SceneError[] = [];
   let s: State = { ents: {}, root: [], conns: [], camera: null, next: 1, counters: {}, layers: [], spread: false, focus: null, families: [] };
   const states: State[] = [], fx: Fx[] = [];
+  // subs[k]: the stage at the end of each beat of step k but the last (format version 9), so a thing added in one beat
+  // and moved in the next is seen in both places
+  const subs: State[][] = [];
   const apply = (ops: Op[], f: Fx) => {
     for (const op of ops) {
       try { applyOp(s, op, f); } catch (e) { errors.push({ line: op.line, msg: e instanceof Refuse ? e.message : `this change broke the engine: ${(e as Error).message}` }); }
@@ -367,17 +464,36 @@ export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneEr
   // the setup is the stage before step 1; step k shows the setup plus the changes of steps 1..k
   for (const st of scene.steps) {
     const f: Fx = { highlights: [], says: [], sends: [], spawn: {}, merge: {}, enter: [], touched: [] };
-    apply(st.ops, f);
+    // beats (format version 9): what each change touches, sends, says or connects starts in its own beat
+    f.beats = st.beats ?? 1; f.pace = st.pace ?? "normal"; f.beat = {}; f.sendBeat = []; f.sayBeat = []; f.connBeat = {}; f.arc = [];
+    const sub: State[] = [];
+    st.ops.forEach((op, j) => {
+      const b = st.beat?.[j] ?? 0;
+      if (j > 0 && b !== (st.beat?.[j - 1] ?? 0)) sub.push(clone(s));
+      const n0 = f.touched.length, ents0 = new Set(Object.keys(s.ents)), conns0 = new Map(s.conns.map((c) => [c.key, c]));
+      apply([op], f);
+      for (const id of f.touched.slice(n0)) if (f.beat![id] == null) f.beat![id] = b;
+      for (const id of ents0) if (!s.ents[id] && f.beat![id] == null) f.beat![id] = b; // removed
+      for (const id of Object.keys(s.ents)) if (!ents0.has(id) && f.beat![id] == null) f.beat![id] = b; // added (a push's item, a split's parts)
+      while (f.sendBeat!.length < f.sends.length) f.sendBeat!.push(b);
+      while (f.sayBeat!.length < f.says.length) f.sayBeat!.push(b);
+      for (const c of s.conns) if (!conns0.has(c.key)) f.connBeat![c.key] = b;
+      for (const [k] of conns0) if (!s.conns.some((c) => c.key === k)) f.connBeat![k] = b;
+      if (op.op === "move" && op.path === "arc") f.arc!.push(op.id);
+    });
     // one hop per step, also across lines: a send that starts where another send of this step ends is a second hop
     const sends = st.ops.filter((o): o is Extract<Op, { op: "send" }> => o.op === "send" && o.show !== "stream");
     for (const b of sends) {
       const a = sends.find((x) => x !== b && x.path[x.path.length - 1] === b.path[0]);
       if (a) errors.push({ line: b.line, msg: `one hop per step: ${a.path.join(" -> ")} then ${b.path.join(" -> ")} in one step is two hops; move "${b.label || b.path.join(" -> ")}" to a step of its own, with its own caption` });
     }
+    // a token moves one hop per step; a step never points at what a closed thing hides (tools/story.ts)
+    errors.push(...stepChecks(s, st.ops, f));
     states.push(clone(s));
+    subs.push(sub);
     fx.push(f);
   }
-  return { states, fx, errors };
+  return { states, fx, errors, subs };
 }
 
 function ent(s: State, id: string, what = "entity"): Ent {
@@ -432,8 +548,11 @@ function treeCheck(s: State, parentId: string | null, under: string | null, side
   if (side && p.kids.some((k) => k !== self && s.ents[k].under === under && s.ents[k].side === side)) throw new Refuse(`${under} already has a ${side} child`);
 }
 
+// what the story words (tools/story.ts) borrow from the engine
+const CTX: Ctx = { ent, drop, newEnt, insertAt, kidsOf, isContainer, refuse: (m) => new Refuse(m) };
 function applyOp(s: State, op: Op, f: Fx) {
   switch (op.op) {
+    case "zoom": case "drop": case "join": applyStory(s, op, f, CTX); return;
     case "add": {
       const d = op.decl;
       checkParent(s, d.parent, d.kind);
@@ -453,6 +572,7 @@ function applyOp(s: State, op: Op, f: Fx) {
       if (d.kv.fill) e.fill = d.kv.fill;
       if (d.kv.is) e.family = needFamily(s, d.kv.is);
       if (d.kv.level) e.level = +d.kv.level;
+      if (d.kv.closed) { if (!isContainer(d.kind)) throw new Refuse(`closed=: only a thing that holds things has an inside to close, and ${d.id} is a ${d.kind}; declare it as group ${d.id} "${d.label ?? d.id}" closed=yes`); e.closed = d.kv.closed === "yes"; }
       f.touched.push(d.id);
       e.under = d.under; e.side = d.side; e.anchor = d.anchor;
       if (!d.anchor) insertAt(kidsOf(s, d.parent), d.id, d.place, s);
@@ -494,9 +614,11 @@ function applyOp(s: State, op: Op, f: Fx) {
       return;
     }
     case "move": {
+      // several things move together (format version 9): each as if it had its own line, in the order written
+      if (op.ids && op.ids.length > 1) { for (const id of op.ids) applyOp(s, { ...op, id, ids: undefined }, f); return; }
       const e = ent(s, op.id);
       const to = ent(s, op.to, "target");
-      if (isOverlay(e.kind)) { e.anchor = to.id; f.touched.push(e.id, to.id); return; }
+      if (isOverlay(e.kind)) { if (to.id === e.id) throw new Refuse(`${op.id} cannot move to itself`); moveToken(s, e, to, !!op.into, op.place, f, op.line, CTX); return; }
       if (op.to === op.id || isInside(s, op.to, op.id)) throw new Refuse(`${op.id} cannot move into itself`);
       checkParent(s, to.id, e.kind);
       treeCheck(s, to.id, op.under, op.side, e.id);
@@ -551,9 +673,22 @@ function applyOp(s: State, op: Op, f: Fx) {
       return;
     }
     case "highlight": for (const id of op.ids) { f.highlights.push({ key: ent(s, id).key, tone: op.tone }); f.touched.push(id); } return;
-    case "say": f.says.push({ key: ent(s, op.id).key, text: op.text }); f.touched.push(op.id); return;
+    case "say": f.says.push({ key: ent(s, op.id).key, text: op.text, ...(op.at ? { at: op.at } : {}) }); f.touched.push(op.id); return;
+    case "spotlight": f.spot = [...(f.spot ?? []), ...op.ids.map((id) => ent(s, id).key)]; f.touched.push(...op.ids); return;
     case "note": ent(s, op.id).note = op.text; return;
-    case "send": f.sends.push({ label: op.label, path: op.path.map((id) => ent(s, id).key), show: op.show, family: op.is ? needFamily(s, op.is) : ent(s, op.path[0]).family }); f.touched.push(...op.path); return;
+    case "send": {
+      f.sends.push({ label: op.label, path: op.path.map((id) => ent(s, id).key), show: op.show, family: op.is ? needFamily(s, op.is) : ent(s, op.path[0]).family, ...(op.as ? { as: op.as } : {}) });
+      f.touched.push(...op.path);
+      // send ... as m (format version 9): the token stays where it arrives, as token m
+      // (at a queue, a stack or a list it joins it, as an item; anywhere else it sits at the end)
+      if (op.as) {
+        const end = ent(s, op.path[op.path.length - 1]), joins = ["queue", "stack", "list"].includes(end.kind);
+        const e = newEnt(s, { kind: "token", id: op.as, label: op.label || op.as, parent: joins ? end.id : null }, { anchor: joins ? null : end.id, family: f.sends[f.sends.length - 1].family });
+        if (joins) end.kids.push(e.id);
+        f.enter.push(e.key); f.touched.push(op.as); (f.moved ??= []).push({ id: op.as, line: op.line });
+      }
+      return;
+    }
     case "push": {
       const q = ent(s, op.s, "stack or queue");
       if (!["stack", "queue", "list"].includes(q.kind)) throw new Refuse(`push works on a stack, a queue or a list; "${op.s}" is a ${q.kind}`);
@@ -568,7 +703,11 @@ function applyOp(s: State, op: Op, f: Fx) {
       if (!q.kids.length) throw new Refuse(`${op.s} is empty: nothing to pop`);
       // a stack gives back its newest item, a queue its oldest
       const id = q.kind === "stack" ? q.kids[q.kids.length - 1] : q.kids[0];
-      if (op.to) {
+      if (op.to && isOverlay(s.ents[id].kind)) {
+        // a token taken from a queue (format version 9) goes into a container, or sits at a thing
+        const to = ent(s, op.to, "target");
+        moveToken(s, s.ents[id], to, isContainer(to.kind), {}, f, op.line, CTX);
+      } else if (op.to) {
         const to = ent(s, op.to, "target");
         checkParent(s, to.id, "box");
         q.kids.splice(q.kids.indexOf(id), 1);
@@ -580,7 +719,8 @@ function applyOp(s: State, op: Op, f: Fx) {
     }
     case "split": {
       const e = ent(s, op.id);
-      if (isContainer(e.kind)) throw new Refuse(`split works on a shape, and "${op.id}" is a container; add new containers and move what is inside`);
+      if (isContainer(e.kind)) throw new Refuse(`split works on a shape or a token, and "${op.id}" is a container; add new containers and move what is inside`);
+      if (isOverlay(e.kind)) { splitToken(s, e, op.into, f, CTX); return; }
       const list = kidsOf(s, e.parent);
       let at = list.indexOf(e.id);
       const conns = s.conns.filter((c) => c.from === e.id || c.to === e.id);
@@ -597,6 +737,7 @@ function applyOp(s: State, op: Op, f: Fx) {
     }
     case "merge": {
       const es = op.ids.map((id) => ent(s, id));
+      if (es.some((e) => isOverlay(e.kind))) { mergeTokens(s, es, op.into, f, CTX); return; }
       if (es.some((e) => e.parent !== es[0].parent)) throw new Refuse(`merge works inside one container; ${op.ids.join(", ")} are not all in the same one`);
       if (es.some((e) => isContainer(e.kind))) throw new Refuse(`merge works on shapes, not containers`);
       const list = kidsOf(s, es[0].parent);
@@ -616,7 +757,7 @@ function applyOp(s: State, op: Op, f: Fx) {
       }
       return;
     }
-    case "camera": if (op.ids) for (const id of op.ids) ent(s, id); s.camera = op.ids; return;
+    case "camera": if (op.ids) for (const id of op.ids) ent(s, id); s.camera = op.ids; s.view = op.view; return;
     case "family":
       if (s.families.some((c) => c.id === op.id)) throw new Refuse(`family "${op.id}" is named twice`);
       if (s.families.length >= PALETTE) throw new Refuse(`a scene names at most ${PALETTE} families (the palette has ${PALETTE} colours); give ${op.id} the colour of a near one, or a tone=`);
@@ -662,7 +803,7 @@ function drop(s: State, id: string) {
   delete s.ents[id];
   s.conns = s.conns.filter((c) => c.from !== id && c.to !== id);
   for (const o of Object.values(s.ents)) if (o.anchor === id) drop(s, o.id);
-  if (s.camera) { s.camera = s.camera.filter((c) => c !== id); if (!s.camera.length) s.camera = null; }
+  if (s.camera) { s.camera = s.camera.filter((c) => c !== id); if (!s.camera.length) { s.camera = null; if (s.view) s.view = { ...s.view, close: false }; } }
 }
 
 // ---------------------------------------------------------------- layout: where everything sits (world units ~ CSS pixels)
@@ -671,7 +812,8 @@ export interface Pt { x: number; y: number }
 // layer: the layer it sits on (index from the top); ly: its y inside its layer's band (the 3D stage puts every layer
 // on the same floor plan, so a band's own offset is taken off)
 // size: its size name; lines: its label, wrapped; lbl: where its words are (a container's heading), for the overlap check
-export interface Box extends Rect { key: number; id: string; kind: string; label: string; depth: number; container: boolean; parentKind: string | null; index: string | null; ent: Ent; head: number; layer: number; ly: number; size: SizeName; lines: string[]; lbl: Rect | null; cc: number; fill: "soft" | "none"; pcc: number }
+export interface Box extends Rect { key: number; id: string; kind: string; label: string; depth: number; container: boolean; parentKind: string | null; index: string | null; ent: Ent; head: number; layer: number; ly: number; size: SizeName; lines: string[]; lbl: Rect | null; cc: number; fill: "soft" | "none"; pcc: number; faint?: boolean }
+// faint (format version 9): inside a closed thing the story has not zoomed into: drawn faint, its words hidden (lbl null)
 // a connector's label: lines, and where it sits (t along the curve, o off it, sideways), so a moving connector keeps it
 // cc: the family colour (1..PALETTE), 0 for none; fill: its family tint on (soft) or off (none); pcc: the family colour
 // of the container it sits in (a thing of the same family as its container draws without a tint, so it stands out)
@@ -686,7 +828,7 @@ export interface SendGeom { show: string; label: string; cc: number; path: numbe
 // layers: the declared layers (none: every nesting level is one, unnamed); bands: the 2D stage draws them as bands;
 // levels: how many layers there are; spread: split apart (3D); focus: the layer the story looks at, or null
 // look: the keys the story's camera frames (null: everything, or the focused layer); touched: the keys this step touches
-export interface Frame { boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean }
+export interface Frame { boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean; view?: CamView }
 
 // text width: Latin about 7.3 per character at 13px, CJK about 13, Indic scripts about 8.6
 export function textW(s: string, size = 13): number {
@@ -720,6 +862,10 @@ export const chipOf = (phone?: boolean) => (phone ? PHONE_CHIP : CHIP);
 // tokens, sends, speech and connector labels are small whatever the size: a dot and a short chip
 export const CHIP = { font: 11, lh: 14, h: 18, px: 7, maxW: 132, dot: 4.5, gap: 5, sayW: 200, edgeW: 170 };
 export const PHONE_CHIP = { ...CHIP, sayW: 118, edgeW: 120 };
+// lines have room (format version 9): a connector, or a list's or a bucket's arrow, shows at least MIN_LINE units of
+// line between its two shapes; things side by side that a line joins get LINK_GAP between them
+export const MIN_LINE = 32;
+export const LINK_GAP = 38;
 // a label wraps at its size's maxW, at most 3 lines; a token's chip is one line, cut with "…" (the full text is in its title)
 export const MAX_LINES = 3;
 export const headH = (z: SizeTok) => Math.round(z.head + 14);
@@ -776,6 +922,8 @@ function leafGeom(e: Ent, parentKind: string | null, z: SizeTok): { w: number; h
   const wrap = (k = 1) => (text ? wrapEven(text, z.font, z.maxW * k) : []);
   switch (e.kind) {
     case "row": return { w: 0, h: z.minH - 8, lines: [] };
+    // a token waiting in a container (format version 9): the same chip as a token at a thing
+    case "token": { const t = cut(text, CHIP.font, CHIP.maxW); return { w: textW(t, CHIP.font) + 2 * CHIP.px + 10, h: CHIP.h, lines: [t] }; }
     case "text": { const lines = wrap(1.4); return { w: linesW(lines, z.font) + 4, h: lines.length * z.lh + 4, lines }; }
     case "dot": { const lines = wrap(); return { w: Math.max(18, linesW(lines, z.font) + 4), h: 16 + (lines.length ? 4 + lines.length * z.lh : 0), lines }; }
     case "person": { const I = personIcon(z), lines = wrap(); return { w: Math.max(I + 10, linesW(lines, z.font) + 6), h: I + 4 + lines.length * z.lh, lines }; }
@@ -908,7 +1056,11 @@ function around(a: Rect, w: number, h: number, sides: ("up" | "down" | "left" | 
 // attrs.room: the widest connector or arrow label of the story, so a graph leaves room for it between its layers
 // heads: where each container's heading sits along its top (0 left, 1 right), chosen for the story so no line crosses it
 export function layoutState(s: State, attrs: { layout: string; dir: string; size?: string; fill?: string; room?: number; narrow?: boolean; phone?: boolean }, story: [string, string][] = [], keep: Map<string, [number, number]> = new Map(), heads: Map<string, number> | null = null): Frame {
-  const links: [string, string][] = [...s.conns.map((c) => [c.from, c.to] as [string, string]), ...story.filter(([a, b]) => s.ents[a] && s.ents[b])];
+  // a story link to a thing that is not here now goes to its kept slot, so a graph places the slot where the thing goes
+  const slotOf = new Map<string, string>();
+  for (const e of Object.values(s.ents)) if (e.ghost && !s.ents[e.ghost] && !slotOf.has(e.ghost)) slotOf.set(e.ghost, e.id);
+  const real = (id: string) => (s.ents[id] ? id : slotOf.get(id) ?? null);
+  const links: [string, string][] = [...s.conns.map((c) => [c.from, c.to] as [string, string]), ...story.map(([a, b]) => [real(a), real(b)] as [string, string]).filter(([a, b]) => a && b)];
   const sz0 = ((SIZE_NAMES as readonly string[]).includes(attrs.size ?? "") ? attrs.size : "m") as SizeName;
   const sizeOf = (id: string, n = 0): SizeName => { const e = s.ents[id]; if (!e || n > 64) return sz0; return (e.size as SizeName | null) ?? (e.parent ? sizeOf(e.parent, n + 1) : e.anchor ? sizeOf(e.anchor, n + 1) : sz0); };
   const DZ = tokens(attrs.phone);
@@ -922,7 +1074,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   const size = new Map<string, [number, number]>();
   const head = new Map<string, number>();
   const lines = new Map<string, string[]>();
-  const kept = (e: Ent, w: number, h: number): [number, number] => { const k = keep.get(`${e.kind}:${e.id}`); return k ? [Math.max(w, k[0]), Math.max(h, k[1])] : [w, h]; };
+  const kept = (e: Ent, w: number, h: number): [number, number] => { const k = keep.get(`${e.kind}:${e.ghost ?? e.id}`); return k ? [Math.max(w, k[0]), Math.max(h, k[1])] : [w, h]; };
   const rootLayout0 = attrs.layout === "auto" ? (links.some(([a, b]) => top(s, a) !== top(s, b)) ? "graph" : "row") : attrs.layout;
   const rootLayout = attrs.narrow && rootLayout0 === "row" ? "column" : rootLayout0;
   const rootDir = attrs.narrow ? "down" : attrs.dir;
@@ -943,11 +1095,12 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
       size.set(id, sz);
       return sz;
     }
-    const kids = e.kids.filter((k) => !isOverlay(s.ents[k].kind));
+    const kids = e.kids.filter((k) => !(isOverlay(s.ents[k].kind) && s.ents[k].anchor));
     // a queue in a row reads the way things flow (format version 8): new items join at the back (left) and the front,
     // where a worker takes from, is on the right, by what reads it; in a column the front is at the top
     const lay0 = e.kind === "table" ? "table" : e.kind === "stack" ? "stack" : layoutOf(e);
-    const [iw, ih] = place(id, kids, e.kind === "queue" && lay0 === "row" ? "queue" : lay0, e.dir, e.cols, gapOf(e.kind, z), z);
+    const gap0 = gapOf(e.kind, z), gap = ["row", "column", "grid"].includes(lay0) && joined(kids) ? Math.max(gap0, LINK_GAP) : gap0;
+    const [iw, ih] = place(id, kids, e.kind === "queue" && lay0 === "row" ? "queue" : lay0, e.dir, e.cols, gap, z);
     const hh = e.label && e.kind !== "bucket" ? headH(z) : 0;
     const bare = ["array", "list", "queue"].includes(e.kind) && !e.label;
     const pad = bare ? 0 : e.kind === "bucket" ? 4 : z.pad;
@@ -962,7 +1115,9 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     size.set(id, [w, h]);
     return [w, h];
   };
-  const gapOf = (kind: string, z: SizeTok) => (kind === "array" ? 4 : kind === "list" ? 30 : kind === "bucket" ? 24 : kind === "stack" ? 4 : kind === "queue" ? 6 : kind === "table" ? 0 : z.gap);
+  // two of these things are joined by a line (between them, or between anything inside them)
+  const joined = (kids: string[]) => { if (kids.length < 2) return false; const names = new Map(kids.flatMap((k) => [[k, k], [s.ents[k]?.ghost ?? k, k]] as [string, string][])); const own = (id: string) => { for (let x: string | null = id, n = 0; x && n < 64; x = s.ents[x]?.parent ?? null, n++) if (names.has(x)) return names.get(x)!; return null; }; return links.some(([a, b]) => { const p = own(a), q = own(b); return !!p && !!q && p !== q; }); };
+  const gapOf = (kind: string, z: SizeTok) => (kind === "array" ? 4 : kind === "list" ? LINK_GAP : kind === "bucket" ? LINK_GAP : kind === "stack" ? 4 : kind === "queue" ? 6 : kind === "table" ? 0 : z.gap);
   const place = (owner: string | null, kids: string[], layout: string, dir: string, cols: number, gap: number, z: SizeTok): [number, number] => {
     const sz = kids.map((k) => measure(k));
     if (!kids.length) return [0, 0];
@@ -1011,7 +1166,8 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     for (const k of layout === "queue" ? [...kids].reverse() : kids) { const [kw, kh] = size.get(k)!; set(k, x, (h - kh) / 2); x += kw + gap; }
     return [x - gap, h];
   };
-  const rootKids = s.root.filter((k) => !isOverlay(s.ents[k].kind));
+  const rootKids = s.root.filter((k) => !(isOverlay(s.ents[k].kind) && s.ents[k].anchor));
+  const open = openSet(s);
   const lay = (id: string) => layerIndex(s, id);
   // layers as bands: when the top-level things sit on two or more declared layers, the stage is a column of bands,
   // one per layer (top first), and the n-th thing of every band shares one column, so stacks line up; containers in a
@@ -1020,7 +1176,9 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   const bandRects: { L: number; r: Rect }[] = [];
   let rw = 0, rh = 0;
   if (banded) {
-    const BG = Z0.gap * 0.8, BP = Z0.pad + 2, CG = Z0.gap * 3;
+    const BP = Z0.pad + 2, CG = Z0.gap * 3;
+    // a line between two bands shows at least MIN_LINE
+    const BG = links.some(([a, b]) => s.ents[a] && s.ents[b] && lay(top(s, a)) !== lay(top(s, b))) ? Math.max(Z0.gap * 0.8, MIN_LINE + 6 - 2 * BP) : Z0.gap * 0.8;
     for (const k of rootKids) measure(k);
     const per = s.layers.map((_, L) => rootKids.filter((k) => lay(k) === L));
     const ncol = Math.max(1, ...per.map((p) => p.length));
@@ -1043,11 +1201,12 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
       y += inner + 2 * BP + BG;
     });
     rw = totalW; rh = y - BG;
-  } else [rw, rh] = place(null, rootKids, rootLayout, rootDir, 3, rootLayout === "graph" ? Math.round(Z0.gap * 1.6) : Math.round(Z0.gap * 2.2), Z0);
+  } else [rw, rh] = place(null, rootKids, rootLayout, rootDir, 3, rootLayout === "graph" ? Math.round(Z0.gap * 1.6) : joined(rootKids) ? Math.max(LINK_GAP, Math.round(Z0.gap * 2.2)) : Math.round(Z0.gap * 2.2), Z0);
   const bandY = (id: string) => (banded ? bandRects[lay(top(s, id))]?.r.y ?? 0 : 0);
   // absolute positions, top-down
   const absolute = (id: string, ox: number, oy: number, depth: number) => {
     const e = s.ents[id], r = rel.get(id)!;
+    if (e.ghost) return; // a kept slot: room only
     const x = ox + r.x, y = oy + r.y;
     const p = e.parent ? s.ents[e.parent] : null;
     const index = p?.kind === "array" ? String(p.kids.indexOf(id)) : null;
@@ -1058,8 +1217,9 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     const hh = head.get(id) ?? 0;
     const lbl = container
       ? (hh && e.label ? { x: x + z.pad + (heads?.get(id) ?? 0) * Math.max(0, r.w - 2 * z.pad - headW(e.label, z) - 2), y: y + 4, w: headW(e.label, z) + 2, h: hh - 6 } : e.kind === "bucket" ? { x, y, w: 30, h: r.h } : null)
-      : e.kind === "row" ? rect : labelBox(isSlot(e.kind, p?.kind ?? null) ? "box" : e.kind, rect, ls, z, e.level != null);
-    boxes.set(id, { key: e.key, id, kind: e.kind, label: e.label, ...rect, depth, container, parentKind: p?.kind ?? null, index, ent: e, head: hh, layer: lay(id), ly: y - bandY(id), size: sn, lines: ls, lbl, cc: ccOf(id), fill: fillOf(id), pcc: ccOf(e.parent) });
+      : e.kind === "row" || e.kind === "token" ? rect : labelBox(isSlot(e.kind, p?.kind ?? null) ? "box" : e.kind, rect, ls, z, e.level != null);
+    const faint = !!hiddenBy(s, id, open);
+    boxes.set(id, { key: e.key, id, kind: e.kind, label: e.label, ...rect, depth, container, parentKind: p?.kind ?? null, index, ent: e, head: hh, layer: lay(id), ly: y - bandY(id), size: sn, lines: ls, lbl: faint ? null : lbl, cc: ccOf(id), fill: fillOf(id), pcc: ccOf(e.parent), ...(faint ? { faint } : {}) });
     for (const k of e.kids) if (rel.has(k)) absolute(k, x, y, depth + 1);
   };
   for (const k of rootKids) absolute(k, 0, 0, 0);
@@ -1122,7 +1282,8 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
       r = pick(cands, labels, shapes, [], [...edgeLine.values()]).r;
     }
     labels.push(r);
-    boxes.set(e.id, { key: e.key, id: e.id, kind: e.kind, label: e.label, ...r, depth: 99, container: false, parentKind: null, index: null, ent: e, head: 0, layer: lay(e.anchor), ly: r.y - bandY(e.anchor), size: "s", lines: [text], lbl: r, cc: ccOf(e.id), fill: fillOf(e.id), pcc: 0 });
+    const faint = !!hiddenBy(s, e.id, open);
+    boxes.set(e.id, { key: e.key, id: e.id, kind: e.kind, label: e.label, ...r, depth: 99, container: false, parentKind: null, index: null, ent: e, head: 0, layer: lay(e.anchor), ly: r.y - bandY(e.anchor), size: "s", lines: [text], lbl: faint ? null : r, cc: ccOf(e.id), fill: fillOf(e.id), pcc: 0, ...(faint ? { faint } : {}) });
   }
   const all = [...bandBoxes, ...boxes.values()];
   const bounds = all.length ? union(all) : { x: 0, y: 0, w: Math.max(rw, 100), h: Math.max(rh, 60) };
@@ -1130,7 +1291,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   const onFocus = focus < 0 ? [] : banded ? bandBoxes.filter((b) => b.layer === focus) : all.filter((b) => b.layer === focus);
   const cam = s.camera ? union(s.camera.map((id) => boxes.get(id)).filter(Boolean) as Rect[]) : onFocus.length ? union(onFocus) : bounds;
   const levels = s.layers.length || Math.max(1, ...all.map((b) => b.layer + 1));
-  return { boxes: all, edges, bounds, camera: pad(cam, 12), layers: s.layers, bands: banded, levels, spread: s.spread, focus: focus < 0 ? null : focus, look: s.camera ? s.camera.map((id) => boxes.get(id)?.key).filter((k): k is number => k != null) : null, size: sz0, marks: [], sends: [], touched: [], families: s.families, phone: !!attrs.phone };
+  return { boxes: all, edges, bounds, camera: pad(cam, 12), layers: s.layers, bands: banded, levels, spread: s.spread, focus: focus < 0 ? null : focus, look: s.camera ? s.camera.map((id) => boxes.get(id)?.key).filter((k): k is number => k != null) : null, size: sz0, marks: [], sends: [], touched: [], families: s.families, phone: !!attrs.phone, view: s.view };
 }
 const top = (s: State, id: string): string => { let e = s.ents[id]; while (e?.parent) e = s.ents[e.parent]; return e?.id ?? id; };
 export function union(rs: Rect[]): Rect {
@@ -1186,7 +1347,8 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
     const others = lines.filter((l) => !own.includes(l));
     const g: SendGeom = { show: snd.show, label: snd.label, cc: snd.family ? f.families.findIndex((c) => c.id === snd.family) + 1 : 0, path, offs, bends, chip: null, alabel: null, seg: 0, t: 0.5, ox: 0, oy: 0 };
     const last = geo[geo.length - 1], end = byKey.get(path[path.length - 1])!;
-    if (snd.label && snd.show === "token") {
+    // a send that leaves its token (send ... as m) has no chip of its own: the token entity is its chip
+    if (snd.label && snd.show === "token" && !snd.as) {
       // (a stream's and an arrow's label are placed below, by the middle of the path)
       // the token rests at its end, by the side it came in on; its chip sits next to it, off every label
       const text = cut(snd.label, CHIP.font, CHIP.maxW);
@@ -1194,7 +1356,7 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
       const dot: Rect = { x: last.Q.x - 6, y: last.Q.y - 6, w: 12, h: 12 };
       const best = pick([...around(dot, w, h, ["up", "right", "down", "left"], 3), ...around(end, w, h, ["up", "down", "right", "left"])], labels, shapes, soft, lines);
       g.chip = mark({ kind: "send", at: end.key, text: snd.label, lines: [text], r: best.r, side: best.side });
-    } else if (snd.label) {
+    } else if (snd.label && !snd.as) {
       // an arrow's label sits by the middle of the arrow, beside it if the middle is taken
       const lines = wrapEven(snd.label, CHIP.font, chipOf(f.phone).edgeW, 2);
       const w = linesW(lines, CHIP.font) * 1.08 + 2 * CHIP.px, h = lines.length * CHIP.lh + 4; // its words are semi-bold: 8% wider
@@ -1218,7 +1380,10 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
     // then rings around the thing, further and further out
     const c = center(a), ring: { r: Rect; side: "up" | "down" | "left" | "right" }[] = [];
     for (const rr of [0.5, 0.75, 1.05, 1.4, 1.8]) for (let k = 0; k < 16; k++) { const ang = (k * Math.PI) / 8, ox = Math.cos(ang) * (a.w / 2 + w / 2 + 12) * rr * 1.4, oy = Math.sin(ang) * (a.h / 2 + h / 2 + 12) * rr * 1.6; ring.push({ r: { x: c.x + ox - w / 2, y: c.y + oy - h / 2, w, h }, side: Math.abs(ox) > Math.abs(oy) ? (ox > 0 ? "right" : "left") : oy > 0 ? "down" : "up" }); }
-    const best = pick([...around(a, w, h, ["up", "down", "right", "left"], 9), ...ring], labels, shapes, soft, lines);
+    // say <id> above|below|left|right: that side first (format version 9); still never over a word
+    const want = ({ above: "up", below: "down", left: "left", right: "right" } as const)[sy.at as "above"] ?? null;
+    const sides: ("up" | "down" | "left" | "right")[] = want ? [want, ...(["up", "down", "right", "left"] as const).filter((x) => x !== want)] : ["up", "down", "right", "left"];
+    const best = pick([...around(a, w, h, sides, 9), ...(want ? ring.filter((x) => x.side === want) : []), ...ring], labels, shapes, soft, lines);
     mark({ kind: "say", at: a.key, text: sy.text, lines: words, r: best.r, side: best.side });
   }
   const touched = [...new Set(touchedIds.map((id) => byId.get(id)?.key).filter((k): k is number => k != null))];
@@ -1251,8 +1416,9 @@ export function minFont(f: Frame): number {
   let m = CHIP.font;
   for (const b of f.boxes) {
     const z = Z[b.size] ?? Z.m;
+    if (b.faint) continue; // a closed thing's inside shows no words
     if (b.kind === "layer" || b.kind === "table" || (b.container && b.head && b.label)) m = Math.min(m, z.head);
-    if (b.lines?.length && !b.container) m = Math.min(m, z.font);
+    if (b.lines?.length && !b.container && b.kind !== "token") m = Math.min(m, z.font);
   }
   return m;
 }
@@ -1265,9 +1431,14 @@ export const phoneLeast = (f: Frame) => MIN_PX / minFont(f);
 // the step touches still fits; the reader drags to see the rest
 export function storyView(f: Frame, ar: number, px = 0): Rect {
   const t = touchedRect(f);
-  const want = pad(t ? union([f.camera, t]) : f.camera, MARGIN);
+  // the author's camera words (format version 9, tools/camera.ts): close flies in (a tight margin, up to CLOSE_SCALE
+  // times natural size), far pulls back (the framed area grows on every side)
+  const close = !!f.view?.close && f.look != null, far = !!f.view?.far;
+  const want0 = pad(t ? union([f.camera, t]) : f.camera, close ? 4 : MARGIN);
+  const want = far ? pad(want0, Math.max(want0.w, want0.h) * FAR_GROW) : want0;
   // never drawn larger than 1.5 times natural size, so a small scene does not fill the stage with huge words
-  let v = fitAspect(want, ar, px ? Math.max(320 * 0.5, px / 1.5) : 320);
+  const most = close ? CLOSE_SCALE : 1.5;
+  let v = fitAspect(want, ar, px ? Math.max(320 * 0.5 * (1.5 / most), px / most) : 320 * (1.5 / most));
   // the least scale: on a phone, where the smallest words reach MIN_PX (small words are hard to read); 0.65 on a
   // wider stage (better to see it all)
   const least = px && px < NARROW ? Math.max(0.8, phoneLeast(f)) : 0.65;
@@ -1283,7 +1454,52 @@ export function storyView(f: Frame, ar: number, px = 0): Rect {
       v = { x: Number.isFinite(x) ? x : c.x - w / 2, y: Number.isFinite(y) ? y : c.y - h / 2, w, h };
     }
   }
+  // format version 9: the view never runs past the scene on one side while it cuts it on the other: it stays within
+  // the scene (with a margin), or is centred on it where the scene is smaller than the view
+  const inScene = (v0: Rect): Rect => {
+    const S = pad(f.bounds, MARGIN);
+    const axis = (p: number, s: number, bp: number, bs: number) => (s >= bs ? bp + (bs - s) / 2 : Math.min(Math.max(p, bp), bp + bs - s));
+    const v2 = { ...v0, x: axis(v0.x, v0.w, S.x, S.w), y: axis(v0.y, v0.h, S.y, S.h) };
+    return !t || inside(pad(t, 4), v2) ? v2 : v0;
+  };
+  v = inScene(v);
+  // format version 9: on a laptop the view never cuts a thing (or a container's heading) in half at its edge: it grows
+  // to show it whole if it may, else it slides to take it in or leave it out, as long as what the step touches stays in
+  if (!px || px >= NARROW) {
+    const maxW = px ? Math.max(v.w, px / least) : Infinity;
+    const tr = t ? pad(t, 4) : null;
+    const keeps = (r: Rect) => !tr || inside(tr, r);
+    for (let n = 0; n < 8; n++) {
+      const cut = cutBy(f, v);
+      if (!cut.length) break;
+      const r = cut[0];
+      const g = fitAspect(pad(union([v, r]), 6), ar);
+      if (g.w <= maxW + 0.5 && keeps(g)) { v = g; continue; }
+      // slide: just enough to take it in, else just enough to leave it out
+      const dIn = { x: r.x < v.x ? r.x - 6 - v.x : r.x + r.w > v.x + v.w ? r.x + r.w + 6 - (v.x + v.w) : 0, y: r.y < v.y ? r.y - 6 - v.y : r.y + r.h > v.y + v.h ? r.y + r.h + 6 - (v.y + v.h) : 0 };
+      const dOut = { x: r.x < v.x ? r.x + r.w + 2 - v.x : r.x + r.w > v.x + v.w ? r.x - 2 - (v.x + v.w) : 0, y: r.y < v.y ? r.y + r.h + 2 - v.y : r.y + r.h > v.y + v.h ? r.y - 2 - (v.y + v.h) : 0 };
+      const vin = { ...v, x: v.x + dIn.x, y: v.y + dIn.y }, vout = { ...v, x: v.x + dOut.x, y: v.y + dOut.y };
+      if (Math.abs(r.w) <= v.w && Math.abs(r.h) <= v.h && keeps(vin) && cutBy(f, vin).length < cut.length) { v = vin; continue; }
+      if (keeps(vout) && cutBy(f, vout).length < cut.length) { v = vout; continue; }
+      break;
+    }
+  }
+
+  { const v2 = inScene(v); if (px && px < NARROW ? true : cutBy(f, v2).length <= cutBy(f, v).length) v = v2; }
   return v;
+}
+// what a view cuts in half: things (with their words) and container headings partly in it, biggest first
+export function cutBy(f: Frame, v: Rect): Rect[] {
+  const rs: Rect[] = [];
+  for (const b of f.boxes) {
+    // a layer band's name; a thing with its words; a container's heading, and a container that would fit in the view
+    if (b.key <= 0) { if (b.lbl && hit(b.lbl, v, -1) && !inside(b.lbl, v)) rs.push(b.lbl); continue; }
+    const r = b.container ? b.lbl : b.lbl ? union([b, b.lbl]) : b;
+    if (r && hit(r, v, -1) && !inside(r, v)) rs.push(r);
+    // (not in a close-up, camera close or zoom into: there its neighbours may be cut)
+    if (!f.view?.close && b.container && b.w <= v.w && b.h <= v.h && hit(b, v, -1) && !inside(b, v)) rs.push(b);
+  }
+  return rs.sort((p, q) => q.w * q.h - p.w * p.h);
 }
 const inside = (r: Rect, v: Rect) => r.x >= v.x - 0.5 && r.y >= v.y - 0.5 && r.x + r.w <= v.x + v.w + 0.5 && r.y + r.h <= v.y + v.h + 0.5;
 // in frame: each touched thing (with its words) and each mark is fully inside the view and outside every control
@@ -1461,13 +1677,96 @@ function graphLayout(s: State, kids: string[], size: Map<string, [number, number
 
 // ---------------------------------------------------------------- everything at once, for doccheck, the LLM view and the renderer
 // warnings: what doccheck says but does not refuse (a token's label too long for its chip)
-export interface Compiled { scene: Scene; frames: Frame[]; fx: Fx[]; errors: SceneError[]; warnings: SceneError[]; aspect: number }
+// beats[k]: the frames at the end of each beat of step k but the last (empty for a step of one beat)
+export interface Compiled { scene: Scene; frames: Frame[]; fx: Fx[]; errors: SceneError[]; warnings: SceneError[]; aspect: number; beats?: Frame[][] }
 export const TOKEN_CHARS = 18;
 // below this stage width (pixels) a wide scene (more than 1.4 wide per unit of height) is drawn with its narrow layout
 export const NARROW = 480;
 export const useNarrow = (c: Compiled, px: number) => px > 0 && px < NARROW && c.aspect > 1.4;
 // what a phone stage (under NARROW pixels) draws: the phone's tokens, and the narrow layout when the scene is wide
 export const phoneInfo = (wide: Compiled, info: Record<string, string>, px: number): Record<string, string> => ({ ...info, phone: "1", ...(useNarrow(wide, px) ? { narrow: "1" } : {}) });
+// ---------------------------------------------------------------- kept slots (format version 9)
+// Things a step does not change stay where they are. In a group, a grid, a graph and the stage itself, a thing that
+// leaves (moves out, is removed, or is not added yet) leaves its slot empty, so the things around it do not close up:
+// each such container lays out, on every step, every thing it ever holds, in one order that agrees with every step,
+// and an absent thing is a slot of its size that is never drawn. Data structures (array, list, stack, queue, bucket,
+// table) and trees close up on purpose: a queue moving up is what a pop means. When the order of a container's things
+// changes between steps (the author moved one before another), that container closes up as before.
+const SLOT_KINDS = new Set(["group", "graph", "grid"]);
+const ROOT = "\u0000root";
+// keep: once the sizes are known, two things that are never in a container at the same time, of the same kind and
+// size, share one slot (a job that leaves a worker and the next job that comes in sit in the same place)
+export function keepSlots(states: State[], keep?: Map<string, [number, number]>): State[] {
+  const lists = new Map<string, { k: number; l: string[] }[]>();
+  const ref = new Map<string, Ent>(); // container > thing: the thing as it is there, the first time
+  const visible = (s: State, ids: string[]) => ids.filter((k) => s.ents[k] && !isOverlay(s.ents[k].kind));
+  states.forEach((s, k) => {
+    const add = (c: string, kids: string[]) => { const l = lists.get(c) ?? []; l.push({ k, l: kids }); lists.set(c, l); for (const x of kids) if (!ref.has(`${c}>${x}`)) ref.set(`${c}>${x}`, s.ents[x]); };
+    add(ROOT, visible(s, s.root));
+    for (const e of Object.values(s.ents)) if (SLOT_KINDS.has(e.kind) && e.layout !== "tree") add(e.id, visible(s, e.kids));
+  });
+  // one order that agrees with every step: a topological order of "comes before", ties by first appearance; then the
+  // slots: each thing takes the first slot it can share, else a new one at the end
+  const slotsOf = new Map<string, string[][]>();
+  for (const [c, ls] of lists) {
+    const seen: string[] = [];
+    for (const { l } of ls) for (const x of l) if (!seen.includes(x)) seen.push(x);
+    if (ls.every(({ l }) => l.length === seen.length)) continue; // the same things on every step: nothing to keep
+    const before = new Map(seen.map((x) => [x, new Set<string>()]));
+    for (const { l } of ls) for (let i = 0; i + 1 < l.length; i++) before.get(l[i + 1])!.add(l[i]);
+    const out: string[] = [];
+    const left = [...seen];
+    while (left.length) {
+      const i = left.findIndex((x) => [...before.get(x)!].every((p) => out.includes(p)));
+      if (i < 0) break;
+      out.push(left.splice(i, 1)[0]);
+    }
+    if (left.length) continue; // the author reordered things here: it closes up
+    const life = new Map(out.map((x) => [x, new Set(ls.filter(({ l }) => l.includes(x)).map(({ k }) => k))]));
+    const sizeKey = (x: string) => { const e = ref.get(`${c}>${x}`)!; const z = keep?.get(`${e.kind}:${x}`); return z ? `${e.kind}:${Math.round(z[0])}x${Math.round(z[1])}` : null; };
+    const slots: string[][] = [], slotOf = new Map<string, number>();
+    for (const x of out) {
+      let at = -1;
+      if (keep) for (let si = 0; si < slots.length && at < 0; si++) {
+        const occ = slots[si];
+        if (sizeKey(x) == null || occ.some((o) => sizeKey(o) !== sizeKey(x))) continue;
+        if (occ.some((o) => [...life.get(o)!].some((k) => life.get(x)!.has(k)))) continue;
+        const fits = ls.every(({ l }) => { const p = l.indexOf(x); if (p < 0) return true; return l.every((y, j) => { const sy = slotOf.get(y); return sy == null || y === x || (sy < si ? j < p : sy > si ? j > p : true); }); });
+        if (fits) at = si;
+      }
+      if (at < 0) { slots.push([x]); at = slots.length - 1; } else slots[at].push(x);
+      slotOf.set(x, at);
+    }
+    slotsOf.set(c, slots);
+  }
+  if (!slotsOf.size) return states;
+  return states.map((s0, k) => {
+    const s: State = clone(s0);
+    for (const [c, slots] of slotsOf) {
+      if (c !== ROOT && !s.ents[c]) continue;
+      const kids = c === ROOT ? s.root : s.ents[c].kids;
+      const here = new Set(visible(s, kids));
+      const overlays = kids.filter((x) => !here.has(x));
+      const next: string[] = [];
+      for (const occ of slots) {
+        const real = occ.find((x) => here.has(x));
+        if (real) { next.push(real); continue; }
+        // an empty slot: the room of the thing that was here last (or comes next)
+        const lastK = (x: string) => Math.max(-1, ...(lists.get(c) ?? []).filter((e) => e.k <= k && e.l.includes(x)).map((e) => e.k));
+        const id = [...occ].sort((p, q) => lastK(q) - lastK(p))[0];
+        const r = ref.get(`${c}>${id}`)!;
+        const gid = `${id}\u0000slot\u0000${c}`;
+        s.ents[gid] = { ...JSON.parse(JSON.stringify(r)), id: gid, ghost: id, kids: [], parent: c === ROOT ? null : c, anchor: null, under: null, side: null, note: "" };
+        next.push(gid);
+      }
+      for (const x of here) if (!next.includes(x)) next.push(x);
+      const all = [...next, ...overlays];
+      if (c === ROOT) s.root = all; else s.ents[c].kids = all;
+    }
+    return s;
+  });
+}
+
 export function compileScene(head: string, steps: { title: string; raw: string; line: number }[], base: number, info: Record<string, string> = {}): Compiled {
   const { scene, errors } = parseScene(head, steps, base, info);
   const r = play(scene);
@@ -1480,20 +1779,36 @@ export function compileScene(head: string, steps: { title: string; raw: string; 
   const room = Math.max(0, ...labelsOf.filter(Boolean).map((l) => Math.max(...wrapEven(l, CHIP.font, chipOf(scene.attrs.phone).edgeW, 2).map((x) => textW(x, CHIP.font))) + 2 * CHIP.px));
   let keep = new Map<string, [number, number]>();
   let frames: Frame[] = [];
-  for (let pass = 0; pass < 6; pass++) {
-    frames = r.states.map((st) => layoutState(st, { ...scene.attrs, room }, story, keep));
-    let grew = false;
-    const next = new Map(keep);
-    for (const f of frames) for (const b of f.boxes) {
-      if (b.key < 0 || b.kind === "token" || b.kind === "pointer" || b.kind === "row") continue;
-      const k = `${b.kind}:${b.id}`, o = next.get(k);
-      if (!o || b.w > o[0] + 0.5 || b.h > o[1] + 0.5) { next.set(k, [Math.max(b.w, o?.[0] ?? 0), Math.max(b.h, o?.[1] ?? 0)]); grew = true; }
+  // the story in order: each step's beats, then the step; laid out together, so sizes and kept slots agree
+  const seq: State[] = [], where: { k: number; b: number }[] = [];
+  r.states.forEach((st, k) => { (r.subs[k] ?? []).forEach((x, b) => { seq.push(x); where.push({ k, b }); }); seq.push(st); where.push({ k, b: -1 }); });
+  let slotted = keepSlots(seq);
+  const grow = () => {
+    for (let pass = 0; pass < 6; pass++) {
+      frames = slotted.map((st) => layoutState(st, { ...scene.attrs, room }, story, keep));
+      let grew = false;
+      const next = new Map(keep);
+      for (const f of frames) for (const b of f.boxes) {
+        if (b.key < 0 || b.kind === "token" || b.kind === "pointer" || b.kind === "row") continue;
+        const k = `${b.kind}:${b.id}`, o = next.get(k);
+        if (!o || b.w > o[0] + 0.5 || b.h > o[1] + 0.5) { next.set(k, [Math.max(b.w, o?.[0] ?? 0), Math.max(b.h, o?.[1] ?? 0)]); grew = true; }
+      }
+      keep = next;
+      if (!grew) break;
     }
-    keep = next;
-    if (!grew) break;
-  }
+  };
+  grow();
+  // now that sizes are known, things never in a container together share a slot (format version 9); containers are
+  // measured again with that plan (what they hold keeps its size)
+  slotted = keepSlots(seq, keep);
+  const conts = new Set(seq.flatMap((st) => Object.values(st.ents).filter((e) => isContainer(e.kind)).map((e) => `${e.kind}:${e.id}`)));
+  keep = new Map([...keep].filter(([k]) => !conts.has(k)));
+  grow();
   const deco = (fs: Frame[]) => fs.map((f, i) => decorate(f, r.fx[i], r.fx[i]?.touched ?? []));
-  frames = deco(frames);
+  // split the laid-out sequence into the steps' frames and their beats' frames
+  const beatFrames: Frame[][] = r.states.map(() => []);
+  const mainOf = (all: Frame[]) => { const out: Frame[] = []; all.forEach((f, j) => { const w = where[j]; if (w.b < 0) out.push(f); else beatFrames[w.k][w.b] = decorate(f, undefined, []); }); return out; };
+  frames = deco(mainOf(frames));
   // each container's heading slides along its top (left, right, middle ...) to where no line in the whole story
   // crosses it; the same place on every step, so it never jumps
   const heads = new Map<string, number>();
@@ -1514,9 +1829,9 @@ export function compileScene(head: string, steps: { title: string; raw: string; 
     }
     if (best) heads.set(id, best);
   }
-  frames = deco(r.states.map((st) => layoutState(st, { ...scene.attrs, room }, story, keep, heads)));
+  frames = deco(mainOf(slotted.map((st) => layoutState(st, { ...scene.attrs, room }, story, keep, heads))));
   // one stage size for every step, so the buttons never move: the shape of everything the story ever shows
-  const all = union(frames.map((f) => f.bounds));
+  const all = union([...frames, ...beatFrames.flat()].map((f) => f.bounds));
   // a scene with layers, or one that opens in 3D, gets a taller stage (at most 1.5 wide per unit of height): in 3D its layers stack upward
   const layered = scene.attrs.view === "3d" || frames.some((f) => f.layers.length);
   // the narrow (phone) layout may be taller than wide: down to 0.62 wide per unit of height
@@ -1530,7 +1845,7 @@ export function compileScene(head: string, steps: { title: string; raw: string; 
     if (op.op === "send" && op.show === "token" && op.label) longTok(op.label, op.line, "the token's label");
     if (op.op === "add" && op.decl.kind === "token" && op.decl.label) longTok(op.decl.label, op.line, `token ${op.decl.id}`);
   }
-  return { scene, frames, fx: r.fx, errors: dedupe(errors), warnings: dedupe(warnings), aspect };
+  return { scene, frames, fx: r.fx, errors: dedupe(errors), warnings: dedupe(warnings), aspect, beats: beatFrames };
 }
 const dedupe = (es: SceneError[]) => { const seen = new Set<string>(); return es.filter((e) => { const k = `${e.line}:${e.msg}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -1539,7 +1854,7 @@ const dedupe = (es: SceneError[]) => { const seen = new Set<string>(); return es
 export function sceneLlm(c: Compiled): string {
   const first = play({ ...c.scene, steps: [{ caption: "", line: 0, ops: [] }] }).states[0];
   const lines: string[] = [];
-  const name = (e: Ent) => (e.label && e.label !== e.id ? `${e.kind} ${e.id} "${e.label}"` : `${e.kind} ${e.id}`);
+  const name = (e: Ent) => (e.label && e.label !== e.id ? `${e.kind} ${e.id} "${e.label}"` : `${e.kind} ${e.id}`) + (e.closed ? " closed" : "");
   const desc = (id: string): string => {
     const e = first.ents[id];
     if (["array", "list", "stack", "queue"].includes(e.kind)) return `${e.kind} ${e.id}${e.label ? ` "${e.label}"` : ""}${e.kind === "queue" && e.kids.length ? " (front first)" : e.kind === "stack" && e.kids.length ? " (top first)" : ""}: ${(e.kind === "stack" ? [...e.kids].reverse() : e.kids).map((k) => first.ents[k].label).join(", ") || "empty"}`;
@@ -1559,6 +1874,9 @@ export function sceneLlm(c: Compiled): string {
     const of = (id: string) => [...Object.values(first.ents).filter((e) => e.family === id).map((e) => e.id), ...first.conns.filter((x) => x.family === id).map((x) => `${x.from} -> ${x.to}`)];
     lines.push(`Families, one colour each: ${first.families.map((k) => `${k.id}${k.label !== k.id ? ` "${k.label}"` : ""}${of(k.id).length ? ` (${of(k.id).join(", ")})` : ""}`).join("; ")}.`);
   }
-  const moves = (s: SceneStep) => s.ops.filter((o): o is Extract<Op, { op: "send" }> => o.op === "send").map((o) => `\n   ${o.path.join(" -> ")}${o.label ? `: ${o.label}` : ""}`).join("");
-  return `Animation, ${c.scene.steps.length} steps. ${lines.join(" ")}\n\n${c.scene.steps.map((s, i) => `${i + 1}. ${s.caption}${moves(s)}`).join("\n")}`;
+  // what moves in each step: sends, then (format version 9) what tokens do: move, split, merge, drop, and a zoom
+  const r = play(c.scene);
+  const before = (k: number) => (k ? r.states[k - 1] : first);
+  const moves = (s: SceneStep, k: number) => s.ops.filter((o): o is Extract<Op, { op: "send" }> => o.op === "send").map((o) => `\n   ${o.path.join(" -> ")}${o.label ? `: ${o.label}` : ""}`).join("") + (r.states[k] ? llmLines(before(k), r.states[k], s.ops).map((l) => `\n   ${l}`).join("") : "");
+  return `Animation, ${c.scene.steps.length} steps. ${lines.join(" ")}\n\n${c.scene.steps.map((s, i) => `${i + 1}. ${s.caption}${moves(s, i)}`).join("\n")}`;
 }

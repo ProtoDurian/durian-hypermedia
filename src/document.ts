@@ -13,7 +13,7 @@ import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
-export const FORMAT_VERSION = 8;
+export const FORMAT_VERSION = 9;
 
 /**
  * The texts a reader sees in an animation block, in story order: the quoted labels, the captions (step titles), the

@@ -509,7 +509,7 @@ export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEY
 // animation: see tools/scene.ts (pure, shared with the browser)
 export function animSrc(p: PartNode) {
   const info: Record<string, string> = {};
-  for (const k of ["layout", "dir", "kind", "view", "size"]) if (p.attrs[k]) info[k] = p.attrs[k];
+  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
 export function animOf(p: PartNode): Compiled { const s = animSrc(p); return compileScene(s.head, s.steps, s.base, s.info); }

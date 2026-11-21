@@ -35,7 +35,6 @@ send both "2 books" b1 -> merge
 send both "5 books" b2 -> merge
 set b3 dim=yes
 @step The merger joins the answers into one list for the reader.
-add pill res "7 books, by date" is=q
-merge -> res
-send arrow merge -> res
+highlight merge
+say merge below: 7 books, by date
 ```

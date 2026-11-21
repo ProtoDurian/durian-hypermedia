@@ -24,7 +24,7 @@ export const CAM_DEFAULT: CamView = { close: false, far: false, turn: null, tilt
 export const TURN_RAD: Record<Turn, number> = { front: -0.12, left: -0.95, right: 0.95, back: Math.PI - 0.12 };
 export const TILT_RAD: Record<Tilt, number> = { low: 0.3, mid: 0.62, high: 0.98, top: 1.42 };
 // close: the story camera may draw up to this many times natural size (the plain camera stops at 1.5)
-export const CLOSE_SCALE = 2.6;
+export const CLOSE_SCALE = 2; // 2.6 drew a word at 34 px: too close (reviewer)
 // far: the framed area grows by this much (each side), so the things sit smaller
 export const FAR_GROW = 0.45;
 

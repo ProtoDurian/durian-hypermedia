@@ -1454,6 +1454,15 @@ export function storyView(f: Frame, ar: number, px = 0): Rect {
       v = { x: Number.isFinite(x) ? x : c.x - w / 2, y: Number.isFinite(y) ? y : c.y - h / 2, w, h };
     }
   }
+  // format version 9: the view never runs past the scene on one side while it cuts it on the other: it stays within
+  // the scene (with a margin), or is centred on it where the scene is smaller than the view
+  const inScene = (v0: Rect): Rect => {
+    const S = pad(f.bounds, MARGIN);
+    const axis = (p: number, s: number, bp: number, bs: number) => (s >= bs ? bp + (bs - s) / 2 : Math.min(Math.max(p, bp), bp + bs - s));
+    const v2 = { ...v0, x: axis(v0.x, v0.w, S.x, S.w), y: axis(v0.y, v0.h, S.y, S.h) };
+    return !t || inside(pad(t, 4), v2) ? v2 : v0;
+  };
+  v = inScene(v);
   // format version 9: on a laptop the view never cuts a thing (or a container's heading) in half at its edge: it grows
   // to show it whole if it may, else it slides to take it in or leave it out, as long as what the step touches stays in
   if (!px || px >= NARROW) {
@@ -1475,15 +1484,20 @@ export function storyView(f: Frame, ar: number, px = 0): Rect {
       break;
     }
   }
+
+  { const v2 = inScene(v); if (px && px < NARROW ? true : cutBy(f, v2).length <= cutBy(f, v).length) v = v2; }
   return v;
 }
 // what a view cuts in half: things (with their words) and container headings partly in it, biggest first
 export function cutBy(f: Frame, v: Rect): Rect[] {
   const rs: Rect[] = [];
   for (const b of f.boxes) {
-    if (b.key <= 0) continue;
+    // a layer band's name; a thing with its words; a container's heading, and a container that would fit in the view
+    if (b.key <= 0) { if (b.lbl && hit(b.lbl, v, -1) && !inside(b.lbl, v)) rs.push(b.lbl); continue; }
     const r = b.container ? b.lbl : b.lbl ? union([b, b.lbl]) : b;
     if (r && hit(r, v, -1) && !inside(r, v)) rs.push(r);
+    // (not in a close-up, camera close or zoom into: there its neighbours may be cut)
+    if (!f.view?.close && b.container && b.w <= v.w && b.h <= v.h && hit(b, v, -1) && !inside(b, v)) rs.push(b);
   }
   return rs.sort((p, q) => q.w * q.h - p.w * p.h);
 }

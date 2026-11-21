@@ -37,13 +37,17 @@ Format version 9 (SPEC.md section 11): more control over animation for the autho
   came or went (positions of untouched things no longer close up). Data structures and trees still close up.
 - **Lines have room:** at least 32 units of line; things a line joins are laid out 38 apart (was the size's gap, 18
   for size m), lists and buckets 38. Scenes with joined neighbours get wider.
-- **The laptop view never cuts a thing in half** at the stage's edge.
+- **The laptop view never cuts a thing in half** at the stage's edge (nor a container that would fit, a heading or a layer's
+  name; a close-up may cut its neighbours), and never runs past the scene on one side while it cuts it on the other.
+  `close` draws things at most 2 times natural size.
 - **One-line hint:** the line under the stage is one line (short on a phone) with a `?` button for the whole text.
   New UI strings: `hintShort`, `hintShortOn`, `hintShort3d`, `hintShortOn3d`, `howTo` (6 languages).
 - **3D:** the camera stays above every shown plane and layers in the way fade; a scene with no declared layers stands
   on one floor in 3D (its contents no longer hang under their container); a lit container lifts its contents; a
   moving token's label keeps its offset while it moves (no jumps or flicker); 3D names take their spots in order and
-  fade to a ghost when there is no room.
+  fade to a ghost when there is no room. A 2D scene opened in 3D is seen from nearly in front. A lit thing's name is
+  underlined (it was boxed) and its ring hugs its own foot (it lay on the floor, offset). A speech bubble keeps the
+  spot it appeared in.
 
 ### Fixed
 

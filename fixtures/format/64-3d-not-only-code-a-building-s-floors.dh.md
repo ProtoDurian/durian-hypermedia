@@ -31,11 +31,11 @@ move ana to lift
 move ben to lift
 @step The lift goes up to the 2nd floor, and Ben gets out for coffee.
 move lift to fl2
-@step Ben steps out at the cafe.
+then
 move ben to fl2
 @step The lift goes on to the 3rd floor, and Ana walks to her desk.
 move lift to fl3
-@step Ana is at her desk.
+then
 move ana to fl3 after desk
 focus f3
 ```

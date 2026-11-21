@@ -263,7 +263,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     if (v.focus != null) { storyL = v.focus; const a = angleOf(cw, -0.15, 0.85); return far(fitBox([...layerPts(v.focus), ...touched], a.el, a.az)); }
     // everything on the stage, and the layer planes (they are wider than what stands on them)
     const planesPts = v.layers.flatMap((_, L) => layerPts(L));
-    const a = angleOf(cw, -0.5, !v.layers.length ? FLAT_TILT : v.spread > 0.5 ? 0.5 : 0.62);
+    // a scene with no layers (a 2D scene opened in 3D) is seen from nearly in front, as in 2D, so it fills the stage
+    const a = angleOf(cw, !v.layers.length ? -0.15 : -0.5, !v.layers.length ? FLAT_TILT : v.spread > 0.5 ? 0.5 : 0.62);
     return far(fitBox([...(visible.length ? visible : all.map(([, p]) => p)), ...planesPts, ...touched], a.el, a.az));
   };
   const layerPts = (L: number) => {
@@ -324,7 +325,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       // ring: highlight (solid) or selection (dashed) around the foot
       const rm = o.ring.material as THREE.LineDashedMaterial;
       o.ring.visible = !!(hlt || sel);
-      if (o.ring.visible) { o.ring.scale.set(it.w + 14, 1, (k === "pill" ? Math.min(it.h, 26) : it.h) + 14); o.ring.position.y = 1 - pop; rm.color.copy(hlt ? toneLine(hlt) : C.acc); rm.opacity = op; rm.dashSize = sel && !hlt ? 0.04 : 10; rm.gapSize = sel && !hlt ? 0.03 : 0; }
+      if (o.ring.visible) { const fw = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.x : it.w, fd = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.z : k === "pill" ? Math.min(it.h, 26) : it.h; o.ring.scale.set(fw + 8, 1, fd + 8); o.ring.position.y = 1; rm.color.copy(hlt ? toneLine(hlt) : C.acc); rm.opacity = op; rm.dashSize = sel && !hlt ? 0.04 : 10; rm.gapSize = sel && !hlt ? 0.03 : 0; }
       o.x.visible = it.down;
       if (it.down) { o.x.scale.set(it.w, 1, it.h); o.x.position.y = hgt + 0.6; const xm = o.x.material as THREE.LineBasicMaterial; xm.color.copy(C.bad); xm.opacity = it.o * off; }
       const half = new THREE.Vector3(it.w / 2, Math.max(hgt, 8) / 2, (k === "pill" ? Math.min(it.h, 26) : it.h) / 2);
@@ -442,7 +443,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // speech for this step, above the thing
     while (bubbles.length > v.says.length) bubbles.pop()!.remove();
     while (bubbles.length < v.says.length) { const b = document.createElement("div"); b.className = "scn3-say"; labels.append(b); bubbles.push(b); }
-    v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; b.textContent = s.text; b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
+    v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; if (b.dataset.sk !== `${s.key} ${s.text}`) { b.dataset.fresh = "1"; b.dataset.sk = `${s.key} ${s.text}`; } b.textContent = s.text; b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
     // the story camera moves when the step changes (or on the first draw)
     if (!user) { goal = storyGoal(); if (first) { Object.assign(camNow, goal); first = false; } }
     if (v.stepKey !== lastStep) { lastStep = v.stepKey; }
@@ -534,16 +535,22 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // between spots; at rest it eases to the best free spot. Labels at rest are placed first, against each other only,
     // so a chip passing by does not push them about either
     const sm = placed.filter((q) => small(q.el)).map((p) => {
-      const st = slot.get(p.el) ?? { dy: 0, sx: p.sx, sy: p.sy, fresh: true, still: 0 };
+      // a reused speech bubble with a new text is placed afresh, at once (it kept the last text's spot, then slid)
+      const st = (p.el.dataset.fresh ? undefined : slot.get(p.el)) ?? { dy: 0, sx: p.sx, sy: p.sy, fresh: true, still: 0 };
+      delete p.el.dataset.fresh;
       // it counts as moving until it has stood still for STILL frames (a move can pause for a frame between ticks)
       st.still = !st.fresh && Math.hypot(p.sx - st.sx, p.sy - st.sy) > 0.3 ? 0 : st.still + 1;
-      const moving = !st.fresh && st.still < STILL;
+      // a speech bubble that is still fading in finds its spot as it appears (it held a spot, then slid once shown)
+      const appearing = p.el.classList.contains("scn3-say") && parseFloat(p.el.style.opacity || "1") < 0.98;
+      const moving = !st.fresh && !appearing && st.still < STILL;
       if (moving) dirty = true;
       st.sx = p.sx; st.sy = p.sy;
       slot.set(p.el, st);
       return { p, st, moving };
     });
-    for (const { p, st, moving } of [...sm.filter((q) => !q.moving), ...sm.filter((q) => q.moving)]) {
+    // speech first: what a thing says keeps the spot it appeared in, and a chip at rest steps aside for it
+    const sayFirst = (q: { p: { el: HTMLElement } }) => (q.p.el.classList.contains("scn3-say") ? 0 : 1);
+    for (const { p, st, moving } of [...sm.filter((q) => !q.moving).sort((x, y) => sayFirst(x) - sayFirst(y)), ...sm.filter((q) => q.moving)]) {
       const h = p.el.offsetHeight + 3;
       if (!moving) {
         let best = 0;

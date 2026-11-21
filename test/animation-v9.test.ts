@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, check, FORMAT_VERSION } from "../src/index";
-import { compileScene, phoneInfo, connGeom, sampleGeom, MIN_LINE } from "../src/core/scene";
+import { compileScene, phoneInfo, connGeom, sampleGeom, storyView, cutBy, pad, MARGIN, MIN_LINE } from "../src/core/scene";
 import { stillCheck } from "../src/core/still9";
 
 const FIX = join(import.meta.dir, "../fixtures/format");
@@ -57,6 +57,16 @@ describe("format version 9", () => {
       for (const e of f.edges) { const a = by.get(e.from)!, b = by.get(e.to)!; if (len(sampleGeom(connGeom(a, b, a.kind, b.kind, e.implicit, 0, e.bend))) < MIN_LINE) short.push(`${x.name}: ${a.id} -> ${b.id}`); }
     }
     expect([...new Set(short)]).toEqual([]);
+  });
+  test("the laptop view cuts nothing in half and stays within the scene", () => {
+    const bad: string[] = [];
+    const ar = 700 / 466;
+    for (const x of all) x.c.frames.forEach((f, i) => {
+      const v = storyView(f, ar, 700), S = pad(f.bounds, MARGIN);
+      const past = (v.x < S.x - 1 && v.x + v.w < S.x + S.w - 1) || (v.x + v.w > S.x + S.w + 1 && v.x > S.x + 1) || (v.y < S.y - 1 && v.y + v.h < S.y + S.h - 1) || (v.y + v.h > S.y + S.h + 1 && v.y > S.y + 1);
+      if (cutBy(f, v).length || past) bad.push(`${x.name} step ${i + 1}`);
+    });
+    expect(bad).toEqual([]);
   });
   test("a lift moves; the rooms stay", () => {
     const c = scene(`layer f2 "2"\nlayer f1 "1"\ngroup a layer=f2\ngroup b layer=f1\ngroup lift "lift" in a\nbox desk "desk" in a\nbox gym "gym" in b\n@step one\nsplit layers\n@step down\nmove lift to b\n@step up\nmove lift to a`);

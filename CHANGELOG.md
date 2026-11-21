@@ -4,6 +4,10 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.5.1
+
+- Licence: MIT. Adds the `LICENSE` file; `package.json` `license` is `MIT`. No code or format change.
+
 ## 0.5.0
 
 Format version 9 (SPEC.md section 11): more control over animation for the author, and fixes to how scenes move.

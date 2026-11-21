@@ -132,8 +132,7 @@ private prototype once and is frozen: running it would overwrite this package's 
 
 ## Licence
 
-To be decided. Until a `LICENSE` file is in this repo, no licence is granted. It will land in a tagged release with a
-CHANGELOG entry.
+MIT. See [LICENSE](LICENSE).
 
 ## Versions
 

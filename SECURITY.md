@@ -14,7 +14,7 @@ draws that data with React, so author text is always a text node or an escaped a
 | mermaid `%%{init}%%` directives, `click` callbacks, HTML labels | directives dropped (with a problem); `securityLevel: "strict"`; no HTML labels; the SVG is cleaned with DOMPurify (no script, no foreignObject, no handlers) and attached as nodes | `hostile/06` |
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | an animation with too many things, steps or characters | an error block naming the cap, before anything is compiled | `hostile/09`, `10` |
-| a chart with too many points; expressions that make huge lists or loop | an error block; the expression language has its own limits (10,000 values, 200,000 steps) | `hostile/11` |
+| a chart with too many points; expressions that make huge lists, nest, recurse or loop | an error block and a problem for that chart; the rest of the page still draws. Every expression is paid for from one budget per page (see [The evaluation budget](#the-evaluation-budget)) | `hostile/11`, `test/budget.test.ts` |
 | YAML anchors and aliases (an alias bomb) | front matter ignored with a problem; the part refused | `hostile/12` |
 | an unclosed fence or container | one error block, the page shown as text | `hostile/13` |
 | an unknown container | an error block | `hostile/14` |
@@ -28,6 +28,50 @@ draws that data with React, so author text is always a text node or an escaped a
 `<foreignObject>` or `<style>` element, no `on*` attribute and no script, data, vbscript or file URL is in the HTML.
 `bun run csp` opens every page in headless Chrome under a strict CSP and also checks the live DOM after mermaid, the
 charts and the 3D stage have drawn (0 violations, 0 errors, 0 dangerous nodes, 0 `alert()` calls).
+
+## The evaluation budget
+
+A chart computes its data from the author's expressions (`let`, `x`, `series`). That work is counted, never timed, so the
+same page gives the same result on every machine. Three counters, each charged **before** the work or the memory it
+pays for:
+
+- **steps**: one for each token read (and one per 8 characters of expression text), each parse-tree node built or
+  evaluated, each list element an operator, `-`, `!`, `if()` or a built-in visits, each definition and name checked;
+- **values**: one for each slot of each list made. A list that holds another list counts what that list holds, every
+  time it holds it, so `fill` of a list, or a list literal that names one list many times, pays for every copy it stands
+  for. A value slot is about 8 to 16 bytes;
+- **characters**: one for each character of text made (`+` on text, `text()`, the joined text of a `{...}` hole).
+
+| Cap (`LIMITS` / `parse(text, { limits })`) | One part | The whole page |
+| --- | --- | --- |
+| steps | `maxEvalSteps`: 100,000 | `maxPageEvalSteps`: 300,000 |
+| values | `maxEvalValues`: 50,000 | `maxPageEvalValues`: 150,000 |
+| characters | `maxEvalChars`: 50,000 | `maxPageEvalChars`: 150,000 |
+
+What holds:
+
+- **One budget per `parse()` call.** Every chart draws its own part budget from it, and its definitions, `x` and every
+  series share that one part budget. A chart over its part cap, or a chart that finds the page budget spent, is an error
+  block naming the cap and a problem; the rest of the page still draws. Once the page budget is spent no later chart is
+  evaluated at all, so no part can restart the spend.
+- **The LLM view** of a chart uses the evaluation the page already paid for; it never evaluates again.
+- **`check()`** evaluates each chart at its start values, every slider's ends and every select option, from one page
+  budget of its own per call (the same caps).
+- **A reader moving a control** evaluates the chart again with a fresh part budget of its own, from `LIMITS` (a host that
+  lowers the caps for its readers lowers `LIMITS`); it never draws from or spends the page's budget.
+- **What a chart draws** (its `x` and all its series together) holds no more than one part's values and characters,
+  counted the same way, YAML anchors and aliases included as what they stand for. So the Document, its JSON and the LLM
+  table of a chart stay within those caps.
+- **Shape limits**, each an error, never a stack overflow: a list itself holds at most 10,000 values; lists nest at most
+  32 deep; one expression's parse tree is at most 200 levels deep; user functions call each other at most 50 deep;
+  evaluation nests at most 1,000 levels in all. A chain of definitions of any length is read without recursion.
+- `range()` needs finite numbers and a step above 0; `fill()` needs a count that is a number; `text()` digits are a whole
+  number from 0 to 100. An error message never prints a long value (text is cut to 60 characters, a list is
+  "a list of n").
+- Names are only ever the author's own: `constructor`, `__proto__` and the like are unknown names, not the engine's.
+
+What it does not cover: work that grows with the size of the input but runs no expression (reading the YAML, the
+Markdown, the parts' own syntax). `maxInputBytes` bounds that. Animations have their own caps (`maxAnim*`).
 
 ## The URL policy
 

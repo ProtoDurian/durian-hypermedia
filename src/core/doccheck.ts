@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
 import { dirname, join, relative, resolve } from "../host/path";
 import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
 import { parseDefs } from "./expr";
+import { BudgetError } from "./budget";
 import { parseTier } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
@@ -132,14 +133,16 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
       for (const e of errors) err(p.line, `chart: ${e}`);
       const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);
       if (new Set(names).size !== names.length) err(p.line, "chart: two controls share a name");
-      const defs = parseDefs(d.let ?? {}, names);
+      let defs: ReturnType<typeof parseDefs>;
+      try { defs = parseDefs(d.let ?? {}, names); }
+      catch (e) { if (!(e instanceof BudgetError)) throw e; err(p.line, `chart: ${e.message}`); break; }
       for (const e of defs.errors) err(p.line, `chart let: ${e}`);
       for (const c of controls) if (c.kind === "button") for (const k of Object.keys(c.set ?? {})) if (!names.includes(k)) err(p.line, `chart: button ${c.name} sets unknown control "${k}"`);
       if (!(d.series ?? []).length) err(p.line, `chart has no series`);
       // evaluate at the start values, every slider's ends and every select option, so a reader can never break it
       const cases: Record<string, any>[] = [{}];
       for (const c of controls) { if (c.kind === "slider") cases.push({ [c.name]: c.min }, { [c.name]: c.max }); if (c.kind === "select") for (const o of c.options ?? []) cases.push({ [c.name]: o }); if (c.kind === "toggle") cases.push({ [c.name]: !c.value }); if (c.kind === "button") cases.push({ ...c.set }); }
-      for (const v of cases) { const r = evalChart(d, v); if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${JSON.stringify(v)}` : ""}: ${r.error}`); break; } }
+      for (const v of cases) { const r = evalChart(d, v); if (r.error) { const w = JSON.stringify(v); err(p.line, `chart${Object.keys(v).length ? ` with ${w.length > 80 ? w.slice(0, 79) + "…" : w}` : ""}: ${r.error}`); break; } }
       break;
     }
     case "tierlist": case "alignment": {

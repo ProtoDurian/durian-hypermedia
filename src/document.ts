@@ -11,6 +11,7 @@ import { countHeading, mdBlocks, mdInline, type MdContext, type InlineDef } from
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
+import { pageBudget, withBudget } from "./core/budget";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -93,7 +94,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
   let count = 0, stopped = false;
 
-  return withHostParts(defs, problems, () => {
+  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it
+  return withBudget(pageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     const fmOn = opts.frontMatter !== false;
@@ -230,6 +232,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
         case "chart": {
+          if (blk.initial?.limit) return refuse(p, blk.initial.error);
           const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
           if (pts > lim.maxChartPoints) return refuse(p, `${pts.toLocaleString("en-US")} data points; the limit is ${lim.maxChartPoints.toLocaleString("en-US")}`);
           break;
@@ -249,7 +252,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  });
+  }));
 }
 
 function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[]) {
@@ -291,7 +294,8 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   const dh = { ...k.dh, body: strip(k.dh.body) } as DhDoc;
   const issues: { file: string; line: number; msg: string; level: "error" | "warn" }[] = [];
   const defs = registeredBlocks(k.opts.blocks ?? []);
-  withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } });
+  // the checks evaluate every chart again for each control value: one budget of their own for the whole call
+  withBudget(pageBudget({ ...LIMITS, ...(k.opts.limits ?? {}) }), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

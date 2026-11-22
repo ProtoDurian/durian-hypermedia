@@ -1,13 +1,16 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // chart: The chart shape (kind, x, y, series with name and data) plus controls and let.
 // Pure: no node modules, so the browser evaluates a chart with the same code doccheck checks it with.
-import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, type Val } from "./expr";
+import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, sizeOf, type Val } from "./expr";
+import { type Budget, BudgetError, partBudget } from "./budget";
+// a value from the author's text in an error message: short, and never a long list printed out
+const brief = (v: any, json = false): string => { const t = Array.isArray(v) ? `a list of ${v.length}` : json || (v !== null && typeof v === "object") ? String(JSON.stringify(v)) : String(v); return t.length > 60 ? t.slice(0, 59) + "…" : t; };
 export interface ChartControl { kind: "slider" | "select" | "toggle" | "button"; name: string; label?: string; min?: number; max?: number; step?: number; value?: Val; options?: Val[]; set?: Record<string, Val> }
 export function chartControls(d: any): { controls: ChartControl[]; errors: string[] } {
   const errors: string[] = [], controls: ChartControl[] = [];
   for (const c of d?.controls ?? []) {
     const kind = (["slider", "select", "toggle", "button"] as const).find((k) => k in c);
-    if (!kind) { errors.push(`a control needs one of slider, select, toggle or button: ${JSON.stringify(c)}`); continue; }
+    if (!kind) { errors.push(`a control needs one of slider, select, toggle or button: ${brief(c, true)}`); continue; }
     const name = String(c[kind]);
     if (kind === "slider") { if (typeof c.min !== "number" || typeof c.max !== "number" || c.min >= c.max) errors.push(`slider ${name} needs min < max`); controls.push({ kind, name, label: c.label, min: c.min, max: c.max, step: c.step ?? 1, value: c.value ?? c.min }); }
     else if (kind === "select") { if (!Array.isArray(c.options) || c.options.length < 2) errors.push(`select ${name} needs at least 2 options`); controls.push({ kind, name, label: c.label, options: c.options ?? [], value: c.value ?? c.options?.[0] }); }
@@ -116,20 +119,27 @@ export interface ChartSeries { name: string; data: any[]; kind?: string; tone?: 
 // evaluate a chart for given control values; returns the data Chart.js draws, or an error
 // Category kinds: data is a list of numbers (null = gap), or [low, high] in a bar series (a floating bar).
 // scatter and bubble: data is a list of points, written [x, y] (bubble: [x, y, size]) or {x, y, size}; they come back as {x, y, r?}.
-export function evalChart(d: any, values?: Record<string, Val>): { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string } {
+// The work is paid for from budget: by default one part of the running parse() call's page budget, or a fresh one (a
+// reader moving a control). Over it, the result has error and limit: true (parse() then refuses the part).
+export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget): { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: true } {
   try {
+    const b = budget ?? partBudget();
     const { controls } = chartControls(d);
     const start: Record<string, Val> = {};
     for (const c of controls) if (c.kind !== "button") start[c.name] = c.value as Val;
-    const { defs, errors } = parseDefs(d.let ?? {}, controls.filter((c) => c.kind !== "button").map((c) => c.name));
+    const { defs, errors } = parseDefs(d.let ?? {}, controls.filter((c) => c.kind !== "button").map((c) => c.name), b);
     if (errors.length) throw new Error(errors.join("; "));
-    const vars = evalDefs(defs, { ...start, ...(values ?? {}) });
-    const ev = (v: any): Val => (typeof v === "string" ? evalStr(v, vars, defs) : v);
+    const vars = evalDefs(defs, { ...start, ...(values ?? {}) }, b);
+    const ev = (v: any): Val => (typeof v === "string" ? evalStr(v, vars, defs, b) : v);
     const m = chartMeta(d);
     const xs = Array.isArray(d.x) || typeof d.x === "string" ? d.x : d.x?.values;
     const x = (xs == null && m.points ? [] : ev(xs)) as Val[];
     if (!Array.isArray(x)) throw new Error("x must be a list or an expression that makes one");
     const series: ChartSeries[] = (d.series ?? []).map((s: any) => ({ name: String(s.name ?? s.label ?? ""), data: ev(s.data ?? s.values) as any[], kind: s.kind, tone: s.tone == null ? undefined : String(s.tone), axis: s.axis }));
+    // what the chart draws (and the LLM view prints) holds no more than one part may make, however its lists are shared
+    let held = 0, text = 0;
+    for (const v of [x, ...series.map((s) => s.data)]) { const z = sizeOf(v, b); held += z.n; text += z.c; }
+    if (held > b.limits.values || text > b.limits.chars) throw new BudgetError(`the chart's data is too big (${held > b.limits.values ? `${held.toLocaleString("en-US")} values; the limit for one part is ${b.limits.values.toLocaleString("en-US")}` : `${text.toLocaleString("en-US")} characters; the limit for one part is ${b.limits.chars.toLocaleString("en-US")}`})`);
     if (m.radial && d.kind === "radar" && x.length < 3) throw new Error(`a radar chart needs at least 3 axes in x (it has ${x.length}); add axes, or use kind: bar`);
     const log = (s: ChartSeries, name: string, v: any) => { if (v !== null && v <= 0) throw new Error(`log scale needs values above 0 (series "${s.name}" has ${v}); use scale: linear or change the value`); void name; };
     for (const s of series) {
@@ -141,7 +151,7 @@ export function evalChart(d: any, values?: Record<string, Val>): { x: Val[]; ser
           if (!num(p[0]) || !num(p[1])) throw new Error(`series "${s.name}" point ${i + 1} must be [x, y] with two numbers`);
           if (bubble) {
             if (p.length < 3 || p[2] == null) throw new Error(`series "${s.name}" point ${i + 1} has no size; a bubble point is [x, y, size]`);
-            if (!num(p[2]) || p[2] <= 0) throw new Error(`series "${s.name}" point ${i + 1} has size ${JSON.stringify(p[2])}; the size must be a number above 0`);
+            if (!num(p[2]) || p[2] <= 0) throw new Error(`series "${s.name}" point ${i + 1} has size ${brief(p[2], true)}; the size must be a number above 0`);
           } else if (p.length > 2 && p[2] != null) throw new Error(`series "${s.name}" point ${i + 1} has three values; a scatter point is [x, y] (use kind: bubble for a size)`);
           if (m.scale.x === "log") log(s, "x", p[0]);
           if (m.scale.y === "log") log(s, "y", p[1]);
@@ -168,7 +178,7 @@ export function evalChart(d: any, values?: Record<string, Val>): { x: Val[]; ser
       });
     }
     return { x, series, vars };
-  } catch (e) { return { x: [], series: [], vars: {}, error: (e as Error).message }; }
+  } catch (e) { return { x: [], series: [], vars: {}, error: (e as Error).message, ...(e instanceof BudgetError ? { limit: true as const } : {}) }; }
 }
 // a candle is [open, high, low, close]: high is the top of the wick, low the bottom, so neither may be crossed by the open or close
 export const CANDLE_PARTS = ["open", "high", "low", "close"];
@@ -176,7 +186,7 @@ function checkCandles(s: ChartSeries, x: Val[], lg?: (v: number) => void) {
   if (s.data.length !== x.length) throw new Error(`series "${s.name}" has ${s.data.length} candles, x has ${x.length} periods`);
   s.data.forEach((c: any, i: number) => {
     if (c === null) return;
-    const at = `series "${s.name}" candle ${i + 1} (${String(x[i])})`;
+    const at = `series "${s.name}" candle ${i + 1} (${brief(x[i])})`;
     if (!Array.isArray(c) || c.length !== 4 || !c.every(num)) throw new Error(`${at} must be four numbers [open, high, low, close]${Array.isArray(c) ? ` (it has ${c.length === 4 ? "a value that is not a number" : c.length})` : ""}; use null for a period with no candle`);
     const [o, h, l, cl] = c as number[];
     const top = [["open", o], ["close", cl], ["low", l]].sort((p, q) => (q[1] as number) - (p[1] as number))[0];
@@ -186,4 +196,4 @@ function checkCandles(s: ChartSeries, x: Val[], lg?: (v: number) => void) {
     if (lg) for (const v of c) lg(v);
   });
 }
-function evalStr(src: string, vars: Record<string, Val>, defs: any): Val { return evalAst(parseExpr(src), { vars, fns: defs.fns }); }
+function evalStr(src: string, vars: Record<string, Val>, defs: any, b: Budget): Val { return evalAst(parseExpr(src, b), { vars, fns: defs.fns }, b); }

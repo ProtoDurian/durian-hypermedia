@@ -4,6 +4,38 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.6.1
+
+A security fix: chart expressions now run on a real work budget. Format version 10 is unchanged; every fixture and the
+Format page parse, check and render exactly as in 0.6.0.
+
+### Fixed
+
+- **One evaluation budget per `parse()` call** (SECURITY.md, "The evaluation budget"). The expression language
+  promised its limits, but the step count started again in every evaluation (per definition, per series, per chart),
+  operators and built-ins visited values without counting them, and only the outer length of a built-in's result was
+  checked. Now steps, value slots and characters of text are charged before the work, from one page budget that every
+  chart draws a part from; nested lists count what they hold. Over a cap: an error block and a problem for that chart,
+  the rest of the page still draws, and no later chart restarts the spend.
+- `check()` evaluates all control cases from one budget of its own; the LLM view reuses the page's evaluation; a reader
+  moving a control gets a fresh budget of its own.
+- Deep expressions, long chains of definitions and deeply nested lists give an error, never a stack overflow.
+- Error messages that quote a value are short (text cut to 60 characters; a list is "a list of n").
+- A chart's data counts YAML anchors and aliases as what they stand for.
+
+### Added
+
+- `LIMITS` (and `parse(text, { limits })`): `maxEvalSteps`, `maxEvalValues`, `maxEvalChars` for one part, and
+  `maxPageEvalSteps`, `maxPageEvalValues`, `maxPageEvalChars` for the whole page.
+
+### Changed (the expression language, for input that was already broken)
+
+- `range()` needs finite numbers; `fill()` of a count that is not a number is an error (it was an empty list);
+  `text()` digits must be a whole number from 0 to 100 (an engine error before); `round()` digits must be finite.
+- `constructor`, `toString`, `__proto__` and other names an object inherits are unknown names and unknown functions
+  (they reached the engine's own objects before); `__proto__` may be an author's own definition.
+- A chart result over a budget carries `limit: true` next to `error`.
+
 ## 0.6.0
 
 Format version 10 (SPEC.md section 11): a scene inside a scene, depth, lines that never cross, words never under 11 pixels,

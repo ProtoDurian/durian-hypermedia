@@ -7,8 +7,7 @@ const cell = (v: any): string => (Array.isArray(v) ? (v.length === 2 && v.every(
 const list = (xs: string[]) => xs.join(", ");
 
 // returns null when the chart cannot be drawn (the caller then gives its source)
-export function chartTable(d: any): string | null {
-  const r = evalChart(d);
+export function chartTable(d: any, r: ReturnType<typeof evalChart> = evalChart(d)): string | null {
   if (r.error) return null;
   const m = chartMeta(d);
   const kinds = [...new Set(r.series.map((s) => s.kind ?? d.kind))];

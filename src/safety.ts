@@ -28,6 +28,14 @@ export interface Limits {
   maxMermaidChars: number;
   /** steps of any stepped part (terminal, file tree, editor, code walk, mermaid) */
   maxSteps: number;
+  /** work of one part's expressions (a chart's let, x and series, or one reader action on it): steps, value slots, characters of text */
+  maxEvalSteps: number;
+  maxEvalValues: number;
+  maxEvalChars: number;
+  /** the same for the whole page: every part of one parse() call draws from it, so a page cannot restart the spend */
+  maxPageEvalSteps: number;
+  maxPageEvalValues: number;
+  maxPageEvalChars: number;
 }
 export const LIMITS: Limits = {
   maxInputBytes: 1_000_000,
@@ -40,6 +48,12 @@ export const LIMITS: Limits = {
   maxItems: 500,
   maxMermaidChars: 20_000,
   maxSteps: 200,
+  maxEvalSteps: 100_000,
+  maxEvalValues: 50_000,
+  maxEvalChars: 50_000,
+  maxPageEvalSteps: 300_000,
+  maxPageEvalValues: 150_000,
+  maxPageEvalChars: 150_000,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

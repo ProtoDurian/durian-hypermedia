@@ -14,6 +14,7 @@ import { dirname, extname, join, resolve } from "../host/path";
 import { spawnSync } from "../host/child_process";
 import { chartControls, evalChart } from "./chart";
 import { chartTable } from "./chart-llm";
+import { currentBudget } from "./budget";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
@@ -619,9 +620,9 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
 }
 // the LLM view of a chart: its data as a table; a chart with controls or formulas goes as its source
 function chartLlm(p: PartNode): string {
-  const d = safeYaml(p.body);
+  const d = chartYaml(p);
   if (!d || d.controls || d.let) return `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n\`\`\``;
-  return chartTable(d) ?? `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
+  return chartTable(d, chartInitial(p, d)) ?? `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
 }
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
 function animLlm(p: PartNode): string { return sceneLlm(animOf(p)); }
@@ -828,6 +829,21 @@ function stripTexts(v: any, key = ""): any {
   return v;
 }
 
+// a chart's first evaluation, once per part and page budget: the JSON and the LLM view of one parse() call share it
+// (so the LLM view never pays again for what the page already drew)
+const initials = new WeakMap<object, WeakMap<PartNode, ReturnType<typeof evalChart>>>();
+// a chart's YAML, read once per part node (the JSON and each LLM view of it read the same data)
+const yamls = new WeakMap<PartNode, any>();
+function chartYaml(p: PartNode): any { if (!yamls.has(p)) yamls.set(p, safeYaml(p.body)); return yamls.get(p); }
+function chartInitial(p: PartNode, d: any): ReturnType<typeof evalChart> {
+  const b = currentBudget();
+  if (!b) return evalChart(d);
+  let m = initials.get(b);
+  if (!m) { m = new WeakMap(); initials.set(b, m); }
+  let r = m.get(p);
+  if (!r) { r = evalChart(d); m.set(p, r); }
+  return r;
+}
 // ---------- JSON for the renderer ----------
 export function jsonOf(doc: Doc, src?: string, publicView = false): any {
   const conv = (nodes: Node[]): any[] => nodes.map((n) => {
@@ -837,7 +853,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
     const base: any = { type: n.name, id: n.attrs.id ?? null, attrs: n.attrs, line: n.line, source: n.source + (n.llm ? "\n\n" + n.llm.source : ""), llm: llmOfPart(n, publicView) || null, llmKind: llmKindOf(n), size: tok(llmOfPart(n, publicView)) };
     switch (n.name) {
       case "animation": base.anim = animSrc(n); break;
-      case "chart": { const d = safeYaml(n.body); base.chart = d; base.controls = chartControls(d).controls; base.initial = evalChart(d); break; }
+      case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "mermaid": base.steps = mermaidSteps(n); break;

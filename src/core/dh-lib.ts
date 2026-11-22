@@ -19,6 +19,7 @@ import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
+import { folderPartRows, folderLlm } from "../parts/runtime";
 
 // ---------- part registry ----------
 // fenced: a code block with this info word. llm: how the LLM view shows it when no :::llm follows.
@@ -26,7 +27,8 @@ import { parseAlign, alignLlm } from "./align";
 //   data   a chart: its data as a table; with controls, its source as it is
 //   steps  an animation: its step captions as a numbered list
 // container: holds Markdown and fenced parts; containers do not nest.
-export interface PartDef { form: "fenced" | "container"; llm: "as-is" | "data" | "steps" | "lines" | "unwrap" | "drop" | "replace"; steps: boolean }
+// part: a part in its own folder (src/parts/<name>/, format version 11): its own LLM view, else as-is
+export interface PartDef { form: "fenced" | "container"; llm: "as-is" | "data" | "steps" | "lines" | "unwrap" | "drop" | "replace" | "part"; steps: boolean }
 export const PARTS: Record<string, PartDef> = {
   terminal: { form: "fenced", llm: "as-is", steps: true },
   filetree: { form: "fenced", llm: "as-is", steps: true },
@@ -41,6 +43,7 @@ export const PARTS: Record<string, PartDef> = {
   accordion: { form: "container", llm: "unwrap", steps: false },
   human: { form: "container", llm: "drop", steps: false },
   llm: { form: "container", llm: "replace", steps: false },
+  ...folderPartRows(),
 };
 // other names people already use for a shell session
 export const ALIASES: Record<string, string> = { console: "terminal", shellsession: "terminal" };
@@ -765,6 +768,7 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
     case "data": return p.name === "alignment" ? alignLlm(parseAlign(p.body, p.bodyLine, p.attrs.title ?? "")) : chartLlm(p);
     case "lines": return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
     case "steps": return animLlm(p);
+    case "part": { const t = folderLlm(p); if (t != null) return t; const fence = p.open.match(FENCE_RE)![2]; return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}`; }
     case "unwrap": return p.items.map((it) => `${it.heading.trim()}\n\n${llmOfNodes(it.nodes, publicView)}`).join("\n\n");
     default: return "";
   }

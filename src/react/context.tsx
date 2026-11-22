@@ -86,6 +86,8 @@ export interface DhSettings {
   llmPeek: boolean;
   /** added to every Markdown heading's level (at most 6) */
   demoteHeadings: number;
+  /** draw every part that steps or moves static (src/parts/types.ts StaticProp); a fence's own static= wins */
+  static?: import("../parts/types").StaticProp;
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

@@ -4,12 +4,14 @@ import type { TierSpec } from "./core/tier";
 import type { AlignSpec } from "./core/align";
 import type { MdBlock, MdInline } from "./markdown";
 import type { Val } from "./core/expr";
+import type { PartBlock } from "./parts/types";
+import type { FolderPartData, FolderPartName } from "./parts/generated/registry";
 
 export type { MdBlock, MdInline, ChartControl, ChartSeries, TierSpec, AlignSpec, Val };
 
 /** How the LLM view shows a part: as written, its data, its captions, unwrapped, an author's :::llm text, nothing,
  *  one line per tier, or a host block's own text. */
-export type LlmKind = "as-is" | "data" | "steps" | "lines" | "unwrap" | "text" | "none" | "drop" | "replace" | "host";
+export type LlmKind = "as-is" | "data" | "steps" | "lines" | "unwrap" | "text" | "none" | "drop" | "replace" | "host" | "own";
 
 interface PartBase {
   /** the author's #id, prefixed (see ParseOptions.idPrefix), or null */
@@ -65,9 +67,13 @@ export interface ErrorBlock { type: "error"; line: number; part: string | null; 
 /** A host's own block (registered with defineBlock / registerBlock). */
 export interface HostBlock<D = unknown> extends PartBase { type: "host"; name: string; body: string; data: D }
 
+/** A part in its own folder (src/parts/<name>/, format version 11): `data` is what its parse returned. */
+export type FolderBlock = { [K in FolderPartName]: PartBlock<FolderPartData[K]> & { type: K } }[FolderPartName];
+export type { FolderPartName, FolderPartData, PartBlock };
+
 export type Block =
   | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock | MermaidBlock
-  | AnimationBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock;
+  | AnimationBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock | FolderBlock;
 export type BlockType = Block["type"];
 
 export interface Problem { line: number; level: "error" | "warn"; message: string }

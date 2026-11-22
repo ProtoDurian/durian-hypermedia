@@ -17,10 +17,13 @@ import { TierListPart } from "./tierlist";
 import { AlignmentPart } from "./alignment";
 import { TabsPart, AccordionPart, HumanPart } from "./containers";
 import type { Components } from "./context";
+import { FOLDER_PART_COMPONENTS } from "../parts/generated/react";
 
 export const ALL_PARTS: Components = {
   terminal: TerminalPart, filetree: FileTreePart, editor: EditorPart, codewalk: CodeWalkPart, chart: ChartPart, mermaid: MermaidPart,
   animation: AnimationPart, tierlist: TierListPart, alignment: AlignmentPart, tabs: TabsPart, accordion: AccordionPart, human: HumanPart,
+  // the parts in their own folders (src/parts/<name>/)
+  ...(FOLDER_PART_COMPONENTS as Components),
 };
 /** A Document with every part. */
 export function DhDocument(p: DocumentProps) { return <DocumentView {...p} components={{ ...ALL_PARTS, ...(p.components ?? {}) }} />; }

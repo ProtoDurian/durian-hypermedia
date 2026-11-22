@@ -1,13 +1,15 @@
 // Safety: the input is untrusted (an agent or a stranger may have written it).
 // Every link and image URL goes through a policy; every size has a cap, and going over a cap gives an error block, never a crash.
+import { PART_LIMITS, PART_UNTRUSTED_LIMITS, type PartLimits } from "./parts/generated/limits";
 
 /** What a URL is used for. */
 export type UrlKind = "link" | "image";
 /** The host's hook: return the URL to use (it may rewrite it), or null to drop it (the text stays, without a link). */
 export type UrlPolicy = (url: string, kind: UrlKind) => string | null;
 
-/** The caps. A host may lower or raise any of them with parse(text, { limits: { ... } }). */
-export interface Limits {
+/** The caps. A host may lower or raise any of them with parse(text, { limits: { ... } }). The folder parts add their own
+ *  (src/parts/<name>/limits.ts, each key starting with the part's name). */
+export interface Limits extends PartLimits {
   /** the whole input, in UTF-8 bytes */
   maxInputBytes: number;
   /** blocks in the document (Markdown blocks, parts and the blocks inside containers) */
@@ -76,6 +78,7 @@ export const LIMITS: Limits = {
   maxPageYamlChars: 200_000,
   maxYamlNodes: 3_000,
   maxPageYamlNodes: 24_000,
+  ...PART_LIMITS,
 };
 /**
  * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML
@@ -90,6 +93,7 @@ export const UNTRUSTED_LIMITS: Limits = {
   maxPageYamlNodes: 4_000,
   maxAnimWork: 3_000_000,
   maxPageAnimWork: 6_000_000,
+  ...PART_UNTRUSTED_LIMITS,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

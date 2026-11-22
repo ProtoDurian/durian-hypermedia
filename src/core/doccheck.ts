@@ -14,6 +14,7 @@ import { animOverMessage } from "./work";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
+import { folderPart, folderCheck } from "../parts/runtime";
 
 type Ctx = "page" | "part" | "segment" | "llm";
 const SEC_RE = /\*\*Security finding:\*\*/g;
@@ -184,6 +185,8 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   for (const v of cases) { const r = evalChart(d, v); if (r.limit === "page") { warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`); return; } if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${briefJson(v, 80)}` : ""}: ${r.error}`); return; } }
 }
 function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => void, src?: string, warn: (l: number, m: string) => void = err) {
+  // a part in its own folder (src/parts/<name>/, format version 11) has its checks there
+  if (folderPart(p.name)) { folderCheck(p, err, warn); return; }
   switch (p.name) {
     case "animation": for (const e of animOf(p).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;

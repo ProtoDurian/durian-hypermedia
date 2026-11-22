@@ -1,0 +1,43 @@
+/* The parts' kit (format version 11): the stage box, the drawn-part frame, the step caption, the popover card and the
+   static rules every folder part shares. Colours, fonts and corners come from the base tokens (theme.css). */
+.dh-part-stage { container-type: inline-size; min-width: 0; }
+.dh-dg { border: 1px solid var(--part-border, var(--line)); border-radius: var(--part-radius, var(--r-l)); background: var(--part-bg, var(--surface)); overflow: hidden; }
+.dh-dg:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.dh-box { overflow-x: auto; padding: 10px 8px 4px; }
+.dh-inner { width: 100%; margin: 0 auto; }
+.dh-svg { display: block; width: 100%; height: auto; font-family: var(--font-sans); font-size: 12px; fill: var(--ink); overflow: visible; }
+.dh-svg text { fill: var(--ink); }
+.dh-cap { padding-top: 6px; }
+.dh-dg .ctl { border-top: 0; }
+.dh-dg [tabindex]:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 1px; }
+@keyframes dh-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* the one popover card (kit/popover.tsx): it sits in the part's own box (position: relative), above or below what opened it; in a narrow part a sheet at the bottom */
+.dh-pop-host { position: relative; }
+.dh-pop { position: absolute; z-index: 20; background: var(--pop-bg, var(--surface)); color: var(--pop-ink, var(--ink)); border: 1px solid var(--pop-border, var(--line-2)); border-radius: var(--pop-radius, var(--r-m)); box-shadow: var(--pop-shadow, var(--shadow-md)); padding: 10px 12px; font-size: var(--fs-s); line-height: 1.4; pointer-events: auto; }
+.dh-pop-title { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.dh-pop-meta { font-size: var(--fs-xs); color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+.dh-pop-text { margin-top: 6px; color: var(--ink-2); font-weight: 400; overflow-wrap: anywhere; }
+.dh-pop-actions { display: flex; gap: 8px; margin-top: 8px; }
+.dh-pop-act { min-height: 32px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); font: 500 var(--fs-xs) var(--font-sans); cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; }
+.dh-pop-act:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 2px; }
+.dh-pop-sheet { left: 8px; right: 8px; bottom: 8px; top: auto; width: auto; }
+.dh-pop-sheet .dh-pop-act { min-height: 40px; }
+
+/* static: one state drawn whole, no motion of any kind inside it */
+[data-dh-static] *, [data-dh-static] *::before, [data-dh-static] *::after { animation: none !important; transition: none !important; }
+[data-dh-static] .ctl, [data-dh-static] .btn-play { display: none !important; }
+.dh-static-steps { margin: 8px 14px 10px; font-size: var(--fs-s); color: var(--muted); }
+.dh-static-cap { margin: 0 0 4px; color: var(--ink); }
+.dh-static-cap .cw-num { margin-right: 6px; }
+.dh-static-steps details > summary { cursor: pointer; min-height: 24px; display: inline-flex; align-items: center; }
+.dh-static-steps details > summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
+.dh-static-steps ol { margin: 4px 0 0; padding-left: 1.5em; }
+.dh-static-steps li[aria-current] { color: var(--ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .dh-dg * { animation: none !important; transition: none !important; } }
+[data-dh-motion="off"] .dh-dg * { animation: none !important; transition: none !important; }
+@media print {
+  .dh-dg .ctl, .dh-dg .btn-play { display: none !important; }
+  .dh-box .dh-inner { min-width: 0 !important; }
+  .dh-static-steps details > summary { list-style: none; }
+}

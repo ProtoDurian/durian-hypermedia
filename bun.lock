@@ -7,6 +7,7 @@
       "dependencies": {
         "chart.js": "4.5.1",
         "codehike": "1.1.0",
+        "d3-sankey": "0.12.3",
         "dompurify": "3.4.18",
         "entities": "8.1.0",
         "github-slugger": "2.0.0",

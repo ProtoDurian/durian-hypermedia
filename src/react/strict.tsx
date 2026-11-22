@@ -19,10 +19,13 @@ import { TierListPart } from "./tierlist";
 import { AlignmentPart } from "./alignment";
 import { TabsPart, AccordionPart, HumanPart } from "./containers";
 import type { Components } from "./context";
+import { FOLDER_PART_COMPONENTS } from "../parts/generated/react";
 
 export const STRICT_PARTS: Components = {
   terminal: TerminalPart, filetree: FileTreePart, editor: EditorPart, codewalk: CodeWalkPart, chart: ChartPart, mermaid: HostMermaidPart,
   animation: AnimationPart, tierlist: TierListPart, alignment: AlignmentPart, tabs: TabsPart, accordion: AccordionPart, human: HumanPart,
+  // the parts in their own folders (src/parts/<name>/): none sets an HTML string (test/parts.test.ts)
+  ...(FOLDER_PART_COMPONENTS as Components),
 };
 /** A Document with every part; mermaid diagrams are drawn by the host's Mermaid slot. */
 export function DhDocument(p: DocumentProps) { return <DocumentView {...p} components={{ ...STRICT_PARTS, ...(p.components ?? {}) }} />; }

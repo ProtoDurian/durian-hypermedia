@@ -39,6 +39,8 @@ export interface DocumentProps {
   urlPolicy?: UrlPolicy;
   /** show "What an LLM reads here" under each part */
   llmPeek?: boolean;
+  /** draw every folder part that steps or moves static: "" the finished state, "<n>" step n, or a step's title */
+  static?: import("../parts/types").StaticProp;
   className?: string;
 }
 
@@ -80,7 +82,8 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     hostInlines: new Map((p.inlines ?? []).filter((d) => d.Component).map((d) => [d.name, d.Component!])),
     llmPeek: !!p.llmPeek,
     demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings]);
+    static: p.static,
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static]);
   const { doc } = p;
   return (
     <DhContext.Provider value={settings}>

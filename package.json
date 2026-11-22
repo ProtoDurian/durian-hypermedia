@@ -109,6 +109,11 @@
       "bun": "./src/react/hydrate.tsx",
       "import": "./dist/react/hydrate.js"
     },
+    "./react/parts": {
+      "types": "./src/parts/generated/react.tsx",
+      "bun": "./src/parts/generated/react.tsx",
+      "import": "./dist/parts/generated/react.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./fixtures/*": "./fixtures/*",
     "./package.json": "./package.json"
@@ -116,7 +121,8 @@
   "scripts": {
     "sync": "bun scripts/sync.ts",
     "build": "bun scripts/build.ts",
-    "test": "bun test ./test/",
+    "test": "bun test ./test/ ./src/parts/",
+    "parts": "bun scripts/parts.ts",
     "typecheck": "tsc -p .",
     "hygiene": "bun scripts/hygiene.ts",
     "sizes": "bun scripts/sizes.ts --md",
@@ -140,6 +146,7 @@
   "dependencies": {
     "chart.js": "4.5.1",
     "codehike": "1.1.0",
+    "d3-sankey": "0.12.3",
     "dompurify": "3.4.18",
     "entities": "8.1.0",
     "github-slugger": "2.0.0",

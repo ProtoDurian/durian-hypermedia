@@ -14,6 +14,7 @@ import { compileScene } from "./core/scene";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
+import { folderBlock } from "./parts/runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -214,6 +215,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       if (!def) return refuse(p, `"${p.name}" is not a part of this format`);
       if (def.steps && p.steps.length > lim.maxSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxSteps}`);
+      // a part in its own folder (src/parts/<name>/, format version 11): read, charged and checked there
+      const fp = folderBlock(p, () => base(p));
+      if (fp) return "refuse" in fp ? refuse(p, fp.refuse) : (fp.block as unknown as Block);
       if (def.form === "container") {
         if (p.name === "tabs" || p.name === "accordion") {
           const items = p.items.map((it, k) => (countHeading(it.heading, ctx), { title: it.title, id: `${p.attrs.id ? idPrefix + p.attrs.id : `${idPrefix}${p.name}-${p.line}`}-${k}`, body: walk(it.nodes) }));

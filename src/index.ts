@@ -12,9 +12,13 @@ export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, t
 export { setYamlParser } from "./host/yaml";
 export { CALLOUT_WORDS, inlineText, slug, type InlineDef } from "./markdown";
 import type { InlineDef } from "./markdown";
+import { FOLDER_PART_NAMES } from "./parts/generated/registry";
 /** Make an inline reference definition (type help; checks the name when first used). */
 export function defineInline<D = unknown, C = unknown>(def: InlineDef<D, C>): InlineDef<D, C> { return def; }
 export type * from "./types";
 /** This package's version (package.json); a consumer can check the one it pinned. */
 export const VERSION = "0.6.2";
-export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "mermaid", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "llm"] as const;
+export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "mermaid", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "llm", ...FOLDER_PART_NAMES] as const;
+// the parts in their own folders (src/parts/<name>/, format version 11): their definitions, for tools and hosts
+export { FOLDER_PART_NAMES, FOLDER_PARTS } from "./parts/generated/registry";
+export { definePart, type PartDef, type PartInput, type PartContext, type PartIssue, type PartViewProps, type PartStage, type StaticProp } from "./parts/types";

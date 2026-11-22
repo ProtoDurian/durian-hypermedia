@@ -26,7 +26,7 @@ writeFileSync(join(OUT, "assets/styles.css"), buildCss() + "\n" + readFileSync(j
 const r = await Bun.build({ entrypoints: [join(HERE, "client.tsx"), join(HERE, "client-tt.tsx"), join(HERE, "client-ttfull.tsx"), join(HERE, "tt-control.ts")], outdir: join(OUT, "assets"), splitting: true, format: "esm", minify: true, target: "browser", naming: { entry: "[name].[ext]", chunk: "c-[hash].[ext]" }, define: { "process.env.NODE_ENV": '"production"' } });
 if (!r.success) { console.error(r.logs); process.exit(1); }
 
-const groups: [string, string][] = [["", "Hand-written"], ["format", "From the Format page"], ["hostile", "Hostile input (each one attack)"]];
+const groups: [string, string][] = [["", "Hand-written"], ["format", "From the Format page"], ["parts", "The folder parts (generated from src/parts/*/sample.md)"], ["hostile", "Hostile input (each one attack)"]];
 const pages: { group: string; file: string; title: string; href: string }[] = [];
 for (const [dir, group] of groups) {
   const d = join(PKG, "fixtures", dir);

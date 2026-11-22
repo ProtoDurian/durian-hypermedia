@@ -78,7 +78,7 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | Option | Default | What it does |
 | --- | --- | --- |
 | `urlPolicy(url, kind)` | http, https, mailto, relative links; https and relative images | every link and image URL passes it; return a URL or `null` |
-| `limits` | `LIMITS` | caps on size, blocks, nesting, animation things, steps and layout work, chart points, items, YAML size, and the evaluation budget of one part and of the whole page (SECURITY.md) |
+| `limits` | `LIMITS` | caps on size, blocks, nesting, animation things, steps and layout work, chart points, items, YAML size, and the evaluation budget of one part and of the whole page (SECURITY.md); pass `UNTRUSTED_LIMITS` for text nobody reviewed, such as a chat reply |
 | `idPrefix` | `"dh-"` | before every id the page makes, so a page cannot clobber the host's ids |
 | `blocks` | none | the host's own fenced blocks (ADOPT.md) |
 | `inlines` | none | the host's own inline references, like `@src/a.ts` (ADOPT.md) |

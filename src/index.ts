@@ -8,7 +8,7 @@
 // Drawing: "durian-hypermedia/react" (all parts) or "durian-hypermedia/react/<part>" (one part each).
 export { parse, llmView, check, animationTexts, FORMAT_VERSION, type ParseOptions } from "./document";
 export { defineBlock, registerBlock, unregisterBlock, type BlockDef, type BlockInput } from "./blocks";
-export { LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";
+export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";
 export { setYamlParser } from "./host/yaml";
 export { CALLOUT_WORDS, inlineText, slug, type InlineDef } from "./markdown";
 import type { InlineDef } from "./markdown";

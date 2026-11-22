@@ -127,23 +127,40 @@ memory and held memory per KB of 1, 10 and 100 KB replies, against budgets), and
   Past real pages, a few outputs have caps: a part's steps carry at most 1,000,000 characters of text (2,000,000 for the
   page), an alignment grid at most 400 cells and 400 regions, the tables of contents of a page at most 2,000 headings;
   past them the part is an error block and its source is shown as plain code (nothing is lost).
-- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (32,000)
-  characters and `maxYamlNodes` (1,000) nodes in one text, and `maxPageYamlChars` (64,000) and `maxPageYamlNodes`
-  (4,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).
+- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` characters and
+  `maxYamlNodes` nodes in one text, and `maxPageYamlChars` and `maxPageYamlNodes` over all of a `parse()` call's YAML
+  (`check()` gets three times the page's, as it reads the texts again); the values are in the table below.
   The node count is an upper bound for any parser, from the text as written: every `:`, `?`, `,`, `-`, `!`, `[`, `{`
   and line (quoted or not). A parser builds at most that many keys and about twice that many nodes, and its work grows
   with them: every node costs some microseconds, and the yaml package (2.x), which a host outside Bun may give to
-  `setYamlParser`, compares each new key of a map with the keys before it. Measured at these caps, the slowest page
-  of YAML (four charts at the cap of one text, the fifth refused) took about 48 ms to parse with the yaml package and
-  about 50 ms with a bounded reader on a first, cold parse. The busiest real page uses about two fifths of the page's
-  node cap. A chart with more data written out than this is an error block: compute the data, or raise the caps.
+  `setYamlParser`, compares each new key of a map with the keys before it. A chart with more data written out than
+  the caps is an error block: compute the data, or raise the caps.
 - **Animations** count their layout work (placing things, routing lines, wrapping labels, every step) as it is done,
   in units: at most `maxAnimWork` (15,000,000) for one animation and `maxPageAnimWork` (64,000,000) for all of a page's;
   a unit is some tens of nanoseconds. Over a cap the animation is an error block naming it (past the page's cap, every
   later animation too) and the rest of the page draws. Each animation is compiled once per `parse()`; the renderer's
-  phone and narrow layouts draw from a budget of twice one animation's cap. The heaviest real animation uses about a
-  fifth of its cap. A host that shows untrusted pages and needs a page to be quick may lower both caps through
-  `parse(text, { limits })`.
+  phone and narrow layouts draw from a budget of twice `LIMITS.maxAnimWork`.
+
+**Two sets of caps.** `LIMITS` (the default) is for authored pages: the largest real pages measured need about half of
+its YAML and animation caps. `UNTRUSTED_LIMITS` is for text nobody reviewed (a chat reply, a streamed message): the same
+caps with these smaller:
+
+| Cap | `LIMITS` | `UNTRUSTED_LIMITS` |
+| --- | --- | --- |
+| `maxYamlNodes` / `maxYamlChars` (one text) | 3,000 / 32,000 | 1,000 / 32,000 |
+| `maxPageYamlNodes` / `maxPageYamlChars` | 24,000 / 200,000 | 4,000 / 64,000 |
+| `maxAnimWork` / `maxPageAnimWork` | 15,000,000 / 64,000,000 | 3,000,000 / 6,000,000 |
+
+The slowest pages measured within each set, on the machine that made 0.6.2 while it was busy (a first parse in a new
+process, then the best warm parse):
+
+| Slowest page | `LIMITS` | `UNTRUSTED_LIMITS` |
+| --- | --- | --- |
+| YAML, with the yaml package 2.9.0 | 573 ms, 442 ms warm | 105 ms, 35 ms warm |
+| YAML, with a bounded reader | 309 ms, 148 ms warm | 96 ms, 21 ms warm |
+| animations (a page that spends the page cap) | 2.2 s, 1.8 s warm | 0.47 s, 0.36 s warm |
+
+A host may lower any cap further: `parse(text, { limits: { ...UNTRUSTED_LIMITS, maxPageAnimWork: 2_000_000 } })`.
 
 `test/markdown-work.test.ts` counts the reader's work (rule calls and the characters its link helpers read) on seeded
 random text made of Markdown's punctuation, a few hundred families of it, and checks that 4 times the text is about 4

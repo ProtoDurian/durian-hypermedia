@@ -14,7 +14,7 @@ draws that data with React, so author text is always a text node or an escaped a
 | mermaid `%%{init}%%` directives, `click` callbacks, HTML labels | directives dropped (with a problem); `securityLevel: "strict"`; no HTML labels; the SVG is cleaned with DOMPurify (no script, no foreignObject, no handlers) and attached as nodes | `hostile/06` |
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | Markdown written to make a parser search again and again (long runs of openers that never close) | read in time linear in its length (see [Work that is not an expression](#work-that-is-not-an-expression)) | `test/markdown-work.test.ts` |
-| YAML with very many keys (a parser may take time growing with the square of one map's keys) | front matter ignored with a problem, a chart an error block, before any parser runs | `test/yaml-size.test.ts` |
+| YAML with very many keys or values (every node costs a parser time; one map's keys cost some parsers the square of their number) | front matter ignored with a problem, a chart an error block, before any parser runs | `test/yaml-size.test.ts` |
 | an animation whose layout needs too much work (many things, lines and steps) | an error block naming the cap; past the page's cap the later animations too | `test/anim-budget.test.ts` |
 | an animation with too many things, steps or characters | an error block naming the cap, before anything is compiled | `hostile/09`, `10` |
 | a chart with too many points; expressions that make huge lists, nest, recurse or loop | an error block and a problem for that chart; the rest of the page still draws. Every expression is paid for from one budget per page (see [The evaluation budget](#the-evaluation-budget)) | `hostile/11`, `test/budget.test.ts` |
@@ -75,8 +75,8 @@ What holds:
   - before any parser runs, from the text: at most `maxYamlAliases` (16) aliases. An alias is counted wherever it is
     written (parsers disagree about where a node starts), but only when an anchor (`&`) whose name starts the same way
     is somewhere in the text, so Markdown such as `**bold**` in a value is not taken for one. In a text that has an
-    alias, a merge key (`<<`, in any spelling), a tag (a `!` not right after a letter or digit) and a directive (`%`
-    first on a line) are refused: write the keys out, or drop the tag.
+    alias, a merge key (`<<`, in any spelling), a tag (a `!` not right after a letter or digit) and a directive (`%` as the
+    first non-blank character of a line, after any indentation) are refused: write the keys out, or drop the tag.
     (A parser copies merged maps, so that work would come before anything could size it, and a tag or a directive can
     spell a merge without `<<`.) Without an alias, tags and merges of maps written in place are read as before.
   - after parsing, before anything reads, keeps or writes the value: counted as it is read (an alias counts what it
@@ -127,14 +127,16 @@ memory and held memory per KB of 1, 10 and 100 KB replies, against budgets), and
   Past real pages, a few outputs have caps: a part's steps carry at most 1,000,000 characters of text (2,000,000 for the
   page), an alignment grid at most 400 cells and 400 regions, the tables of contents of a page at most 2,000 headings;
   past them the part is an error block and its source is shown as plain code (nothing is lost).
-- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (100,000)
-  characters and `maxYamlKeys` (1,000) keys in one text, and `maxPageYamlChars` (400,000) and `maxPageYamlKeys`
-  (8,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).
-  The key count is an upper bound for any parser: every `:`, `?`, `!`, `[`, `{` and line, and every `,` inside a
-  `{`, as written (a `,` in a list is not a key, so a chart's long data costs nothing here; once a quote, comment or
-  tag appears inside a `{`, every later `,` counts, as it might hide a bracket). The yaml package (2.x), which a host outside Bun may give to
-  `setYamlParser`, compares each new key of a map with the keys before it; at these caps one text takes it tens of
-  milliseconds. The busiest real page uses at most a fifth of each cap.
+- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (32,000)
+  characters and `maxYamlNodes` (1,000) nodes in one text, and `maxPageYamlChars` (64,000) and `maxPageYamlNodes`
+  (4,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).
+  The node count is an upper bound for any parser, from the text as written: every `:`, `?`, `,`, `-`, `!`, `[`, `{`
+  and line (quoted or not). A parser builds at most that many keys and about twice that many nodes, and its work grows
+  with them: every node costs some microseconds, and the yaml package (2.x), which a host outside Bun may give to
+  `setYamlParser`, compares each new key of a map with the keys before it. Measured at these caps, the slowest page
+  of YAML (four charts at the cap of one text, the fifth refused) took about 48 ms to parse with the yaml package and
+  about 50 ms with a bounded reader on a first, cold parse. The busiest real page uses about two fifths of the page's
+  node cap. A chart with more data written out than this is an error block: compute the data, or raise the caps.
 - **Animations** count their layout work (placing things, routing lines, wrapping labels, every step) as it is done,
   in units: at most `maxAnimWork` (15,000,000) for one animation and `maxPageAnimWork` (64,000,000) for all of a page's;
   a unit is some tens of nanoseconds. Over a cap the animation is an error block naming it (past the page's cap, every

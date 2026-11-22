@@ -26,10 +26,11 @@ and render exactly as in 0.6.1.
 - The parts' own syntax (fences, containers, steps, file tree rows, `@file` lines, terminal prompts, tab headings,
   tier lists, alignment grids) and `check()`'s scans of prose and code references are read in one pass. A code
   reference's symbol is matched as text (one with `[` used to stop `check()`).
-- **YAML is sized before any parser reads it.** A YAML parser may take time growing with the square of one map's keys
-  in some parsers. Front matter and each chart may have at most `maxYamlChars` characters and `maxYamlKeys`
-  keys, and a page `maxPageYamlChars` and `maxPageYamlKeys` in all, counted from the text for any parser; over them,
-  front matter is ignored with a problem and a chart is an error block. Real pages use at most a fifth of each cap.
+- **YAML is sized before any parser reads it.** A parser's work grows with the keys and values it builds, in some
+  parsers with the square of one map's keys. Front matter and each chart may have at most `maxYamlChars` characters
+  and `maxYamlNodes` nodes, and a page `maxPageYamlChars` and `maxPageYamlNodes` in all, counted from the text for
+  any parser; over them, front matter is ignored with a problem and a chart is an error block. Real pages fit with
+  room; a chart with more data written out than the caps is an error block (compute it, or raise the caps).
 - **Animations are laid out on a work budget.** Layout and line routing are counted as they are done, up to
   `maxAnimWork` for one animation and `maxPageAnimWork` for a page; over them the animation is an error block and the
   rest of the page draws. Each animation is compiled once per `parse()` (it was compiled about five times), and label
@@ -45,8 +46,8 @@ and render exactly as in 0.6.1.
 - New output caps far past real pages: a part's steps carry at most 1,000,000 characters (2,000,000 a page), an
   alignment grid at most 400 cells and 400 regions, a page's tables of contents at most 2,000 headings; past them, an
   error block with the source as plain code.
-- `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlKeys`,
-  `maxPageYamlKeys`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
+- `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlNodes`,
+  `maxPageYamlNodes`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
 - Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`
   and `uc.micro` are added (MIT, BSD-2-Clause).
 

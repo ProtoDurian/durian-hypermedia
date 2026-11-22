@@ -19,7 +19,7 @@ import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
-import { folderPartRows, folderLlm } from "../parts/runtime";
+import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
 
 // ---------- part registry ----------
 // fenced: a code block with this info word. llm: how the LLM view shows it when no :::llm follows.
@@ -171,7 +171,8 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
     if (f) {
       const close = closeFence(lines, i, end, f[2]);
       if (close < 0) throw new ParseError(base + i + 1, "a code fence is never closed");
-      const word = ALIASES[f[3]] ?? f[3];
+      // a folder part may claim another fence (```json explore) or a chart kind (src/parts/<name>/, format version 11)
+      const word = folderFenceWord(f[3], f[4] ?? "", () => lines.slice(i + 1, close)) ?? ALIASES[f[3]] ?? f[3];
       if (PARTS[word]?.form === "fenced") {
         flush();
         out.push(fencedPart(lines, i, close, base, word, f[4]));
@@ -218,6 +219,8 @@ function emptyPart(name: string, attrs: Attrs, line: number, endLine: number, so
 
 function fencedPart(lines: string[], open: number, close: number, base: number, name: string, rest: string): PartNode {
   const { attrs, words } = parseAttrs(rest);
+  // a folder part reads a bare word as a flag (```video loop: loop is "true")
+  if (folderPart(name)) for (const w of words) if (!Object.hasOwn(attrs, w)) attrs[w] = "true";
   // an animation's first bare word: 3d or 2d is the view it opens in (format version 5); any other word was a version 3 kind
   if (name === "animation" && words.length) { if (/^[23]d$/i.test(words[0])) attrs.view = words[0].toLowerCase(); else if (words[0] === "only") attrs.only = "?"; else attrs.kind = words[0]; }
   // format version 10: ```animation 3d only: the scene has no flat form (tools/depth.ts)

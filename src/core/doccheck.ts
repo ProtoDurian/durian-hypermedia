@@ -14,7 +14,7 @@ import { animOverMessage } from "./work";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
-import { folderPart, folderCheck } from "../parts/runtime";
+import { folderPart, folderCheck, folderLlmExempt } from "../parts/runtime";
 
 type Ctx = "page" | "part" | "segment" | "llm";
 const SEC_RE = /\*\*Security finding:\*\*/g;
@@ -128,7 +128,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
       if (p.llm && none) err(p.line, "fence partner", `human-only segment has both llm=none and a :::llm after it`);
       if (!p.llm && !none) err(p.line, "fence partner", `human-only segment has no :::llm after it and no llm=none mark (write :::human llm=none when LLMs need nothing)`);
     } else if (none) err(p.line, "LLM text present", `${p.name} may not use llm=none: only a human-only segment may; wrap it in :::human llm=none if LLMs need nothing`);
-    else if (def.form === "fenced" && !p.llm && ctx !== "segment") {
+    else if (def.form === "fenced" && !p.llm && ctx !== "segment" && !folderLlmExempt(p)) {
       const t = tok(llmFormOf(p, false));
       if (t > LLM_LIMIT) err(p.line, "LLM text present", `${p.name}${p.attrs.id ? ` #${p.attrs.id}` : ""} reads as ${t} tokens in the LLM view, over the ${LLM_LIMIT}-token limit; add a :::llm block after it, or make it smaller`);
     }

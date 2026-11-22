@@ -30,7 +30,7 @@ export interface PartInput {
   bodyLine: number;
   /** the fence's own line (1-based) */
   line: number;
-  /** the info string's key=value attributes (#id is `id`), as written */
+  /** the info string's key=value attributes (#id is `id`), as written; a bare word (```video loop) is `loop: "true"` */
   attrs: Record<string, string>;
   /** with `steps: true`: the text before the first @step, and the steps; otherwise "" and [] */
   head: string;
@@ -70,6 +70,15 @@ export interface PartDef<D = unknown> {
   check?(data: D, input: PartInput): PartIssue[];
   /** the npm packages the part's code imports (they must be in package.json dependencies at the exact version) */
   dependencies?: string[];
+  /** other code blocks this part reads: a block whose info word is `word` and whose info string has the bare word `flag`
+   *  (```json explore) is this part, and input.attrs.lang is that word. Without the flag it stays a plain code block. */
+  fences?: { word: string; flag: string }[];
+  /** chart kinds this part draws: a ```chart whose YAML has `kind: <one of these>` at the top level is this part (its
+   *  body the chart's YAML). Its block type is this part's name; its doccheck messages start "chart:". */
+  chartKinds?: string[];
+  /** true when this part's LLM view may be over the 400-token rule without a :::llm after it, because the long text IS
+   *  the content (an audio part's transcript). doccheck asks it with the part's data. */
+  llmExempt?(data: D): boolean;
 }
 
 /** Make a part definition (type help; the generator checks the name against the folder). */

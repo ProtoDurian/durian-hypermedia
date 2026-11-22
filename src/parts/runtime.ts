@@ -10,6 +10,36 @@ import type { PartDef, PartInput } from "./types";
 /** The folder part of that fence word, if there is one. */
 export const folderPart = (name: string): PartDef<any> | undefined => (Object.hasOwn(FOLDER_PART_DEFS, name) ? FOLDER_PART_DEFS[name] : undefined);
 
+/** The folder part a code block is, when its info word is not a part's own name: ```json explore (a part's fences), or a
+ *  ```chart whose top-level `kind:` a part claims (its chartKinds). null: the word stands as it is. One pass over the info
+ *  string, and for a chart one pass over its lines until a top-level `kind:` line. */
+export function folderFenceWord(word: string, rest: string, body: () => string[]): string | null {
+  if (word === "chart") {
+    if (!CHART_KINDS.size) return null;
+    for (const l of body()) {
+      if (!l.startsWith("kind:")) continue;
+      let v = l.slice(5).trim();
+      const hash = v.indexOf(" #"); if (hash >= 0) v = v.slice(0, hash).trim();
+      if (v.length > 1 && (v[0] === "\"" || v[0] === "'") && v[v.length - 1] === v[0]) v = v.slice(1, -1);
+      return CHART_KINDS.get(v) ?? null;
+    }
+    return null;
+  }
+  const claims = FENCES.get(word);
+  if (!claims) return null;
+  const words = new Set(rest.split(/\s+/));
+  for (const [flag, name] of claims) if (words.has(flag)) return name;
+  return null;
+}
+const CHART_KINDS = new Map<string, string>();
+const FENCES = new Map<string, [string, string][]>();
+for (const [name, d] of Object.entries(FOLDER_PART_DEFS)) {
+  for (const k of d.chartKinds ?? []) CHART_KINDS.set(k, name);
+  for (const f of d.fences ?? []) { let a = FENCES.get(f.word); if (!a) FENCES.set(f.word, (a = [])); a.push([f.flag, name]); }
+}
+/** the word a part's doccheck messages start with: "chart" for a part that draws chart kinds, else its name */
+const wordOf = (def: PartDef<any>) => (def.chartKinds?.length ? "chart" : def.name);
+
 /** The rows the format's parser adds to its own part table (core/dh-lib.ts PARTS). */
 export function folderPartRows(): Record<string, { form: "fenced"; llm: "part"; steps: boolean }> {
   const out: Record<string, { form: "fenced"; llm: "part"; steps: boolean }> = {};
@@ -33,6 +63,7 @@ export function readPart(p: PartNode, def: PartDef<any>): Read {
   const had = reads.get(p);
   if (had) return had;
   const input = inputOf(p, def);
+  if (def.fences?.length) { const m = /^\s*[`~]{3,}\s*([^\s`{]+)/.exec(p.open); input.attrs.lang = m && m[1] !== def.name ? m[1] : (input.attrs.lang ?? def.name); }
   let r: Read;
   try {
     const budget = partBudget(`the ${def.name} part`);
@@ -54,14 +85,23 @@ export function folderLlm(p: PartNode): string | null {
   return String(def.llm(r.data, r.input) ?? "");
 }
 
+/** Is this folder part's LLM view allowed over the 400-token rule (its llmExempt says so for its data)? */
+export function folderLlmExempt(p: PartNode): boolean {
+  const def = folderPart(p.name);
+  if (!def?.llmExempt) return false;
+  const r = readPart(p, def);
+  return r.ok && !!def.llmExempt(r.data);
+}
+
 /** doccheck's rules for a folder part (called from core/doccheck.ts checkPartData). */
 export function folderCheck(p: PartNode, err: (line: number, msg: string) => void, warn: (line: number, msg: string) => void): void {
   const def = folderPart(p.name);
   if (!def) return;
   const r = readPart(p, def);
-  if (!r.ok) { err(p.line, `${p.name}: ${r.message}`); return; }
+  const w = wordOf(def);
+  if (!r.ok) { err(p.line, `${w}: ${r.message}`); return; }
   if (!def.check) return;
-  for (const i of def.check(r.data, r.input) ?? []) (i.level === "warn" ? warn : err)(i.line ?? p.line, i.message.startsWith(`${p.name}:`) ? i.message : `${p.name}: ${i.message}`);
+  for (const i of def.check(r.data, r.input) ?? []) (i.level === "warn" ? warn : err)(i.line ?? p.line, i.message.startsWith(`${w}:`) ? i.message : `${w}: ${i.message}`);
 }
 
 /** parse()'s hook (document.ts): the block of a folder part, or the message to refuse it with; null for any other part

@@ -44,6 +44,8 @@ export interface PartContext {
   /** this part's share of the one page budget, named "the <name> part": charge(steps, values, chars) before the work.
    *  Over the limit it throws BudgetError: let it go (never catch it to keep going); the part is refused with its message. */
   budget: Budget;
+  /** the page's front matter, read-only (a code reference's pins, a page-wide setting); {} when the page has none */
+  frontMatter?: Readonly<Record<string, unknown>>;
 }
 
 /** A problem a part's check reports; the line defaults to the fence's line, the level to "error". */

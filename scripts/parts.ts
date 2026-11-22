@@ -14,6 +14,8 @@ export const SPEC_BEGIN = `<!-- parts:begin (${HEAD}) -->`;
 export const SPEC_END = "<!-- parts:end -->";
 /** the folders under src/parts/ that are not parts */
 export const NOT_PARTS = new Set(["kit", "generated"]);
+/** names the core keeps for its own reference-only types: no folder part may take them */
+export const RESERVED_NAMES = new Set(["svg", "interactive"]);
 /** the files every part folder has (fixtures/ holds at least one good-*.dh.md and one hostile-*.dh.md) */
 export const PART_FILES = ["part.ts", "limits.ts", "view.tsx", "style.css", "spec.md", "sample.md"];
 export const NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
@@ -52,6 +54,7 @@ export function readFolders(root: string): { folders: Folder[]; problems: string
   for (const name of names) {
     const at = join(dir, name);
     if (!NAME_RE.test(name)) { problems.push(`src/parts/${name}: a part's folder name is lower case letters and digits, words joined by "-"`); continue; }
+    if (RESERVED_NAMES.has(name)) { problems.push(`src/parts/${name}: "${name}" is a core reference-only type; a folder part may not take that name`); continue; }
     const missing = PART_FILES.filter((f) => !existsSync(join(at, f)));
     if (!existsSync(join(at, `${name}.test.ts`))) missing.push(`${name}.test.ts`);
     const fx = existsSync(join(at, "fixtures")) ? readdirSync(join(at, "fixtures")) : [];

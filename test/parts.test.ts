@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, sta
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
-import { run, readFolders, camel, NOT_PARTS, SPEC_BEGIN, SPEC_END } from "../scripts/parts";
+import { run, readFolders, camel, NOT_PARTS, RESERVED_NAMES, SPEC_BEGIN, SPEC_END } from "../scripts/parts";
 import { FOLDER_PART_DEFS, FOLDER_PART_NAMES } from "../src/parts/generated/registry";
 import { PART_LIMITS, PART_UNTRUSTED_LIMITS } from "../src/parts/generated/limits";
 import { LIMITS, UNTRUSTED_LIMITS, PART_NAMES } from "../src/index";
@@ -128,4 +128,18 @@ describe("parts: adding a part edits no shared file", () => {
       rmSync(tmp, { recursive: true, force: true });
     }
   }, 60_000);
+});
+
+describe("reserved part names", () => {
+  test("a folder named svg or interactive is refused (core reference-only types)", () => {
+    const { mkdtempSync, mkdirSync, rmSync } = require("node:fs") as typeof import("node:fs");
+    const { tmpdir } = require("node:os") as typeof import("node:os");
+    const root = mkdtempSync(join(tmpdir(), "dh-reserved-"));
+    try {
+      for (const n of RESERVED_NAMES) mkdirSync(join(root, "src/parts", n), { recursive: true });
+      const { folders, problems } = readFolders(root);
+      expect(folders.length).toBe(0);
+      expect(problems.sort()).toEqual([...RESERVED_NAMES].sort().map((n) => `src/parts/${n}: "${n}" is a core reference-only type; a folder part may not take that name`));
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
 });

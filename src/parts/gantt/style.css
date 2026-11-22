@@ -1,0 +1,52 @@
+/* gantt: tasks on a time scale. Its tokens read the base tokens, so light and dark follow; a host sets one to restyle it. */
+:root {
+  --gantt-today: var(--hot); --gantt-grid: var(--line); --gantt-weekend: var(--surface-2); --gantt-edge: var(--ink-2);
+  --gantt-progress: .55; --gantt-done: .45;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --gantt-today: var(--hot); --gantt-grid: var(--line); --gantt-weekend: var(--surface-2); --gantt-edge: var(--ink-2); --gantt-progress: .55; --gantt-done: .45; }
+}
+:root[data-theme="dark"] { --gantt-today: var(--hot); --gantt-grid: var(--line); --gantt-weekend: var(--surface-2); --gantt-edge: var(--ink-2); --gantt-progress: .55; --gantt-done: .45; }
+
+.gantt { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); padding: 14px 16px; box-shadow: var(--shadow-sm); }
+.gantt:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.gantt-title { font: 600 var(--fs-s) var(--font-sans); color: var(--ink); margin: 0 0 8px; }
+.gantt svg { display: block; max-width: none; }
+.gantt .ctl { margin-top: 8px; }
+.gantt .anim-cap { border-top: 0; padding-left: 0; padding-right: 0; }
+.gantt-hint { margin: 8px 0 0; font-size: var(--fs-xs); color: var(--muted); }
+.gantt-bar { display: flex; gap: 6px; margin-bottom: 8px; }
+.gantt-bar .btn { min-height: 28px; min-width: 24px; }
+.gantt-bar .btn[aria-pressed="true"] { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
+.gantt-body { display: flex; align-items: flex-start; min-width: 0; }
+.gantt-names { flex: none; }
+.gn-section { display: flex; align-items: center; font: 600 var(--fs-xs) var(--font-sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.gn-task { display: flex; align-items: center; font: 400 var(--fs-s) var(--font-sans); color: var(--ink); padding-right: 8px; }
+.gn-task span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gantt-scroll { overflow-x: auto; min-width: 0; flex: 1; }
+.gantt.is-phone .gantt-scroll { border-top: 1px solid var(--line); }
+.gt-tick { font: 400 12px var(--font-sans); fill: var(--muted); }
+.gt-grid { stroke: var(--gantt-grid); stroke-width: 1; }
+.gt-weekend { fill: var(--gantt-weekend); opacity: .7; }
+.gt-sec-bg { fill: var(--surface-2); }
+.gt-sec-text { font: 600 12px var(--font-sans); fill: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.gt-today line { stroke: var(--gantt-today); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.gt-today-label { font: 600 12px var(--font-sans); fill: var(--hot-ink); }
+.gt-dep { fill: none; stroke: var(--gantt-edge); stroke-width: 1.2; opacity: .75; }
+.gt-arrowhead { fill: var(--gantt-edge); }
+.gt-task { cursor: pointer; transition: transform var(--dur-slow) var(--ease); outline: none; }
+.gt-barrect { transition: width var(--dur-slow) var(--ease), opacity var(--dur) var(--ease); }
+.gt-prog { opacity: var(--gantt-progress); transition: width var(--dur-slow) var(--ease); pointer-events: none; }
+.gt-task.is-done .gt-barrect { opacity: var(--gantt-done); }
+.gt-task.is-done .gt-prog { opacity: 0; }
+.gt-tick-done { stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.gt-task.is-critical .gt-barrect, .gt-task.is-critical .gt-diamond { stroke: var(--ink); stroke-width: 2px; }
+.gt-name { font: 500 12px var(--font-sans); fill: var(--ink); }
+.gt-inbar { font: 600 12px var(--font-sans); fill: var(--on-acc); pointer-events: none; }
+.gt-task:hover .gt-barrect, .gt-task:focus-visible .gt-barrect { filter: brightness(1.08); }
+.gt-task:focus-visible .gt-barrect, .gt-task:focus-visible .gt-diamond { stroke: var(--ink); stroke-width: 2px; }
+@media (prefers-reduced-motion: reduce) { .gt-task, .gt-barrect, .gt-prog { transition: none; } }
+.gantt[data-dh-motion="off"] .gt-task, .gantt[data-dh-motion="off"] .gt-barrect, .gantt[data-dh-motion="off"] .gt-prog { transition: none; }
+/* static: the chosen step at once, no bar slide */
+.gantt[data-dh-static] * { transition: none !important; animation: none !important; }
+@container (max-width: 600px) { .gantt { padding: 12px; } }

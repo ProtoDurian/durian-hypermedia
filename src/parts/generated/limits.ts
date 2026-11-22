@@ -4,10 +4,11 @@ import * as audio from "../audio/limits";
 import * as downloads from "../downloads/limits";
 import * as fishbone from "../fishbone/limits";
 import * as gallery from "../gallery/limits";
+import * as lottie from "../lottie/limits";
 import * as sankey from "../sankey/limits";
 import * as video from "../video/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof audio.LIMITS & typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof gallery.LIMITS & typeof sankey.LIMITS & typeof video.LIMITS;
-export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...downloads.LIMITS, ...fishbone.LIMITS, ...gallery.LIMITS, ...sankey.LIMITS, ...video.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS };
+export type PartLimits = typeof audio.LIMITS & typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof gallery.LIMITS & typeof lottie.LIMITS & typeof sankey.LIMITS & typeof video.LIMITS;
+export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...downloads.LIMITS, ...fishbone.LIMITS, ...gallery.LIMITS, ...lottie.LIMITS, ...sankey.LIMITS, ...video.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...lottie.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS };

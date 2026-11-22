@@ -5,6 +5,7 @@ import AudioView from "../audio/view";
 import DownloadsView from "../downloads/view";
 import FishboneView from "../fishbone/view";
 import GalleryView from "../gallery/view";
+import LottieView from "../lottie/view";
 import SankeyView from "../sankey/view";
 import VideoView from "../video/view";
 
@@ -12,6 +13,7 @@ export const AudioPart = partComponent("audio", AudioView);
 export const DownloadsPart = partComponent("downloads", DownloadsView);
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const GalleryPart = partComponent("gallery", GalleryView);
+export const LottiePart = partComponent("lottie", LottieView);
 export const SankeyPart = partComponent("sankey", SankeyView);
 export const VideoPart = partComponent("video", VideoView);
-export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "downloads": DownloadsPart, "fishbone": FishbonePart, "gallery": GalleryPart, "sankey": SankeyPart, "video": VideoPart };
+export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "downloads": DownloadsPart, "fishbone": FishbonePart, "gallery": GalleryPart, "lottie": LottiePart, "sankey": SankeyPart, "video": VideoPart };

@@ -375,8 +375,25 @@ media/requests.csv "Raw data" note="one row per request"
 - A line: `<address> "label" [size] [sha256=|sha512=<hex>] [note=...]`. Each card has a type icon from the extension (document, sheet, archive, image, audio, video, code, text, other), the label, the file name, the size, a Download link (a plain `<a download>`; nothing is fetched, nothing is counted) and the checksum as a short chip that copies the whole value, with how to check it (`shasum -a 256 <file>`). `//` starts a comment line.
 - **Addresses:** every address goes through the host's `urlPolicy` when the card is drawn; a refused one shows a plain note instead of the link. The parser itself never allows `data:`, `blob:`, `javascript:`, `file:`, any other scheme, a protocol-relative `//` address, or a space or control character.
 - **LLM view:** `Downloads: <title>.` then `- <label>: <address> (PDF, 2.4 MB, sha256 9f86d0...0a08)` a line each, with the whole checksum on the next line.
-- **Caps:** `downloadsFiles` (100; 40 in UNTRUSTED_LIMITS) files in one list.
+- **Caps:** `downloadsFiles` (100; 40 in UNTRUSTED_LIMITS) files in one list, and `downloadsCheckBytes` (64 MB; 16 MB) the most the Node entry reads of one file to check its checksum.
+- **Local files:** `checkLocalFiles` from `durian-hypermedia/node` (never the core) reads each file named under the host's root: the stated size must be what the file has at the precision written, and the checksum must match; a missing file, an absolute path or a `..` is refused.
 - **doccheck refuses:** an address that is not allowed; a size with no unit (B, KB, MB, GB; decimal); a checksum of the wrong length or not hex; `md5=` or `sha1=` (weak: use `sha256=`); a second label; an unknown `key=`; a word that is not a size, a label or a key; a file listed twice; no files; more files than the cap; an unknown option; a part over the page's work budget.
+
+#### Explore
+
+```json explore query=".items[] | select(.qty > 1)"
+{"items":[{"name":"tea","qty":2},{"name":"cup","qty":1}]}
+```
+
+A json, yaml or csv fence with the bare word explore draws a foldable tree, counts, search that opens matching ancestors, path copying, a table for lists of objects, starter queries and a jq subset box. Without explore it remains an ordinary fence. The author query= runs during parsing on the page budget. A reader query always receives a new budget, so a failed query does not spend the next one. The LLM reads the original data followed by the author query result. :::llm can replace it.
+
+The query subset provides paths, iteration, select, map, pipes, arithmetic, arrays/objects, variables, conditionals, try, sorting/grouping, strings and a metered non-backtracking regex test. Unsupported syntax or functions are refused by name. Integer-looking object keys follow JavaScript order. CSV accepts quoted fields, doubled quotes and newlines in fields, and recognizes plain decimal numbers. YAML uses the host reader and its page, node and alias caps.
+
+TOML explore is recognized but explicitly refused: TOML explore needs a TOML reader; this build has none.
+
+Caps (authored; strict in parentheses when lower): exploreChars 262144 (131072), exploreDepth 64 (32), exploreCsvRows 5000 (2500), exploreCsvCols 30 (20), exploreQueryChars 2000 (1000), exploreReaderQueryChars 500, exploreQueryDepth 100 (50), exploreQueryResults 10000 (5000), exploreRegexChars 2000, exploreRegexProgram 4000 (2000), exploreRegexRepeat 200, exploreQueryJsonChars 100000, exploreReaderSteps 200000 (100000), exploreReaderValues 400000 (200000), exploreReaderChars 1000000, exploreRowsPerNode 100, exploreSearchNodes 20000 (10000), exploreTableRows 200, exploreTableCols 12, exploreStringCut 120. Hosts can lower all caps.
+
+Doccheck refuses unknown options, invalid JSON or YAML, malformed or unclosed CSV, duplicate headers, a missing CSV header or data row, too many columns/rows, too much data, nesting over the cap, query errors, unsupported syntax, too many query results, and work beyond the page budget.
 
 #### Fishbone
 
@@ -452,6 +469,24 @@ launch "Launch" milestone after beta
 - **Caps:** `ganttTasks` (200; 100 in UNTRUSTED_LIMITS), `ganttSteps` (30; 15), `ganttSections` (30; 15), `ganttDeps` (600 `after` arrows; 300) and `ganttSpanDays` (3,700 days; 1,850). The schedule of every task at every step is charged to the page's work budget when the part is read.
 - **doccheck refuses:** `after` an unknown id, a task that waits for itself or for one that first appears in a later step, a loop of `after`s (it names the tasks), an end before its start, an unknown length unit, a length of 0 or a length over the span, progress over 100%, a task written twice, an unknown colour, a line it does not understand, a step command (`progress`, `done`, `move`) outside a step or on an unknown task, an unknown fence key, a `tz`, `today` or `workdays` it cannot read, no tasks, more tasks, sections, arrows or steps than the caps, a chart that would span more days than the cap, and a part over the page's work budget. It warns on a label over 60 characters.
 
+#### Log
+
+```log labels="app=shop" title="Checkout"
+2026-11-20T10:00:00Z info request status=200
+2026-11-20T10:00:01Z error timeout status=504
+@highlight |= "timeout" [bad] "the request timed out"
+```
+
+Reads JSON, logfmt and time/level/message lines. Consecutive repeated lines fold (fold=off disables it). Level chips, as-written or relative times, matched-word marks, author highlights and a reader LogQL box are included. @highlight accepts a LogQL filter or line 3-5, optional colour word and a quoted reason. llm=highlights keeps matching lines and two nearby lines; otherwise the LLM reads highlights first and the log as written, folding repeats.
+
+The LogQL subset supports selectors, literal and non-backtracking regex line filters, json/logfmt parser stages and field comparisons (including durations and bytes), joined by and, or or comma. Metric queries and unsupported stages are refused by name. Every reader query receives a new budget.
+
+Caps: logLines 5000 (2500 strict), logQueryChars 2000 (1000), logReaderQueryChars 500, logQueryDepth 100 (50), logQueryResults 10000 (5000), logRegexChars 2000, logRegexProgram 4000 (2000), logRegexRepeat 200, logQueryJsonChars 100000, logReaderSteps 200000 (100000), logReaderValues 400000 (200000), logReaderChars 1000000. Hosts may lower each. All author work shares the page budget.
+
+Doccheck refuses an empty log, unknown option, too many lines, bad filter or unsupported query stage, invalid highlight, missing or empty reason, unknown colour, reversed or zero line range, highlight past the end, highlight matching no line, and work over the budget.
+
+Rows expose data-span and optional data-trace, accept keyboard focus and show a Show span action when the trace marks them data-trace-linked=1. The action dispatches dh-trace-focus on document with span and trace.
+
 #### Lottie
 
 ````
@@ -466,8 +501,25 @@ colours: dh-c1 = c1, dh-warn = warn
 - **Checked at load, before the library is fetched:** the file's size, its frames, its layers and its values, no expressions, and no image that is remote or a separate file (an embedded `data:image/png|jpeg|webp|gif` image is allowed). The walk of the file charges a budget of its own. A file that fails shows its reason in place of the animation.
 - **Addresses:** the file goes through the host's `urlPolicy` when the part is drawn.
 - **LLM view:** `Lottie animation: <title>. <alt>`. **Tokens:** `--lottie-bg`, `--lottie-radius`. **Slots:** `stage`, `play`, `speed`, `alt`.
+- **Local file:** `checkLocalFiles` from `durian-hypermedia/node` reads the file and runs the checks the browser runs at load (size, frames, layers, no expression, no remote image) and checks that every `colours:` name is in the file.
 - **Caps** (travel in the data, checked in the browser when the file loads): `lottieBytes` (1 MB; 256 KB in UNTRUSTED_LIMITS), `lottieFrames` (3,600; 1,800), `lottieLayers` (500; 200), `lottieNodes` (200,000; 50,000).
 - **doccheck refuses:** no `alt:` line; no `src`; a `src` that is not a `.json` file or not an allowed address; a `colours:` entry that is not `name = colour` or names a colour that is not a theme colour word; `speed=` outside 0.25 to 4; `start=` other than paused or play; a bad `height`; an unknown option; a line the part does not know; a part over the page's work budget.
+
+#### PDF
+
+````
+```pdf src="media/q3-report.pdf" title="Q3 report" page=3 view=page height=m
+```
+````
+
+- **Options:** `src` (`.pdf`), `title`, `page=<n>`, `view=page|scroll` (a page at a time, or all pages scrolling), `height=s|m|l`. No body lines.
+- A toolbar with page number and count, Previous and Next, zoom (fit width, fit page, in, out), search (every page's text is read once; a run charges a budget of its own; matches are marked on the page and counted), the outline (bookmarks) as a side list (a drawer on a phone), and Download. Text is selectable. Keys: PageUp and PageDown (and Left and Right in the page view), `+`, `-`, `0`, `/` search, Home and End. On a phone a swipe turns the page.
+- **The file** is fetched by us and checked at load against `pdfBytes` and `pdfPages` before pdf.js parses it; pdf.js runs with `isEvalSupported: false` and scripting off. Form fields, scripts and link annotations are not drawn. The address goes through the host's `urlPolicy`.
+- **The worker.** Under strict Trusted Types the viewer must not start a `Worker` (a script-URL sink), so by default pdf.js's worker module is imported into the main thread (`globalThis.pdfjsWorker`, pdf.js's own hook): no `Worker`, no `eval`, no HTML string, no policy. A host that wants a real Worker serves `pdf.worker.min.mjs` from its own origin and sets `<html data-dh-pdf-worker="worker" data-dh-pdf-worker-src="/assets/pdf.worker.min.mjs">` (used only when the page's own header does not require Trusted Types).
+- **LLM view:** `PDF: <title>, <address>.` (the text of the file is not read by the parser; a host that wants it gives a `:::llm`). **Tokens:** `--pdf-bg`, `--pdf-radius`, `--pdf-page-bg` (white in dark too, pages are paper), `--pdf-gap`. **Slots:** `toolbar`, `page`, `outline`, `search`.
+- **Local file:** `checkLocalFiles` from `durian-hypermedia/node` checks the file is a PDF within its cap and has the page `page=` names (pages are counted as page objects; a file that keeps them in compressed object streams is not page-checked).
+- **Caps** (travel in the data, checked in the browser at load): `pdfPages` (500; 200 in UNTRUSTED_LIMITS), `pdfBytes` (20 MB; 8 MB).
+- **doccheck refuses:** a `src` that is not a `.pdf` file or not an allowed address, no `src`, `page=` that is not a number from 1, a `view` other than page or scroll, a bad `height`, an unknown option, any body line, a part over the page's work budget.
 
 #### Sankey
 
@@ -514,6 +566,18 @@ cli --> dev: project written
 - **Caps:** `sequenceParticipants` (12), `sequenceItems` (200; 120 in UNTRUSTED_LIMITS) lines of participants, messages, blocks and notes together, and `sequenceDepth` (3).
 - **doccheck refuses:** an `end`, `else` or `and` with no block open (or an `else` in a loop, an `and` in an alt), a block never closed, blocks nested too deep, a message or note with no text, an unknown participant kind, a participant declared twice, mermaid's `participant A as B`, an id with a character outside the set, a line that is none of these, no message at all, more participants or lines than the caps, `steps=each` with `@step` lines or with fewer than 2 messages, an unknown attribute, and a part over the page's work budget.
 
+#### Sparkline in a sentence (`:spark[...]`)
+
+```
+Sign-ups were :spark[120,135,128,160,182,171,205] this week, and errors fell to :spark[14,12,15,9,7,4,3 bar good].
+```
+
+- `:spark[3,5,2,8,9]` draws a tiny line the height of the text; `:spark[3,5,2,8,9 bar good]` makes bars and sets the colour. The numbers are joined by commas; then, optionally, `line` or `bar`, and one colour word (`c1` to `c8`, `acc`, `good`, `warn`, `bad`, `muted`). Hover, focus or tap it for the numbers; it is plain inline SVG with the numbers in its label.
+- It is a part of a sentence: it is read in a paragraph, a list item, a quote, a callout or a table cell, and never inside inline code, a link, an image, a heading or an HTML tag (there it stays as written).
+- **LLM view:** `(3, 5, 2, 8, 9)`.
+- **Caps:** `sparkValues` (200; 100 in UNTRUSTED_LIMITS) numbers in one sparkline.
+- **doccheck refuses:** fewer than 2 numbers, a word that is not a number, a style or a colour, more numbers than the cap. A wrong sparkline stays as written text.
+
 #### Stacktrace
 
 A printed Go, .NET, Bun/Node, Dart, Java or Python trace.
@@ -524,13 +588,28 @@ Error: request failed
     at run (node:internal/process:10:5)
 ```
 
-Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references.
+Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references. The matching front matter pins entry supplies the commit: the frame detail shows its first seven characters, and the reference tooltip keeps the complete commit. Without a matching pin the reference still names the file and line.
 
 The LLM reads the trace as written. Above 400 tokens library runs become one line; llm=full retains all frames. A following :::llm replaces this view.
 
 Caps: stacktraceLines is 2000 (1000 in UNTRUSTED_LIMITS); hosts may lower it. Every scan charges the page budget.
 
 Doccheck refuses unknown options, an unknown language, strip= without repo=, secret-looking text, an undetectable language, no recognizable frame, a .NET frame before its exception, too many lines, and too much work. app= matching no frame warns.
+
+#### Timeline
+
+````
+```timeline title="A release plan"
+2026-05-04 Design review [c1]
+  Scope and owners agreed
+2026-11-23 Version 2 ships [good] note="the big one"
+```
+````
+
+- One line per event: a year (`2026`), a month (`2026-11`) or a day (`2026-11-23`), a title, an optional `[colour]` (the colour words `c1`..`c8`, `acc`, `good`, `warn`, `bad`, `muted`, never a hex value) and `note="..."`. An indented line is a detail. List events oldest first (doccheck warns otherwise). `dir=across` lays it out sideways on a wide stage; a narrow stage is always top to bottom. Steps build it up: an event under a later step is there but invisible, so the size never changes. **Static:** `static=` on the fence draws one step whole.
+- **LLM view:** `Timeline: <title>.` and a dated list: `- 2026-11-23: Version 2 ships (the big one) — a detail; another`, under the step captions when stepped.
+- **Caps:** `timelineEvents` (80; 50 in UNTRUSTED_LIMITS).
+- **doccheck refuses:** a line that does not start with a date, a month that is not 01 to 12, a day that is not 01 to 31, an event with no title, an unknown colour, a detail with no event above it, no event at all, more events than the cap, an unknown attribute or a `dir` that is not `down` or `across`, and a part over the page's work budget. It warns on an event listed before an earlier one of the same kind of date.
 
 #### Trace waterfall
 

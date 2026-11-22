@@ -21,6 +21,7 @@ import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./s
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
 import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
+import { inlineLlmText } from "../parts/inline-runtime";
 
 // ---------- part registry ----------
 // fenced: a code block with this info word. llm: how the LLM view shows it when no :::llm follows.
@@ -369,7 +370,7 @@ export function mouseParts(inner: string): { act: string; target: string } {
 const chords = (k: string) => { const p = k.split(","); return p.map((x, i) => (i > 0 ? (i < p.length - 1 ? x.trim() : x.trimStart()) : i < p.length - 1 ? x.trimEnd() : x)); };
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
 export function inlineToLlm(md: string): string {
-  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner));
+  return mapOutsideCode(md, (t) => inlineLlmText(replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner)));
 }
 // The mouse icon: the button the action presses is filled. A double click adds a "2", a scroll arrows by the wheel,
 // a drag a move arrow, a drop a down arrow, a hover motion lines; so single and double click differ at a glance.

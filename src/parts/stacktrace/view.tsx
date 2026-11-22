@@ -4,8 +4,9 @@
 import type { PartViewProps } from "../types";
 import React, { useState } from "react";
 import type { Block, Frame, Trace } from "./trace";
+import type { StackData } from "./part";
 
-export type D = { title: string; trace: Trace | null; strip: string; repo: string; error: string | null; appHits: number };
+export type D = StackData;
 const KIND_LABEL: Record<string, string> = { error: "", cause: "Caused by", suppressed: "Suppressed", thread: "" };
 
 type Item = { t: "frame"; f: Frame; i: number } | { t: "fold"; fs: Frame[]; from: number } | { t: "gap"; at: number };
@@ -39,7 +40,7 @@ function FrameRow({ f, d, pin }: { f: Frame; d: D; pin: string | undefined }) {
         <div className="st-detail" role="group" aria-label="Frame detail">
           <div className="st-raw">{f.raw.trim()}</div>
           {f.code ? <div className="st-code">{f.code}</div> : null}
-          {linked ? <div className="st-link">Code: <span className="coderef" tabIndex={0} title={`${d.repo}/${rel}${pin ? ` · pinned ${pin.slice(0, 7)}` : ""}`}>{d.repo}/{rel}{f.line != null ? `#L${f.line}` : ""}</span>{pin ? <span className="st-pin"> at pin {pin.slice(0, 7)}</span> : null}</div> : null}
+          {linked ? <div className="st-link">Code: <span className="coderef" tabIndex={0} title={`${d.repo}/${rel}${pin ? ` · pinned ${pin}` : ""}`}>{d.repo}/{rel}{f.line != null ? `#L${f.line}` : ""}</span>{pin ? <span className="st-pin"> at pin {pin.slice(0, 7)}</span> : null}</div> : null}
         </div>
       ) : null}
     </li>
@@ -66,9 +67,10 @@ function Fold({ fs }: { fs: Frame[] }) {
 }
 function BlockView({ b, d, pins, first }: { b: Block; d: D; pins: Record<string, string>; first: boolean }) {
   const lab = KIND_LABEL[b.kind];
+  const pin=Object.prototype.hasOwnProperty.call(pins,d.repo)?pins[d.repo]:undefined;
   const body = (
     <ul className="st-list">
-      {items(b).map((it, k) => it.t === "frame" ? <FrameRow key={k} f={it.f} d={d} pin={pins[d.repo]} /> : it.t === "fold" ? <Fold key={k} fs={it.fs} /> : <li key={k} className="st-gap" aria-label="asynchronous gap">⋯ async gap</li>)}
+      {items(b).map((it, k) => it.t === "frame" ? <FrameRow key={k} f={it.f} d={d} pin={pin} /> : it.t === "fold" ? <Fold key={k} fs={it.fs} /> : <li key={k} className="st-gap" aria-label="asynchronous gap">⋯ async gap</li>)}
       {b.omitted ? <li className="st-omit">… {b.omitted} more frame{b.omitted === 1 ? "" : "s"} are the same as the trace above</li> : null}
     </ul>
   );
@@ -88,7 +90,7 @@ export default function StacktraceView({ data: d }: PartViewProps<D>) {
   return (
     <div className="st" data-lang={t.lang}>
       <div className="st-top">{d.title ? <span className="st-title">{d.title}</span> : null}<span className="chip">{t.lang}</span><span className="chip">{t.blocks.reduce((n, b) => n + b.frames.length, 0)} frames</span></div>
-      {t.blocks.map((b, i) => { const first = b.kind === "thread" && firstThread; if (b.kind === "thread") firstThread = false; return <BlockView key={i} b={b} d={d} pins={{}} first={first} />; })}
+      {t.blocks.map((b, i) => { const first = b.kind === "thread" && firstThread; if (b.kind === "thread") firstThread = false; return <BlockView key={i} b={b} d={d} pins={d.pins??{}} first={first} />; })}
     </div>
   );
 }

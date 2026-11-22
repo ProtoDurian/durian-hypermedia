@@ -19,10 +19,13 @@ const full = process.argv.includes("--full");
 const ttPrefix = full ? "ttfull-" : "tt-";
 const only = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1] : "";
 const outFile = process.argv.includes("--out") ? process.argv[process.argv.indexOf("--out") + 1] : "";
-const PORT = 4600 + Math.floor(Math.random() * 300);
+// a port nobody holds (the system picks it): a fixed or random one can land on another run's server and check its pages
+const freePort = () => { const s = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("") }); const p = s.port; s.stop(true); return p; };
+const PORT = freePort();
 
 const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), DIR, String(PORT), ...(strictStyle ? ["--strict-style"] : []), ...(trusted ? ["--trusted-types"] : [])], { stdout: "pipe", stderr: "inherit" });
 await new Promise((r) => setTimeout(r, 800));
+if (server.exitCode !== null) { console.error(`the page server did not start on port ${PORT}: the check is broken`); process.exit(2); }
 
 const COLLECT = `(() => {
   const s = window.__dh = { csp: [], errors: [], alerts: 0 };

@@ -5,20 +5,25 @@ import * as chartKinds from "../chart-kinds/limits";
 import * as compare from "../compare/limits";
 import * as compareImage from "../compare-image/limits";
 import * as downloads from "../downloads/limits";
+import * as explore from "../explore/limits";
 import * as fishbone from "../fishbone/limits";
 import * as flame from "../flame/limits";
 import * as gallery from "../gallery/limits";
 import * as gantt from "../gantt/limits";
+import * as log from "../log/limits";
 import * as lottie from "../lottie/limits";
+import * as pdf from "../pdf/limits";
 import * as sankey from "../sankey/limits";
 import * as sequence from "../sequence/limits";
+import * as spark from "../spark/limits";
 import * as stacktrace from "../stacktrace/limits";
+import * as timeline from "../timeline/limits";
 import * as trace from "../trace/limits";
 import * as venn from "../venn/limits";
 import * as video from "../video/limits";
 import * as wardley from "../wardley/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof audio.LIMITS & typeof chartKinds.LIMITS & typeof compare.LIMITS & typeof compareImage.LIMITS & typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof lottie.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof stacktrace.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS & typeof video.LIMITS & typeof wardley.LIMITS;
-export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...chartKinds.LIMITS, ...compare.LIMITS, ...compareImage.LIMITS, ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...lottie.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...stacktrace.LIMITS, ...trace.LIMITS, ...venn.LIMITS, ...video.LIMITS, ...wardley.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...chartKinds.UNTRUSTED_LIMITS, ...compare.UNTRUSTED_LIMITS, ...compareImage.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...lottie.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };
+export type PartLimits = typeof audio.LIMITS & typeof chartKinds.LIMITS & typeof compare.LIMITS & typeof compareImage.LIMITS & typeof downloads.LIMITS & typeof explore.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof log.LIMITS & typeof lottie.LIMITS & typeof pdf.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof spark.LIMITS & typeof stacktrace.LIMITS & typeof timeline.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS & typeof video.LIMITS & typeof wardley.LIMITS;
+export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...chartKinds.LIMITS, ...compare.LIMITS, ...compareImage.LIMITS, ...downloads.LIMITS, ...explore.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...log.LIMITS, ...lottie.LIMITS, ...pdf.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...spark.LIMITS, ...stacktrace.LIMITS, ...timeline.LIMITS, ...trace.LIMITS, ...venn.LIMITS, ...video.LIMITS, ...wardley.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...chartKinds.UNTRUSTED_LIMITS, ...compare.UNTRUSTED_LIMITS, ...compareImage.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...explore.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...log.UNTRUSTED_LIMITS, ...lottie.UNTRUSTED_LIMITS, ...pdf.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...spark.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...timeline.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };

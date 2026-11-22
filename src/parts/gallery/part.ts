@@ -4,7 +4,7 @@
 //   ![The file tree, closed](media/tree-closed.png "Closed: only the top folders")
 //   ![On a phone](media/phone.png)
 //   ```
-import { definePart } from "../types";
+import { definePart, type PartFileRef } from "../types";
 import type { Budget } from "../../core/budget";
 import { IMAGE_EXT, bodyLines, digitsOnly, extOf, flag, unknownKeys, urlRefusal, type Err } from "../downloads/media";
 import { isSpace } from "../kit/text";
@@ -61,6 +61,9 @@ export function galleryLlm(g: GallerySpec): string {
   return `Gallery: ${g.title || "images"} (${g.images.length} image${g.images.length === 1 ? "" : "s"}).\n` + g.images.map((im, i) => `${i + 1}. ${im.alt} (${im.src})${im.caption ? `: ${im.caption}` : ""}`).join("\n");
 }
 
+/** every image of the gallery: it must exist */
+export const galleryFiles = (g: GallerySpec): PartFileRef[] => g.images.filter((i) => i.src).map((i) => ({ path: i.src, line: i.line }));
+
 export default definePart<GallerySpec>({
   name: "gallery",
   form: "fenced",
@@ -68,5 +71,6 @@ export default definePart<GallerySpec>({
   llmKind: "own",
   parse: (input, ctx) => parseGallery(input.body, input.bodyLine, input.attrs, input.line, ctx.limits, ctx.budget),
   llm: (g) => galleryLlm(g),
+  files: (g) => galleryFiles(g),
   check: (g) => g.errors.map((e) => ({ line: e.line, message: e.msg })),
 });

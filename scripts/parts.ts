@@ -14,14 +14,20 @@ export const SPEC_BEGIN = `<!-- parts:begin (${HEAD}) -->`;
 export const SPEC_END = "<!-- parts:end -->";
 /** the folders under src/parts/ that are not parts */
 export const NOT_PARTS = new Set(["kit", "generated"]);
+/** names the core keeps for its own reference-only types: no folder part may take them */
+export const RESERVED_NAMES = new Set(["svg", "interactive"]);
 /** the files every part folder has (fixtures/ holds at least one good-*.dh.md and one hostile-*.dh.md) */
 export const PART_FILES = ["part.ts", "limits.ts", "view.tsx", "style.css", "spec.md", "sample.md"];
+/** a folder with an inline.ts is also a part of a sentence (parts/inline.ts): it adds inline-view.tsx. A folder with an inline.ts and
+ *  no part.ts is an inline part only (a sparkline): it needs no part.ts and no view.tsx. */
+export const INLINE_FILES = ["inline.ts", "inline-view.tsx"];
+export const INLINE_ONLY_FILES = ["inline.ts", "inline-view.tsx", "limits.ts", "style.css", "spec.md", "sample.md"];
 export const NAME_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
 export const camel = (name: string) => name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
 export const pascal = (name: string) => camel(name).replace(/^./, (c) => c.toUpperCase());
 
-export interface Folder { name: string; title: string; spec: string; sample: string; limitKeys: string[]; untrustedKeys: string[] }
+export interface Folder { name: string; title: string; spec: string; sample: string; limitKeys: string[]; untrustedKeys: string[]; /** has a part.ts: a fenced part */ part: boolean; /** has an inline.ts: a part of a sentence */ inline: boolean }
 
 /** The keys of `export const <which> = { ... }` in a limits file (a key is a word before a colon at depth 1). */
 export function limitKeys(src: string, which: "LIMITS" | "UNTRUSTED_LIMITS"): string[] {
@@ -52,16 +58,26 @@ export function readFolders(root: string): { folders: Folder[]; problems: string
   for (const name of names) {
     const at = join(dir, name);
     if (!NAME_RE.test(name)) { problems.push(`src/parts/${name}: a part's folder name is lower case letters and digits, words joined by "-"`); continue; }
-    const missing = PART_FILES.filter((f) => !existsSync(join(at, f)));
+    if (RESERVED_NAMES.has(name)) { problems.push(`src/parts/${name}: "${name}" is a core reference-only type; a folder part may not take that name`); continue; }
+    const inline = existsSync(join(at, "inline.ts")), part = existsSync(join(at, "part.ts"));
+    const missing = (inline && !part ? INLINE_ONLY_FILES : [...PART_FILES, ...(inline ? INLINE_FILES : [])]).filter((f) => !existsSync(join(at, f)));
     if (!existsSync(join(at, `${name}.test.ts`))) missing.push(`${name}.test.ts`);
     const fx = existsSync(join(at, "fixtures")) ? readdirSync(join(at, "fixtures")) : [];
     if (!fx.some((f) => /^good-.*\.dh\.md$/.test(f))) missing.push("fixtures/good-*.dh.md");
     if (!fx.some((f) => /^hostile-.*\.dh\.md$/.test(f))) missing.push("fixtures/hostile-*.dh.md");
     if (missing.length) { problems.push(`src/parts/${name}: missing ${missing.join(", ")}`); continue; }
-    const part = readFileSync(join(at, "part.ts"), "utf8");
-    if (!new RegExp(`name:\\s*"${name}"`).test(part)) problems.push(`src/parts/${name}/part.ts: definePart's name must be "${name}" (the folder's name)`);
-    if (!/export default definePart\b/.test(part)) problems.push(`src/parts/${name}/part.ts: export default definePart({ ... })`);
-    if (!/export default function \w+View\b/.test(readFileSync(join(at, "view.tsx"), "utf8"))) problems.push(`src/parts/${name}/view.tsx: export default function ${pascal(name)}View(props: PartViewProps<...>)`);
+    if (part) {
+      const src = readFileSync(join(at, "part.ts"), "utf8");
+      if (!new RegExp(`name:\\s*"${name}"`).test(src)) problems.push(`src/parts/${name}/part.ts: definePart's name must be "${name}" (the folder's name)`);
+      if (!/export default definePart\b/.test(src)) problems.push(`src/parts/${name}/part.ts: export default definePart({ ... })`);
+      if (!/export default function \w+View\b/.test(readFileSync(join(at, "view.tsx"), "utf8"))) problems.push(`src/parts/${name}/view.tsx: export default function ${pascal(name)}View(props: PartViewProps<...>)`);
+    }
+    if (inline) {
+      const src = readFileSync(join(at, "inline.ts"), "utf8");
+      if (!new RegExp(`name:\\s*"${name}"`).test(src)) problems.push(`src/parts/${name}/inline.ts: defineInline's name must be "${name}" (the folder's name)`);
+      if (!/export default defineInline\b/.test(src)) problems.push(`src/parts/${name}/inline.ts: export default defineInline({ ... })`);
+      if (!new RegExp(`export default function ${pascal(name)}Inline\\b`).test(readFileSync(join(at, "inline-view.tsx"), "utf8"))) problems.push(`src/parts/${name}/inline-view.tsx: export default function ${pascal(name)}Inline(props: InlineViewProps<...>)`);
+    }
     const lim = readFileSync(join(at, "limits.ts"), "utf8");
     const keys = limitKeys(lim, "LIMITS"), ukeys = limitKeys(lim, "UNTRUSTED_LIMITS");
     if (!keys.length) problems.push(`src/parts/${name}/limits.ts: export const LIMITS = { ${camel(name)}Something: 100 } (at least one cap)`);
@@ -70,7 +86,7 @@ export function readFolders(root: string): { folders: Folder[]; problems: string
     const spec = readFileSync(join(at, "spec.md"), "utf8").trim();
     const h = spec.match(/^#### (.+)$/m);
     if (!spec.startsWith("#### ") || !h) problems.push(`src/parts/${name}/spec.md: start with "#### <Part name>"`);
-    folders.push({ name, title: h ? h[1].trim() : name, spec, sample: readFileSync(join(at, "sample.md"), "utf8").trim(), limitKeys: keys, untrustedKeys: ukeys });
+    folders.push({ name, title: h ? h[1].trim() : name, spec, sample: readFileSync(join(at, "sample.md"), "utf8").trim(), limitKeys: keys, untrustedKeys: ukeys, part, inline });
   }
   // two parts may not claim one cap
   const seen = new Map<string, string>();
@@ -79,17 +95,24 @@ export function readFolders(root: string): { folders: Folder[]; problems: string
 }
 
 /** What the generated files should hold: path (from the package root) to text. */
-export function generate(root: string, folders: Folder[]): Map<string, string> {
+export function generate(root: string, all: Folder[]): Map<string, string> {
   const out = new Map<string, string>();
+  const folders = all.filter((f) => f.part), inlines = all.filter((f) => f.inline);   // `folders`: the fenced parts; `all`: every folder
   const ts = `// ${HEAD}\n`;
   const imp = (f: Folder, file: string, as: string) => `import ${as} from "../${f.name}/${file}";`;
   out.set("src/parts/generated/registry.ts", [
-    ts + "import type { PartDef } from \"../types\";",
+    ts + "import type { PartDef } from \"../types\";\nimport type { InlineDef } from \"../inline\";",
     ...folders.map((f) => imp(f, "part", camel(f.name))),
+    ...inlines.map((f) => `import ${camel(f.name)}Inline from "../${f.name}/inline";`),
     "",
     `/** the folder parts, by fence word */`,
     `export const FOLDER_PARTS = { ${folders.map((f) => (camel(f.name) === f.name ? f.name : `"${f.name}": ${camel(f.name)}`)).join(", ")} } as const;`,
     `export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;`,
+    `/** the inline parts (parts of a sentence), in name order; core/markdown.ts reads them (parts/inline.ts) */`,
+    `export const INLINE_PARTS: InlineDef<any, any>[] = [${inlines.map((f) => `${camel(f.name)}Inline`).join(", ")}];`,
+    `/** the inline parts' names, in name order */`,
+    `export const INLINE_PART_NAMES = [${inlines.map((f) => `"${f.name}"`).join(", ")}] as const;`,
+    "",
     `/** the folder parts' fence words, in name order */`,
     `export const FOLDER_PART_NAMES = [${folders.map((f) => `"${f.name}"`).join(", ")}] as const;`,
     `export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];`,
@@ -99,32 +122,37 @@ export function generate(root: string, folders: Folder[]): Map<string, string> {
   ].join("\n"));
   out.set("src/parts/generated/limits.ts", [
     ts + "// Only the limits files are imported here (they import nothing), so safety.ts may import this file.",
-    ...folders.map((f) => `import * as ${camel(f.name)} from "../${f.name}/limits";`),
+    ...all.map((f) => `import * as ${camel(f.name)} from "../${f.name}/limits";`),
     "",
     `/** every folder part's caps, as one type (safety.ts Limits extends it) */`,
-    `export type PartLimits = ${folders.length ? folders.map((f) => `typeof ${camel(f.name)}.LIMITS`).join(" & ") : "{}"};`,
-    `export const PART_LIMITS: PartLimits = { ${folders.map((f) => `...${camel(f.name)}.LIMITS`).join(", ")} };`,
-    `export const PART_UNTRUSTED_LIMITS: PartLimits = { ${folders.map((f) => `...${camel(f.name)}.UNTRUSTED_LIMITS`).join(", ")} };`,
+    `export type PartLimits = ${all.length ? all.map((f) => `typeof ${camel(f.name)}.LIMITS`).join(" & ") : "{}"};`,
+    `export const PART_LIMITS: PartLimits = { ${all.map((f) => `...${camel(f.name)}.LIMITS`).join(", ")} };`,
+    `export const PART_UNTRUSTED_LIMITS: PartLimits = { ${all.map((f) => `...${camel(f.name)}.UNTRUSTED_LIMITS`).join(", ")} };`,
     "",
   ].join("\n"));
   out.set("src/parts/generated/react.tsx", [
     ts + "// The folder parts' components, for DocumentView: import FOLDER_PART_COMPONENTS, or only the parts you use.",
     `import { partComponent } from "../react";`,
+    ...(inlines.length ? [`import { inlineComponent } from "../inline-react";`] : []),
     ...folders.map((f) => imp(f, "view", `${pascal(f.name)}View`)),
+    ...inlines.map((f) => imp(f, "inline-view", `${pascal(f.name)}InlineView`)),
     "",
     ...folders.map((f) => `export const ${pascal(f.name)}Part = partComponent("${f.name}", ${pascal(f.name)}View);`),
     `export const FOLDER_PART_COMPONENTS = { ${folders.map((f) => `"${f.name}": ${pascal(f.name)}Part`).join(", ")} };`,
+    ...inlines.map((f) => `export const ${pascal(f.name)}InlinePart = inlineComponent("${f.name}", ${pascal(f.name)}InlineView);`),
+    `/** what the document draws a ref node of an inline part with, by the part's name */`,
+    `export const FOLDER_INLINE_COMPONENTS: Record<string, import("react").ComponentType<{ text: string; data: any }>> = { ${inlines.map((f) => `"${f.name}": ${pascal(f.name)}InlinePart`).join(", ")} };`,
     "",
   ].join("\n"));
   out.set("src/parts/generated/css.ts", [
     ts + "// The stylesheets scripts/build-css.ts adds after the renderer's own (paths from src/parts/), the kit first.",
-    `export const PART_CSS = [${["kit/kit.css", ...folders.map((f) => `${f.name}/style.css`)].map((p) => `"${p}"`).join(", ")}];`,
+    `export const PART_CSS = [${["kit/kit.css", ...all.map((f) => `${f.name}/style.css`)].map((p) => `"${p}"`).join(", ")}];`,
     "",
   ].join("\n"));
   out.set("fixtures/parts/samples.dh.md", [
     "---", "title: The folder parts", "---", `<!-- ${HEAD} -->`, "", "# The folder parts", "",
     "Every part that lives in its own folder, with its sample. The Format page shows each as source, drawing and LLM view.",
-    ...folders.flatMap((f) => ["", `## ${f.title}`, "", f.sample]),
+    ...all.flatMap((f) => ["", `## ${f.title}`, "", f.sample]),
     "",
   ].join("\n"));
   const specPath = join(root, "SPEC.md");
@@ -132,7 +160,7 @@ export function generate(root: string, folders: Folder[]): Map<string, string> {
     const spec = readFileSync(specPath, "utf8");
     const a = spec.indexOf(SPEC_BEGIN), b = spec.indexOf(SPEC_END);
     if (a >= 0 && b > a) {
-      const body = folders.map((f) => f.spec).join("\n\n");
+      const body = all.map((f) => f.spec).join("\n\n");
       out.set("SPEC.md", `${spec.slice(0, a + SPEC_BEGIN.length)}\n\n${body}${body ? "\n\n" : ""}${spec.slice(b)}`);
     }
   }

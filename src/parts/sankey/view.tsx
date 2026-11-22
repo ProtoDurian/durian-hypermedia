@@ -1,16 +1,15 @@
 // The sankey part's view (format version 11): d3-sankey's layout, our own SVG, token colours, text in the DOM (real
 // <text>), steps that build the bands up, the one popover on every flow and node (hover, tap, focus), and a narrow layout
 // that runs top to bottom. Static draws one step whole.
-// Open faults carried from the prototype (being fixed there): labels can be clipped at the two ends; the controls can
-// move once at load (the height follows the measured width).
+// The drawing is as wide as the card holds (innerWidth), the end columns keep the room their labels need (found from where
+// the columns really sit), a label that still does not fit ends with an ellipsis, and the height does not follow the width.
 import React, { useMemo, useRef, useState } from "react";
 import { Stepper, colBase, stepKeys, useSteps, usePopover } from "../kit/view";
 import type { PartViewProps } from "../types";
 import { flowShare, nodeLabel, type SankeySpec } from "./part";
-import { layoutSankey, pathOf } from "./layout";
+import { layoutSankey, pathOf, LABEL_PX, innerWidth, labelMargins, fitLabel } from "./layout";
 
 const num = (v: number) => (Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 }));
-const LABEL_PX = 6.8; // 12 px sans, about this wide a character
 /** the part's own words (the renderer's shared words come from `ui`) */
 const W = { hint: "Hover or tap a flow or a node.", cannot: "This sankey cannot be drawn:", inFlow: "In", outFlow: "Out", from: "From", to: "To", amount: "amount", share: "Share", of: "of" };
 /** the stage width a sankey is laid out at before the first measure (the server's HTML) */
@@ -18,7 +17,7 @@ const FIRST_WIDTH = 760;
 
 export default function SankeyView({ data: spec, ui, static: stp, stage }: PartViewProps<SankeySpec>) {
   const host = useRef<HTMLDivElement>(null);
-  const width = Math.max(240, stage.width || FIRST_WIDTH);
+  const width = innerWidth(stage.width || FIRST_WIDTH);
   const nSteps = spec.steps.length, st = useSteps(nSteps, stp, spec.steps), step = nSteps > 1 ? st.i : Infinity;
   const [hover, setHover] = useState<{ kind: "flow" | "node"; k: number } | null>(null);
   const pop = usePopover(host, ui.close);
@@ -29,10 +28,10 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
     const vertical = width < 520 && probe.columns > 3;
     const maxCol = Math.max(1, ...Array.from({ length: probe.columns }, (_, c) => probe.nodes.filter((n) => n.col === c).length));
     if (vertical) return layoutSankey(spec, width, Math.max(360, probe.columns * 96), true, 14, 14);
-    const first = Math.max(0, ...probe.nodes.filter((n) => n.col === 0).map((n) => n.label.length)), last = Math.max(0, ...probe.nodes.filter((n) => n.col === probe.columns - 1).map((n) => n.label.length));
-    const cap = width * 0.28;
-    const marginL = Math.min(cap, first * LABEL_PX + 10), marginR = Math.min(cap, last * LABEL_PX + 10);
-    return layoutSankey(spec, width, Math.max(width < 520 ? 280 : 320, Math.min(560, maxCol * 40 + 60)), false, 14, 14, { l: marginL, r: marginR });
+    // the first and last columns by where they really sit (a sink that is not in the deepest column still sits at the right edge)
+    const lo = Math.min(...probe.nodes.map((n) => n.x)), hi = Math.max(...probe.nodes.map((n) => n.x + n.w));
+    const m = labelMargins(probe.nodes.filter((n) => n.x <= lo + 1).map((n) => n.label.length), probe.nodes.filter((n) => n.x + n.w >= hi - 1).map((n) => n.label.length), width);
+    return layoutSankey(spec, width, Math.max(320, Math.min(560, maxCol * 40 + 60)), false, 14, 14, m);
   }, [spec, width]);
   if (!lay) return <div className="sankey"><div className="cw-error">{W.cannot} {spec.errors[0]?.msg ?? "it has no flows"}</div></div>;
   const shown = (appear: number) => appear <= step;
@@ -59,8 +58,8 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
   }
   const anchor = (n: (typeof lay.nodes)[number]) => {
     if (lay.vertical) { const v = vlabel.get(n.id) ?? { x: n.x, y: n.y - 9, text: n.label }; return { x: v.x, y: v.y, a: "start" as const, text: v.text }; }
-    if (n.col === 0) return { x: n.x - 6, y: n.y + n.h / 2, a: "end" as const, text: n.label };
-    return { x: n.x + n.w + 6, y: n.y + n.h / 2, a: "start" as const, text: n.label };
+    if (n.col === 0) return { x: n.x - 6, y: n.y + n.h / 2, a: "end" as const, text: fitLabel(n.label, n.x - 8) };
+    return { x: n.x + n.w + 6, y: n.y + n.h / 2, a: "start" as const, text: fitLabel(n.label, lay.width - (n.x + n.w + 8)) };
   };
   return (
     <div className={`sankey dh-pop-host${lay.vertical ? " is-vertical" : ""}`} ref={host} data-dh-static={st.sx.on || undefined} tabIndex={nSteps > 1 ? 0 : undefined} onKeyDown={stepKeys(st, nSteps)}>

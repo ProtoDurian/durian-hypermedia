@@ -1,0 +1,7 @@
+Unhandled exception:
+Bad state: no element
+#0      Cart.item (package:shop/cart.dart:42:7)
+#1      Api.get (package:shop/api.dart:10:3)
+<asynchronous suspension>
+#2      _rootRunUnary (dart:async/zone.dart:1407:47)
+#3      State.setState (package:flutter/src/widgets/framework.dart:1100:9)

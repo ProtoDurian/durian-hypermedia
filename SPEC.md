@@ -410,6 +410,24 @@ cli --> dev: project written
 - **Caps:** `sequenceParticipants` (12), `sequenceItems` (200; 120 in UNTRUSTED_LIMITS) lines of participants, messages, blocks and notes together, and `sequenceDepth` (3).
 - **doccheck refuses:** an `end`, `else` or `and` with no block open (or an `else` in a loop, an `and` in an alt), a block never closed, blocks nested too deep, a message or note with no text, an unknown participant kind, a participant declared twice, mermaid's `participant A as B`, an id with a character outside the set, a line that is none of these, no message at all, more participants or lines than the caps, `steps=each` with `@step` lines or with fewer than 2 messages, an unknown attribute, and a part over the page's work budget.
 
+#### Stacktrace
+
+A printed Go, .NET, Bun/Node, Dart, Java or Python trace.
+
+```stacktrace lang=js app=/src/shop
+Error: request failed
+    at handler (/src/shop/api.ts:42:11)
+    at run (node:internal/process:10:5)
+```
+
+Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references.
+
+The LLM reads the trace as written. Above 400 tokens library runs become one line; llm=full retains all frames. A following :::llm replaces this view.
+
+Caps: stacktraceLines is 2000 (1000 in UNTRUSTED_LIMITS); hosts may lower it. Every scan charges the page budget.
+
+Doccheck refuses unknown options, an unknown language, strip= without repo=, secret-looking text, an undetectable language, no recognizable frame, a .NET frame before its exception, too many lines, and too much work. app= matching no frame warns.
+
 #### Trace waterfall
 
 ```trace title="POST /checkout" unit=ms trace=t-7f3a

@@ -750,7 +750,7 @@ The build log is in [[terminal:build-42 "the build"]], and the label is optional
 - **`part`** is the part's source: as it would be written inline (its fence included), or only what goes inside the fence. For `svg` it is the SVG text; for `interactive`, its sections (below).
 - **A ready part is read with the page's caps and budgets**, by the same part reader as a part written inline, on the reference's line, and it renders through the same part dispatch. An answer of another type, or of more than one part, fails with the reason.
 - **A chip asks for its state only;** it never draws the part.
-- **The resolver never fetches inside `parse()`.** To fill a reference later (another process, a helper agent), answer pending, then parse again when the part is ready. A server can resolve before it sends the page (pre-render). An answer that is none of the three, or a resolver that throws, is a failure with a reason.
+- **The resolver never fetches inside `parse()`.** To fill a reference later (another process, a helper agent), answer pending, then parse again when the part is ready. A server can resolve before it sends the page (pre-render). No answer (`null`) leaves the reference unresolved (its label as a chip); an answer that is none of the three, or a resolver that throws, is a failure with a reason.
 - **A reference inside a part that a reference resolved to is refused.**
 
 **LLM view.** The reference as written, `[[chart:revenue-2026 "Revenue by month, 2026"]]`, resolved or not. Nothing of the part.

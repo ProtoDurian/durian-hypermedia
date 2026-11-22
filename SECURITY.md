@@ -154,6 +154,9 @@ caps with these smaller:
 | `maxYamlNodes` / `maxYamlChars` (one text) | 3,000 / 32,000 | 1,000 / 32,000 |
 | `maxPageYamlNodes` / `maxPageYamlChars` | 24,000 / 200,000 | 4,000 / 64,000 |
 | `maxAnimWork` / `maxPageAnimWork` | 15,000,000 / 64,000,000 | 3,000,000 / 6,000,000 |
+| `maxReferences` / `maxReferenceBytes` / `maxSvgBytes` (format version 11) | 500 / 1,000,000 / 200,000 | 100 / 400,000 / 100,000 |
+
+The reference caps are smaller on purpose: a chat reply rarely needs more than a few references, and each one is a call to the host and a part to read. `test/limits-presets.test.ts` lists every cap that may differ between the two sets; every other cap must be equal.
 
 The slowest pages measured within each set, on the machine that made 0.6.2 while it was busy (the slowest first parse in a new
 process, and the slowest best warm parse):

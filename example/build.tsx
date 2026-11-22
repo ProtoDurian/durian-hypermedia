@@ -14,6 +14,7 @@ import { DhDocument } from "../src/react/index";
 import { documentJson } from "../src/react/hydrate";
 import { buildCss } from "../scripts/build-css";
 import { taskBlock, hostInlines } from "./host-block";
+import { exampleRefs } from "./refs-store";
 
 const HERE = import.meta.dir;
 const PKG = resolve(HERE, "..");
@@ -37,7 +38,7 @@ const shell = (title: string, body: string, json = "", script = "client") => `<!
 let n = 0;
 for (const p of pages) {
   const text = readFileSync(join(PKG, "fixtures", p.file), "utf8");
-  const doc = await highlight(parse(text, { blocks: [taskBlock], inlines: hostInlines, path: p.file }));
+  const doc = await highlight(parse(text, { blocks: [taskBlock], inlines: hostInlines, path: p.file, ...(/references\.dh\.md$/.test(p.file) ? { resolveReference: exampleRefs } : {}) }));
   p.title = doc.title ?? p.file;
   const html = renderToString(<DhDocument doc={doc} blocks={[taskBlock]} inlines={hostInlines} />);
   const probs = doc.problems.length ? `<details class="ex-problems"><summary>${doc.problems.length} problem(s) parse() reported</summary><ul>${doc.problems.map((x) => `<li>line ${x.line}: ${esc(x.message)}</li>`).join("")}</ul></details>` : "";

@@ -21,7 +21,8 @@ export interface ReferenceQuery { type: string; name: string }
 /** The host's answer. `part` is the part's source: as it would be written inline (its fence included), or only what goes
  *  inside the fence; for svg the SVG text, for interactive its @html, @css, @script (and @fallback) sections. */
 export type ReferenceAnswer = { state: "pending" } | { state: "ready"; part: string } | { state: "failed"; reason: string };
-/** The host's resolver. It never fetches inside parse(): answer pending, and render again when the part is there. */
+/** The host's resolver. It never fetches inside parse(): answer pending, and render again when the part is there.
+ *  null or undefined: not the host's to answer (the reference stays unresolved: its label as a chip). */
 export type ResolveReference = (ref: ReferenceQuery) => ReferenceAnswer | null | undefined;
 
 type Answer = { state: "unresolved" } | { state: "pending" } | { state: "failed"; reason: string } | { state: "ready"; part: string };
@@ -147,7 +148,7 @@ export class RefSession {
   private ask(type: string, name: string): Answer {
     const f = this.h.resolve;
     if (!f) return { state: "unresolved" };
-    try { return answerOf(f({ type, name })); }
+    try { const a = f({ type, name }); return a == null ? { state: "unresolved" } : answerOf(a); }
     catch (e) { return { state: "failed", reason: short(`the host could not resolve it (${(e as Error)?.message ?? String(e)})`) }; }
   }
 

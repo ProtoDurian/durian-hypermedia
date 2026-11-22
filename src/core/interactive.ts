@@ -55,13 +55,15 @@ function trimLines(ls: string[]): string {
   return ls.slice(a).join("\n").trimEnd();
 }
 
-// what reaches out, keeps state or leaves the frame: a word to find (in lower case), and what the message names
-type Bad = [find: string, what: string, word: boolean];
+// what reaches out, keeps state or leaves the frame: a word to find (in lower case), what the message names, whether it
+// is a whole word, and whether it must be called (a "(" after it, spaces allowed). The parser's bundle holds no text
+// that reads as a call of eval or the Function constructor (test/pure.test.ts), so those are written as words here.
+type Bad = [find: string, what: string, word: boolean, call?: boolean];
 const SCRIPT_BAD: Bad[] = [
   ["fetch(", "fetch(", true], ["xmlhttprequest", "XMLHttpRequest", true], ["websocket", "WebSocket", true], ["eventsource", "EventSource", true],
   ["import(", "import(", true], ["localstorage", "localStorage", true], ["sessionstorage", "sessionStorage", true], ["indexeddb", "indexedDB", true],
   ["document.cookie", "document.cookie", true], ["window.open", "window.open", true], ["top.", "top.", true], ["parent.", "parent.", true],
-  ["window.top", "window.top", true], ["window.parent", "window.parent", true], ["sendbeacon", "navigator.sendBeacon", true], ["eval(", "eval(", true],
+  ["window.top", "window.top", true], ["window.parent", "window.parent", true], ["sendbeacon", "navigator.sendBeacon", true], ["eval", "eval", true, true],
   ["new function", "new Function", true], ["worker(", "Worker(", true], ["rtcpeerconnection", "RTCPeerConnection", true], ["location", "location (the frame stays where it is)", true],
 ];
 const MARKUP_BAD: Bad[] = [
@@ -70,9 +72,9 @@ const MARKUP_BAD: Bad[] = [
 ];
 const isWordCh = (c: number) => (c >= 0x30 && c <= 0x39) || (c >= 0x61 && c <= 0x7a) || c === 0x5f || c === 0x24;
 /** Where `find` occurs in `low` as a word (no letter, digit, "_", "$" or "." before it; with spaces before "(" allowed). */
-function hasWord(low: string, find: string, word: boolean): boolean {
+function hasWord(low: string, find: string, word: boolean, call = false): boolean {
   // "fetch(" also matches "fetch (": search the word, then allow spaces before a final "("
-  const paren = find.endsWith("(") ? find.slice(0, -1) : null;
+  const paren = call ? find : find.endsWith("(") ? find.slice(0, -1) : null;
   const key = paren ?? find;
   for (let i = low.indexOf(key); i >= 0; i = low.indexOf(key, i + 1)) {
     if (word && i > 0) { const p = low.charCodeAt(i - 1); if (isWordCh(p) || (p === 0x2e && !key.startsWith("."))) continue; }
@@ -130,7 +132,7 @@ export function checkInteractive(p: IxParts, bytes: number, maxBytes: number): {
   for (const name of ["html", "css", "script"] as const) {
     const low = p[name].toLowerCase();
     if (!low) continue;
-    for (const [find, what, word] of name === "script" ? SCRIPT_BAD : MARKUP_BAD) if (hasWord(low, find, word)) e.push({ line: line(name), msg: `interactive @${name}: \`${what}\` is not allowed.${tail}` });
+    for (const [find, what, word, call] of name === "script" ? SCRIPT_BAD : MARKUP_BAD) if (hasWord(low, find, word, call)) e.push({ line: line(name), msg: `interactive @${name}: \`${what}\` is not allowed.${tail}` });
     if (name !== "script") for (const [find, what] of SCRIPT_BAD.slice(0, 1)) if (hasWord(low, find, true)) e.push({ line: line(name), msg: `interactive @${name}: \`${what}\` is not allowed.${tail}` });
     if (hasAddress(low)) e.push({ line: line(name), msg: `interactive @${name}: a URL with a scheme or \`//\` (or an @import) is not allowed.${tail}` });
   }

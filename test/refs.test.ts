@@ -115,6 +115,11 @@ describe("the host's resolver", () => {
     expect(r[3].reason).toMatch(/not pending, ready/);
     expect(d.problems).toEqual([]);
   });
+  test("no answer (null or undefined) leaves the reference unresolved", () => {
+    const d = parse("[[chart:a]]\n\nand [[chart:b]]\n", { resolveReference: () => null });
+    expect(refs(d.blocks)[0].state).toBe("unresolved");
+    expect(JSON.stringify(md(d))).not.toContain('"state"');
+  });
   test("ready: the part, read as if written inline (its fence included, or only its body)", () => {
     const d = parse("[[chart:sales]]\n\n[[terminal:build]]\n", { resolveReference: store({ "chart:sales": CHART, "terminal:build": "$ make\nok" }) });
     const [a, b] = refs(d.blocks);
@@ -220,6 +225,8 @@ describe("reference-only types", () => {
     expect(bad("@script\nfetch (\"/x\")")).toMatch(/`fetch\(` is not allowed/);
     expect(bad("@script\nlocation.href = 'x'")).toMatch(/`location/);
     expect(bad("@script\nnew RTCPeerConnection()")).toMatch(/RTCPeerConnection/);
+    expect(bad("@script\nwindow.x = eval  (s)")).toMatch(/`eval` is not allowed/);
+    expect(bad("@script\nconst evaluate = 1, medieval = 2;")).toBe("");
     expect(bad("@script\nconst u = 'https://198.51.100.7'")).toMatch(/a URL with a scheme/);
     expect(bad("@html\n<img src = '//203.0.113.9/a'>")).toMatch(/a URL with a scheme or `\/\/`/);
     expect(bad("@css\na{background:url( 'x:y')}")).toMatch(/a URL with a scheme/);

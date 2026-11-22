@@ -20,6 +20,10 @@ export interface Limits {
   maxAnimSteps: number;
   /** characters of one animation's source */
   maxAnimChars: number;
+  /** layout work of one animation (playing, laying out, routing and placing its steps), in units of about one small
+   *  step of a loop; and of every animation on the page together, so a page cannot restart the spend (core/work.ts) */
+  maxAnimWork: number;
+  maxPageAnimWork: number;
   /** data points of one chart (all series together) */
   maxChartPoints: number;
   /** items of one tier list or alignment grid */
@@ -54,6 +58,8 @@ export const LIMITS: Limits = {
   maxAnimEntities: 300,
   maxAnimSteps: 200,
   maxAnimChars: 40_000,
+  maxAnimWork: 15_000_000,
+  maxPageAnimWork: 64_000_000,
   maxChartPoints: 5_000,
   maxItems: 500,
   maxMermaidChars: 20_000,

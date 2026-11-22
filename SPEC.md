@@ -566,6 +566,18 @@ cli --> dev: project written
 - **Caps:** `sequenceParticipants` (12), `sequenceItems` (200; 120 in UNTRUSTED_LIMITS) lines of participants, messages, blocks and notes together, and `sequenceDepth` (3).
 - **doccheck refuses:** an `end`, `else` or `and` with no block open (or an `else` in a loop, an `and` in an alt), a block never closed, blocks nested too deep, a message or note with no text, an unknown participant kind, a participant declared twice, mermaid's `participant A as B`, an id with a character outside the set, a line that is none of these, no message at all, more participants or lines than the caps, `steps=each` with `@step` lines or with fewer than 2 messages, an unknown attribute, and a part over the page's work budget.
 
+#### Sparkline in a sentence (`:spark[...]`)
+
+```
+Sign-ups were :spark[120,135,128,160,182,171,205] this week, and errors fell to :spark[14,12,15,9,7,4,3 bar good].
+```
+
+- `:spark[3,5,2,8,9]` draws a tiny line the height of the text; `:spark[3,5,2,8,9 bar good]` makes bars and sets the colour. The numbers are joined by commas; then, optionally, `line` or `bar`, and one colour word (`c1` to `c8`, `acc`, `good`, `warn`, `bad`, `muted`). Hover, focus or tap it for the numbers; it is plain inline SVG with the numbers in its label.
+- It is a part of a sentence: it is read in a paragraph, a list item, a quote, a callout or a table cell, and never inside inline code, a link, an image, a heading or an HTML tag (there it stays as written).
+- **LLM view:** `(3, 5, 2, 8, 9)`.
+- **Caps:** `sparkValues` (200; 100 in UNTRUSTED_LIMITS) numbers in one sparkline.
+- **doccheck refuses:** fewer than 2 numbers, a word that is not a number, a style or a colour, more numbers than the cap. A wrong sparkline stays as written text.
+
 #### Stacktrace
 
 A printed Go, .NET, Bun/Node, Dart, Java or Python trace.

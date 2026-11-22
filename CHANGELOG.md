@@ -6,8 +6,9 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 ## 0.6.2
 
-A security fix: Markdown and the other text of a page are read in time linear in their length. Format version 10 is
-unchanged; every fixture, sample and the Format page parse, check and render exactly as in 0.6.1.
+A security fix: the text of a page is read in time linear in its length, and the work that cannot be (a YAML parser's,
+an animation's layout) has caps. Format version 10 is unchanged; every fixture, sample and the Format page parse, check
+and render exactly as in 0.6.1.
 
 ### Fixed
 
@@ -20,6 +21,14 @@ unchanged; every fixture, sample and the Format page parse, check and render exa
   are as written.
 - The LLM view's rewrites of keys, mouse actions, code spans and links to other pages are one pass each (same results).
 - A long code block renders in linear time (one text token per line for Code Hike).
+- **YAML is sized before any parser reads it.** A YAML parser may take time growing with the square of one map's keys
+  in some parsers. Front matter and each chart may have at most `maxYamlChars` characters and `maxYamlKeys`
+  keys, and a page `maxPageYamlChars` and `maxPageYamlKeys` in all, counted from the text for any parser; over them,
+  front matter is ignored with a problem and a chart is an error block. Real pages use at most a fifth of each cap.
+- **Animations are laid out on a work budget.** Layout and line routing are counted as they are done, up to
+  `maxAnimWork` for one animation and `maxPageAnimWork` for a page; over them the animation is an error block and the
+  rest of the page draws. Each animation is compiled once per `parse()` (it was compiled about five times), and label
+  wrapping, kept slots and the line router's search no longer rescan; what is drawn is the same.
 
 ### Changed
 
@@ -28,6 +37,8 @@ unchanged; every fixture, sample and the Format page parse, check and render exa
   request). Most visible: an autolink literal (`www.`, `http://`, an e-mail address) starts at a line start, after
   white space or after `*`, `_`, `~`, `(`; one-tilde strikethrough follows the same flanking rules as `~~`; an
   ordered list that does not start at 1 does not interrupt a paragraph (inside a list item it still nests, as before).
+- `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlKeys`,
+  `maxPageYamlKeys`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
 - Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`
   and `uc.micro` are added (MIT, BSD-2-Clause).
 

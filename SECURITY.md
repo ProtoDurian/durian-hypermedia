@@ -13,6 +13,9 @@ draws that data with React, so author text is always a text node or an escaped a
 | HTML inside a part's text (terminal, file tree, chart, tier list, code walk note, animation label) | text | `hostile/07` |
 | mermaid `%%{init}%%` directives, `click` callbacks, HTML labels | directives dropped (with a problem); `securityLevel: "strict"`; no HTML labels; the SVG is cleaned with DOMPurify (no script, no foreignObject, no handlers) and attached as nodes | `hostile/06` |
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
+| Markdown written to make a parser search again and again (long runs of openers that never close) | read in time linear in its length (see [Work that is not an expression](#work-that-is-not-an-expression)) | `test/markdown-work.test.ts` |
+| YAML with very many keys (a parser may take time growing with the square of one map's keys) | front matter ignored with a problem, a chart an error block, before any parser runs | `test/yaml-size.test.ts` |
+| an animation whose layout needs too much work (many things, lines and steps) | an error block naming the cap; past the page's cap the later animations too | `test/anim-budget.test.ts` |
 | an animation with too many things, steps or characters | an error block naming the cap, before anything is compiled | `hostile/09`, `10` |
 | a chart with too many points; expressions that make huge lists, nest, recurse or loop | an error block and a problem for that chart; the rest of the page still draws. Every expression is paid for from one budget per page (see [The evaluation budget](#the-evaluation-budget)) | `hostile/11`, `test/budget.test.ts` |
 | YAML anchors and aliases (an alias bomb), whatever the anchors are named | at most 16 aliases and, next to an alias, no merge key, tag or directive, checked before parsing; the parsed value sized against its text, extras charged to the page (see [The evaluation budget](#the-evaluation-budget)): front matter ignored with a problem; the part refused | `hostile/12`, `test/budget-paths.test.ts` |
@@ -97,7 +100,44 @@ What holds:
   number from 0 to 100.
 - Names are only ever the author's own: `constructor`, `__proto__` and the like are unknown names, not the engine's.
 
-The budget covers chart expressions and the YAML of charts and front matter. It does not cover other parsing work.
+The budget covers chart expressions and the YAML of charts and front matter. Other work is the next section.
+
+## Work that is not an expression
+
+Reading the page's text (the Markdown, the parts' own syntax, the YAML), making the LLM view, `check()` and drawing the
+page the first time take time linear in the length of the text, so `maxInputBytes` bounds them, except where a cap
+below says otherwise:
+
+- **Markdown** is read by markdown-it (vendored in `src/vendor/`), which reads CommonMark in linear time. The rules this
+  package adds (GFM tables, strikethrough, task items, autolink literals, `:kbd[]`, `:mouse[]`, a host's inline
+  references) each read forward once and never scan the same text again from a later place. Inside a link's text the
+  reader looks ahead at most 20 levels deep, so its constant stays small. A host's own inline pattern is run once over
+  each text run; its speed is the host's (keep it simple).
+- **Nesting**: a line that opens more than `maxDepth` quotes, or twice that many quotes and list markers, is shown as
+  plain text before the reader sees it; past `maxDepth` levels in the tree the rest is plain text. No character is
+  dropped either way.
+- **The LLM view** rewrites keys, mouse actions, code spans and links to other pages in one pass each.
+- **A code block** is drawn with one text token per line (Code Hike splits a many-line token once per line).
+- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (20,000)
+  characters and `maxYamlKeys` (1,000) keys in one text, and `maxPageYamlChars` (100,000) and `maxPageYamlKeys`
+  (8,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).
+  The key count is an upper bound for any parser: every `:`, `?`, `!`, `[`, `{` and line, and every `,` once a `{`
+  has appeared, as written (quoted or not). The yaml package (2.x), which a host outside Bun may give to
+  `setYamlParser`, compares each new key of a map with the keys before it; at these caps one text takes it tens of
+  milliseconds. The busiest real page uses at most a fifth of each cap.
+- **Animations** count their layout work (placing things, routing lines, wrapping labels, every step) as it is done,
+  in units: at most `maxAnimWork` (15,000,000) for one animation and `maxPageAnimWork` (64,000,000) for all of a page's;
+  a unit is some tens of nanoseconds. Over a cap the animation is an error block naming it (past the page's cap, every
+  later animation too) and the rest of the page draws. Each animation is compiled once per `parse()`; the renderer's
+  phone and narrow layouts draw from a budget of twice one animation's cap. The heaviest real animation uses about a
+  fifth of its cap. A host that shows untrusted pages and needs a page to be quick may lower both caps through
+  `parse(text, { limits })`.
+
+`test/markdown-work.test.ts` counts the reader's work (rule calls and the characters its link helpers read) on seeded
+random text made of Markdown's punctuation, a few hundred families of it, and checks that 4 times the text is about 4
+times the work. Measured on the machine that built 0.6.2, while it was busy with other work: no Markdown input up to
+300 KB took more than about half a second to parse, and no Markdown input up to 16 KB more than about 21 ms warm (up to
+about 100 ms on a first, cold parse in a new process).
 
 ## The URL policy
 

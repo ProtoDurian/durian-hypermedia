@@ -362,7 +362,7 @@ function keepLineStarts(md: Reader) {
   });
 }
 
-function makeReader(defs: InlineDef<any, any>[] | undefined): Reader {
+function makeReader(defs: InlineDef<any, any>[] | undefined, lazyInline = false): Reader {
   const finders: RefFinder[] = (defs ?? []).map((d) => {
     if (!/^[a-z][a-z0-9-]{0,40}$/.test(d.name)) throw new Error(`durian-hypermedia: an inline name is lower case letters, digits and dashes: "${d.name}"`);
     const flags = d.match.flags.replace(/[gy]/g, "");
@@ -405,26 +405,49 @@ function makeReader(defs: InlineDef<any, any>[] | undefined): Reader {
   // inline text has a nesting cap of its own, smaller than the blocks' (a link inside emphasis inside a link is 3): the
   // reader's look ahead for a missing "]" goes one level deeper each time, so its cost is this cap times the text
   md.core.ruler.before("inline", "dh-inline-cap", (state: StateCore) => { state.md.options.maxNesting = INLINE_NEST; });
+  // mdBlocks reads each block's inline text when it converts that block (kidsOf), so the inline tokens of the whole
+  // text never exist at once: the same rules on the same text, a smaller peak of memory
+  if (lazyInline) md.core.ruler.disable(["dh-inline-cap", "inline"]);
   return md;
 }
 /** A fresh reader with the rules mdBlocks uses (for tests and tools that count its work; mdBlocks keeps its own). */
 export const newReader = (inlines?: InlineDef<any, any>[]): Reader => makeReader(inlines);
-const plainReader = makeReader(undefined);
+const plainReader = makeReader(undefined, true);
 const withRefs = new WeakMap<InlineDef<any, any>[], Reader>();
 function readerFor(defs: InlineDef<any, any>[] | undefined): Reader {
   if (!defs?.length) return plainReader;
   let m = withRefs.get(defs);
-  if (!m) { m = makeReader(defs); withRefs.set(defs, m); }
+  if (!m) { m = makeReader(defs, true); withRefs.set(defs, m); }
   return m;
 }
 // the reader's own nesting cap: room for every nesting mdBlocks lets through (maxDepth containers, two levels each, and the
 // blocks inside), and small, because inside a link's text the reader may look ahead once per level
 const nestCap = (maxDepth: number) => Math.max(40, 3 * maxDepth + 10);
 const INLINE_NEST = 20;
-function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: number): Tok[] {
-  const md = readerFor(defs);
+// the reader and env of the text being converted: an inline token's children are read from them when it is converted
+let cur: { md: Reader; env: any } | null = null;
+function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: number): { toks: Tok[]; md: Reader; env: any } {
+  const md = readerFor(defs), env: any = {};
   md.options.maxNesting = nestCap(maxDepth);
-  return md.parse(src, {});
+  const toks = md.parse(src, env);
+  mail.src = ""; // the e-mail scan's cache need not hold the text
+  return { toks, md, env };
+}
+/** The inline tokens of an inline token, read now (with the inline nesting cap) and not kept on it. */
+function kidsOf(t: Tok | undefined): Tok[] {
+  if (!t || t.type !== "inline") return [];
+  if (t.children?.length || !t.content) return t.children ?? [];
+  if (!cur) return [];
+  const md = cur.md, keep = md.options.maxNesting, out: Tok[] = [];
+  md.options.maxNesting = INLINE_NEST;
+  try { md.inline.parse(t.content, md, cur.env, out); } finally { md.options.maxNesting = keep; }
+  mail.src = "";
+  return out;
+}
+/** Run f with the reader and env of a lexed text current (kidsOf reads from them); nested calls restore the outer one. */
+function withText<T>(l: { md: Reader; env: any }, f: () => T): T {
+  const outer = cur; cur = l;
+  try { return f(); } finally { cur = outer; }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -477,9 +500,9 @@ function ghText(toks: Tok[] | null | undefined): string {
 }
 /** Count a heading that carries no id of its own (a tab or an accordion title) in the document's repeat counter, as GitHub counts every heading. */
 export function countHeading(line: string, ctx: MdContext): void {
-  const toks = lex(line, ctx.inlines, ctx.maxDepth);
+  const l = lex(line, ctx.inlines, ctx.maxDepth), toks = l.toks;
   const i = toks.findIndex((t) => t.type === "heading_open");
-  if (i >= 0) ctx.slugger.slug(ghText(toks[i + 1]?.children));
+  if (i >= 0) ctx.slugger.slug(ghText(withText(l, () => kidsOf(toks[i + 1]))));
 }
 
 /** How deep a line opens containers: the quote marks and list markers it starts with (each nests once), and its indent
@@ -503,16 +526,18 @@ export function mdBlocks(src: string, ctx: MdContext): MdBlock[] {
   // a nesting deeper than the cap is refused before the reader sees it (each level is a frame of the reader's stack, and
   // past its own cap the reader would drop the rest of the text)
   let deep = false;
-  for (const l of src.split("\n")) {
+  const lines = src.split("\n");
+  for (const l of lines) {
     const n = lineNesting(l);
     if (n.quotes > ctx.maxDepth || n.marks > ctx.maxDepth * 2 || (n.indent / 2 > ctx.maxDepth * 2 && n.marks > 0)) { deep = true; break; }
   }
   if (deep) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; shown as plain text` }); return [{ t: "raw", text: src }]; }
-  let toks: Tok[];
-  try { toks = lex(src, ctx.inlines, ctx.maxDepth); }
+  let lx: ReturnType<typeof lex>;
+  try { lx = lex(src, ctx.inlines, ctx.maxDepth); }
   catch (e) { ctx.problems.push({ line: ctx.line, message: `Markdown could not be read: ${(e as Error).message}` }); return [{ t: "raw", text: src }]; }
+  const toks = lx.toks;
   if (toks.some((t) => t.level >= nestCap(ctx.maxDepth) - 2)) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; shown as plain text` }); return [{ t: "raw", text: src }]; }
-  return blocks(toks, 0, toks.length, ctx, 0, src.split("\n"));
+  return withText(lx, () => blocks(toks, 0, toks.length, ctx, 0, lines));
 }
 
 /** The index just after the close token that matches the open token at i. */
@@ -535,7 +560,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
     switch (t.type) {
       case "paragraph_open": {
         const inl = toks[i + 1];
-        const c = inl?.type === "inline" ? inl.children ?? [] : [];
+        const c = kidsOf(inl);
         // a list item's own paragraphs are "text", tight or loose (0.6.0's tree; a loose list draws as a tight one)
         // a list item's own paragraph: the kind the reader set (keepLineStarts), else tight text or a paragraph
         const kind = (t.meta as { dhKind?: string } | null)?.dhKind ?? (t.hidden ? "text" : "p");
@@ -544,7 +569,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
         break;
       }
       case "heading_open": {
-        const c = toks[i + 1]?.children ?? [];
+        const c = kidsOf(toks[i + 1]);
         const tree = inlines(c, 0, c.length, ctx, depth);
         const text = plain(tree);
         const id = headingId(ghText(c), ctx);
@@ -595,7 +620,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
           else if (x.type === "tr_open") row = [];
           else if (x.type === "tr_close") { if (row && !inHead) rows.push(row); row = null; }
           else if (x.type === "th_open" || x.type === "td_open") {
-            const c = toks[j + 1]?.type === "inline" ? toks[j + 1].children ?? [] : [];
+            const c = kidsOf(toks[j + 1]);
             const cell = inlines(c, 0, c.length, ctx, depth + 1);
             if (inHead) { head.push(cell); const s = /text-align:(left|right|center)/.exec(String(x.attrGet("style") ?? "")); align.push(s ? (s[1] as "left" | "right" | "center") : null); }
             else row?.push(cell);
@@ -612,7 +637,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
         out.push({ t: "raw", text: t.content + tail });
         break;
       }
-      case "inline": out.push({ t: "text", c: inlines(t.children ?? [], 0, (t.children ?? []).length, ctx, depth) }); break;
+      case "inline": { const c = kidsOf(t); out.push({ t: "text", c: inlines(c, 0, c.length, ctx, depth) }); break; }
       default: if (t.nesting === 1) i = closeOf(toks, i, to); break;
     }
   }
@@ -621,7 +646,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
 function quote(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, lines: string[]): MdBlock {
   // a callout: the quote opens with a bold marker word and a colon ("> **Tip:** ...")
   if (toks[from]?.type === "paragraph_open" && toks[from + 1]?.type === "inline") {
-    const kids = (toks[from + 1].children ?? []).filter((k) => !(k.type === "text" && !k.content));
+    const kids = kidsOf(toks[from + 1]).filter((k) => !(k.type === "text" && !k.content));
     if (kids[0]?.type === "strong_open") {
       const sc = closeOf(kids, 0, kids.length);
       const raw = kids.slice(1, sc).map((k) => (k.type === "text" ? k.content : k.type === "text_special" ? k.content : k.type === "code_inline" ? k.content : "")).join("");

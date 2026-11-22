@@ -376,7 +376,9 @@ export function mapOutsideCode(md: string, f: (s: string) => string): string {
 // from every "](" inside it)
 const SPACE = /\s/;
 function llmLinks(s: string): string {
-  let out = "", from = 0, runFrom = -1, runEnd = -1, fragAt = -1, fragEnd = -1;
+  // fragFrom..fragStop: the last fragment scan (it stops at the first ")" or white space, so every start inside it
+  // stops at the same place)
+  let out = "", from = 0, runFrom = -1, runEnd = -1, fragFrom = -1, fragStop = -1;
   for (let i = s.indexOf("]("); i >= 0; i = s.indexOf("](", i + 1)) {
     const p = i + 2;
     let q = p; while (q < s.length && s.charCodeAt(q) >= 97 && s.charCodeAt(q) <= 122) q++;
@@ -387,8 +389,8 @@ function llmLinks(s: string): string {
     let end = -1, frag = "";
     if (s[runEnd] === ")") end = runEnd + 1;
     else if (s[runEnd] === "#") {
-      if (fragAt !== runEnd) { fragAt = runEnd; let k = runEnd + 1; while (k < s.length && s[k] !== ")" && !SPACE.test(s[k])) k++; fragEnd = s[k] === ")" ? k : -1; }
-      if (fragEnd >= 0) { end = fragEnd + 1; frag = s.slice(runEnd, fragEnd); }
+      if (!(fragFrom >= 0 && runEnd + 1 >= fragFrom && runEnd + 1 <= fragStop)) { fragFrom = runEnd + 1; let k = fragFrom; while (k < s.length && s[k] !== ")" && !SPACE.test(s[k])) k++; fragStop = k; }
+      if (s[fragStop] === ")") { end = fragStop + 1; frag = s.slice(runEnd, fragStop); }
     }
     if (end < 0) continue;
     out += s.slice(from, p) + s.slice(p, runEnd - 6) + ".md" + frag + ")";

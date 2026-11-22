@@ -305,13 +305,22 @@ function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: str
   // the headings in page order are ctx.heads; a section toc takes the h3+ under the h2 it sits in
   const H = heads.length;
   // lastH2[i]: the last h2 before heading i (-1: none); nextTop[i]: the first heading at or after i of depth 1 or 2 (-1: none);
-  // upTo(low, d)[i]: how many of the headings before i have a depth from low to d
+  // upTo(low, d): sum[i] = how many of the headings before i have a depth from low to d, and those headings in order
+  // (so a toc takes its items as one slice: its work is what it lists, which MAX_TOC_ITEMS bounds)
   const lastH2 = new Int32Array(H + 1), nextTop = new Int32Array(H + 1);
   for (let i = 0, l = -1; i <= H; i++) { lastH2[i] = l; if (i < H && heads[i].depth === 2) l = i; }
   nextTop[H] = -1;
   for (let i = H - 1; i >= 0; i--) nextTop[i] = heads[i].depth <= 2 ? i : nextTop[i + 1];
-  const sums = new Map<string, Int32Array>();
-  const upTo = (low: number, d: number) => { const k = `${low},${d}`; let a = sums.get(k); if (!a) { a = new Int32Array(H + 1); for (let i = 0; i < H; i++) a[i + 1] = a[i] + (heads[i].depth >= low && heads[i].depth <= d ? 1 : 0); sums.set(k, a); } return a; };
+  const sums = new Map<string, { sum: Int32Array; match: typeof heads }>();
+  const upTo = (low: number, d: number) => {
+    const k = `${low},${d}`; let a = sums.get(k);
+    if (!a) {
+      const sum = new Int32Array(H + 1), match: typeof heads = [];
+      for (let i = 0; i < H; i++) { const ok = heads[i].depth >= low && heads[i].depth <= d; sum[i + 1] = sum[i] + (ok ? 1 : 0); if (ok) match.push(heads[i]); }
+      a = { sum, match }; sums.set(k, a);
+    }
+    return a;
+  };
   let seen = 0, listed = 0;
   const visit = (bs: Block[]) => {
     bs.forEach((b, k) => {
@@ -323,7 +332,7 @@ function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: str
           const end = nextTop[parent + 1];
           from = parent + 1; to = end < 0 ? H : end; low = 3;
         }
-        const s = upTo(low, b.depth), n = s[to] - s[from];
+        const u = upTo(low, b.depth), s = u.sum, n = s[to] - s[from];
         if (listed + n > MAX_TOC_ITEMS) {
           const message = `the tables of contents on this page would list more than ${MAX_TOC_ITEMS.toLocaleString("en-US")} headings; this one is not shown`;
           problems.push({ line: b.line, level: "error", message });
@@ -331,7 +340,7 @@ function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: str
           return;
         }
         listed += n;
-        b.items = heads.slice(from, to).filter((h) => h.depth >= low && h.depth <= b.depth);
+        b.items = u.match.slice(s[from], s[to]);
       } else if (b.type === "tabs" || b.type === "accordion") b.items.forEach((it) => visit(it.body));
       else if (b.type === "human") visit(b.body);
     });

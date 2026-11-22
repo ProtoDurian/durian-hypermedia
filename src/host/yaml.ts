@@ -1,5 +1,9 @@
 // YAML for front matter and chart data. Bun has a YAML parser built in; anywhere else the host sets one once:
 //   import { parse } from "yaml"; setYamlParser(parse);
+// A parser's own work may grow faster than the text: the yaml package (2.x) compares each new key of a map with the keys
+// before it, so one map of 20,000 keys takes seconds. Before parsing, from the text: at most LIMITS.maxYamlChars characters
+// and LIMITS.maxYamlKeys keys (yamlKeyCount) in one text, and maxPageYamlChars / maxPageYamlKeys over all of one parse()
+// or check() call's YAML texts.
 // An anchor used many times stands for its whole value each time, so a few bytes of anchors and aliases can stand for
 // gigabytes. Two guards, for any parser:
 //   - before parsing, from the text: at most LIMITS.maxYamlAliases aliases, whatever their names are spelled with, and
@@ -16,6 +20,8 @@ export function setYamlParser(fn: YamlParse | null): void { custom = fn; }
 export function yamlParse(text: string): any {
   // inside parse() or check(), the caps given to that call (parse options); otherwise LIMITS
   const b = currentBudget(), lim = b?.lim ?? LIMITS, part = b?.partLimits ?? partLimitsOf(lim);
+  let page = b; while (page?.parent) page = page.parent;
+  yamlSizeCheck(text, lim, page);
   yamlPrecheck(text, lim.maxYamlAliases);
   let v: unknown;
   if (custom) v = custom(text);
@@ -74,6 +80,36 @@ export function yamlMayMerge(t: string): boolean {
     i++;
   }
   return false;
+}
+/**
+ * An upper bound, from the text alone, on the keys and flow collections a YAML parser will build from it: every ":" and
+ * "?" (a map key needs one of them, except in a flow map), every "[" and "{", and every "," once a "{" has appeared (a
+ * flow map's key may stand alone, as in {a, b}, but only inside a "{"). Escapes make content, never structure, so only
+ * these characters as written count. A quoted or commented one counts too: never fewer than the parser sees. One pass.
+ */
+export function yamlKeyCount(t: string): number {
+  let n = 0, brace = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c === 58 || c === 63 || c === 91) n++;
+    else if (c === 123) { n++; brace = true; }
+    else if (c === 44 && brace) n++;
+  }
+  return n;
+}
+// what one parse() or check() call's YAML texts have used so far (characters, keys), per call budget
+const pageYaml = new WeakMap<object, { c: number; k: number }>();
+/** Throws YamlTooBig, before any parser runs, when the text has more characters or keys (yamlKeyCount) than one text
+ *  may, or would take the page's YAML over its totals. */
+export function yamlSizeCheck(t: string, lim: { maxYamlChars: number; maxYamlKeys: number; maxPageYamlChars: number; maxPageYamlKeys: number } = LIMITS, page: object | null = null): void {
+  if (t.length > lim.maxYamlChars) throw new YamlTooBig(`the YAML is too long (${fmt(t.length)} characters; the limit is ${fmt(lim.maxYamlChars)})`);
+  const k = yamlKeyCount(t);
+  if (k > lim.maxYamlKeys) throw new YamlTooBig(`the YAML has too many keys and lists (${fmt(k)}, counting every ":", "?", "[" and "{"; the limit is ${fmt(lim.maxYamlKeys)})`);
+  if (!page) return;
+  const u = pageYaml.get(page) ?? { c: 0, k: 0 };
+  if (u.c + t.length > lim.maxPageYamlChars) throw new YamlTooBig(`the page's YAML is too long (${fmt(u.c + t.length)} characters with this one; the limit for a page is ${fmt(lim.maxPageYamlChars)})`);
+  if (u.k + k > lim.maxPageYamlKeys) throw new YamlTooBig(`the page's YAML has too many keys and lists (${fmt(u.k + k)} with this one; the limit for a page is ${fmt(lim.maxPageYamlKeys)})`);
+  u.c += t.length; u.k += k; pageYaml.set(page, u);
 }
 // blanks and line breaks in the widest sense any YAML parser might take them (only used to find more, never fewer)
 const isBreak = (c: number) => c === 10 || c === 13 || c === 0x85 || c === 0x2028 || c === 0x2029;

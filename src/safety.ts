@@ -38,6 +38,14 @@ export interface Limits {
   maxPageEvalChars: number;
   /** aliases (`*name`) one YAML text may use, whatever the names are spelled with; checked before the YAML is parsed */
   maxYamlAliases: number;
+  /** characters of one YAML text (front matter, one chart), and of all of a page's YAML texts together; checked before
+   *  the YAML is parsed */
+  maxYamlChars: number;
+  maxPageYamlChars: number;
+  /** keys and flow collections of one YAML text, and of all of a page's YAML texts together, counted from the text before
+   *  it is parsed (see yamlKeyCount): a YAML parser may take time growing with the square of the keys of one map */
+  maxYamlKeys: number;
+  maxPageYamlKeys: number;
 }
 export const LIMITS: Limits = {
   maxInputBytes: 1_000_000,
@@ -57,6 +65,10 @@ export const LIMITS: Limits = {
   maxPageEvalValues: 400_000,
   maxPageEvalChars: 400_000,
   maxYamlAliases: 16,
+  maxYamlChars: 50_000,
+  maxPageYamlChars: 200_000,
+  maxYamlKeys: 2_000,
+  maxPageYamlKeys: 8_000,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

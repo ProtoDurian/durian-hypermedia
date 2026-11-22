@@ -104,7 +104,7 @@ export function heatConfig(spec: any, data: Eval11, look: Look11): any {
       },
       scales: {
         x: { type: "category", labels: xs, offset: true, grid: { display: false }, border: { display: false }, ticks: catTicks(xs), title: title(spec.x), position: "bottom" },
-        y: { type: "category", labels: ys, offset: true, reverse: true, grid: { display: false }, border: { display: false }, ticks: { ...catTicks(ys), maxRotation: 0, minRotation: 0 }, title: title(spec.y) },
+        y: { type: "category", labels: [...ys].reverse(), offset: true, grid: { display: false }, border: { display: false }, ticks: { ...catTicks(ys), maxRotation: 0, minRotation: 0 }, title: title(spec.y) },
       },
       layout: { padding: 2 },
     },

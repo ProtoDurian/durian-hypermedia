@@ -1,9 +1,11 @@
 // Chart steps, the time axis, annotations, value formats and heatmaps on the core chart part: the time library, parse, the
 // LLM view, every refusal, the caps, the budget, and the config the browser hands Chart.js.
 import { describe, expect, test } from "bun:test";
+import { parse, check } from "../src/index";
 import { Budget, BudgetError, pageBudget, withBudget } from "../src/core/budget";
 import { LIMITS, UNTRUSTED_LIMITS } from "../src/safety";
-import { chart11Check, chartTable11, evalChart11, fmtValue, durationText, bytesText, unitOf } from "../src/core/chart11";
+import { ticksEvery, MAX_TICKS } from "../src/core/pagecharts";
+import { specAt, chart11Check, chartTable11, evalChart11, fmtValue, durationText, bytesText, unitOf } from "../src/core/chart11";
 import { parseTime, fmtTime, timeTicks, startOf, add, partsOf, isDateOnly, MIN, HOUR, DAY } from "../src/core/chart-time";
 import { installTimeAdapter, TIME_FORMATS } from "../src/ui/chart-time-adapter";
 import { heatRamp, mix, parseColour, chartConfig11 } from "../src/ui/chart-config11";
@@ -58,7 +60,7 @@ describe("time library", () => {
   });
   test("the Chart.js adapter answers with our code and the scale's zone", () => {
     let members: any = null;
-    installTimeAdapter({ _date: { override: (m) => { members = m; } } } as any);
+    installTimeAdapter({ _date: { override: (m: any) => { members = m; } } } as any);
     const a = { options: { tz: "America/Los_Angeles" } };
     expect(members.formats()).toBe(TIME_FORMATS);
     const t = members.parse.call(a, "2026-11-20T10:00");
@@ -306,26 +308,133 @@ series:
   });
 });
 
+const BIG = { steps: 1e9, values: 1e9, chars: 1e9 };
+const withLimits = <T,>(l: Partial<typeof LIMITS>, fn: () => T): T => { const b = new Budget(BIG, BIG); b.lim = { ...LIMITS, ...l }; return withBudget(b, fn); };
+/** what a call charges, in steps and values and chars together */
+const charges = (f: () => void) => { const b = new Budget(BIG, BIG); withBudget(b, f); return b.steps + b.values + b.chars; };
+const hour = (i: number) => new Date(Date.UTC(2026, 0, 1) + i * 3_600_000).toISOString().slice(0, 16);
+
 describe("caps and work", () => {
-  const charges = (f: () => void) => { const l = { steps: 1e9, values: 1e9, chars: 1e9 }; const b = new Budget(l, l); withBudget(b, f); return b.steps + b.values + b.chars; };
-  test("the new caps are in LIMITS and UNTRUSTED_LIMITS", () => {
+  test("the five new caps are lower for text nobody reviewed, and the heat cap fits under the point limit", () => {
     for (const k of ["maxChartAnnotations", "maxChartSteps", "maxChartHeatCells", "maxCalcRows", "maxCalcInputs"] as const) {
       expect(Number.isInteger(LIMITS[k]) && LIMITS[k] > 0).toBe(true);
-      expect(UNTRUSTED_LIMITS[k]).toBeLessThanOrEqual(LIMITS[k]);
+      expect(UNTRUSTED_LIMITS[k]).toBeLessThan(LIMITS[k]);
     }
+    expect(UNTRUSTED_LIMITS.maxChartHeatCells).toBe(2_500);
   });
   test("a host's lower caps are read when the chart is checked", () => {
     const steps = Array.from({ length: 6 }, (_, i) => `  - title: s${i}`).join("\n");
     const src = `kind: line\nx: [a, b]\nseries:\n  - { name: s, data: [1, 2] }\nsteps:\n${steps}`;
     expect(chart11Check(yaml(src)).errors).toEqual([]);
-    const l = { ...LIMITS, maxChartSteps: 5 };
-    expect(withBudget(new Budget({ steps: 1e9, values: 1e9, chars: 1e9 }, { steps: 1e9, values: 1e9, chars: 1e9 }), () => { const b = new Budget({ steps: 1e9, values: 1e9, chars: 1e9 }, { steps: 1e9, values: 1e9, chars: 1e9 }); b.lim = l; return withBudget(b, () => chart11Check(yaml(src)).errors.join()); })).toMatch(/at most 5 steps/);
+    expect(withLimits({ maxChartSteps: 5 }, () => chart11Check(yaml(src)).errors.join())).toMatch(/at most 5 steps/);
   });
-  test("annotations and a time axis: twice the input costs about twice (charges counted)", () => {
-    const mk = (n: number) => yaml(`kind: line\nx: { scale: time, values: [${Array.from({ length: n }, (_, i) => `"2026-01-${String(1 + (i % 28)).padStart(2, "0")}T${String(Math.floor(i / 28) % 24).padStart(2, "0")}:00"`).join(", ")}] }\nseries:\n  - { name: s, data: [${Array.from({ length: n }, (_, i) => i).join(", ")}] }\nannotations:\n${Array.from({ length: Math.min(n, 50) }, () => "  - { y: 5 }").join("\n")}`);
+  test("annotations and a time axis: twice the input costs about twice, on the whole path", () => {
+    const mk = (n: number) => yaml(`kind: line\nx: { scale: time, values: [${Array.from({ length: n }, (_, i) => `"${hour(i)}"`).join(", ")}] }\nseries:\n  - { name: s, data: [${Array.from({ length: n }, (_, i) => i).join(", ")}] }\nannotations:\n${Array.from({ length: 20 }, () => "  - { y: 5 }").join("\n")}`);
+    for (const n of [200, 400]) expect(chart11Check(mk(n)).errors).toEqual([]); // the full path runs: no early error
     const a = charges(() => chart11Check(mk(200))), b = charges(() => chart11Check(mk(400)));
     expect(a).toBeGreaterThan(0);
-    expect(b / a).toBeGreaterThan(1.2);
+    expect(b / a).toBeGreaterThan(1.5);
     expect(b / a).toBeLessThan(2.4);
+  });
+  const stepped = (n: number) => yaml(`kind: line\nx: [a, b, c]\nseries:\n  - { name: s, data: [1, 2, 3] }\n  - { name: t, data: [3, 2, 1] }\nsteps:\n${Array.from({ length: n }, (_, i) => `  - { title: s${i}, series: [{ name: s, data: [${i}, 2, 3] }] }`).join("\n")}`);
+  test("steps: n steps and 2n steps cost about n and 2n (each step is built from the one before, once)", () => {
+    for (const n of [10, 20]) expect(chart11Check(stepped(n)).errors).toEqual([]);
+    const a = charges(() => chart11Check(stepped(10))), b = charges(() => chart11Check(stepped(20)));
+    expect(b / a).toBeGreaterThan(1.6);
+    expect(b / a).toBeLessThan(2.4);
+    const c = charges(() => chart11Check(stepped(10))), e = charges(() => { for (let k = 0; k < 10; k++) evalChart11(stepped(10), undefined, k); });
+    expect(e / c).toBeLessThan(25); // the reader's replays are bounded by the cap
+  });
+  test("steps past the cap are refused without reading them, in the check and for the reader", () => {
+    const over = stepped(5_000);
+    const err = withLimits({ maxChartSteps: 40 }, () => chart11Check(over).errors.join());
+    expect(err).toMatch(/at most 40 steps/);
+    const small = charges(() => withLimits({ maxChartSteps: 40 }, () => chart11Check(over)));
+    const ok = charges(() => chart11Check(stepped(40)));
+    expect(small).toBeLessThan(ok * 3);
+    const r = withLimits({ maxChartSteps: 40 }, () => evalChart11(over, undefined, 4_000));
+    expect(r.error).toMatch(/at most 40 steps/);
+  });
+  test("a time table of points: the union is counted before it is built", () => {
+    const pts = (s: number, n: number) => Array.from({ length: n }, (_, i) => `[${JSON.stringify(hour(s * 100_000 + i))}, ${i}]`).join(", ");
+    const src = (n: number, k: number) => yaml(`kind: line\nx: { scale: time }\nseries:\n${Array.from({ length: k }, (_, s) => `  - { name: s${s}, data: [${pts(s, n)}] }`).join("\n")}`);
+    // 2 series of 2,000 points at different times: 4,000 times, 12,000 cells on one axis, past the 5,000 point limit
+    const e = chart11Check(src(2_000, 2)).errors.join();
+    expect(e).toMatch(/different times/);
+    expect(chart11Check(src(2_000, 3)).errors.join()).toMatch(/points together/);
+    expect(chart11Check(src(300, 2)).errors).toEqual([]);
+    // refused before anything is allocated: the refusal charges far less than building the table would
+    const refused = charges(() => chart11Check(src(2_000, 2)));
+    const small = charges(() => chart11Check(src(300, 2)));
+    expect(refused).toBeLessThan(small * 12);
+  });
+  test("two points at one time in one series are refused with both points and their values", () => {
+    const e = chart11Check(yaml(`kind: line\nx: { scale: time }\nseries:\n  - name: p\n    data: [["2026-11-20T10:00", 1], ["2026-11-20T10:05", 2], ["2026-11-20T10:00", 9]]`)).errors.join();
+    expect(e).toMatch(/series "p": points 1 and 3 are both at 2026-11-20T10:00 \(values 1 and 9\)/);
+  });
+  test("a time min or max beyond the data is a warning", () => {
+    const src = (extra: string) => yaml(`kind: line\nx: { scale: time, ${extra} }\nseries:\n  - name: p\n    data: [["2026-12-01", 1], ["2026-12-02", 2]]`);
+    const w = chart11Check(src("min: 2026-12-05"));
+    expect(w.errors).toEqual([]);
+    expect(w.warnings.join()).toMatch(/x\.min 2026-12-05 is after the last time in the data \(2026-12-02\)/);
+    expect(chart11Check(src("max: 2026-11-20")).warnings.join()).toMatch(/x\.max .* before the first time/);
+    expect(chart11Check(src("min: 2026-12-01")).warnings).toEqual([]);
+  });
+  test("a heatmap: one rule, the heat cap (4,000 cells pass; 11,000 are refused with the heat cap's words)", () => {
+    const heat = (nx: number, ny: number) => `kind: heatmap\nx: { values: [${Array.from({ length: nx }, (_, i) => i).join(",")}] }\ny: { values: [${Array.from({ length: ny }, (_, i) => `r${i}`).join(",")}] }\nseries:\n  - name: v\n    data: [${Array.from({ length: ny }, () => `[${Array.from({ length: nx }, () => 1).join(",")}]`).join(",")}]`;
+    const page = (src: string, limits?: any) => parse("```chart\n" + src + "\n```\n", limits ? { limits } : undefined);
+    const ok = page(heat(100, 60), { ...LIMITS, maxYamlNodes: 1e6, maxYamlChars: 1e7, maxPageYamlNodes: 1e6, maxPageYamlChars: 1e7 }); // 6,000 cells, over half of the point limit
+    expect(ok.problems.filter((p: any) => p.level === "error").map((p: any) => p.message)).toEqual([]);
+    expect(ok.blocks[0].type).toBe("chart");
+    const big = { ...LIMITS, maxYamlNodes: 1e6, maxYamlChars: 1e7, maxPageYamlNodes: 1e6, maxPageYamlChars: 1e7 };
+    expect(chart11Check(yaml(heat(110, 100))).errors.join()).toMatch(/at most 10000 cells/);
+    { const lowered = page(heat(60, 50), { ...big, maxChartHeatCells: 2_500 }); expect(check(lowered).filter((i: any) => i.level === "error").map((i: any) => i.message).join()).toMatch(/at most 2500 cells/); } // 3,000 cells: past the lowered cap
+    expect(withLimits({ maxChartHeatCells: 2_500 }, () => chart11Check(yaml(heat(60, 50))).errors.join())).toMatch(/at most 2500 cells/);
+  });
+  test("a heatmap's axis keys: an unknown key is refused with the fix", () => {
+    const e = chart11Check(yaml(`kind: heatmap\nx: { lable: hour, values: [a, b] }\ny: { label: day, values: [m] }\nseries:\n  - name: v\n    data: [[1, 2]]`)).errors.join();
+    expect(e).toMatch(/heatmap x: unknown key "lable" \(keys: label, values\)/);
+  });
+});
+
+describe("time: a clock change", () => {
+  test("a wall time that happens twice is the earlier one; one that is skipped moves forward by the gap", () => {
+    // Europe/Paris, 2026-10-25: 03:00 summer time goes back to 02:00, so 02:30 happens twice (00:30Z, then 01:30Z)
+    expect(parseTime("2026-10-25T02:30", "Europe/Paris")).toBe(Date.UTC(2026, 9, 25, 0, 30));
+    expect(parseTime("2026-10-25T01:59", "Europe/Paris")).toBe(Date.UTC(2026, 9, 24, 23, 59));
+    expect(parseTime("2026-10-25T03:00", "Europe/Paris")).toBe(Date.UTC(2026, 9, 25, 2, 0));
+    // 2026-03-29: 02:00 summer time starts, so 02:30 does not exist: it reads as 03:30 (01:30Z)
+    expect(parseTime("2026-03-29T02:30", "Europe/Paris")).toBe(Date.UTC(2026, 2, 29, 1, 30));
+    expect(parseTime("2026-03-29T01:30", "Europe/Paris")).toBe(Date.UTC(2026, 2, 29, 0, 30));
+    // America/Los_Angeles: 2026-11-01 01:30 happens twice (08:30Z first); 2026-03-08 02:30 is skipped
+    expect(parseTime("2026-11-01T01:30", "America/Los_Angeles")).toBe(Date.UTC(2026, 10, 1, 8, 30));
+    expect(parseTime("2026-03-08T02:30", "America/Los_Angeles")).toBe(Date.UTC(2026, 2, 8, 10, 30));
+    // a day with no change in the zone is the offset it has
+    expect(parseTime("2026-07-01T12:00", "Europe/Paris")).toBe(Date.UTC(2026, 6, 1, 10, 0));
+  });
+});
+
+describe("doccheck checks every step", () => {
+  const run = (src: string) => { const doc = parse("```chart\n" + src + "\n```\n", { path: "a.dh.md" }); return check(doc).filter((i: any) => i.level === "error").map((i: any) => i.message); };
+  test("a mistake in a later step is refused like one in the first chart", () => {
+    const base = `kind: line\nx: [a, b]\nseries:\n  - { name: s, data: [1, 2] }\n`;
+    expect(run(base + `steps:\n  - title: one\n  - title: two\n`)).toEqual([]);
+    expect(run(base + `steps:\n  - title: one\n  - title: two\n    y: { scale: typo }\n`).join()).toMatch(/step 2: .*scale/);
+    expect(run(base.replace("y:", "y:") + `y: { scale: typo }\nsteps:\n  - title: one\n  - title: two\n`).join()).toMatch(/scale/);
+  });
+});
+
+describe("step traversal and ticks are charged", () => {
+  const stepped = (n: number) => yaml(`kind: line\nx: [a, b, c]\nseries:\n  - { name: s, data: [1, 2, 3] }\n  - { name: t, data: [3, 2, 1] }\nsteps:\n${Array.from({ length: n }, (_, i) => `  - { title: s${i}, series: [{ name: s, data: [${i}, 2, 3] }] }`).join("\n")}`);
+  test("walking the steps charges, and 2n steps cost about twice n steps (not four times)", () => {
+    const a = charges(() => specAt(stepped(20), 19)), b = charges(() => specAt(stepped(40), 39));
+    expect(a).toBeGreaterThan(0);
+    expect(b / a).toBeGreaterThan(1.7);
+    expect(b / a).toBeLessThan(2.3);
+  });
+  test("explicit ticks: the iterations are bounded by the tick cap, and the call is charged before it makes them", () => {
+    expect(ticksEvery(0, 1e15, "minute", 1, "UTC").length).toBeLessThanOrEqual(MAX_TICKS);
+    expect(ticksEvery(0, 1e15, "day", 1, "UTC").length).toBeLessThanOrEqual(MAX_TICKS);
+    expect(() => tiny(20, 1000, () => ticksEvery(0, 1e15, "hour", 1, "UTC"))).toThrow(BudgetError);
   });
 });

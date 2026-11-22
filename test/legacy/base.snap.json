@@ -1,0 +1,1402 @@
+{
+ "codewalk.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: Code walk with made-up code\ndescription: A code walk whose code is written in the page (@file), animated within one function and still between files.\nsource: codewalk.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n# Code walk\n\n```codewalk\n@file src/cart.ts\nexport function total(items: { price: number; qty: number }[]) {\n  let sum = 0;\n  for (const it of items) sum += it.price * it.qty;\n  return sum;\n}\n\nexport function withTax(sum: number, rate = 0.2) {\n  return Math.round(sum * (1 + rate) * 100) / 100;\n}\n@file src/checkout.ts\nimport { total, withTax } from './cart';\n\nexport function checkout(items: { price: number; qty: number }[]) {\n  const sum = total(items);\n  return { sum, due: withTax(sum) };\n}\n@step src/cart.ts#L1-L5 focus=3\nThe total adds price times quantity for every item.\n@step src/cart.ts#L1-L5 focus=4\nThen it returns the sum. Press :kbd[Right] for the next step.\n@step src/checkout.ts#L3-L6 focus=4-5\nCheckout calls both: a move to another file is still, not animated.\n```\n"
+ },
+ "host-block.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: A host block\ndescription: A block the host registers itself (fy-task), drawn by the host's component, with its own LLM text and check.\nsource: host-block.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n# A host's own block\n\nThe host registered a block named `fy-task`. The package parses it with the host's parse function, shows the host's component, and puts the host's text in the LLM view.\n\n```fy-task\nid: T-12\ntitle: Write the adoption guide\nstate: doing\n```\n\nA task with a state the host's check refuses:\n\n```fy-task\nid: T-13\ntitle: Ship it\nstate: maybe\n```\n\n## Inline references\n\nThe host also registered two inline references: a file, @src/cart/total.ts, and a task, &T-12. The LLM reads them as written; the page draws them with the host's components. An email such as someone@example.com is not a file reference.\n"
+ },
+ "markdown.md": {
+  "issues": [
+   "error 38 [code references] code reference example-repo/src/service.ts#Service: no pins entry for repo example-repo"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Plain Markdown\ndescription: Everything plain Markdown does, as the renderer draws it (no parts).\nsource: markdown.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n# Plain Markdown\n\nA paragraph with **bold**, *italic*, ~~struck~~ text, `inline code`, a [link to the format](https://example.com/format), an [anchor link](#lists) and a [relative link](./other-page.md).\nKeys: Ctrl+K, then Ctrl+S and Left arrow. Mouse: double-click index.ts. A code reference: [the service](code:example-repo/src/service.ts#Service).\n\n## Lists\n\n- one\n- two\n  - two and a half\n- three\n\n1. first\n2. second\n\n- [x] a done task\n- [ ] an open task\n\n## A table\n\n| Part | Written as | An LLM reads |\n| :--- | :---: | ---: |\n| terminal | a code fence | as it is |\n| chart | a code fence with data | its data as a table |\n\n## Code\n\n```ts\nexport function greet(name: string): string {\n  return `Hi ${name}`;\n}\n```\n\n> A plain quote, with *emphasis*.\n\n> **Tip:** A callout opens with a bold marker.\n\n---\n\nAn image from a relative path: ![the logo](./logo.svg \"The logo\")\n"
+ },
+ "showcase.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "parser",
+     "terminal",
+     "chart",
+     "animation"
+    ],
+    "series": [
+     {
+      "name": "first load",
+      "data": [
+       60,
+       10,
+       17,
+       39
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: Showcase\ndescription: Several parts on one page, to compare the style variants (soft, flat, bold) and light and dark.\nsource: showcase.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n> **Note:** One page, three styles. Switch them at the top.\n\n## A terminal\n\n```terminal\n$ bun add durian-hypermedia\ninstalled durian-hypermedia@0.1.0\n$ bun test\n301 pass, 0 fail\n```\n\n> **Tip:** Every part steps with Left arrow and Right arrow, or a tap on Next.\n\n## A chart\n\nChart (bar): Bundle size, gzipped\n\n| entry | first load |\n| --- | --- |\n| parser | 60 |\n| terminal | 10 |\n| chart | 17 |\n| animation | 39 |\n\n## A tier list\n\nTier list: Which part to reach for (top tier first)\nS: terminal, code walk\nA: chart, tier list\nB: animation (when time matters)\nC: mermaid (when nothing else draws it)\nD: (empty)\n\n## Tabs\n\n### Server\n\nParse and highlight on the server, render to HTML, hydrate in the browser.\n\n### Browser only\n\nParse and render in the browser; code shows without colours.\n\n## A code walk\n\n```codewalk\n@file src/page.tsx\nimport { parse } from \"durian-hypermedia\";\nimport { DhDocument } from \"durian-hypermedia/react\";\n\nexport function Page({ text }: { text: string }) {\n  const doc = parse(text);\n  return <DhDocument doc={doc} variant=\"flat\" />;\n}\n@step src/page.tsx#L4-L7 focus=5\nParse the text: the tree is plain data.\n@step src/page.tsx#L4-L7 focus=6\nDraw it, in the host's style.\n```\n"
+ },
+ "format/01-callouts.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: \"Callouts\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/01-callouts.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Callouts\n\nA callout is a note beside the text it is about. A note about the whole page is a callout too: put it under the title. It is a blockquote that opens with a bold marker. The marker picks the icon and the colour; the author never picks an icon.\n\n> **Note:** a fact worth knowing, but not needed to follow the text.\n\n> **Tip:** press Ctrl+K to search the docs.\n\n> **Important:** the CLI sends every answer on every call.\n\n> **Watch out:** a validate call replays the script with the deterministic state from before the question.\n\n> **Security finding:** (an example, not a real finding) a security block sits on its own; the public LLM view drops it.\n"
+ },
+ "format/02-keyboard-keys.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: \"Keyboard keys\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/02-keyboard-keys.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Keyboard keys\n\nOne key Esc, a combination Ctrl+Shift+P, and a sequence Ctrl+K, then Ctrl+S: press the first, let go, then press the second.\nArrow keys are written by name: Left arrow and Right arrow step through a stage; the page draws the arrows.\n"
+ },
+ "format/03-mouse-actions.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: \"Mouse actions\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/03-mouse-actions.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Mouse actions\n\nOne mouse icon and the action. The button the action presses is filled: the left one for a click, the right one for a right click, the wheel for a middle click. A double click adds a \"2\", so it never looks like a single click. Scroll adds arrows by the wheel; drag, drop, hover and select add their own small mark.\n\n- click Next\n- double-click index.ts\n- right-click src/\n- middle-click the tab\n- scroll the list\n- drag README.md\n- drop it on docs/\n- hover the chip\n- select the first line\n"
+ },
+ "format/04-table-of-contents.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: \"Table of contents\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/04-table-of-contents.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Table of contents\n\nThe page form lists the page's headings; `depth` says how deep it goes.\n"
+ },
+ "format/05-tabs.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Tabs\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/05-tabs.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Tabs\n\nEach heading inside `:::tabs` starts one tab. An LLM reads the headings and the text under them.\n\n#### Node\n\nInstall with `npm i @example/scaffold-sdk`.\n\n#### Python\n\nInstall with `pip install scaffold-sdk`.\n"
+ },
+ "format/06-accordion.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Accordion\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/06-accordion.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Accordion\n\nEach heading inside `:::accordion` starts one row that opens and closes.\n\n#### Why replay instead of pausing?\n\nA paused script would tie one template container to each person who is answering.\n\n#### What does a replay cost?\n\nEach call runs the script again from its first line.\n"
+ },
+ "format/07-human-only-segment.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Human-only segment\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/07-human-only-segment.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Human-only segment\n\nA segment for people only. The `:::llm` block right after it is what an LLM reads instead.\n\nThe person talks to the CLI, which calls the template container.\n"
+ },
+ "format/08-a-segment-llms-skip.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"A segment LLMs skip\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/08-a-segment-llms-skip.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## A segment LLMs skip\n\n`llm=none` says, in the source, that LLMs need nothing here.\n"
+ },
+ "format/09-diagram.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Diagram\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/09-diagram.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Diagram\n\nA plain `mermaid` code block. LLMs read mermaid well, so it reaches them unchanged.\n\n```mermaid\nflowchart LR\n  CLI -- \"init call\" --> TC[\"template container\"]\n  TC -- \"question reply\" --> CLI\n```\n"
+ },
+ "format/10-steps-on-any-part.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Steps on any part\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/10-steps-on-any-part.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Steps on any part\n\nSteps are not a part of their own: any part becomes step by step when it holds `@step` lines (in mermaid, `%% @step`, a mermaid comment, so the diagram still draws anywhere). Here a diagram builds up one arrow per step.\n\n```mermaid\nflowchart LR\n  CLI[\"CLI\"]\n  TC[\"template container\"]\n%% @step The CLI sends an init call with every answer it holds.\n  CLI -- \"init call: all answers\" --> TC\n%% @step The script stops at a question and sends it back.\n  TC -- \"question reply\" --> CLI\n%% @step The next init call carries one answer more.\n  CLI -- \"init call: one more answer\" --> TC\n```\n"
+ },
+ "format/11-chart-bar.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "series": [
+     {
+      "name": "answers",
+      "data": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: bar\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/11-chart-bar.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: bar\n\nAn LLM reads a chart's data as a table.\n\nChart (bar): Answers carried by each init call\n\n| init call | answers |\n| --- | --- |\n| 1 | 0 |\n| 2 | 1 |\n| 3 | 2 |\n| 4 | 3 |\n| 5 | 4 |\n"
+ },
+ "format/12-chart-grouped-bars.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     2,
+     4,
+     6
+    ],
+    "series": [
+     {
+      "name": "init calls",
+      "data": [
+       3,
+       5,
+       7
+      ]
+     },
+     {
+      "name": "validate calls",
+      "data": [
+       2,
+       4,
+       6
+      ]
+     },
+     {
+      "name": "both",
+      "data": [
+       5,
+       9,
+       13
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: grouped bars\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/12-chart-grouped-bars.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: grouped bars\n\nSeveral series side by side is the default for bars.\n\nChart (bar): Runs per create, by number of questions\n\n| questions | init calls | validate calls | both |\n| --- | --- | --- | --- |\n| 2 | 3 | 2 | 5 |\n| 4 | 5 | 4 | 9 |\n| 6 | 7 | 6 | 13 |\n"
+ },
+ "format/13-chart-stacked-bar.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4
+    ],
+    "series": [
+     {
+      "name": "answers",
+      "data": [
+       0,
+       48,
+       96,
+       144
+      ]
+     },
+     {
+      "name": "deterministic state",
+      "data": [
+       0,
+       40,
+       40,
+       40
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: stacked bar\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/13-chart-stacked-bar.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: stacked bar\n\nChart (stacked bar): Size of each init call, in bytes\n\n| init call | answers | deterministic state |\n| --- | --- | --- |\n| 1 | 0 | 0 |\n| 2 | 48 | 40 |\n| 3 | 96 | 40 |\n| 4 | 144 | 40 |\n"
+ },
+ "format/14-chart-100-stacked-bar.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     2,
+     3,
+     4
+    ],
+    "series": [
+     {
+      "name": "answers",
+      "data": [
+       48,
+       96,
+       144
+      ]
+     },
+     {
+      "name": "deterministic state",
+      "data": [
+       40,
+       40,
+       40
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: 100% stacked bar\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/14-chart-100-stacked-bar.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: 100% stacked bar\n\n`stacked: percent` scales each bar to 100%; the tooltip still shows the real number. Init call 1 carries nothing, so it has no share and is left out.\n\nChart (100% stacked bar): Share of each init call's size\n\nEach bar or area is scaled to 100%; the cells hold the real values.\n\n| init call | answers | deterministic state |\n| --- | --- | --- |\n| 2 | 48 | 40 |\n| 3 | 96 | 40 |\n| 4 | 144 | 40 |\n"
+ },
+ "format/15-chart-horizontal-bar.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Edit files by hand",
+     "Run the template once",
+     "Ask every question",
+     "Replay all answers"
+    ],
+    "series": [
+     {
+      "name": "seconds",
+      "data": [
+       95,
+       12,
+       31,
+       48
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: horizontal bar\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/15-chart-horizontal-bar.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: horizontal bar\n\n`horizontal: true` turns the bars on their side; long names get room.\n\nChart (bar): Time to create, by way of working\n\nThe bars run horizontally.\n\n| way | seconds |\n| --- | --- |\n| Edit files by hand | 95 |\n| Run the template once | 12 |\n| Ask every question | 31 |\n| Replay all answers | 48 |\n"
+ },
+ "format/16-chart-floating-bars.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Ask",
+     "Validate",
+     "Generate",
+     "Write"
+    ],
+    "series": [
+     {
+      "name": "range",
+      "data": [
+       [
+        0,
+        4
+       ],
+       [
+        4,
+        9
+       ],
+       [
+        9,
+        21
+       ],
+       [
+        21,
+        26
+       ]
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: floating bars\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/16-chart-floating-bars.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: floating bars\n\nA value written `[low, high]` floats the bar between the two. The LLM table reads it as \"3 to 9\".\n\nChart (bar): Time each step takes, in seconds\n\nA cell \"a to b\" is a floating bar from a to b.\n\n| step | range |\n| --- | --- |\n| Ask | 0 to 4 |\n| Validate | 4 to 9 |\n| Generate | 9 to 21 |\n| Write | 21 to 26 |\n"
+ },
+ "format/17-chart-line.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "series": [
+     {
+      "name": "init calls",
+      "data": [
+       2,
+       3,
+       4,
+       5,
+       6,
+       7
+      ]
+     },
+     {
+      "name": "with one validate call per question",
+      "data": [
+       3,
+       5,
+       7,
+       9,
+       11,
+       13
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: line\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/17-chart-line.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: line\n\nChart (line): Script runs per create, by number of questions\n\n| questions | init calls | with one validate call per question |\n| --- | --- | --- |\n| 1 | 2 | 3 |\n| 2 | 3 | 5 |\n| 3 | 4 | 7 |\n| 4 | 5 | 9 |\n| 5 | 6 | 11 |\n| 6 | 7 | 13 |\n"
+ },
+ "format/18-chart-area.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "series": [
+     {
+      "name": "answers sent",
+      "data": [
+       0,
+       1,
+       3,
+       6,
+       10,
+       15
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: area\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/18-chart-area.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: area\n\nChart (area): Answers sent in all, after each init call\n\n| init call | answers sent |\n| --- | --- |\n| 1 | 0 |\n| 2 | 1 |\n| 3 | 3 |\n| 4 | 6 |\n| 5 | 10 |\n| 6 | 15 |\n"
+ },
+ "format/19-chart-stacked-area.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "series": [
+     {
+      "name": "init calls",
+      "data": [
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     },
+     {
+      "name": "validate calls",
+      "data": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: stacked area\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/19-chart-stacked-area.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: stacked area\n\nChart (stacked area): Calls sent so far, by kind\n\n| init call | init calls | validate calls |\n| --- | --- | --- |\n| 1 | 1 | 0 |\n| 2 | 2 | 1 |\n| 3 | 3 | 2 |\n| 4 | 4 | 3 |\n| 5 | 5 | 4 |\n"
+ },
+ "format/20-chart-mixed-bars-and-line-two-axes.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "series": [
+     {
+      "name": "runs",
+      "data": [
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     },
+     {
+      "name": "time",
+      "data": [
+       4,
+       7,
+       11,
+       16,
+       22
+      ],
+      "kind": "line",
+      "tone": "5",
+      "axis": "y2"
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: mixed bars and line, two axes\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/20-chart-mixed-bars-and-line-two-axes.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: mixed bars and line, two axes\n\nA series can have its own `kind`, and `axis: y2` puts it on a second axis on the right. The chart declares that axis with `y2`.\n\nChart (bar + line): Runs and time, by number of questions\n\nBars: runs. Lines: time. Right axis (y2: seconds): time. Left axis (runs): runs.\n\n| questions | runs | time |\n| --- | --- | --- |\n| 1 | 2 | 4 |\n| 2 | 3 | 7 |\n| 3 | 4 | 11 |\n| 4 | 5 | 16 |\n| 5 | 6 | 22 |\n"
+ },
+ "format/21-chart-log-scale.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6
+    ],
+    "series": [
+     {
+      "name": "answer sets",
+      "data": [
+       3,
+       9,
+       27,
+       81,
+       243,
+       729
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: log scale\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/21-chart-log-scale.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: log scale\n\n`scale: log` on an axis spaces the ticks by powers of ten. It needs values above 0.\n\nChart (line): Size of the answer set, by number of questions\n\nLog scale on y.\n\n| questions | answer sets |\n| --- | --- |\n| 1 | 3 |\n| 2 | 9 |\n| 3 | 27 |\n| 4 | 81 |\n| 5 | 243 |\n| 6 | 729 |\n"
+ },
+ "format/22-chart-scatter.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [],
+    "series": [
+     {
+      "name": "init calls",
+      "data": [
+       {
+        "x": 0,
+        "y": 40
+       },
+       {
+        "x": 1,
+        "y": 92
+       },
+       {
+        "x": 2,
+        "y": 139
+       },
+       {
+        "x": 3,
+        "y": 190
+       },
+       {
+        "x": 4,
+        "y": 236
+       },
+       {
+        "x": 5,
+        "y": 288
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: scatter\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/22-chart-scatter.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: scatter\n\nChart (scatter): Body size against answers carried\n\n| series | answers | bytes |\n| --- | --- | --- |\n| init calls | 0 | 40 |\n| init calls | 1 | 92 |\n| init calls | 2 | 139 |\n| init calls | 3 | 190 |\n| init calls | 4 | 236 |\n| init calls | 5 | 288 |\n"
+ },
+ "format/23-chart-scatter-on-log-scales.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [],
+    "series": [
+     {
+      "name": "runs",
+      "data": [
+       {
+        "x": 1,
+        "y": 12
+       },
+       {
+        "x": 3,
+        "y": 35
+       },
+       {
+        "x": 10,
+        "y": 120
+       },
+       {
+        "x": 30,
+        "y": 340
+       },
+       {
+        "x": 100,
+        "y": 1200
+       },
+       {
+        "x": 300,
+        "y": 3500
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: scatter on log scales\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/23-chart-scatter-on-log-scales.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: scatter on log scales\n\nBoth axes of a scatter chart can be log.\n\nChart (scatter): Run time against input size\n\nLog scale on x and y.\n\n| series | questions | milliseconds |\n| --- | --- | --- |\n| runs | 1 | 12 |\n| runs | 3 | 35 |\n| runs | 10 | 120 |\n| runs | 30 | 340 |\n| runs | 100 | 1200 |\n| runs | 300 | 3500 |\n"
+ },
+ "format/24-chart-bubble.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [],
+    "series": [
+     {
+      "name": "templates",
+      "data": [
+       {
+        "x": 3,
+        "y": 8,
+        "r": 120
+       },
+       {
+        "x": 6,
+        "y": 14,
+        "r": 480
+       },
+       {
+        "x": 9,
+        "y": 30,
+        "r": 60
+       },
+       {
+        "x": 12,
+        "y": 41,
+        "r": 900
+       },
+       {
+        "x": 15,
+        "y": 52,
+        "r": 240
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: bubble\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/24-chart-bubble.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: bubble\n\nA bubble point is `[x, y, size]`; the area of the bubble follows the size.\n\nChart (bubble): Templates by questions, run time and downloads\n\nSize is the size of the bubble.\n\n| series | questions | seconds | size |\n| --- | --- | --- | --- |\n| templates | 3 | 8 | 120 |\n| templates | 6 | 14 | 480 |\n| templates | 9 | 30 | 60 |\n| templates | 12 | 41 | 900 |\n| templates | 15 | 52 | 240 |\n"
+ },
+ "format/25-chart-candlestick.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Mon",
+     "Tue",
+     "Wed",
+     "Thu",
+     "Fri"
+    ],
+    "series": [
+     {
+      "name": "price",
+      "data": [
+       [
+        100,
+        108,
+        98,
+        105
+       ],
+       [
+        105,
+        110,
+        101,
+        102
+       ],
+       [
+        102,
+        104,
+        95,
+        96
+       ],
+       [
+        96,
+        103,
+        94,
+        101
+       ],
+       [
+        101,
+        109,
+        100,
+        108
+       ]
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: candlestick\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/25-chart-candlestick.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: candlestick\n\nA candlestick chart draws one candle per period. Its series has no `kind`, and each value is four numbers, `[open, high, low, close]`. The body runs from the open to the close and the thin line (the wick) from the low to the high. A candle that closes at or above its open is up (green, light body); one that closes below is down (pink, solid body). Hover or tap a candle to read all four numbers.\n\nChart (candlestick): One week of a share price\n\nEach row is one candle: the value at the open, the highest and lowest values reached, and the value at the close; up means the close is at or above the open.\n\n| day | open | high | low | close |\n| --- | --- | --- | --- | --- |\n| Mon | 100 | 108 | 98 | 105 |\n| Tue | 105 | 110 | 101 | 102 |\n| Wed | 102 | 104 | 95 | 96 |\n| Thu | 96 | 103 | 94 | 101 |\n| Fri | 101 | 109 | 100 | 108 |\n"
+ },
+ "format/26-chart-candlestick-with-a-moving-average.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10
+    ],
+    "series": [
+     {
+      "name": "price",
+      "data": [
+       [
+        100,
+        106,
+        98,
+        104
+       ],
+       [
+        104,
+        109,
+        102,
+        107
+       ],
+       [
+        107,
+        111,
+        105,
+        106
+       ],
+       [
+        106,
+        108,
+        101,
+        102
+       ],
+       [
+        102,
+        105,
+        97,
+        99
+       ],
+       [
+        99,
+        104,
+        96,
+        103
+       ],
+       [
+        103,
+        110,
+        102,
+        109
+       ],
+       [
+        109,
+        113,
+        107,
+        112
+       ],
+       [
+        112,
+        114,
+        108,
+        109
+       ],
+       [
+        109,
+        112,
+        106,
+        111
+       ]
+      ]
+     },
+     {
+      "name": "3-day average",
+      "data": [
+       null,
+       null,
+       105.7,
+       105,
+       102.3,
+       101.3,
+       103.7,
+       108,
+       110,
+       110.7
+      ],
+      "kind": "line",
+      "tone": "6"
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: candlestick with a moving average\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/26-chart-candlestick-with-a-moving-average.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: candlestick with a moving average\n\nAnother series with `kind: line` draws on top of the candles: here the average of the last three closing prices. It may use `y2` for a second axis, like any other chart.\n\nChart (candlestick): Two weeks of a share price, with its 3-day average\n\nEach row is one candle: the value at the open, the highest and lowest values reached, and the value at the close; up means the close is at or above the open. The other columns are lines drawn over the candles.\n\n| day | open | high | low | close | 3-day average |\n| --- | --- | --- | --- | --- | --- |\n| 1 | 100 | 106 | 98 | 104 |  |\n| 2 | 104 | 109 | 102 | 107 |  |\n| 3 | 107 | 111 | 105 | 106 | 105.7 |\n| 4 | 106 | 108 | 101 | 102 | 105 |\n| 5 | 102 | 105 | 97 | 99 | 102.3 |\n| 6 | 99 | 104 | 96 | 103 | 101.3 |\n| 7 | 103 | 110 | 102 | 109 | 103.7 |\n| 8 | 109 | 113 | 107 | 112 | 108 |\n| 9 | 112 | 114 | 108 | 109 | 110 |\n| 10 | 109 | 112 | 106 | 111 | 110.7 |\n"
+ },
+ "format/27-chart-radar.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Speed",
+     "Safety",
+     "Size",
+     "Clarity",
+     "Cost"
+    ],
+    "series": [
+     {
+      "name": "Replay all answers",
+      "data": [
+       3,
+       5,
+       2,
+       4,
+       4
+      ]
+     },
+     {
+      "name": "Keep a session",
+      "data": [
+       5,
+       2,
+       4,
+       3,
+       2
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: radar\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/27-chart-radar.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: radar\n\nThe x list names the axes (at least three); each series is one outline.\n\nChart (radar): Two ways of replaying answers\n\n| axis | Replay all answers | Keep a session |\n| --- | --- | --- |\n| Speed | 3 | 5 |\n| Safety | 5 | 2 |\n| Size | 2 | 4 |\n| Clarity | 4 | 3 |\n| Cost | 4 | 2 |\n"
+ },
+ "format/28-chart-pie.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Ask",
+     "Validate",
+     "Generate",
+     "Write"
+    ],
+    "series": [
+     {
+      "name": "seconds",
+      "data": [
+       4,
+       5,
+       12,
+       5
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: pie\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/28-chart-pie.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: pie\n\nChart (pie): Time in one create\n\n| part | seconds |\n| --- | --- |\n| Ask | 4 |\n| Validate | 5 |\n| Generate | 12 |\n| Write | 5 |\n"
+ },
+ "format/29-chart-doughnut.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "init calls",
+     "validate calls"
+    ],
+    "series": [
+     {
+      "name": "runs",
+      "data": [
+       4,
+       2
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: doughnut\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/29-chart-doughnut.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: doughnut\n\nChart (doughnut): Where the script's runs go, for 3 questions\n\n| part | runs |\n| --- | --- |\n| init calls | 4 |\n| validate calls | 2 |\n"
+ },
+ "format/30-chart-polar-area.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "Morning",
+     "Noon",
+     "Afternoon",
+     "Evening",
+     "Night"
+    ],
+    "series": [
+     {
+      "name": "calls",
+      "data": [
+       34,
+       52,
+       61,
+       28,
+       9
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart: polar area\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/30-chart-polar-area.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart: polar area\n\nLike a pie, but every slice has the same angle and its value is the length.\n\nChart (polar): Calls by hour of the day\n\n| part | calls |\n| --- | --- |\n| Morning | 34 |\n| Noon | 52 |\n| Afternoon | 61 |\n| Evening | 28 |\n| Night | 9 |\n"
+ },
+ "format/31-chart-with-controls.dh.md": {
+  "issues": [],
+  "charts": [
+   {
+    "controls": [
+     {
+      "kind": "slider",
+      "name": "questions",
+      "label": "Questions in the script",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "value": 6
+     },
+     {
+      "kind": "select",
+      "name": "view",
+      "label": "Show",
+      "options": [
+       "per call",
+       "running total"
+      ],
+      "value": "per call"
+     }
+    ],
+    "x": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7
+    ],
+    "series": [
+     {
+      "name": "answers",
+      "data": [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: \"Chart with controls\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/31-chart-with-controls.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Chart with controls\n\nThe reader moves the slider or picks a view; the chart redraws from its formulas. A chart with formulas goes to an LLM as its source, since the formulas say more than one set of numbers.\n\n```chart\nkind: bar\ntitle: Answers carried by each init call\ncontrols:\n  - slider: questions\n    label: Questions in the script\n    min: 1\n    max: 20\n    value: 6\n  - select: view\n    label: Show\n    options: [per call, running total]\nlet:\n  calls: range(1, questions + 1)\n  carried: calls - 1\nx: calls\ny: { label: answers }\nseries:\n  - name: answers\n    data: \"view == 'per call' ? carried : cumsum(carried)\"\n```\n"
+ },
+ "format/32-tier-list.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Tier list\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/32-tier-list.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Tier list\n\nA tier list ranks items in rows, best first. Write one line per tier: its name, a colon, then its items with commas between them. A short note goes in brackets after an item; the page shows it when a reader taps or hovers the item. An LLM reads the same lines.\n\nTier list: Databases for a small team (top tier first)\nS: Postgres (does almost everything), SQLite (no server to run)\nA: MySQL, \"Redis, as a cache\" (fast, but memory is dear)\nB: MongoDB, DynamoDB\nC: Cassandra (great at scale, hard to run small)\nD: A spreadsheet\n"
+ },
+ "format/33-tier-list-your-own-tiers.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Tier list: your own tiers\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/33-tier-list-your-own-tiers.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Tier list: your own tiers\n\nThe tiers are S, A, B, C and D unless you say otherwise. **A list may have any tiers, in any number.** Start with a line `tiers:` that names them; a name may be followed by a colour in square brackets (`c1` to `c8`, `good`, `warn` or `bad`). The tier lines use those names; a tier with no line is an empty row. This list has four tiers.\n\nTier list: What the first release needs (top tier first)\nMust: Sign in, Pay by card (one provider)\nShould: Email receipts, A dark theme\nCould: Gift cards (needs a legal check)\nWon't: A mobile app\n"
+ },
+ "format/34-tier-list-three-tiers-or-seven.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Tier list: three tiers, or seven\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/34-tier-list-three-tiers-or-seven.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Tier list: three tiers, or seven\n\nThere is no limit of four or five. Three tiers are enough for a short list; seven fit a scale with many steps. Only the names on the `tiers:` line count.\n\nTier list: Is it worth doing? (top tier first)\nYes: Cache the build, Add a sample\nMaybe: Rewrite the docs site (a lot of work)\nNo: Support every browser ever\n\nTier list: How far along is each part? (top tier first)\nShipped: Terminal, File tree\nBeta: Editor\nAlpha: Animation in 3D\nPrototype: Tier list\nSketch: Voice over\nIdea: A map part\nDropped: A clock part\n"
+ },
+ "format/35-alignment-grid.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Alignment grid\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/35-alignment-grid.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Alignment grid\n\nAn alignment grid has two axes, each with a name at both ends and any names between (the classic one is lawful .. chaotic by good .. evil). The first name is the left (or top) end. Put items in a cell by its column and row names, `column / row: item, item`; a `\"label\"` before the colon names the cell.\n\nAlignment grid: Which kind of hero? Columns (x, left to right): lawful, neutral, chaotic. Rows (y, top to bottom): good, neutral, evil.\n\n| cell | items |\n| --- | --- |\n| lawful / good \"Crusader\" | Paladin (keeps every oath), Cleric |\n| neutral / good | Druid (looks after the land) |\n| chaotic / good \"Rebel\" | Bard (helps, breaks the rules) |\n| neutral / neutral \"Balance\" | Monk |\n| lawful / evil \"Tyrant\" | Warlock (a contract for everything) |\n| chaotic / evil \"Raider\" | Rogue (takes what it wants) |\n\nCells not listed are empty.\n"
+ },
+ "format/36-alignment-grid-points.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Alignment grid: points\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/36-alignment-grid-points.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Alignment grid: points\n\nAn item can sit at a point instead: `item @ x, y`, with x and y from 0 to 1 (0 is the first end of the axis, 1 the last, 0.5 the middle). Cells and points can be mixed; here the cells only carry labels.\n\nAlignment grid: Which task first? Columns (x, left to right): low effort, high effort. Rows (y, top to bottom): high impact, low impact.\n\n| cell | items |\n| --- | --- |\n| low effort / high impact \"Do first\" | (empty) |\n| high effort / high impact \"Plan it\" | (empty) |\n| low effort / low impact \"Fill a gap\" | (empty) |\n| high effort / low impact \"Skip\" | (empty) |\n\nPoints: x and y run from 0 (the first end: low effort, high impact) to 1 (the last end: high effort, low impact).\n\n| item | x | y |\n| --- | --- | --- |\n| Fix the typo (one line) | 0.12 | 0.22 |\n| Add a sample (people copy it) | 0.32 | 0.3 |\n| Speed up the build | 0.66 | 0.2 |\n| Rewrite the docs site | 0.86 | 0.62 |\n| Rename a variable | 0.14 | 0.78 |\n| Move the logo | 0.4 | 0.88 |\n"
+ },
+ "format/37-alignment-grid-any-size.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Alignment grid: any size\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/37-alignment-grid-any-size.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Alignment grid: any size\n\nEach axis has 2 to 6 names, and the two axes need not match: this grid has five columns and three rows. A grid with more names than that would have cells too small to read.\n\nAlignment grid: How far along is each part? Columns (x, left to right): idea, sketch, draft, review, shipped. Rows (y, top to bottom): small, medium, large.\n\n| cell | items |\n| --- | --- |\n| idea / small | A clock part |\n| shipped / small \"Done\" | Terminal |\n| sketch / medium | A map part |\n| draft / medium | Tier list |\n| shipped / medium | Editor, File tree |\n| review / large | Animation in 3D |\n\nCells not listed are empty.\n"
+ },
+ "format/38-alignment-grid-colours-and-regions.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Alignment grid: colours and regions\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/38-alignment-grid-colours-and-regions.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Alignment grid: colours and regions\n\n`[colour]` after a cell's name (and its label) tints that cell. A `region:` line paints a block of cells with a label: write its columns and rows, each one name or `first .. last`. Colours are the theme names `c1` to `c8`, `good`, `warn` and `bad`, never a hex value. `arrows: on` draws an arrow along each axis. A cell's own colour wins over its region's; regions may not overlap.\n\nAlignment grid: Where does each task go? Columns (x, left to right): low effort, medium, high effort. Rows (y, top to bottom): high impact, medium, low impact.\n\n| cell | items |\n| --- | --- |\n| low effort / high impact \"Do first\" | Fix the typo |\n| medium / high impact | Add a sample |\n| high effort / high impact | Move to the new CI (needs a plan) |\n| low effort / medium | Speed up the build |\n| high effort / low impact | Rewrite the docs site |\n\nCells not listed are empty.\n\nRegion \"Quick wins\": columns low effort to medium, rows high impact to medium.\nRegion \"Avoid\": columns high effort, rows low impact.\n"
+ },
+ "format/39-file-tree.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"File tree\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/39-file-tree.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## File tree\n\n```filetree\nhello-app/\n  .scaffold_state.yaml  (new)  # answers, kept for update\n  README.md  (generated)\n  node_modules/  (closed)\n    ...\n```\n"
+ },
+ "format/40-file-tree-with-steps.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"File tree with steps\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/40-file-tree-with-steps.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## File tree with steps\n\n```filetree\n@step After scaffold create\nhello-app/\n  .scaffold_state.yaml  (new)  # answers, kept for update\n  README.md  (generated)\n@step After the user edits it\nhello-app/\n  .scaffold_state.yaml\n  README.md  (changed)  # the user's own edit\n  LICENSE  (new)\n  old-notes.txt  (removed)\n```\n"
+ },
+ "format/41-marks-and-prefixes.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Marks and prefixes\"\ndescription: A fixture made from the Format page section of the same name.\nmarks:\n  deprecated:\n    label: deprecated\n    colour: warn\n    means: still works, but will be removed\n  experimental:\n    label: experimental\n    colour: c3\n    means: may change without notice\nprefixes:\n  \">>>\":\n    label: Python\n    colour: c4\n    means: a line typed at the Python prompt\nsource: format/41-marks-and-prefixes.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Marks and prefixes\n\nEvery mark is written as a word in the source. Each part has a built-in list, and a page or a site may add its own (see the last block of this section); doccheck refuses a word that is in neither. The page shows the word as a chip, so there are no letters to learn.\n\n**File tree:** the mark goes in brackets after the name.\n\n| Written | The page shows | Meaning |\n| --- | --- | --- |\n| `(new)` | a green \"new\" chip | the file did not exist before |\n| `(changed)` | an orange \"changed\" chip | the file existed and was edited |\n| `(removed)` | a pink \"removed\" chip, name struck | the file is deleted |\n| `(generated)` | a blue \"generated\" chip | a tool made it; do not edit by hand |\n| `(conflict)` | a pink \"conflict\" chip | two changes disagree here |\n| `(closed)` | the folder starts closed | only on a folder |\n| `# text` | a note after the name | |\n| `...` | a \"more files\" row | entries left out |\n\n**Editor:** a step's lines are a diff of the file shown.\n\n| Written | Meaning |\n| --- | --- |\n| `+line` | the line is added (green) |\n| `-line` | the line is removed (pink, under \"Before\") |\n| ` line` (a space) | the line is kept, to say where the edit is |\n| `@@ <path>` | the edit is in this file |\n| `@file <path>` | a made-up file; its lines follow |\n| `(open)` | the file shown first |\n| an \"edited\" chip in the tree | the page adds it to a file a step has changed |\n\n**Terminal:** only the start of a line counts.\n\n| Written | Meaning |\n| --- | --- |\n| `$ ` or `% ` | a command, typed at that prompt |\n| `# ` | a command typed as root |\n| anything else | output, shown as it is |\n\n**Your own marks and prefixes.** A page may define its own, and a site too (see section 3.1 of the spec): a name, a label and a colour. They show only where a part uses them. The front matter of this page defines two marks and one prompt:\n\n```filetree\napp/\n  api.ts\n  parse.ts  (deprecated)\n  next.ts  (experimental)  (new)\n```\n\n```terminal\n$ python3\n>>> print(1 + 1)\n2\n```\n\nPrompts: >>> is Python (a line typed at the Python prompt).\n\n**Code walk:** `focus=17-18` marks the lines the note is about; `mark=29` puts a marker on one line.\n"
+ },
+ "format/42-editor.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Editor\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/42-editor.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Editor\n\nA small IDE: the file tree on the left and one file pane. Files come from a repo at the page's pin, or are made up right here with `@file`. Each `@step` is an edit: `+` adds a line, `-` removes one, a space keeps one; `@@ <file>` picks the file.\n\n```editor\n@file src/index.ts (open)\nimport { greet } from './greet';\n\nconsole.log(greet('hello-app'));\n@file src/greet.ts\nexport function greet(name: string) {\n  return 'Hi ' + name;\n}\n@step Greet with an exclamation mark\n@@ src/greet.ts\n export function greet(name: string) {\n-  return 'Hi ' + name;\n+  return 'Hi ' + name + '!';\n }\n@step Pass the license too\n@@ src/index.ts\n-console.log(greet('hello-app'));\n+console.log(greet('hello-app'), 'MIT');\n```\n"
+ },
+ "format/43-terminal.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Terminal\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/43-terminal.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Terminal\n\nThe shell-session convention every docs site already uses (it is GitHub's and Shiki's `console`/`shellsession`): a line that starts with `$ ` (or `% `, or `# ` for root) is a command, typed at that prompt and highlighted as bash; every other line is output, shown as it is, including a program's own questions and the answers typed into them. Each command is one step. The fence names `console` and `shellsession` give the same part.\n\n```terminal\n$ scaffold create acme/hello ./hello-app\n? Project name? hello-app\n? License? MIT\n✔ Created hello-app\n$ ls hello-app | grep -v node_modules\nREADME.md\n.scaffold_state.yaml\n# chown -R app:app hello-app\n```\n"
+ },
+ "format/44-code-walk-with-inline-code.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Code walk with inline code\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/44-code-walk-with-inline-code.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Code walk with inline code\n\nA code walk takes code written right here too, with the editor's syntax: before the first `@step`, `@file <path>` makes a file up and its lines follow. A step then names that path; its range may be left out (the whole file). The editor reads repo files the same way the code walk does, so both parts take either.\n\n```codewalk\n@file src/greet.ts\nexport function greet(name: string) {\n  const clean = name.trim();\n  return 'Hi ' + clean + '!';\n}\n@step src/greet.ts focus=2\nTrim the name first.\n@step src/greet.ts#L3 focus=3\nThen build the greeting.\n```\n"
+ },
+ "format/45-code-walk-animated-or-still.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Code walk: animated or still\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/45-code-walk-animated-or-still.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Code walk: animated or still\n\nA code walk has two modes. **Still** is for moving between different functions or files: the step's file is shown whole, the step's lines are open and marked, and the rest of the file is folded into a bar like \"… 12 lines\" that the reader can open. A move to the next step switches the marks and the folds at once, with no morph, because a morph between two different functions only confuses. **Animated** is for the same code changing, such as one function growing step by step: the lines morph into each other.\n\nNothing needs to be written: a move is animated when the next step is in the same file and its lines touch the lines of the step before; every other move is still. To say it, put `animate=on` or `animate=off` on the fence (every move) or on a `@step` line (the move into that step); `animate=auto` is the default.\n\nStill: three steps across two files and three functions.\n\n```codewalk\n@file src/cart.ts\nexport function addItem(cart: Cart, item: Item): Cart {\n  const found = cart.items.find((i) => i.sku === item.sku);\n  if (found) {\n    found.qty += item.qty;\n    return cart;\n  }\n  return { ...cart, items: [...cart.items, item] };\n}\n\nexport function removeItem(cart: Cart, sku: string): Cart {\n  return { ...cart, items: cart.items.filter((i) => i.sku !== sku) };\n}\n\nexport function total(cart: Cart): number {\n  let sum = 0;\n  for (const i of cart.items) sum += price(i) * i.qty;\n  return sum;\n}\n@file src/price.ts\nconst RATES: Record<string, number> = { food: 0.05, book: 0, other: 0.2 };\n\nexport function price(item: Item): number {\n  const tax = RATES[item.kind] ?? RATES.other;\n  return Math.round(item.cents * (1 + tax));\n}\n@step src/cart.ts#L1-L8 focus=3-6\nAdding an item that is already in the cart only raises its quantity.\n@step src/cart.ts#L14-L18 focus=16\nThe total adds up one price for each item, times its quantity.\n@step src/price.ts#L1-L6 focus=4-5\nThe price of one item is its cents plus the tax for its kind.\n```\n\nAnimated: one function growing, one line at a time.\n\n```codewalk\n@file src/slug.ts\nexport function slugify(title: string): string {\n  const lower = title.toLowerCase();\n  const words = lower.split(/[^a-z0-9]+/);\n  const clean = words.filter(Boolean);\n  return clean.join('-');\n}\n@step src/slug.ts#L1-L2 focus=2\nStart with the lower-case title.\n@step #L1-L3 focus=3\nSplit it at anything that is not a letter or a digit.\n@step #L1-L4 focus=4\nSplitting can leave empty words at the edges; drop them.\n@step #L1-L5 focus=5\nJoin the words with dashes.\n```\n"
+ },
+ "format/46-replacing-a-part-for-llms.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Replacing a part for LLMs\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/46-replacing-a-part-for-llms.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Replacing a part for LLMs\n\nAny part can be followed by `:::llm`; an LLM reads that text instead of the part.\n\n`scaffold create` makes the project folder with the state file `.scaffold_state.yaml` and the files the template made.\n"
+ },
+ "format/47-animation-the-engine.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: the engine\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/47-animation-the-engine.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: the engine\n\nOne language for every animation: a free 2D space of **entities** (shapes, containers, data structures, tokens), **connectors** that follow their ends, **layouts** that place things, a **camera**, and **steps** of changes that run together. The reader can step, or explore: drag to move, pinch or Ctrl + wheel to zoom, click a thing to read its note, then \"Back to the story\". Here, an array is sorted: `swap` trades two cells, `highlight` lights them for one step, a pointer moves.\n\nAnimation, 5 steps. Starts with: array a: 5, 2, 8, 1; pointer i at a.0.\n\n1. Bubble sort compares neighbours. 5 and 2 are out of order.\n2. So they swap: 2 now comes first.\n3. 5 and 8 are in order, so they stay.\n4. 8 and 1 are not: they swap, and 8, the biggest, has reached the end.\n5. Two more passes move 1 to the front. The array is sorted.\n"
+ },
+ "format/48-animation-binary-search-tree-insert.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: binary search tree insert\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/48-animation-binary-search-tree-insert.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: binary search tree insert\n\nA `tree` lays out its nodes; `under n3 right` puts a node on a side. A token walks down, and the camera moves in for the insert.\n\nAnimation, 4 steps. Starts with: tree t [circle n8 \"8\", circle n3 \"3\" under n8 left, circle n10 \"10\" under n8 right, circle n1 \"1\" under n3 left, circle n14 \"14\" under n10 right].\n\n1. Insert 6. Start at the root: 6 is less than 8, so go left.\n2. 6 is more than 3, so go right.\n   n8 -> n3: 6\n3. 3 has no right child: 6 goes there.\n4. The order holds: everything left of a node is smaller, everything right of it is bigger.\n"
+ },
+ "format/49-animation-hash-table-with-a-collision.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: hash table with a collision\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/49-animation-hash-table-with-a-collision.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: hash table with a collision\n\n`buckets` makes a hash table's buckets; two keys in one bucket make a chain. `send` moves a token along a path.\n\nAnimation, 5 steps. Starts with: buckets h \"hash table\" (5).\n\n1. hash(\"apple\") mod 5 is 2, so apple goes in bucket 2.\n2. hash(\"kiwi\") mod 5 is 4; bucket 4 is empty.\n3. hash(\"grape\") mod 5 is also 2: a collision.\n4. The bucket keeps a chain. Finding grape starts at bucket 2, which leads to apple.\n   h.2 -> apple: find grape\n5. apple is not grape, so the search follows the chain one more link, to grape.\n   apple -> grape: find grape\n"
+ },
+ "format/50-animation-sharding-then-rebalancing.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: sharding, then rebalancing\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/50-animation-sharding-then-rebalancing.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: sharding, then rebalancing\n\nShards are containers holding key ranges; `move` puts a range in another shard, and its connectors follow.\n\nAnimation, 4 steps. Starts with: pill router; group s1 \"shard 1\" [pill k1 \"users 1–100\", pill k2 \"users 101–200\"]; group s2 \"shard 2\" [pill k3 \"users 201–300\", pill k4 \"users 301–400\"]. Connected: router -> s1, router -> s2.\n\n1. The router sends each request to the shard that holds the user's key range.\n   router -> s2: user 250\n2. Shard 2 is getting full. A third shard joins, empty.\n3. Rebalance: the range 301–400 moves to shard 3.\n4. The router's map changes with it: user 350 now goes to shard 3.\n   router -> s3: user 350\n"
+ },
+ "format/51-animation-replicas-and-failover.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: replicas and failover\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/51-animation-replicas-and-failover.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: replicas and failover\n\n`set d1 down=yes` takes the primary down; `move d2 to pg` promotes a replica into the primary's place, and the connectors change with it.\n\nAnimation, 6 steps. Starts with: pill app; group pg \"primary\" [cylinder d1 \"db-1\"]; group rg \"replicas\" [cylinder d2 \"db-2\", cylinder d3 \"db-3\"]. Connected: app -> d1 \"writes\", d1 --> d2 \"copies\", d1 --> d3 \"copies\". Families, one colour each: app \"the app\" (app, app -> d1); db \"databases\" (d1, d2, d3); copy \"copying\" (d1 -> d2, d1 -> d3).\n\n1. The app writes to the primary.\n   app -> d1: write\n2. The primary copies the write to both replicas.\n   d1 -> d2: copy\n   d1 -> d3: copy\n3. The primary's machine dies, so it can take no more writes.\n4. db-2 has the newest copy, so it is promoted: it moves to the primary's place, and the app writes to it.\n5. The dead one is taken out, and the app writes to the new primary.\n   app -> d2: write\n6. db-3 now copies from the new primary.\n   d2 -> d3: copy\n"
+ },
+ "format/52-animation-pods-nodes-a-service.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: pods, nodes, a service\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/52-animation-pods-nodes-a-service.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: pods, nodes, a service\n\nContainers nest: pods in nodes in a cluster. A service routes to pods; when a node dies, a pod is started elsewhere.\n\nAnimation, 5 steps. Starts with: group cluster [group n1 \"node 1\" [pill w1 \"web-1\", pill c1 \"cache-1\"], group n2 \"node 2\" [pill w2 \"web-2\"], group n3 \"node 3\" [pill w3 \"web-3\"]]; pill svc \"service: web\". Connected: svc -> w1, svc -> w2, svc -> w3. Families, one colour each: svc \"service\" (svc, svc -> w1, svc -> w2, svc -> w3); web \"web pods\" (w1, w2, w3); cache \"cache pods\" (c1).\n\n1. Pods run on nodes; nodes make up the cluster. The service is one name in front of the three web pods.\n2. The service spreads requests over the pods.\n   svc -> w1: GET /\n   svc -> w2: GET /cart\n3. Node 2 dies, and web-2 with it.\n4. The scheduler starts a new web-2 on node 3, which has room.\n5. The service sends to the running pods only; nobody sees a gap.\n   svc -> w2b: GET /cart\n"
+ },
+ "format/53-animation-a-service-mesh.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: a service mesh\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/53-animation-a-service-mesh.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: a service mesh\n\nEach pod holds its app and a sidecar proxy; the control plane pushes config to every proxy. A `send` shows its movement as a small token (the default), as an arrow that draws itself from source to target (`send arrow`), or both (`send both`); an LLM reads each the same way, as `a -> b: label` under the step. `family app \"apps\"` names a family in the setup and `is=app` gives a thing, a connector or a send its colour: each family gets one colour from a fixed palette (a soft fill, a line, an ink for words), the same on every shape, arrow, token and chip, in light and dark, with a legend above the stage. A send takes the colour of the thing it starts from.\n\nAnimation, 6 steps. Starts with: group cp \"control plane\" [box cfg \"mesh config\"]; group mesh [group pa \"pod: orders\" [box a \"orders app\", box pxa \"proxy\"], group pb \"pod: payments\" [box pxb \"proxy\", box b \"payments app\"]]. Connected: a -> pxa, pxa -> pxb \"mTLS\", pxb -> b, cfg --> pxa, cfg --> pxb. Families, one colour each: app \"apps\" (a, b); proxy \"sidecar proxies\" (pxa, pxb, pxa -> pxb); ctl \"control plane\" (cp, cfg, cfg -> pxa, cfg -> pxb).\n\n1. Each pod runs its app and a sidecar proxy. The app talks only to its own proxy.\n   a -> pxa: pay order 7\n2. The two proxies talk over mutual TLS: the call is encrypted, and each side proves who it is.\n   pxa -> pxb: encrypted\n3. The payments proxy hands the call to its app. Neither app sees the encryption.\n   pxb -> b: pay order 7\n4. The control plane pushes a new rule to every proxy: retry twice. No app changes.\n   cfg -> pxa: retry: 2\n   cfg -> pxb: retry: 2\n5. A call fails once at the payments app.\n6. The orders proxy retries by itself; the second try reaches the payments proxy, and then the app.\n   pxa -> pxb: retry\n"
+ },
+ "format/54-animation-not-only-code.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: not only code\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/54-animation-not-only-code.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: not only code\n\nThe same entities tell any story: how a bill becomes a law (in the United States, simplified).\n\nAnimation, 5 steps. Starts with: person rep \"member of the House\"; group house \"House\"; group senate \"Senate\"; person pres \"President\"; box law; token bill at rep. Connected: rep -> house, house -> senate, senate -> pres, pres -> law.\n\n1. A member of the House writes a bill and introduces it.\n2. A House committee studies it; then the whole House votes, and a majority passes it.\n   rep -> house: bill\n3. The Senate does the same: its own committee, its own vote.\n   house -> senate: bill\n4. The President signs it.\n   senate -> pres: bill\n5. The bill is now a law.\n   pres -> law: bill\n"
+ },
+ "format/55-animation-colour-families-the-way-a-diagram-uses-them.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: colour families, the way a diagram uses them\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/55-animation-colour-families-the-way-a-diagram-uses-them.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: colour families, the way a diagram uses them\n\nColour marks what a thing *is*, and words stay readable: a family's colour goes on the border, the lines and the dots, with a light tint inside (`fill=soft`, the default) or none (`fill=none`, the border only); the words are always in ink. A container can be one family and hold things of other families: each keeps its own colour. A thing of the same family as its container drops the tint, so it stands out. Set `fill=` on one thing, or on the whole scene (`` ```animation fill=none ``). Here, letters go from post boxes (border only) through a sorting centre (one family) whose two machines are two other families.\n\nAnimation, 6 steps. Starts with: group boxes \"post boxes\" [box p1 \"Hill Road\", box p2 \"Lake Street\", box p3 \"Market Square\"]; group c1 \"north centre\" [box c1a \"machine A\", box c1b \"machine B\"]; group c2 \"south centre\" [box c2a \"machine A\", box c2b \"machine B\"]; group vans [box v1 \"van 1\", box v2 \"van 2\"]; cylinder po \"post office\". Connected: p1 --> c1, p2 --> c1, p3 --> c2, c1 --> v1, c2 --> v2, v1 --> po, v2 --> po. Families, one colour each: box \"post boxes\" (p1, p2, p3, p1 -> c1, p2 -> c1, p3 -> c2); sort \"sorting centres\" (c1, c2, c1 -> v1, c2 -> v2); a \"machine A\" (c1a, c2a); b \"machine B\" (c1b, c2b); van \"vans\" (vans, v1, v2, po, v1 -> po, v2 -> po).\n\n1. Letters wait in three post boxes. The colours say what each thing is; the words stay in ink.\n2. A collection takes the Hill Road letters to the north centre.\n   p1 -> c1: letters\n3. Machine A reads the addresses. Machine B, another family inside the same centre, stands by.\n4. Machine A breaks down, and machine B takes over.\n5. The sorted letters go out to van 1.\n   c1 -> v1: sorted\n6. Van 1 takes them to the post office.\n   v1 -> po: delivery\n"
+ },
+ "format/56-animation-streams-meters-and-colours.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: streams, meters and colours\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/56-animation-streams-meters-and-colours.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: streams, meters and colours\n\nA `send stream` keeps small dots flowing along a path for the whole step: traffic, a feed, readings. `level=0..100` puts a meter in a thing, and `set x level=` moves it. Here, weather stations stream readings to a hub, which batches them into a store; the hub's buffer fills and empties.\n\nAnimation, 4 steps. Starts with: group field \"stations\" [box s1 \"hill station\", box s2 \"lake station\", box s3 \"city station\"]; box hub; cylinder db \"readings store\". Connected: s1 -> hub, s2 -> hub, s3 -> hub, hub -> db. Families, one colour each: st \"stations\" (s1, s2, s3); hub \"the hub\" (hub); store \"the store\" (db).\n\n1. Three stations send a reading every few seconds. The hub keeps them in a buffer.\n   s1 -> hub\n   s2 -> hub\n   s3 -> hub\n2. A storm: the hill station sends ten times as often, and the buffer fills.\n   s1 -> hub: storm: every second\n   s2 -> hub\n   s3 -> hub\n3. The buffer is full: the hub writes one batch to the store and empties.\n   hub -> db: batch of 600\n4. Readings keep coming. When the buffer is full again, the next batch goes in: the store grows by a batch at a time.\n   s1 -> hub\n   s2 -> hub\n   s3 -> hub\n   hub -> db: next batch\n"
+ },
+ "format/57-animation-a-balancer-evens-out-the-load.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: a balancer evens out the load\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/57-animation-a-balancer-evens-out-the-load.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: a balancer evens out the load\n\nMeters on several things show a balance changing step by step. Here, a kitchen's three cooks get orders; a pass moves orders from the busiest cook to the least busy one.\n\nAnimation, 4 steps. Starts with: box pass \"the pass\"; group line \"the line\" [box c1 \"grill\", box c2 \"salads\", box c3 \"pasta\"]. Connected: pass -> c1, pass -> c2, pass -> c3. Families, one colour each: pass \"the pass\" (pass); cook \"cooks\" (c1, c2, c3).\n\n1. Orders pile up at the grill; the salad cook is nearly idle.\n2. The pass sends the next two orders to the salad cook instead.\n   pass -> c2: 2 orders\n3. The grill finishes what it had, and gets nothing new until it catches up.\n4. Now each cook has about the same amount of work.\n"
+ },
+ "format/58-animation-one-question-becomes-three.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: one question becomes three\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/58-animation-one-question-becomes-three.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: one question becomes three\n\n`split` and `merge` with arrows show one request fanning out and coming back together. Here, a library search asks three branch catalogues at once and merges their answers.\n\nAnimation, 4 steps. Starts with: pill ask \"find: tide tables\"; box planner; group branches [cylinder b1 \"north branch\", cylinder b2 \"harbour branch\", cylinder b3 \"old town branch\"]; box merge \"merger\". Connected: ask -> planner, planner -> b1, planner -> b2, planner -> b3, b1 -> merge, b2 -> merge, b3 -> merge. Families, one colour each: q \"the question\" (ask, planner, merge); br \"branch catalogues\" (b1, b2, b3).\n\n1. A reader asks for tide tables. The planner sees that three branches keep them.\n   ask -> planner\n2. The planner asks all three branches at once.\n   planner -> b1: same question\n   planner -> b2\n   planner -> b3\n3. Each branch answers with what it has; the old town branch has nothing.\n   b1 -> merge: 2 books\n   b2 -> merge: 5 books\n4. The merger joins the answers into one list for the reader.\n"
+ },
+ "format/59-animation-the-author-sets-the-beat.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: the author sets the beat\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/59-animation-the-author-sets-the-beat.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: the author sets the beat\n\nFormat version 9 gives the author more say over motion, still with no times or pixels. `then` starts the next beat of a step: what comes after it waits for what came before. `pace slow` or `pace fast` sets a step's speed. `spotlight` dims everything else for one step. `say cache below: …` says where the speech goes. `path=arc` makes a move travel over an arc. Things a step does not change never move.\n\nAnimation, 4 steps. Starts with: person u \"reader\"; group app \"web app\" [box h \"handler\"]; box cache; cylinder db \"database\"; group tray \"pages ready\". Connected: u -> app, app -> cache, app -> db. Families, one colour each: app \"the app\" (app, h); data (cache, db).\n\n1. A reader asks the web app for a page.\n   u -> app: GET /a\n2. The app looks in the cache; then the cache answers.\n   app -> cache: find /a\n3. So the app reads the database. The pace is slow, so the wait shows.\n   app -> db: read /a\n4. The handler builds the page; then it moves over to the pages that are ready.\n"
+ },
+ "format/60-animation-by-a-new-author-a-queue-with-workers.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation by a new author: a queue with workers\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/60-animation-by-a-new-author-a-queue-with-workers.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation by a new author: a queue with workers\n\nWritten from the spec alone by a helper that had not seen the engine; doccheck passed it on the first try.\n\nAnimation, 6 steps. Starts with: box api \"API\"; queue q \"jobs\": empty; group w1 \"worker 1\"; group w2 \"worker 2\". Connected: api -> q, q -> w1, q -> w2.\n\n1. The API adds three jobs to the queue.\n2. Worker 1 takes the oldest job from the front.\n3. Worker 2 takes the next job.\n4. Worker 1 finishes job 1, so the job is gone.\n5. Worker 1 takes the next job in line.\n6. The API keeps adding work while the workers run.\n"
+ },
+ "format/61-animation-by-a-new-author-a-cdn-miss-then-a-hit.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation by a new author: a CDN miss, then a hit\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/61-animation-by-a-new-author-a-cdn-miss-then-a-hit.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation by a new author: a CDN miss, then a hit\n\nThe second scene from the same first try.\n\nAnimation, 7 steps. Starts with: person u1 \"user 1\"; group edge \"CDN edge\"; cylinder origin \"origin server\". Connected: u1 <-> edge, edge <-> origin.\n\n1. User 1 asks the CDN edge for logo.png.\n   u1 -> edge: GET logo.png\n2. The edge has no copy: a miss.\n3. The edge fetches the file from the origin server.\n   edge -> origin: GET logo.png\n4. The origin answers, and the edge keeps a copy.\n   origin -> edge: logo.png\n5. The edge answers user 1.\n   edge -> u1: logo.png\n6. User 2 asks the edge for the same file.\n   u2 -> edge: GET logo.png\n7. The edge has a copy: a hit. It answers at once, with no trip to the origin.\n   edge -> u2: logo.png\n"
+ },
+ "format/62-animation-one-thing-splits-travels-and-merges.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: one thing splits, travels and merges\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/62-animation-one-thing-splits-travels-and-merges.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: one thing splits, travels and merges\n\nA token can be cut into pieces and put back together. `split f into 3 \"part\"` makes three tokens, `f.1` to `f.3` (\"part 1\" to \"part 3\"), where `f` was. `move f.1 f.2 f.3 into b` moves them together, as one hop. `merge f` puts the pieces back into `f`. A token can sit at a thing (`token t \"req\" at api`) or wait in a container (`token f \"photo.jpg\" in a`).\n\nAnimation, 4 steps. Starts with: group a \"sender\" [token f \"photo.jpg\"]; group b \"receiver\". Connected: a -> b.\n\n1. The sender has a file that is too big for one packet.\n2. It is split into three parts.\n   f splits into: part 1, part 2, part 3\n3. The parts travel together: one hop.\n   a -> b: part 1, part 2, part 3\n4. The receiver joins them back into the file.\n   part 1, part 2, part 3 merge into f: photo.jpg\n"
+ },
+ "format/63-animation-an-array-a-map-and-a-tree-in-one-scene.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"Animation: an array, a map and a tree in one scene\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/63-animation-an-array-a-map-and-a-tree-in-one-scene.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Animation: an array, a map and a tree in one scene\n\nData structures are things like any other, and live in one scene with a person, a service and a database. Each is `closed=yes`: small and faint until the story zooms into it. `map cart \"cart sizes\" buckets=3: ana: 3, ...` is a map of keys and values, drawn as a hash table: a key's bucket is the sum of its letters' codes, mod 3. `get cart ana` looks a key up (its bucket and entry light up), `get ids 3` reads an array by index, and `put cart dee: 4` adds an entry. `dir=down` on the fence runs the scene top to bottom. Without `buckets=`, a map is a table of keys and values.\n\nAnimation, 10 steps. Starts with: person ana \"Ana\"; group api \"orders service\" [array ids \"sorted ids\": 12, 19, 27, 34, map cart \"cart sizes\" closed, 3 buckets, a key's bucket is the sum of its letters' codes mod 3: ben: 7 (bucket 0), ana: 3 (bucket 1), cy: 9 (bucket 1), tree idx \"price index\" closed [pill p30 \"30\", pill p20 \"20\" under p30 left, pill p50 \"50\" under p30 right, pill p40 \"40\" under p50 left]]; cylinder db \"orders database\". Connected: ana -> api, api -> db. Families, one colour each: svc \"the service\" (api); data \"its data\" (ids, cart, idx).\n\n1. Ana asks for her orders. The service keeps three structures in memory.\n2. Zoom into the array: four ids, sorted.\n   zoom into ids\n3. Index 3 is read at once: 34. No search.\n   get ids 3 -> 34\n4. Now the map. A key's bucket: the sum of its letters' codes, mod 3.\n   zoom out of ids\n   zoom into cart\n5. ana goes to bucket 1, which cy shares (a chain). Its value: 3 items.\n   get cart ana -> 3 (bucket 1)\n6. A new key, dee, goes to bucket 2.\n   put cart dee: 4\n7. Now the tree: smaller prices go left, bigger right.\n   zoom out of cart\n   zoom into idx\n8. Find 40: at the root, 30, go right.\n9. At 50, go left: 40 is found.\n10. Back out: the service answered from memory, not the database.\n   zoom out of idx\n"
+ },
+ "format/64-3d-the-stateless-replay-system-in-layers.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: the stateless replay system in layers\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/64-3d-the-stateless-replay-system-in-layers.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: the stateless replay system in layers\n\nFormat version 5 adds **layers**. `layer co \"coordinator\"` declares one (the first is the top), and `layer=co` puts a thing on it; a thing without `layer=` sits on its container's layer. `split layers` pulls the layers apart, `stack layers` puts them back, and `focus tc` flies the camera to one layer while the others fade. A fence written `` ```animation 3d `` opens the scene in 3D; the **2D/3D** button on every stage switches and keeps the step. In 3D: drag to turn; right-drag, Shift + drag or two fingers to move; the wheel, a pinch or + and − to zoom; once you click the stage, the arrow keys and W A S D move too. Click a thing for its note or a layer to zoom into it; the reset button puts the camera back. Here, one call goes down from the CLI to the template container and the answer comes back up.\n\nAnimation, 13 steps. Starts with: group cli \"CLI\" [text a0 \"no answers yet\"]; box coord \"coordinator\"; group box1 \"template container\" [text t0 \"keeps nothing\"]; cylinder img \"template image\". Connected: cli -> coord, coord -> box1, img --> coord. Layers, top to bottom: you \"your machine\" (cli); co \"coordinator\" (coord); tc \"template container\" (box1); reg \"registry\" (img). Families, one colour each: you \"CLI\" (cli); co \"coordinator\" (coord); tc \"template container\" (box1); reg \"registry\" (img).\n\n1. Four layers: your CLI, the coordinator, the template container, and the registry.\n2. First the coordinator pulls the template's image.\n   img -> coord: image\n3. It starts the template container from it.\n   coord -> box1: start\n4. Init call 1 goes down: the CLI calls the coordinator. It carries no answers.\n   cli -> coord: init 1 · no answers\n5. The coordinator forwards the call to the template container.\n   coord -> box1: init 1\n6. The script makes project id A and stops at its first unanswered question.\n7. The question and the state go back up. The container keeps nothing.\n   box1 -> coord: question: name · state: A\n8. The coordinator hands them to the CLI.\n   coord -> cli: question · state A\n9. The container's layer alone: no answer, no session, no paused script.\n10. You type hello-app. The CLI keeps it, and project id A.\n11. Call 2 carries both down to the coordinator.\n   cli -> coord: init 2 · name, A\n12. It forwards call 2. The script runs again from line 1, past the name.\n   coord -> box1: init 2\n13. Every call goes down and back this way. Only the CLI holds the answers.\n"
+ },
+ "format/65-3d-kubernetes-cluster-to-container.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: Kubernetes, cluster to container\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/65-3d-kubernetes-cluster-to-container.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: Kubernetes, cluster to container\n\nBoxes inside boxes: a cluster box holds node boxes, a node holds pod boxes, a pod holds its containers. This is a tree that only works in 3D, so the fence says `3d only` and the stage has no 2D button. Every level starts `closed=hidden`: nothing inside it is drawn until `zoom into` opens it, so each step talks about one level and the smaller boxes stay out of the way. Zooms nest (`zoom into n1`, then `zoom into p2`), and each zoom pulls the box it opens up out of the one that holds it (`lift n1`, then `lift p2`: lifts nest too). `lift k3` pulls redis up out of its pod to focus on it, `put back` sets it down again, and `zoom out` and `zoom out all` close the levels one at a time or all at once, putting each box back where it was. While a step plays, only the labels of what it touches show: here, redis alone as the camera flies to it.\n\nAnimation, 8 steps, 3D only. Starts with: group c \"cluster\" [group n1 \"node 1\" closed, inside hidden [group p1 \"web-1\" closed, inside hidden [box k1 \"nginx\", box k2 \"log agent\"], group p2 \"cache-1\" closed, inside hidden [box k3 \"redis\"]], group n2 \"node 2\" closed, inside hidden [group p3 \"web-2\" closed, inside hidden [box k4 \"nginx\", box k5 \"log agent\"]]].\n\n1. One cluster box holds two node boxes. What runs on the nodes is hidden: at this level we talk about machines.\n2. Zoom into node 1: it rises out of the cluster, and its pod boxes appear, web-1 and cache-1. Node 2 fades.\n   zoom into n1: its inside appears, the rest fades\n   lift n1 out of c\n3. Zoom into cache-1: it rises out of node 1, its box opens, and its one container shows, redis.\n   zoom into p2: its inside appears, the rest fades\n   lift p2 out of n1\n4. Pull redis up out of its pod to focus on it. While the camera flies in, only its label shows.\n   lift k3 out of p2\n5. The redis container crashes.\n6. The kubelet on node 1 starts it again, back in the same pod. The pod and the node stay as they were.\n   put back k3\n7. Zoom out to node 1: cache-1 settles back into the node and closes again; its container hides.\n   zoom out of p2\n   p2 settle back into place\n8. Zoom out all the way: node 1 settles back into the cluster. The smaller boxes hide, and we are back to talking about machines.\n   zoom out all the way\n   n1 settle back into place\n"
+ },
+ "format/66-3d-only-a-packet-through-kube-proxy.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D only: a packet through kube-proxy\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/66-3d-only-a-packet-through-kube-proxy.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D only: a packet through kube-proxy\n\nNested boxes you open one level at a time. The nodes start with `closed=hidden`: nothing inside them is drawn until `zoom into n1 n2`. `lift fe w2` raises two pods up out of their nodes while everything else fades, so one call between them is easy to follow; `zoom out` puts them back in exactly the same place and hides them again. kube-proxy itself never touches the packet: it writes rules into each node's kernel, and those rules rewrite the service's virtual IP to one pod's IP.\n\nAnimation, 10 steps, 3D only. Starts with: group c \"cluster\" [group n1 \"node 1\" closed, inside hidden [group n1p [group fe \"frontend\" [box fe1 \"app\"], group w1 \"web-1\" [box w1a \"nginx\"]], group n1k [box kp1 \"kube-proxy\", box r1 \"iptables rules\"]], group n2 \"node 2\" closed, inside hidden [group n2p [group w2 \"web-2\" [box w2a \"nginx\"]], group n2k [box kp2 \"kube-proxy\", box r2 \"iptables rules\"]]]. Connected: kp1 --> r1 \"writes\", kp2 --> r2 \"writes\". Families, one colour each: pod \"pods\" (fe, w1, w2).\n\n1. A cluster of two nodes. What runs inside them is hidden for now.\n2. Zoom in: the pods appear. On each node, kube-proxy writes the service's rules into the kernel.\n   zoom into n1, n2: their insides appear, the rest fades\n3. The frontend pod and web-2 rise out of their nodes, to follow one call.\n   lift fe, w2 out of n1p, n2p\n4. The frontend calls the service web at 192.0.2.10. The service shows up beside the nodes, but no pod has that address.\n5. The packet leaves the pod and meets node 1's rules, not kube-proxy itself.\n   fe -> r1: to 192.0.2.10\n6. A rule picks one of the service's pods at random, web-2, and rewrites the address to its IP.\n7. The rewritten packet crosses to node 2 and goes straight to web-2: pod to pod.\n   r1 -> w2: to 198.51.100.7\n8. web-2 answers. The reply goes back to node 1.\n   w2 -> r1: 200 OK\n9. Node 1 remembers the rewrite and puts the service address back: 192.0.2.10 answers.\n   r1 -> fe: from 192.0.2.10\n10. Zoom out: the pods settle back into their nodes and hide again.\n   zoom out of n1, n2\n   fe, w2 settle back into place\n"
+ },
+ "format/67-3d-a-request-through-the-network-layers.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: a request through the network layers\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/67-3d-a-request-through-the-network-layers.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: a request through the network layers\n\nTwo machines with the same five layers. When top-level things sit on two or more layers, the 2D stage draws one band per layer and lines up each band's things in columns, so the two stacks stand side by side.\n\nAnimation, 12 steps. Starts with: box a1 \"browser\"; box b1 \"web server\"; box a2 \"encrypt\"; box b2 \"decrypt\"; box a3 \"segments\"; box b3 \"segments\"; box a4 \"packets\"; box b4 \"packets\"; box a5 \"Wi-Fi\"; box b5 \"Ethernet\". Connected: a1 -> a2, a2 -> a3, a3 -> a4, a4 -> a5, b5 -> b4, b4 -> b3, b3 -> b2, b2 -> b1, a5 -> b5 \"the wire\". Layers, top to bottom: app \"application\" (a1, b1); tls \"TLS\" (a2, b2); tcp \"TCP\" (a3, b3); ip \"IP\" (a4, b4); link (a5, b5). Families, one colour each: cl \"the browser's machine\" (a1, a2, a3, a4, a5); sv \"the server's machine\" (b1, b2, b3, b4, b5).\n\n1. A browser on one machine asks a web server on another for a page. Each machine has the same five layers.\n2. Going down: TLS encrypts the request.\n   a1 -> a2: GET /\n3. TCP cuts it into numbered segments.\n   a2 -> a3: encrypted\n4. IP addresses each one: packets.\n   a3 -> a4: segments\n5. The link layer makes them signals.\n   a4 -> a5: packets\n6. The signals cross the wire to the other machine.\n   a5 -> b5: bits\n7. Going up, each layer undoes its twin's work: to IP.\n   b5 -> b4: bits\n8. IP hands the segments to TCP.\n   b4 -> b3: packets\n9. TCP puts them in order, for TLS.\n   b3 -> b2: segments\n10. TLS decrypts the request, and the web server reads it.\n   b2 -> b1: GET /\n11. Look at one layer: TCP on both machines talks only to TCP. The layers above and below are its tools.\n12. The reply goes back the same way, one layer per hop.\n"
+ },
+ "format/68-3d-a-message-through-a-router-in-segments.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: a message through a router, in segments\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/68-3d-a-message-through-a-router-in-segments.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: a message through a router, in segments\n\nA thing can have an inside. `group r \"router\" closed=yes` draws the router's inside faint and without words; `zoom into r` flies the camera in and opens it, and `zoom out` closes it again. Inside, a queue holds tokens: `move ... into q` puts them at its back, and `pop q to p2` takes the front one out. `drop msg.4 at q` sends a token there and loses it, the way a full router drops a packet. Here, TCP cuts a message into segments, a router forwards them, one is lost and sent again, and host B puts the message back together.\n\nAnimation, 13 steps. Starts with: group ha \"host A\" [token msg \"message\"]; group r \"router\" closed [queue q \"input queue\": empty, table rt: to, port, group p2 \"port 2\"]; group hb \"host B\". Connected: ha -> q, p2 -> hb. Layers, top to bottom: net \"one network\" (ha, r, hb). Families, one colour each: a \"host A\" (ha, msg); b \"host B\" (hb).\n\n1. Host A has one message for host B: too big for one packet.\n2. TCP cuts it into four numbered segments.\n   msg splits into: seg 1, seg 2, seg 3, seg 4\n3. Zoom into the router: an input queue, a routing table, and port 2.\n   zoom into r\n4. The segments arrive. The queue holds three; segment 4 finds it full.\n   ha -> q: seg 1, seg 2, seg 3\n   ha -> q: seg 4, dropped there (lost)\n5. The routing table says host B is behind port 2.\n6. The oldest segment leaves the queue for port 2.\n   q -> p2: seg 1\n7. The next one follows; segment 3 waits its turn.\n   q -> p2: seg 2\n8. Zoom out: segments 1 and 2 cross the wire to host B.\n   zoom out of r\n   p2 -> hb: seg 1, seg 2\n9. Segment 3 follows them.\n   q -> hb: seg 3\n10. Host B has 1, 2 and 3, but not 4. Host A sends segment 4 again.\n11. This time it gets through the router.\n   ha -> r: seg 4\n12. It reaches host B.\n   r -> hb: seg 4\n13. Host B puts the four segments back in order: the message.\n   seg 1, seg 2, seg 3, seg 4 merge into msg: message\n"
+ },
+ "format/69-3d-the-seven-network-layers-and-a-scene-inside-the-scene.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: the seven network layers, and a scene inside the scene\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/69-3d-the-seven-network-layers-and-a-scene-inside-the-scene.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: the seven network layers, and a scene inside the scene\n\nA scene can hold a scene of its own. `scene tcp \"Transport, up close\"` in the setup, its own lines, then `end`, declares it, with its own things and layout. `enter tcp from a4` flies the camera into `a4` and shows that scene instead of the overview; the steps after it change that scene; `leave` flies back out to the overview, just as it was left. The caption says which scene you are in, the slider marks its steps, and \"All steps\" lists them inside the step that enters. Here, a request goes down the seven layers of the OSI model on one machine and up them on the other; at layer 4 the story zooms into how TCP labels, cuts and rebuilds the message. It reads the same in 2D: press **2D**.\n\nAnimation, 18 steps, with 1 scene inside it (tcp \"Transport, up close\"). Two machines, each with the seven OSI layers; a request (\"GET /\") starts in the browser at layer 7.\n\n1. to 4. Down layers 7, 6 (formatted, encrypted) and 5 (session) to layer 4, where TCP splits it into seg 1 to 3.\n5. Enters scene tcp from a4: the sender's TCP (the 3,000 bytes, a header with ports and a sequence number), a network, the receiver's TCP.\n   6. to 11. Cut into seq 1, seq 1001, seq 2001; all cross the network; 1 and 3 arrive first; 2 arrives late and goes between them; joined again; the receiver answers ACK 3001.\n12. Leaves scene tcp: back to the overview, as it was, at a4.\n13. to 18. Down layers 3, 2 and 1, across the wire, up to layer 4 where TCP joins the segments, and up to the web server, which reads GET /.\n"
+ },
+ "format/70-3d-a-database-in-three-regions.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: a database in three regions\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/70-3d-a-database-in-three-regions.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: a database in three regions\n\nRegions as layers: a write lands in one region, and its copies arrive in the others at different times.\n\nAnimation, 6 steps. Starts with: person u1 \"user in Virginia\"; cylinder db1 \"primary\"; person u2 \"user in Paris\"; cylinder db2 \"replica\"; person u3 \"user in Mumbai\"; cylinder db3 \"replica\". Connected: db1 --> db2 \"copies\", db1 --> db3 \"copies\". Layers, top to bottom: us \"us-east\" (u1, db1); eu \"eu-west\" (u2, db2); ap \"ap-south\" (u3, db3). Families, one colour each: user \"users\" (u1, u2, u3); db \"database\" (db1, db2, db3); copy \"copying\" (db1 -> db2, db1 -> db3).\n\n1. Three regions, each with a copy of the database. Only the primary, in us-east, takes writes.\n2. A user in Virginia adds an item to their cart. The primary writes it as change 41.\n   u1 -> db1: write: cart +1\n3. The primary sends change 41 down to the other regions.\n   db1 -> db2: change 41\n   db1 -> db3: change 41\n4. Paris gets it first. Mumbai is further away and still has change 40.\n5. Look at ap-south alone: a read here now gets the cart without the new item. That gap is replication lag.\n   u3 -> db3: read cart\n6. A moment later change 41 arrives, and every region reads the same cart.\n   u3 -> db3: read cart\n"
+ },
+ "format/71-3d-not-only-code-a-building-s-floors.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: not only code, a building's floors\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/71-3d-not-only-code-a-building-s-floors.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: not only code, a building's floors\n\nFloors as layers, and people moving between them: `move` into a container on another layer carries a thing (and what it holds) up or down.\n\nAnimation, 5 steps. Starts with: group fl3 [group lift, box desk \"Ana's desk\"]; group fl2 [box cafe]; group fl1 [box gym]; group lobby [person ana \"Ana\", person ben \"Ben\"]. Layers, top to bottom: f3 \"3rd floor: offices\" (fl3); f2 \"2nd floor: cafe\" (fl2); f1 \"1st floor: gym\" (fl1); gr \"lobby\" (lobby).\n\n1. A building with four floors. Ana and Ben wait in the lobby; the lift is up on the 3rd floor.\n2. The lift comes down to the lobby.\n3. Ana and Ben step in.\n4. The lift goes up to the 2nd floor, and Ben gets out for coffee.\n5. The lift goes on to the 3rd floor, and Ana walks to her desk.\n"
+ },
+ "format/72-3d-a-2d-scene-unchanged.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D: a 2D scene, unchanged\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/72-3d-a-2d-scene-unchanged.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D: a 2D scene, unchanged\n\nThe pass-4 scene of pods, nodes and a service, with the same source. Press **3D** on its stage: with no layers declared, each nesting level is a layer, so the cluster, the nodes and the pods stand at three heights.\n\nAnimation, 5 steps. Starts with: group cluster [group n1 \"node 1\" [pill w1 \"web-1\", pill c1 \"cache-1\"], group n2 \"node 2\" [pill w2 \"web-2\"], group n3 \"node 3\" [pill w3 \"web-3\"]]; pill svc \"service: web\". Connected: svc -> w1, svc -> w2, svc -> w3.\n\n1. Pods run on nodes; nodes make up the cluster. The service is one name in front of the three web pods.\n2. The service spreads requests over the pods.\n   svc -> w1: GET /\n   svc -> w2: GET /cart\n3. Node 2 dies, and web-2 with it.\n4. The scheduler starts a new web-2 on node 3, which has room.\n5. The service sends to the running pods only; nobody sees a gap.\n   svc -> w2b: GET /cart\n"
+ },
+ "format/73-3d-by-a-new-author-a-memory-read.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: \"3D by a new author: a memory read\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/73-3d-by-a-new-author-a-memory-read.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## 3D by a new author: a memory read\n\nWritten from the spec alone by a helper that had not seen the engine; doccheck passed it on the first try.\n\nAnimation, 8 steps. Starts with: box cpu \"program\"; box c1 \"L1 cache\"; box c2 \"L2 cache\"; box mem \"RAM\"; cylinder dsk \"disk\"; pill vx \"x = 42\". Connected: cpu -> c1, c1 -> c2, c2 -> mem, mem -> dsk. Layers, top to bottom: reg \"registers\" (cpu); l1 \"L1 cache\" (c1); l2 \"L2 cache\" (c2); ram \"RAM\" (mem, vx); disk (dsk).\n\n1. The program wants the value x. It asks the fastest place first, the L1 cache, and x is not there (a miss).\n   cpu -> c1: read x\n2. The L1 cache passes the question down to the L2 cache. Another miss.\n   c1 -> c2: read x\n3. The L2 cache asks RAM, and RAM has x (a hit). The disk is not needed.\n   c2 -> mem: read x\n4. Zoom in on RAM. This is the slow part of the trip, which is why caches exist.\n5. The camera pulls back. The value starts its way up, and the L2 cache keeps a copy.\n   mem -> c2: x = 42\n6. The L1 cache keeps a copy too.\n   c2 -> c1: x = 42\n7. The value reaches the program and is held in a register.\n   c1 -> cpu: x = 42\n8. Layers back together. The next read of x is answered at once, with no trip down.\n"
+ },
+ "hostile/01-raw-html-script.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Raw HTML block with a script\nsource: hostile/01-raw-html-script.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n<script>window.__pwned = 1; alert(1)</script>\n\n<div onclick=\"alert(1)\">a div with a handler</div>\n\n<iframe src=\"https://example.com\"></iframe>\n\n<style>body { display: none }</style>\n"
+ },
+ "hostile/02-raw-html-inline.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Inline HTML with event handlers\nsource: hostile/02-raw-html-inline.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\nText with an image <img src=x onerror=\"alert(1)\"> and a <svg onload=\"alert(1)\"></svg> and <a href=\"javascript:alert(1)\">a link</a>.\n"
+ },
+ "hostile/03-javascript-links.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: javascript links in every disguise\nsource: hostile/03-javascript-links.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[plain](javascript:alert(1))\n[upper](JaVaScRiPt:alert(1))\n[entity](&#106;avascript:alert(1))\n[hex entity](&#x6A;avascript:alert(1))\n[named colon](javascript&colon;alert(1))\n[tab inside](java&#9;script:alert(1))\n[percent](%6Aavascript:alert(1))\n[spaces]( javascript:alert(1))\n[autolink]: javascript:alert(1)\n<javascript:alert(1)>\n[reference link][autolink]\n"
+ },
+ "hostile/04-data-vbscript-file-links.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: data, vbscript and file URLs\nsource: hostile/04-data-vbscript-file-links.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[data html](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)\n[vbscript](vbscript:msgbox(1))\n[file](file:///etc/passwd)\n[blob](blob:https://example.com/123)\n\n![data image](data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+)\n![javascript image](javascript:alert(1))\n![remote over http](http://example.com/pixel.gif)\n"
+ },
+ "hostile/05-zero-width-scheme.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Hidden characters in a scheme\nsource: hostile/05-zero-width-scheme.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[zero width](java​script:alert(1))\n[soft hyphen](java&#173;script:alert(1))\n"
+ },
+ "hostile/06-mermaid-attacks.dh.md": {
+  "issues": [
+   "warn 6 mermaid: %%{...}%% directives are dropped (they could change the diagram's security settings)"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Mermaid that tries to escape\nsource: hostile/06-mermaid-attacks.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n```mermaid\n%%{init: {\"securityLevel\": \"loose\", \"startOnLoad\": true}}%%\nflowchart LR\n  A[\"<img src=x onerror=alert(1)>\"] --> B[\"<script>alert(2)</script>\"]\n  B --> C[plain]\n  click A call alert(3)\n  click C \"javascript:alert(4)\"\n```\n"
+ },
+ "hostile/07-html-in-part-text.dh.md": {
+  "issues": [
+   "error 26 [part data] tier list: tier \"S\": the name \"<img src=x onerror=alert(1)>\" holds a bracket; put the whole name in quotes (\"<img src=x onerror=alert(1)>\") or move the bracket's text into a (note)",
+   "error 33 [part data] codewalk has one @step; steps need at least 2 (or none; an editor may have one edit)",
+   "error 41 [part data] animation has one @step; steps need at least 2 (or none; an editor may have one edit)",
+   "error 37 [part data] animation: an animation needs at least 2 @step lines",
+   "warn 42 [part data] animation: the token's label \"<svg onload=alert(3)>\" is 21 characters; a token shows at most about 18, so the stage cuts it. Put the detail in the caption or a note, or write send arrow \"...\" (an arrow's label may be longer)"
+  ],
+  "charts": [
+   {
+    "controls": [],
+    "x": [
+     "<script>a</script>",
+     "b"
+    ],
+    "series": [
+     {
+      "name": "<b onmouseover=alert(1)>s</b>",
+      "data": [
+       1,
+       2
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: HTML inside every part's text\nsource: hostile/07-html-in-part-text.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n```terminal\n$ echo \"<script>alert(1)</script>\"\n<script>alert(2)</script>\n```\n\n```filetree\nsrc/  # <img src=x onerror=alert(1)>\n  a.ts  (new)  # <script>alert(1)</script>\n```\n\nChart (bar): <img src=x onerror=alert(1)>\n\n| x | <b onmouseover=alert(1)>s</b> |\n| --- | --- |\n| <script>a</script> | 1 |\n| b | 2 |\n\nTier list: <script>alert(1)</script> (top tier first)\nS: (empty)\nA: plain\nB: (empty)\nC: (empty)\nD: (empty)\n\n```codewalk\n@file a.ts\nconst a = \"<script>alert(1)</script>\";\n@step a.ts focus=1\nA note with <img src=x onerror=alert(1)> and <script>alert(2)</script>.\n```\n\nAnimation, 1 steps. Starts with: box a \"<img src=x onerror=alert(1)>\"; box b \"<script>alert(2)</script>\". Connected: a -> b.\n\n1. Send\n   a -> b: <svg onload=alert(3)>\n"
+ },
+ "hostile/08-deep-nesting.dh.md": {
+  "issues": [
+   "error 5 Markdown nested deeper than 12 levels; shown as plain text",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: Markdown nested very deep\nsource: hostile/08-deep-nesting.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> deep\n"
+ },
+ "hostile/09-animation-too-many-things.dh.md": {
+  "issues": [
+   "error 6 animation: about 1201 things on the stage; the limit is 300",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: An animation with too many things\nsource: hostile/09-animation-too-many-things.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[animation not shown: about 1201 things on the stage; the limit is 300]\n"
+ },
+ "hostile/10-animation-too-many-steps.dh.md": {
+  "issues": [
+   "error 6 animation: 260 steps; the limit is 200",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: An animation with too many steps\nsource: hostile/10-animation-too-many-steps.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[animation not shown: 260 steps; the limit is 200]\n"
+ },
+ "hostile/11-chart-too-many-points.dh.md": {
+  "issues": [
+   "error 6 chart: 18,000 data points; the limit is 5,000",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: A chart with too many points\nsource: hostile/11-chart-too-many-points.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[chart not shown: 18,000 data points; the limit is 5,000]\n"
+ },
+ "hostile/12-yaml-alias-bomb.dh.md": {
+  "issues": [
+   "error 1 the front matter uses too many YAML anchors and aliases; it is ignored",
+   "error 13 chart: too many YAML anchors and aliases",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\n\nsource: hostile/12-yaml-alias-bomb.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[chart not shown: too many YAML anchors and aliases]\n"
+ },
+ "hostile/13-unclosed-fence.dh.md": {
+  "issues": [
+   "error 8 a code fence is never closed"
+  ],
+  "charts": [],
+  "llm": ""
+ },
+ "hostile/14-unknown-container.dh.md": {
+  "issues": [
+   "error 6 script: \"script\" is not a part of this format",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: An unknown container\nsource: hostile/14-unknown-container.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[script not shown: \"script\" is not a part of this format]\n"
+ },
+ "hostile/15-id-clobbering.dh.md": {
+  "issues": [],
+  "charts": [],
+  "llm": "---\ntitle: Ids that could clobber the page\nsource: hostile/15-id-clobbering.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## location\n\n## cookie\n\n```terminal\n$ echo hi\n```\n\n[jump](#location)\n"
+ },
+ "hostile/16-host-block-throws.dh.md": {
+  "issues": [
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: A host block whose parse throws\nsource: hostile/16-host-block-throws.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n```fy-task\nnot a task at all\n```\n"
+ },
+ "hostile/17-front-matter-broken.dh.md": {
+  "issues": [
+   "error 1 the front matter could not be read (YAML Parse error: Unexpected token); it is ignored",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\n\nsource: hostile/17-front-matter-broken.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\nThe front matter is not valid YAML; the page still renders.\n"
+ },
+ "hostile/18-banner-refused.dh.md": {
+  "issues": [
+   "error 1 [part data] banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it",
+   "error 1 [parts known] a .dh.md page with no part and no human-only segment; name it .md"
+  ],
+  "charts": [],
+  "llm": "---\ntitle: A banner is refused\nsource: hostile/18-banner-refused.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\nBody.\n"
+ },
+ "test/legacy/extras.dh.md": {
+  "issues": [
+   "error 44 [part data] chart: x: min must be below max"
+  ],
+  "charts": [
+   {
+    "controls": [],
+    "x": [],
+    "series": [
+     {
+      "name": "s",
+      "data": [
+       {
+        "x": 1,
+        "y": 2
+       },
+       {
+        "x": 2,
+        "y": 5
+       },
+       {
+        "x": 3,
+        "y": 9
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "controls": [],
+    "x": [
+     "a",
+     "b",
+     "c"
+    ],
+    "series": [
+     {
+      "name": "s",
+      "data": [
+       1,
+       10,
+       100
+      ]
+     }
+    ]
+   },
+   {
+    "controls": [],
+    "x": [
+     "a",
+     "b"
+    ],
+    "series": [
+     {
+      "name": "l",
+      "data": [
+       1,
+       2
+      ]
+     },
+     {
+      "name": "r",
+      "data": [
+       10,
+       20
+      ],
+      "axis": "y2"
+     }
+    ]
+   },
+   {
+    "controls": [],
+    "x": [],
+    "series": [
+     {
+      "name": "s",
+      "data": [
+       {
+        "x": 1,
+        "y": 2
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "controls": [],
+    "x": [
+     "a",
+     "b",
+     "c"
+    ],
+    "series": [
+     {
+      "name": "s",
+      "data": [
+       1,
+       2,
+       3
+      ]
+     }
+    ]
+   }
+  ],
+  "llm": "---\ntitle: Plain charts that use none of the version 11 chart words\nsource: test/legacy/extras.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Scatter with an axis range\n\nChart (scatter)\n\n| series | a | b |\n| --- | --- | --- |\n| s | 1 | 2 |\n| s | 2 | 5 |\n| s | 3 | 9 |\n\n## Line with a log axis\n\nChart (line)\n\nLog scale on y.\n\n| x | s |\n| --- | --- |\n| a | 1 |\n| b | 10 |\n| c | 100 |\n\n## Bar with two axes\n\nChart (bar)\n\nRight axis (y2: right): r. Left axis (left): l.\n\n| x | l | r |\n| --- | --- | --- |\n| a | 1 | 10 |\n| b | 2 | 20 |\n\n## Bad plain chart\n\nChart (scatter)\n\n| series | x | y |\n| --- | --- | --- |\n| s | 1 | 2 |\n\n## Pie\n\nChart (pie)\n\n| part | s |\n| --- | --- |\n| a | 1 |\n| b | 2 |\n| c | 3 |\n"
+ }
+}

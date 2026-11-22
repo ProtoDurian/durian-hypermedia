@@ -34,19 +34,19 @@ export function partsOf(t: number, tz = "UTC"): Parts {
   return { y, mo: +o.month, d: +o.day, h: +o.hour % 24, mi: +o.minute, s: +o.second, ms, dow: new Date(Date.UTC(y, +o.month - 1, +o.day)).getUTCDay() };
 }
 const utc = (y: number, mo: number, d: number, h = 0, mi = 0, s = 0, ms = 0) => { const x = new Date(0); x.setUTCFullYear(y, mo - 1, d); x.setUTCHours(h, mi, s, ms); return x.getTime(); };
-/** the instant of a wall-clock time in a zone (the earlier one, when a clock change makes it ambiguous) */
+/** the instant of a wall-clock time in a zone: the earlier one when a clock change repeats it, and shifted forward by the
+ *  gap when a clock change skips it */
 export function wallToMs(y: number, mo: number, d: number, h: number, mi: number, s: number, ms: number, tz = "UTC"): number {
   const guess = utc(y, mo, d, h, mi, s, ms);
   if (tz === "UTC") return guess;
-  let t = guess;
-  for (let k = 0; k < 3; k++) {
-    const p = partsOf(t, tz);
-    const shown = utc(p.y, p.mo, p.d, p.h, p.mi, p.s, p.ms);
-    const diff = shown - guess;
-    if (diff === 0) break;
-    t -= diff;
-  }
-  return t;
+  const off = (t: number) => { const p = partsOf(t, tz); return utc(p.y, p.mo, p.d, p.h, p.mi, p.s, p.ms) - t; };
+  const o1 = off(guess - 86_400_000), o2 = off(guess + 86_400_000); // the offsets a day before and a day after: at most one change between
+  const c1 = guess - o1;
+  if (o1 === o2) return c1;
+  const c2 = guess - o2;
+  const ok1 = off(c1) === o1, ok2 = off(c2) === o2;
+  if (ok1 && ok2) return Math.min(c1, c2);
+  return ok2 ? c2 : c1;
 }
 const isDigit = (c: string | undefined) => c !== undefined && c >= "0" && c <= "9";
 /** n digits at i: their value, or -1 */

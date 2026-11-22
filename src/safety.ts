@@ -105,6 +105,12 @@ export const UNTRUSTED_LIMITS: Limits = {
   maxPageYamlNodes: 4_000,
   maxAnimWork: 3_000_000,
   maxPageAnimWork: 6_000_000,
+  // the chart's version 11 words: about half of the authored caps, heat cells a quarter
+  maxChartAnnotations: 30,
+  maxChartSteps: 20,
+  maxChartHeatCells: 2_500,
+  maxCalcRows: 12,
+  maxCalcInputs: 6,
   ...PART_UNTRUSTED_LIMITS,
 };
 

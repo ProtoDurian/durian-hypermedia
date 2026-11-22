@@ -168,10 +168,17 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   catch (e) { if (e instanceof BudgetError) { spent(e); return; } if (/anchors and aliases/.test((e as Error).message)) { err(p.line, `chart: ${(e as Error).message}`); return; } throw e; }
   // steps, a time axis, annotations, formats, heatmaps and the page-chart words are checked first (core/chart11.ts); what is left is
   // the plain chart the evaluator's own checks understand
-  { const c11 = chart11Check(d); for (const e of c11.errors) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); for (const w of c11.warnings) warn(p.line, `chart: ${w}`); if (c11.errors.length) return; d = c11.base; }
+  let later: any[] = [];
+  { const c11 = chart11Check(d); for (const e of c11.errors) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); for (const w of c11.warnings) warn(p.line, `chart: ${w}`); if (c11.errors.length) return; d = c11.base; later = c11.later; }
   for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${briefJson(k).slice(1, -1)}" (keys: ${CHART_KEYS.join(", ")})`);
   if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}, heatmap`);
-  for (const e of chartCheck(d)) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
+  const first = chartCheck(d);
+  for (const e of first) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
+  // every later step is checked like the first chart (what it changes, a mistyped scale, a wrong axis key), each problem once
+  try {
+    const seen = new Set(first);
+    later.forEach((b, i) => { for (const e of chartCheck(b)) if (!seen.has(e)) { seen.add(e); err(p.line, `chart: step ${i + 2}: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); } });
+  } catch (e) { if (e instanceof BudgetError) { spent(e); return; } throw e; }
   const { controls, errors } = chartControls(d);
   for (const e of errors) err(p.line, `chart: ${e}`);
   const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);

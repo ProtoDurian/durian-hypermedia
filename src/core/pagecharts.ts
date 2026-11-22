@@ -68,6 +68,10 @@ export const MAX_TICKS = 200;
 /** the ticks of a time axis with its own unit and step: whole units of the zone, `every` of them apart (hours align to the day, months and years to the year) */
 export function ticksEvery(min: number, max: number, unit: string, every: number, tz = "UTC", pay = true): number[] {
   const u = unit as TimeUnit, out: number[] = [];
+  // charged before any tick is made, for the most this call can make: the ticks the range holds, and never more than a chart carries
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return out;
+  const room = Math.max(0, Math.min(MAX_TICKS, Math.ceil((max - min) / (UNIT_MS[u] * every)) + 2));
+  if (pay) charge(room + 8, room);
   let t = startOf(min, u, tz);
   const p = partsOf(t, tz);
   if (every > 1) {
@@ -79,16 +83,15 @@ export function ticksEvery(min: number, max: number, unit: string, every: number
   if (u === "hour" || u === "minute") {
     // hours and minutes step on the zone's wall clock, so a clock change does not move 08:00 to 09:00
     const q = partsOf(t, tz);
-    for (let k = 0; k < MAX_TICKS * 2; k++) {
+    for (let k = 0; k < room; k++) {
       const x = u === "hour" ? wallToMs(q.y, q.mo, q.d, q.h + k * every, 0, 0, 0, tz) : wallToMs(q.y, q.mo, q.d, q.h, q.mi + k * every, 0, 0, tz);
       if (x > max) break;
       if (x >= min && (!out.length || x > out[out.length - 1])) out.push(x);
     }
   } else {
     if (t < min) t = add(t, every, u, tz);
-    for (let k = 0; t <= max && k < MAX_TICKS * 2; k++) { out.push(t); t = add(t, every, u, tz); }
+    for (let k = 0; t <= max && k < room; k++) { out.push(t); t = add(t, every, u, tz); }
   }
-  if (pay) charge(out.length + 8, out.length);
   return out;
 }
 /** a time axis with its own unit that would carry more ticks than a chart can label */
@@ -243,7 +246,8 @@ export function pcPrepare(d: any, base: any, ext: { tz: string; time: boolean; p
           else t.every = a.every;
         }
         pc.time = t;
-      } else if (has.length) errors.push(`x.${has[0]} works with a time axis (x: { scale: time }); ${has[0] === "min" || has[0] === "max" ? "a number axis keeps its own min and max (they must be numbers)" : "remove it"}`);
+      } else if (has.some((k) => k !== "min" && k !== "max")) { const k = has.find((q) => q !== "min" && q !== "max")!; errors.push(`x.${k} works with a time axis (x: { scale: time }); remove it`); }
+      // on a number axis min and max are the plain chart's own, checked by the evaluator's rules
       else if (a.scale === "time" && !ext.time) { /* reported by chart11 */ }
       if (b) for (const k of ["unit", "every"]) delete b[k];
       if (b && ext.time) { delete b.min; delete b.max; }

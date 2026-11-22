@@ -53,33 +53,46 @@ export interface Prepared { base: any; ext: Ext; errors: string[]; warnings: str
 
 const xValuesOf = (d: any): any[] | undefined => (Array.isArray(d?.x) ? d.x : isObj(d?.x) && Array.isArray(d.x.values) ? d.x.values : undefined);
 
-/** the chart a step shows: the chart as written, then each step's changes on top of the one before */
+/** the chart as written, without its steps (series copied, so a step never changes the one before it) */
+function baseSpec(d: any): any {
+  const series: any[] = Array.isArray(d?.series) ? d.series : [];
+  charge(2 + series.length, series.length);
+  const spec: any = { ...d }; delete spec.steps;
+  spec.series = series.map((s: any) => (isObj(s) ? { ...s } : s));
+  return spec;
+}
+/** one step's changes on top of the chart before it: a new chart, the one before is not touched. Charged for what it reads. */
+function applyStep(prev: any, st: any, i: number, errors: string[]): any {
+  const have: any[] = prev.series;
+  const mine = isObj(st) && Array.isArray(st.series) ? st.series.length : 0;
+  charge(2 + have.length + mine * (have.length + 1), have.length + mine);
+  let spec: any = { ...prev, series: have.map((s: any) => (isObj(s) ? { ...s } : s)) };
+  if (!isObj(st)) { errors.push(`step ${i + 1} must be an object with a title (and series, annotations or y when it changes them)`); return spec; }
+  for (const key of Object.keys(st)) if (!STEP_KEYS.includes(key)) errors.push(`step ${i + 1}: unknown key "${key}" (keys: ${STEP_KEYS.join(", ")})`);
+  if (st.title !== undefined && typeof st.title !== "string") errors.push(`step ${i + 1}: title must be text`);
+  if (st.series !== undefined) {
+    if (!Array.isArray(st.series)) errors.push(`step ${i + 1}: series must be a list`);
+    else for (const ss of st.series) {
+      if (!isObj(ss) || typeof ss.name !== "string") { errors.push(`step ${i + 1}: a series needs a name`); continue; }
+      for (const key of Object.keys(ss)) if (!STEP_SERIES_KEYS.includes(key)) errors.push(`step ${i + 1}: series "${ss.name}": unknown key "${key}" (keys: ${STEP_SERIES_KEYS.join(", ")})`);
+      const at = spec.series.findIndex((s: any) => isObj(s) && String(s.name ?? s.label) === ss.name);
+      if (ss.add === true) {
+        if (at >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
+        else { const { add, ...rest } = ss; spec.series.push(rest); }
+      } else if (at < 0) errors.push(`step ${i + 1}: series "${ss.name}" is not in the chart; add add: true to bring in a new series (series: ${spec.series.map((s: any) => s?.name).filter(Boolean).join(", ") || "none"})`);
+      else { const { add, name, ...rest } = ss; spec.series[at] = { ...spec.series[at], ...rest }; }
+    }
+  }
+  if (st.annotations !== undefined) spec.annotations = st.annotations;
+  if (st.y !== undefined) spec.y = isObj(st.y) ? { ...(isObj(spec.y) ? spec.y : {}), ...st.y } : st.y;
+  return spec;
+}
+/** the chart a step shows: the chart as written, then each step's changes on top of the one before (at most the step cap of them) */
 export function specAt(d: any, k: number): { spec: any; errors: string[] } {
   const errors: string[] = [];
   const steps: any[] = Array.isArray(d?.steps) ? d.steps : [];
-  let spec: any = { ...d }; delete spec.steps;
-  spec.series = (d.series ?? []).map((s: any) => (isObj(s) ? { ...s } : s));
-  for (let i = 0; i <= k && i < steps.length; i++) {
-    const st = steps[i];
-    if (!isObj(st)) { errors.push(`step ${i + 1} must be an object with a title (and series, annotations or y when it changes them)`); continue; }
-    for (const key of Object.keys(st)) if (!STEP_KEYS.includes(key)) errors.push(`step ${i + 1}: unknown key "${key}" (keys: ${STEP_KEYS.join(", ")})`);
-    if (st.title !== undefined && typeof st.title !== "string") errors.push(`step ${i + 1}: title must be text`);
-    if (st.series !== undefined) {
-      if (!Array.isArray(st.series)) errors.push(`step ${i + 1}: series must be a list`);
-      else for (const ss of st.series) {
-        if (!isObj(ss) || typeof ss.name !== "string") { errors.push(`step ${i + 1}: a series needs a name`); continue; }
-        for (const key of Object.keys(ss)) if (!STEP_SERIES_KEYS.includes(key)) errors.push(`step ${i + 1}: series "${ss.name}": unknown key "${key}" (keys: ${STEP_SERIES_KEYS.join(", ")})`);
-        const at = spec.series.findIndex((s: any) => isObj(s) && String(s.name ?? s.label) === ss.name);
-        if (ss.add === true) {
-          if (at >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
-          else { const { add, ...rest } = ss; spec.series.push(rest); }
-        } else if (at < 0) errors.push(`step ${i + 1}: series "${ss.name}" is not in the chart; add add: true to bring in a new series (series: ${spec.series.map((s: any) => s?.name).filter(Boolean).join(", ") || "none"})`);
-        else { const { add, name, ...rest } = ss; spec.series[at] = { ...spec.series[at], ...rest }; }
-      }
-    }
-    if (st.annotations !== undefined) spec.annotations = st.annotations;
-    if (st.y !== undefined) spec.y = isObj(st.y) ? { ...(isObj(spec.y) ? spec.y : {}), ...st.y } : st.y;
-  }
+  let spec = baseSpec(d);
+  for (let i = 0; i <= k && i < steps.length && i < caps().steps; i++) spec = applyStep(spec, steps[i], i, errors);
   return { spec, errors };
 }
 
@@ -154,17 +167,28 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
       const all = new Map<number, true>();
       let bad = false, n = 0;
       charge(series.length + 1);
-      series.forEach((s) => {
+      for (const s of series) if (isObj(s)) n += (s.data as any[]).length;
+      // the points are counted before they are read, and the table they make before it is built
+      if (n > caps().points) { bad = true; errors.push(`the series have ${n} points together; at most ${caps().points} (aggregate the data into fewer points)`); }
+      else charge(n + 1, n);
+      if (!bad) series.forEach((s) => {
         if (!isObj(s) || bad) return;
+        const seen = new Map<number, number>(); // this series: time to the point that has it
         (s.data as any[]).forEach((p, i) => {
           if (bad) return;
           const t = parseTime(Array.isArray(p) ? p[0] : p?.t, tz);
-          n++;
           if (t === null) { bad = true; errors.push(`series "${s.name ?? "?"}" point ${i + 1}: ${JSON.stringify(Array.isArray(p) ? p[0] : p?.t)} is not an ISO time; write 2026-11-20 or 2026-11-20T10:00`); return; }
+          const j = seen.get(t);
+          if (j !== undefined) { bad = true; const val = (q: any) => JSON.stringify(Array.isArray(q) ? q[1] : q?.v); errors.push(`series "${s.name ?? "?"}": points ${j + 1} and ${i + 1} are both at ${isoOf(t, tz, false)} (values ${val((s.data as any[])[j])} and ${val(p)}); a series has one value at a time: keep one`); return; }
+          seen.set(t, i);
           all.set(t, true);
         });
-        if (!bad && s.data.length > caps().points) { bad = true; errors.push(`series "${s.name}" has ${s.data.length} points; at most ${caps().points} (aggregate the data into fewer points)`); }
       });
+      if (!bad) {
+        const U = all.size, cells = U * (series.length + 1);
+        if (cells > caps().points) { bad = true; errors.push(`the series have ${U} different times, which is ${cells} cells on one time axis; at most ${caps().points} (use the same times in every series, or fewer points)`); }
+        else charge(U * (2 + Math.ceil(Math.log2(U + 1))) + cells, cells);
+      }
       if (!bad) {
         const times = [...all.keys()].sort((a, b) => a - b);
         const dateOnly = series.every((s) => isObj(s) && (s.data as any[]).every((p) => typeof (Array.isArray(p) ? p[0] : p?.t) === "string" && isDateOnly(Array.isArray(p) ? p[0] : p.t)));
@@ -183,6 +207,11 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
     }
   } else if (!ext.time && d.tz !== undefined && !errors.length) warnings.push(`tz sets the zone of a time axis; this chart has none (x: { scale: time }), so it does nothing`);
   if (ext.time && ext.timesMs.length) charge(ext.timesMs.length, ext.timesMs.length);
+  if (ext.time && ext.pc?.time && ext.timesMs.length && !errors.length) {
+    const tt = ext.pc.time, first = ext.timesMs[0], last = ext.timesMs[ext.timesMs.length - 1];
+    if (tt.min !== undefined && tt.min > last) warnings.push(`x.min ${isoOf(tt.min, tz, ext.dateOnly)} is after the last time in the data (${isoOf(last, tz, ext.dateOnly)}); the chart shows no data`);
+    if (tt.max !== undefined && tt.max < first) warnings.push(`x.max ${isoOf(tt.max, tz, ext.dateOnly)} is before the first time in the data (${isoOf(first, tz, ext.dateOnly)}); the chart shows no data`);
+  }
   if (ext.time && ext.pc?.time && ext.timesMs.length && !errors.length) { const e = tickCountError(ext.timesMs[0], ext.timesMs[ext.timesMs.length - 1], ext.pc.time); if (e) errors.push(e); } // p11 pagecharts
   // ---- heatmap: rows become series of a plain bar chart so that the evaluator checks the numbers and the lengths
   if (heat) {
@@ -190,6 +219,7 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
     ext.heat = {};
     if (d.annotations !== undefined) errors.push(`a heatmap has no annotations; remove them`);
     if (d.y2 !== undefined) errors.push(`a heatmap has no second axis; remove y2`);
+    for (const name of ["x", "y"] as const) { const a = d[name]; if (isObj(a)) for (const k of Object.keys(a)) if (k !== "label" && k !== "values" && k !== "format" && k !== "currency") errors.push(`heatmap ${name}: unknown key "${k}" (keys: label, values)`); }
     const xs = xValuesOf(d), ys = isObj(d.y) && Array.isArray(d.y.values) ? d.y.values : undefined;
     const series: any[] = Array.isArray(d.series) ? d.series : [];
     if (!xs || !xs.length) errors.push(`a heatmap needs x.values (the columns)`);
@@ -230,7 +260,10 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
       const xs = ext.time ? ext.timesMs : (xValuesOf(d) ?? []);
       const lo = ext.time ? (ext.pc?.time?.min ?? Math.min(...ext.timesMs)) : 0, hi = ext.time ? (ext.pc?.time?.max ?? Math.max(...ext.timesMs)) : xs.length - 1;
       const pointsKind = d.kind === "scatter";
-      const cat = (v: any): number | null => { const i = xs.findIndex((x: any) => String(x) === String(v)); return i < 0 ? null : i; };
+      // category look-ups through one map (the first x value with that text), charged for building it
+      const catAt = new Map<string, number>();
+      if (!ext.time && !pointsKind) { charge(xs.length + 1, xs.length); xs.forEach((x: any, i: number) => { const k = String(x); if (!catAt.has(k)) catAt.set(k, i); }); }
+      const cat = (v: any): number | null => catAt.get(String(v)) ?? null;
       const pos = (v: any, what: string, i: number): number | null => {
         if (ext.time) {
           const t = parseTime(v instanceof Date ? v.toISOString() : v, tz);
@@ -316,10 +349,15 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
     else if (d.steps.length > caps().steps) errors.push(`at most ${caps().steps} steps (this chart has ${d.steps.length}); merge some`);
     if (d.controls !== undefined) errors.push(`a chart has steps or controls, not both; remove one`);
   }
+  // past the cap or with one step nothing more is read: the step list is refused as it stands
+  if (isObj(d) && d.steps !== undefined && errors.length) { const p = prepareOne(baseSpec(d), 0, 0); return { base: p.base, errors: [...errors, ...p.errors], warnings: p.warnings, steps: [p] }; }
   const n = Math.max(1, steps.length);
   const out: Prepared[] = [];
+  let cur = baseSpec(d); // each step is built from the one before, once
   for (let k = 0; k < n; k++) {
-    const { spec, errors: es } = specAt(d, k);
+    const es: string[] = [];
+    if (steps.length) cur = applyStep(cur, steps[k], k, es);
+    const spec = cur;
     // a step's own mistakes are reported once (at the step that makes them)
     if (k === 0 || es.length) for (const e of es) if (!errors.includes(e)) errors.push(e);
     const title = steps[k]?.title;
@@ -333,15 +371,15 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
   return { base: out[0].base, errors, warnings, steps: out };
 }
 /** what doccheck calls first for a chart: the new words checked, and the plain chart left for the evaluator's own checks */
-export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[] } { return withChartBudget(() => chart11CheckIn(d)); }
-function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[] } {
-  if (!isObj(d)) return { base: d, errors: [], warnings: [] };
+export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[]; later: any[] } { return withChartBudget(() => chart11CheckIn(d)); }
+function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[]; later: any[] } {
+  if (!isObj(d)) return { base: d, errors: [], warnings: [], later: [] };
   let p: ReturnType<typeof prepareChart>;
-  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; }
+  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], later: [] }; throw e; }
   const errors = [...p.errors];
-  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
+  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], later: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
   for (const k of Object.keys(d)) if (!CHART11_KEYS.includes(k)) errors.push(`unknown key "${k}" (keys: ${CHART11_KEYS.join(", ")})`);
-  return { base: p.base, errors, warnings: p.warnings };
+  return { base: p.base, errors, warnings: p.warnings, later: p.steps.slice(1).map((x) => x.base) };
 }
 export const usesChart11 = (d: any) => isObj(d) && (d.kind === "heatmap" || d.steps !== undefined || d.annotations !== undefined || d.tz !== undefined || d.layout !== undefined || d.inputs !== undefined || d.formulas !== undefined || d.calc !== undefined || [d.x, d.y, d.y2].some((a) => isObj(a) && (a.format !== undefined || a.currency !== undefined || a.scale === "time" || a.toggle !== undefined)) || (Array.isArray(d.series) && d.series.some((s: any) => isObj(s) && (s.line !== undefined || s.marker !== undefined))));
 
@@ -352,6 +390,7 @@ export function evalChart11(d: any, values?: Record<string, Val>, step = 0): Eva
   // the page's first evaluation draws from the page's budget; a reader's own action (a slider, a step) from a fresh one of its own
   try { return withChartBudget(() => {
     const steps = Array.isArray(d?.steps) ? d.steps : [];
+    if (steps.length > caps().steps) return { x: [], series: [], vars: {}, error: `at most ${caps().steps} steps (this chart has ${steps.length}); merge some`, ext: EMPTY_EXT };
     const k = Math.max(0, Math.min(step, Math.max(0, steps.length - 1)));
     const { spec, errors } = specAt(d, k);
     if (errors.length) return { x: [], series: [], vars: {}, error: errors[0], ext: EMPTY_EXT };
@@ -469,9 +508,10 @@ function chartTable11In(d: any): string | null {
   lines.push(table);
   if (e0.anns.length) lines.push("", "Annotations:", ...annLines(e0.anns, e0));
   // later steps: the series each one changed
+  let rp = evalChart(first.base);
   for (let k = 1; k < pre.steps.length; k++) {
     const prev = pre.steps[k - 1], cur = pre.steps[k];
-    const rp = evalChart(prev.base), rc = evalChart(cur.base);
+    const rc = evalChart(cur.base);
     if (rc.error || rp.error) return null;
     lines.push("", `Step ${k + 1}: ${cur.ext.stepTitle ?? ""}`.trimEnd());
     const changed = rc.series.filter((s) => { const o = rp.series.find((q) => q.name === s.name); return !o || JSON.stringify(o.data) !== JSON.stringify(s.data); });
@@ -484,6 +524,7 @@ function chartTable11In(d: any): string | null {
       lines.push("", plainTable(cols, rc.x.map((x, i) => [cell(x), ...changed.map((s) => cell(s.data[i]))])));
     } else lines.push("", "No values change.");
     if (JSON.stringify(cur.ext.anns) !== JSON.stringify(prev.ext.anns)) lines.push("", "Annotations:", ...(cur.ext.anns.length ? annLines(cur.ext.anns, cur.ext) : ["- none"]));
+    rp = rc;
   }
   return lines.join("\n");
 }

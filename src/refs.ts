@@ -68,6 +68,14 @@ export function unfence(type: string, source: string): { attrs: Record<string, s
   const close = z.slice(last + 1).trim();
   let n = 0; while (n < close.length && close.charCodeAt(n) === c) n++;
   if (nl < 0 || last < nl || n < run || n !== close.length) return { error: `the host's answer is not one ${type} part: it must end with the fence that closes it` };
+  // a line inside that would close the fence makes it two parts (one pass over the lines)
+  for (let a = nl + 1; a < last;) {
+    const e = source.indexOf("\n", a), end = e < 0 || e > last ? last : e;
+    let k = a; while (k < end && (source.charCodeAt(k) === 0x20 || source.charCodeAt(k) === 0x09)) k++;
+    let m = k; while (m < end && source.charCodeAt(m) === c) m++;
+    if (m - k >= run) { let z = m; while (z < end && source.charCodeAt(z) <= 0x20) z++; if (z === end) return { error: `the host's answer is not one ${type} part: a fence closes inside it` }; }
+    a = end + 1;
+  }
   const { attrs, words } = parseAttrs(head.slice(w));
   for (const x of words) attrs[x] = "true";
   return { attrs, body: source.slice(nl + 1, last), fenced: true };
@@ -81,7 +89,8 @@ export function fencedSource(type: string, source: string): string | { error: st
   let most = 0;
   for (let i = 0, run = 0; i < source.length; i++) { if (source.charCodeAt(i) === 0x60) { run++; if (run > most) most = run; } else run = 0; }
   const f = "`".repeat(Math.max(3, most + 1));
-  return `${f}${type}\n${source.replace(/\n+$/, "")}\n${f}`;
+  let end = source.length; while (end > 0 && source.charCodeAt(end - 1) === 0x0a) end--;
+  return `${f}${type}\n${source.slice(0, end)}\n${f}`;
 }
 
 interface Hooks {
@@ -92,6 +101,9 @@ interface Hooks {
   readPart(type: string, source: string, line: number): Block[];
   /** Markdown to blocks with the page's context (an interactive part's fallback) */
   md(text: string, line: number): MdBlock[];
+  /** count one block against the page's block cap (an svg or interactive part, which readPart does not read): its
+   *  message when the page is over it, else null */
+  tick(line: number): string | null;
 }
 
 // finds each reference's line in a Markdown text, front to back (each character is passed once)
@@ -160,9 +172,10 @@ export class RefSession {
     const ans = this.ask(r.type, r.name);
     const base = { id: null, line, attrs: {}, llm: r.text, llmKind: "as-is" as LlmKind, ref: { type: r.type, name: r.name, label: r.label, text: r.text } };
     if (ans.state !== "ready") return { type: "reference", ...base, state: ans.state, ...(ans.state === "failed" ? { reason: ans.reason } : {}) } as ReferenceBlock;
-    const bytes = utf8Bytes(ans.part);
+    // UTF-8 bytes are never fewer than UTF-16 units: a text longer than the cap is over it without being measured
+    const bytes = ans.part.length > this.h.lim.maxReferenceBytes ? ans.part.length : utf8Bytes(ans.part);
     if (this.bytes + bytes > this.h.lim.maxReferenceBytes) {
-      const reason = `the parts this page's references resolve to are over ${fmt(this.h.lim.maxReferenceBytes)} bytes together; this one is not read`;
+      const reason = `the parts this page's references resolve to are ${bytes > this.h.lim.maxReferenceBytes ? "more than" : "over"} ${fmt(this.h.lim.maxReferenceBytes)} bytes together; this one is not read`;
       this.err(line, `${r.text}: ${reason}`);
       return { type: "reference", ...base, state: "failed", reason } as ReferenceBlock;
     }
@@ -180,6 +193,8 @@ export class RefSession {
     const u = unfence(type, source);
     const refuse = (message: string): Block[] => { this.err(line, `${r.text}: ${message}`); return [{ type: "error", line, part: type, message }]; };
     if ("error" in u) return refuse(u.error);
+    const over = this.h.tick(line);
+    if (over) return [{ type: "error", line, part: type, message: over }];
     const alt = r.label ?? u.attrs.title ?? r.name;
     const base = { id: null, line, attrs: u.attrs, llm: r.text, llmKind: "as-is" as LlmKind, title: u.attrs.title ?? null, alt };
     if (type === "svg") {
@@ -211,7 +226,7 @@ export class RefSession {
 
   /** The blocks of one Markdown text of the page, with its references taken care of (see the top of this file). */
   split(md: MdBlock[], text: string, line: number): Block[] {
-    const has = text.includes("[["), fences = text.includes("interactive") || text.includes("svg");
+    const has = text.includes("[["), fences = /interactive|svg/i.test(text);
     if (!has && !fences) return [{ type: "markdown", line, md }];
     const at = new Lines(text, line);
     const out: Block[] = [];

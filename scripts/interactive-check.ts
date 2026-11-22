@@ -7,6 +7,8 @@
 //   open    script-src 'self' 'unsafe-inline', Trusted Types required, policy dh-interactive listed: the part runs
 //   strict  script-src 'self' (no inline): the frame keeps the page's policy, so it never answers and stops after 5 s
 //   denied  Trusted Types required, dh-interactive not listed: the part keeps its still
+//   guarded open plus frame-src 'none': a frame that hides the word location and navigates is refused by the page's
+//           policy before any request; under open the navigation's one request is counted (the frame is then stopped)
 //   bun scripts/interactive-check.ts
 import React from "react";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -32,7 +34,7 @@ const probe = [
   "@fallback",
   "The probe's still.",
 ].join("\n");
-const leave = ["@html", `<p>leaves</p>`, "@script", `setTimeout(function () { window["loc" + "ation"].href = "about:blank"; }, 300);`].join("\n");
+const leave = ["@html", `<p>leaves</p>`, "@script", `setTimeout(function () { window["loc" + "ation"].href = "/leave"; }, 300);`].join("\n");
 const parts: Record<string, string> = { "interactive:probe": probe, "interactive:leave": leave };
 const doc = parse(`[[interactive:probe "Probe"]]\n\n[[interactive:leave "Leaves"]]\n`, { resolveReference: ({ type, name }) => ({ state: "ready", part: parts[`${type}:${name}`] }) });
 if (doc.problems.length) { console.error(doc.problems); process.exit(2); }
@@ -49,14 +51,16 @@ const page = `<!doctype html><html><head><meta charset="utf-8"><link rel="styles
 const CSP: Record<string, string> = {
   open: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; require-trusted-types-for 'script'; trusted-types dh-interactive",
   strict: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
+  guarded: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; require-trusted-types-for 'script'; trusted-types dh-interactive",
   denied: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; require-trusted-types-for 'script'; trusted-types other-policy",
 };
-let beacons = 0;
+let beacons = 0, leaves = 0;
 const server = Bun.serve({
   port: 0, hostname: "127.0.0.1",
   fetch(req) {
     const u = new URL(req.url);
     if (u.pathname === "/beacon") { beacons++; return new Response("seen"); }
+    if (u.pathname === "/leave") { leaves++; return new Response("left"); }
     if (u.pathname === "/client.js") return new Response(Bun.file(join(OUT, "client.js")), { headers: { "Content-Type": "text/javascript" } });
     if (u.pathname === "/styles.css") return new Response(Bun.file(join(OUT, "styles.css")), { headers: { "Content-Type": "text/css" } });
     const k = u.pathname.slice(1);
@@ -79,6 +83,15 @@ try {
   const f = (probeH - 416) / 10;
   want("open: storage, cookies, fetch and the page are all refused (bits 1+2+4+8)", f === 15, { height: probeH, bits: f });
   want("open: the frame that loads a second page is stopped, its still shown", open[1]?.state === "stopped" && !open[1]?.frame && /tried to leave/.test(open[1]?.chip ?? ""), open[1]);
+  const leftOpen = leaves;
+  results.leavesOpen = leftOpen;
+  console.log(`info open: a frame that hides the word location and navigates made ${leftOpen} request(s) before it was stopped`);
+  leaves = 0;
+  await p.goto(`http://127.0.0.1:${server.port}/guarded`);
+  await p.sleep(2500);
+  const guarded = (results.guarded = await p.eval<any[]>(READ));
+  want("guarded (frame-src 'none'): the probe still runs", guarded[0]?.state === "running", guarded[0]);
+  want("guarded (frame-src 'none'): the navigation makes no request", leaves === 0, leaves);
   await p.goto(`http://127.0.0.1:${server.port}/strict`);
   await p.sleep(1000);
   const early = await p.eval<any[]>(READ);
@@ -96,5 +109,5 @@ try {
   server.stop(true);
   rmSync(OUT, { recursive: true, force: true });
 }
-console.log(JSON.stringify({ results, beacons }));
+console.log(JSON.stringify({ results, beacons, leaves }));
 process.exit(bad ? 1 : 0);

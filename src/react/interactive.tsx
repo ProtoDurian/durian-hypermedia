@@ -11,6 +11,8 @@
 // - Trusted Types: this module is the only one with a policy, named "dh-interactive", made the first time a frame
 //   starts. A page that requires Trusted Types and does not list the name keeps the still. The other entries never load
 //   this module (test/trusted-types.test.ts).
+// A sandbox cannot forbid a frame to navigate itself: the host page sets frame-src 'none' so that no navigation of the
+// frame makes a request (scripts/interactive-check.ts measures it); without it one request leaves before the stop.
 // A host page's own CSP also holds in the frame (a srcdoc frame keeps its page's policy): a page whose CSP has no
 // 'unsafe-inline' for scripts cannot run the frame's script either, and the part stops at its 5 s check.
 import React, { useEffect, useRef, useState } from "react";

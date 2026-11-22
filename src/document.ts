@@ -111,7 +111,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
     // 1. the format's parser
     let dh: DhDoc;
     // the page's references (refs.ts): counted, checked and, with the host's resolver, read in place
-    const refs = new RefSession({ lim, problems, resolve: opts.resolveReference, readPart: readReferenced, md: (t, l) => { ctx.line = l; return mdBlocks(t, ctx); } });
+    const refs = new RefSession({ lim, problems, resolve: opts.resolveReference, readPart: readReferenced, md: (t, l) => { ctx.line = l; return mdBlocks(t, ctx); },
+      tick: (l) => { if (stopped) return `the page has more than ${lim.maxBlocks} blocks`; if (++count > lim.maxBlocks) { stopped = true; const message = `the page has more than ${lim.maxBlocks} blocks; the rest is not shown`; problems.push({ line: l, level: "error", message }); return message; } return null; } });
     const fmOn = opts.frontMatter !== false;
     const fmText = fmOn ? clean.match(/^---\n([\s\S]*?)\n---\n/)?.[1] : undefined;
     if (fmText != null && tooManyAliases(fmText)) {
@@ -212,7 +213,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       try { nodes = parseDoc(dh.path, text, { frontMatter: false, site }).body; }
       catch (e) { return err(`the host's answer could not be read (${(e as Error).message})`); }
       const p = nodes[0];
-      if (nodes.length !== 1 || p.kind !== "part" || p.name !== type) return err(`the host's answer is not one ${type} part`);
+      // the fence word is the type (fencedSource checked it); a part may still come out under another name when the format
+      // gives that fence to it (a ```chart whose kind a part of its own draws)
+      if (nodes.length !== 1 || p.kind !== "part" || PARTS[p.name]?.form !== "fenced") return err(`the host's answer is not one ${type} part`);
       p.line = p.endLine = p.bodyLine = line;
       for (const st of p.steps) st.line = line;
       return walk([p]);

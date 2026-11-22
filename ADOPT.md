@@ -272,7 +272,9 @@ const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
 - **interactive** is off unless the host turns it on:
   `<DhDocument doc={doc} interactive="on" components={{ interactive: InteractivePart }} />` with
   `InteractivePart` from `durian-hypermedia/react/interactive` (`"static"` draws it with no script). Under Trusted
-  Types add `dh-interactive` to the page's `trusted-types` list. The frame keeps the page's CSP: with no
+  Types add `dh-interactive` to the page's `trusted-types` list. **Set `frame-src 'none'`** in the page's CSP: the
+  frame still loads, and a script that navigates it can make no request (without it, one request leaves before the
+  frame is stopped; SECURITY.md). The frame keeps the page's CSP: with no
   `'unsafe-inline'` for scripts the part stops at its 5 second check and the still stays.
 - **Looks.** Tokens `--ref-chip-*`, `--ref-pending-*`, `--ref-failed-*`, `--ref-refused-*`, `--ix-*`
   (`src/ui/refs.css`); words `refPending`, `refFailed`, `refRefused`, `ixOff` in `ui`.

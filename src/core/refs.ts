@@ -129,16 +129,18 @@ export function refText(type: string, name: string, label: string | null): strin
 
 /** The markdown-it inline rule: a reference where one starts, as a "dh-reference" token. */
 export function referenceRule(state: any, silent: boolean): boolean {
+  // silent is markdown-it's look ahead for the end of a link's text: a token there that starts at "[" makes it give up the
+  // link (it takes it for a link inside a link), so the brackets are left to it as text; the chip is made when the link's
+  // text is read for real
+  if (silent) return false;
   const src: string = state.src, pos: number = state.pos;
   if (src.charCodeAt(pos) !== 0x5b || src.charCodeAt(pos + 1) !== 0x5b) return false;
   const r = scanRef(src, pos, state.posMax);
   if (!r) return false;
-  if (!silent) {
-    const t = state.push("dh-reference", "", 0);
-    t.content = src.slice(pos, r.end);
-    t.markup = t.content;
-    t.meta = { type: r.type, name: r.name, label: r.label, bad: r.bad };
-  }
+  const t = state.push("dh-reference", "", 0);
+  t.content = src.slice(pos, r.end);
+  t.markup = t.content;
+  t.meta = { type: r.type, name: r.name, label: r.label, bad: r.bad };
   state.pos = r.end;
   return true;
 }

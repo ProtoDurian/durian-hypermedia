@@ -264,6 +264,47 @@ describe("reference-only types", () => {
   });
 });
 
+describe("review fixes", () => {
+  test("a chip inside a link's text keeps the link", () => {
+    const c = md(parse("[See [[chart:sales]] now](#notes)\n"))[0] as any;
+    expect(c.c[0].t).toBe("link");
+    expect(c.c[0].c.map((x: any) => x.t)).toEqual(["text", "reference", "text"]);
+  });
+  test("an svg or interactive part counts against the page's block cap", () => {
+    const d = parse("[[svg:a]]\n", { limits: { maxBlocks: 1 }, resolveReference: () => ({ state: "ready", part: "<svg/>" }) });
+    expect(refs(d.blocks)[0].state).toBe("failed");
+    expect(d.problems[0].message).toMatch(/more than 1 blocks/);
+  });
+  test("an answer with a closing fence inside is not one part", () => {
+    const two = `${F}interactive\n@html\n<p>a</p>\n${F}\n\n${F}interactive\n@html\n<p>b</p>\n${F}`;
+    const d = parse("[[interactive:i]]\n", { resolveReference: () => ({ state: "ready", part: two }) });
+    expect(refs(d.blocks)[0].reason).toMatch(/a fence closes inside it/);
+  });
+  test("a fence word in capitals alone is still refused", () => {
+    expect(parse(`${F}SVG\n<svg/>\n${F}\n`).problems.length).toBe(1);
+  });
+  test("a part longer than the byte cap is refused before it is measured", () => {
+    const d = parse("[[terminal:t]]\n", { limits: { maxReferenceBytes: 10 }, resolveReference: () => ({ state: "ready", part: "x".repeat(11) }) });
+    expect(refs(d.blocks)[0].reason).toMatch(/more than 10 bytes together/);
+  });
+  test("a body of many blank lines is wrapped in one pass", () => {
+    const body = "$ a" + "\n".repeat(200_000) + "b" + "\n".repeat(200_000);
+    const t0 = performance.now();
+    expect(fencedSource("terminal", body).toString().endsWith("b\n```")).toBe(true);
+    expect(performance.now() - t0).toBeLessThan(2000);
+  });
+  test("the label: 200 characters is a label, 201 is refused", () => {
+    expect(nameProblem("a")).toBeNull();
+    expect(parse(`[[chart:a "${"x".repeat(200)}"]]\n`).problems).toEqual([]);
+    expect(parse(`[[chart:a "${"x".repeat(201)}"]]\n`).problems[0].message).toMatch(/longer than 200 characters/);
+  });
+  test("blocks and chips share the count cap", () => {
+    const t = Array.from({ length: 60 }, (_, i) => `[[chart:b${i}]]\n\nsee [[chart:c${i}]]`).join("\n\n");
+    const d = parse(t, { limits: { maxReferences: 100 } });
+    expect(refs(d.blocks).length + chips(d)).toBe(100);
+  });
+});
+
 describe("rendering", () => {
   test("no resolver: the label as a chip; pending and failed: their own looks; ready: the part", () => {
     const t = "[[chart:a \"A\"]]\n\n[[chart:b \"B\"]]\n\n[[chart:c \"C\"]]\n\n[[chart:d \"D\"]]\n\nand [[chart:e \"E\"]]\n";

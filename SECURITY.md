@@ -238,7 +238,11 @@ part attaches its cleaned SVG as nodes. For a page under `require-trusted-types-
   `allow-same-origin` (an empty origin: no cookies, no storage, no access to the page), under
   `default-src 'none'` (no fetch, XHR, WebSocket, images from elsewhere or fonts), with no forms, pop-ups or top
   navigation. The page accepts only a height from it; it must answer within 5 s, it stops after 10 minutes, and it is
-  stopped if it loads a second page. The checks refuse code that names the network, storage, cookies, `top`,
+  stopped if it loads a second page. **A frame may still navigate itself once** (a sandbox cannot forbid it, and the
+  frame's own `default-src 'none'` does not cover navigation): that one request leaves before the frame is stopped.
+  A host that turns the part on sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
+  navigation of it is refused before any request (`bun run ix` measures 1 request without it, 0 with it). The fallback is
+  Markdown of the page, under the page's URL policy, like every resolved part. The checks refuse code that names the network, storage, cookies, `top`,
   `parent`, `location` or `RTCPeerConnection` before it runs. Not covered: a script that hides those names (the
   checks read words, not meaning); the sandbox and the policy are the barrier. A browser's WebRTC is not governed by
   `default-src`: a host that must rule it out serves the frame from an origin of its own with a

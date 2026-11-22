@@ -5,7 +5,8 @@
 // this file tweens between frames, draws with page tokens only, and lets the reader explore with a camera:
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { stageScene, phoneScene } from "../core/readable";
 import { moreSides } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
@@ -62,11 +63,13 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   // the scene, and its phone variant (format version 8) for a stage under NARROW pixels: the phone's tokens (the same
   // type, tighter spacing), and the narrow layout when the scene is wide (a wide row or left-to-right graph runs top to
   // bottom). The story camera then never draws a phone's smallest words under 11 px (tools/scene.ts storyView)
-  const cWide = useMemo(() => compileScene(src.head, src.steps, src.base, src.info), []);
+  // (each compiled once, on a work budget: core/readable.ts stageScene and phoneScene; a phone layout over its budget
+  // keeps the wide one)
+  const cWide = useMemo(() => stageScene(src), []);
   const [px0, setPx0] = useState(0);
   const phone = px0 > 0 && px0 < NARROW;
   const pKey = phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : "wide";
-  const cPhone = useMemo(() => (pKey === "wide" ? null : compileScene(src.head, src.steps, src.base, phoneInfo(cWide, src.info, px0))), [pKey]);
+  const cPhone = useMemo(() => (pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey]);
   const c = cPhone ?? cWide;
   const Z = tokens(c.scene.attrs.phone);
   const n = c.frames.length;

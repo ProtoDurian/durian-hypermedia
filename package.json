@@ -135,6 +135,7 @@
     "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
     "prepare": "bun scripts/build.ts",
     "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types",
+    "ix": "bun scripts/interactive-check.ts",
     "bench": "bun scripts/bench.ts"
   },
   "peerDependencies": {

@@ -73,7 +73,7 @@ export function InteractiveStill({ block, note }: { block: InteractiveBlock; not
   const { ui } = useDh();
   const off = note ?? ((ui as any).ixOff as string | undefined) ?? "Interactive part: off on this site";
   return (
-    <div className="dh-ix" data-ix-state="off">
+    <div className="dh-ix" data-ix-state={note ? "stopped" : "off"}>
       {block.title ? <div className="dh-ix-title">{block.title}</div> : null}
       <div className="dh-ix-fallback">{block.fallback.length ? <Md blocks={block.fallback} /> : <p>{block.alt}</p>}</div>
       <span className="dh-ix-chip">{off}</span>

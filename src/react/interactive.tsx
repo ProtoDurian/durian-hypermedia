@@ -16,6 +16,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useDh } from "./context";
 import { InteractiveStill } from "./reference";
+import { Md } from "./markdown";
 import { frameDoc, IX_LIMITS, IX_TOKENS } from "../core/interactive";
 import type { InteractiveBlock } from "../types";
 
@@ -92,11 +93,14 @@ export function InteractivePart({ block }: { block: InteractiveBlock }) {
   }, [mode, block.html, block.css, block.script, block.height]);
 
   if (mode === "off") return <InteractiveStill block={block} />;
+  // stopped: the still, with why (the frame is gone already)
+  if (state === "stopped") return <InteractiveStill block={block} note={why || undefined} />;
+  // before the frame starts (and on the server) the fallback shows where the frame will be
   return (
-    <div className="dh-ix" data-ix-state={state}>
+    <div className="dh-ix" data-ix-state={state === "off" ? "starting" : state}>
       {block.title ? <div className="dh-ix-title">{block.title}</div> : null}
-      <div className="dh-ix-slot" ref={slot} hidden={state === "stopped"} />
-      {state === "stopped" || state === "off" ? <InteractiveStill block={{ ...block, title: null }} note={why || undefined} /> : null}
+      <div className="dh-ix-slot" ref={slot} />
+      {state === "off" ? <div className="dh-ix-fallback">{block.fallback.length ? <Md blocks={block.fallback} /> : <p>{block.alt}</p>}</div> : null}
     </div>
   );
 }

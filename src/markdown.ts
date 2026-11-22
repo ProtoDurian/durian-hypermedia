@@ -307,6 +307,37 @@ function subList(state: any, line: number, _end: number, silent: boolean): boole
   while (p < max && isSp(src.charCodeAt(p))) p++;
   return p < max;
 }
+// ---- white space at the start of a paragraph's lines stays in its text, as 0.6.0's tree had it (a page shows it the same)
+function keepLineStarts(md: Reader) {
+  const para = (md.block.ruler as any).__rules__.find((r: any) => r.name === "paragraph").fn;
+  md.block.ruler.at("paragraph", (state: any, start: number, end: number, silent: boolean) => {
+    const n = state.tokens.length;
+    const ok = para(state, start, end, silent);
+    const lead = state.sCount[start] - state.blkIndent;
+    if (ok && lead > 0 && state.tokens[n + 1]?.type === "inline") state.tokens[n + 1].content = " ".repeat(lead) + state.tokens[n + 1].content;
+    return ok;
+  });
+  // a line break (soft, or two spaces, or a backslash) no longer drops the next line's leading spaces
+  md.inline.ruler.at("newline", (state: StateInline, silent: boolean) => {
+    if (state.src.charCodeAt(state.pos) !== 0x0a) return false;
+    if (!silent) {
+      const pend: string = state.pending, pmax = pend.length - 1;
+      if (pmax >= 0 && pend.charCodeAt(pmax) === 0x20) {
+        if (pmax >= 1 && pend.charCodeAt(pmax - 1) === 0x20) { let ws = pmax - 1; while (ws >= 1 && pend.charCodeAt(ws - 1) === 0x20) ws--; state.pending = pend.slice(0, ws); state.push("hardbreak", "br", 0); }
+        else { state.pending = pend.slice(0, -1); state.push("softbreak", "br", 0); }
+      } else state.push("softbreak", "br", 0);
+    }
+    state.pos++;
+    return true;
+  });
+  md.inline.ruler.before("escape", "dh-escape-break", (state: StateInline, silent: boolean) => {
+    if (state.src.charCodeAt(state.pos) !== 0x5c || state.src.charCodeAt(state.pos + 1) !== 0x0a || state.pos + 1 >= state.posMax) return false;
+    if (!silent) state.push("hardbreak", "br", 0);
+    state.pos += 2;
+    return true;
+  });
+}
+
 function makeReader(defs: InlineDef<any, any>[] | undefined): Reader {
   const finders: RefFinder[] = (defs ?? []).map((d) => {
     if (!/^[a-z][a-z0-9-]{0,40}$/.test(d.name)) throw new Error(`durian-hypermedia: an inline name is lower case letters, digits and dashes: "${d.name}"`);
@@ -346,8 +377,14 @@ function makeReader(defs: InlineDef<any, any>[] | undefined): Reader {
   md.inline.ruler2.before("emphasis", "dh-strike", strikePost);
   md.block.ruler.before("list", "dh-sublist", subList, { alt: ["paragraph"] });
   md.core.ruler.after("block", "dh-task", taskItems);
+  keepLineStarts(md);
+  // inline text has a nesting cap of its own, smaller than the blocks' (a link inside emphasis inside a link is 3): the
+  // reader's look ahead for a missing "]" goes one level deeper each time, so its cost is this cap times the text
+  md.core.ruler.before("inline", "dh-inline-cap", (state: StateCore) => { state.md.options.maxNesting = INLINE_NEST; });
   return md;
 }
+/** A fresh reader with the rules mdBlocks uses (for tests and tools that count its work; mdBlocks keeps its own). */
+export const newReader = (inlines?: InlineDef<any, any>[]): Reader => makeReader(inlines);
 const plainReader = makeReader(undefined);
 const withRefs = new WeakMap<InlineDef<any, any>[], Reader>();
 function readerFor(defs: InlineDef<any, any>[] | undefined): Reader {
@@ -359,6 +396,7 @@ function readerFor(defs: InlineDef<any, any>[] | undefined): Reader {
 // the reader's own nesting cap: room for every nesting mdBlocks lets through (maxDepth containers, two levels each, and the
 // blocks inside), and small, because inside a link's text the reader may look ahead once per level
 const nestCap = (maxDepth: number) => Math.max(40, 3 * maxDepth + 10);
+const INLINE_NEST = 20;
 function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: number): Tok[] {
   const md = readerFor(defs);
   md.options.maxNesting = nestCap(maxDepth);
@@ -465,7 +503,7 @@ const srcOf = (toks: Tok[], i: number, end: number, lines: string[]): string => 
   for (let j = i; j < end; j++) { const m = toks[j].map; if (m) { if (a < 0 || m[0] < a) a = m[0]; b = Math.max(b, m[1]); } }
   return a < 0 ? inlineRaw(toks, i, end) : lines.slice(a, b).join("\n");
 };
-function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, lines: string[]): MdBlock[] {
+function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, lines: string[], inItem = false): MdBlock[] {
   if (depth > ctx.maxDepth) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; the rest is plain text` }); return [{ t: "raw", text: srcOf(toks, from, to, lines) }]; }
   const out: MdBlock[] = [];
   for (let i = from; i < to; i++) {
@@ -474,7 +512,8 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
       case "paragraph_open": {
         const inl = toks[i + 1];
         const c = inl?.type === "inline" ? inl.children ?? [] : [];
-        out.push(t.hidden ? { t: "text", c: inl ? inlines(c, 0, c.length, ctx, depth) : [] } : { t: "p", c: inlines(c, 0, c.length, ctx, depth) });
+        // a list item's own paragraphs are "text", tight or loose (0.6.0's tree; a loose list draws as a tight one)
+        out.push(t.hidden || inItem ? { t: "text", c: inl ? inlines(c, 0, c.length, ctx, depth) : [] } : { t: "p", c: inlines(c, 0, c.length, ctx, depth) });
         i = closeOf(toks, i, to);
         break;
       }
@@ -505,7 +544,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
           if (toks[j].type !== "list_item_open") continue;
           const e = closeOf(toks, j, end);
           const meta = toks[j].meta as { task?: boolean; checked?: boolean } | null;
-          items.push({ task: !!meta?.task, checked: !!meta?.checked, c: blocks(toks, j + 1, e, ctx, depth + 1, lines) });
+          items.push({ task: !!meta?.task, checked: !!meta?.checked, c: blocks(toks, j + 1, e, ctx, depth + 1, lines, true) });
           j = e;
         }
         const st = t.attrGet("start");
@@ -590,7 +629,9 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
       case "text": if (t.content) buf = (buf ?? "") + t.content; break;
       case "softbreak": buf = (buf ?? "") + "\n"; break;
       case "text_special":
-        if (t.info === "entity") buf = (buf ?? "") + t.markup;
+        // a reference stays as written; a real escape (a backslash and ASCII punctuation) is a node of its own; a backslash
+        // before anything else is plain text, as it was
+        if (t.info === "entity" || !(t.markup.length >= 2 && t.content === t.markup.slice(1))) buf = (buf ?? "") + t.markup;
         else { flush(); out.push({ t: "text", v: t.content }); }
         break;
       case "hardbreak": flush(); out.push({ t: "br" }); break;

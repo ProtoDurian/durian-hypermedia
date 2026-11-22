@@ -111,3 +111,17 @@ describe("tables of contents", () => {
     expect(d.problems.some((p: any) => /tables of contents on this page would list more than/.test(p.message))).toBe(true);
   });
 });
+
+describe("code walks", () => {
+  const walk = (n: number, marks: string) => `${F}codewalk\n@file a.ts\n${"x\n".repeat(n)}@step a.ts#L1-L${n} mark=${marks}\n${F}\n`;
+  test("many marks on many lines", () => {
+    const n = 8_000;
+    quick(2500, () => all(walk(n, Array.from({ length: n }, (_, i) => i + 1).join(","))));
+  });
+  test("a line marked many times shows the mark", () => {
+    let html = "";
+    quick(2500, () => { html = renderToString(<DhDocument doc={parse(walk(3, "2,".repeat(5_000) + "2"))} />); });
+    const row = html.match(/class="([^"]*ch-mark[^"]*)"/)![1];
+    expect(row.split(" ").filter((c) => c === "ch-mark").length).toBe(8);
+  });
+});

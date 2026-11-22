@@ -6,6 +6,7 @@
 // cuts the lines it shows from it, so a file used by many steps is sent once.
 import React from "react";
 import { InnerLine, getPreRef, InnerPre, type AnnotationHandler, type CustomPreProps, type HighlightedCode } from "codehike/code";
+import { mergeLineAnns } from "./ch";
 
 type PTok = string | [string, number] | [string, number, unknown];
 export type Packed = { lang: string; meta: string; themeName: string; style: unknown; colors: string[]; lines: PTok[][] };
@@ -56,7 +57,7 @@ export function rowsCode(p: Packed, rows: Row[], anns: { name: "focus" | "mark";
     for (const t of line) tokens.push(typeof t === "string" ? t : t.length > 2 ? [t[0], p.colors[t[1]], t[2]] : [t[0], p.colors[t[1]]]);
   });
   const code = texts.join("\n");
-  return { value: code, code, lang: p.lang, meta: p.meta, themeName: p.themeName, style: p.style, tokens, annotations: anns.map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to })) } as unknown as HighlightedCode;
+  return { value: code, code, lang: p.lang, meta: p.meta, themeName: p.themeName, style: p.style, tokens, annotations: mergeLineAnns(anns, rows.length).map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to })) } as unknown as HighlightedCode;
 }
 
 // the open range's focus and marks, as row numbers in the shown block

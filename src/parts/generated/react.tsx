@@ -2,8 +2,10 @@
 // The folder parts' components, for DocumentView: import FOLDER_PART_COMPONENTS, or only the parts you use.
 import { partComponent } from "../react";
 import FishboneView from "../fishbone/view";
+import FlameView from "../flame/view";
 import SankeyView from "../sankey/view";
 
 export const FishbonePart = partComponent("fishbone", FishboneView);
+export const FlamePart = partComponent("flame", FlameView);
 export const SankeyPart = partComponent("sankey", SankeyView);
-export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "sankey": SankeyPart };
+export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "flame": FlamePart, "sankey": SankeyPart };

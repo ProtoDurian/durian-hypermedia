@@ -10,7 +10,6 @@ Nested boxes you open one level at a time. The nodes start with `closed=hidden`:
 ```animation 3d only
 family pod "pods"
 group c "cluster"
-pill svc "service web: 192.0.2.10" in c note="a virtual IP: no pod and no machine has it; it lives only in rules"
 group n1 "node 1" in c closed=hidden layout=column
 group n2 "node 2" in c closed=hidden layout=column
 group n1p in n1
@@ -36,18 +35,21 @@ zoom into n1 n2
 @step The frontend pod and web-2 rise out of their nodes, to follow one call.
 lift fe w2
 camera fe w2 r1
-@step The frontend calls the service web at 192.0.2.10. No pod has that address.
+@step The frontend calls the service web at 192.0.2.10. The service shows up beside the nodes, but no pod has that address.
+add pill svc "service web: 192.0.2.10" in c note="a virtual IP: no pod and no machine has it; it lives only in rules"
 say fe above: GET 192.0.2.10:80
 highlight svc
 @step The packet leaves the pod and meets node 1's rules, not kube-proxy itself.
 send "to 192.0.2.10" fe -> r1
 @step A rule picks one of the service's pods at random, web-2, and rewrites the address to its IP.
 say r1 below: 192.0.2.10 → 198.51.100.7
+camera r1 w2
 @step The rewritten packet crosses to node 2 and goes straight to web-2: pod to pod.
 send "to 198.51.100.7" r1 -> w2
 @step web-2 answers. The reply goes back to node 1.
 send "200 OK" w2 -> r1
 @step Node 1 remembers the rewrite and puts the service address back: 192.0.2.10 answers.
+camera fe w2 r1
 send "from 192.0.2.10" r1 -> fe
 @step Zoom out: the pods settle back into their nodes and hide again.
 zoom out

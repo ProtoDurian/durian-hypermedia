@@ -96,6 +96,16 @@ candlesticks, free alignment grids, your own marks and prompts, and a banner tha
 - Charts: whole-number ticks for counts, log axes ending on powers of ten, radar and polar grids that show on dark; the
   candlestick key wraps between items.
 - A file tree row removed in its first step is tinted as removed, not as added.
+- 3D "Show everything" pressed before the 3D stage is up (right after a jump, while three.js loads) is kept and done
+  once the stage mounts; before, it was lost and the story's crop stayed (seven layers on a phone: the lower four layers
+  below the stage). On a phone, a 3D story view cut to what the step touches slides to keep within the scene: no empty band
+  on one side while the other is cut. Only the nearest layer off each edge keeps its name, with an arrow pointing off the
+  stage (the others piled at the edge, away from their planes). A 3D name on the stage is not cut at its side.
+- 3D labels: a `camera` line makes its targets take part only in a step that does nothing else (before, a camera target
+  kept its label in every later step), and a connector's label needs a send along it or both ends taking part (one end was
+  enough). Lifts nest: a thing inside a lifted one may rise again; only the innermost lifted things stay strong. The
+  Kubernetes sample lifts each box it zooms into and puts each back on the way out; the kube-proxy sample opens with the
+  nodes only and adds the service at the step that calls it.
 
 ## 0.5.1
 

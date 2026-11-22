@@ -92,6 +92,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const firstStep = useRef(true);
   const host3 = useRef<HTMLDivElement>(null);
   const s3 = useRef<Stage3 | null>(null);
+  // (rfit) "Show everything" pressed before the 3D stage is live (the part hydrates on that very tap, or three.js is still
+  // loading): kept here and done once the stage mounts; before, the tap was lost and the story's crop stayed
+  const fitAsked = useRef(false);
   const view3 = useRef<View3 | null>(null);
   // the floor plan of the whole story: where the 3D stage puts its layer planes and its centre
   // (format version 10) of the scene the story is in: each scene has its own floor plan and families
@@ -114,6 +117,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
         }, { still: reducedMotion() });
         s3.current = h;
         if (view3.current) h.update(view3.current);
+        if (fitAsked.current) { fitAsked.current = false; h.fit(); }
       } catch { setOk3d(false); setMode("2d"); }
       setLoading3d(false);
     }).catch(() => { setOk3d(false); setMode("2d"); setLoading3d(false); });
@@ -160,7 +164,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     if (to === i) return;
     cancelAnimationFrame(raf.current);
     setFrom(i); setI(to); setSel(null); setPickL(null);
-    if (!keepCam) { setUser(null); s3.current?.back(); }
+    if (!keepCam) { setUser(null); s3.current?.back(); fitAsked.current = false; }
     if (reducedMotion()) { setT(1); return; }
     setT(0);
     const start = performance.now(), d = dur(to);
@@ -363,8 +367,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const selBox = sel != null ? cur.get(sel) : null;
   const zoomIn = () => (mode === "3d" ? s3.current?.zoom(0.8) : zoomBy(0.8));
   const zoomOut = () => (mode === "3d" ? s3.current?.zoom(1.25) : zoomBy(1.25));
-  const fitAll = () => (mode === "3d" ? s3.current?.fit() : setUser(all));
-  function backToStory() { setUser(null); setSel(null); setPickL(null); s3.current?.back(); setUser3(false); }
+  const fitAll = () => { if (s3.current && mode === "3d") s3.current.fit(); else { fitAsked.current = true; setUser(all); } };
+  function backToStory() { setUser(null); setSel(null); setPickL(null); s3.current?.back(); setUser3(false); fitAsked.current = false; }
   const moved = !!(user || user3 || pickL != null);
   // the stage's own keys, when it has focus: arrows move, + and - zoom, 0 or Esc go back to the story; in 3D, W A S D
   // walk over the ground as well. (The steps keep their keys on the rest of the part: arrows there, PageUp/PageDown here)

@@ -461,6 +461,10 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn3-l.is-hl, .scn3-l.is-sel { color: var(--acc-ink); font-weight: 600; text-decoration: underline 2px color-mix(in srgb, var(--acc) 60%, transparent); text-underline-offset: 3px; }
 .scn3-layer { translate: -100% -50%; font-size: 12px; font-weight: 600; color: var(--acc-ink); padding: 2px 9px; border-radius: 99px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--acc) 35%, var(--line)); }
 .scn3-layer.is-on { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
+/* (rfit) the name of the nearest layer whose plane is off the stage: at that edge, dashed, with an arrow pointing that way */
+.scn3-layer[data-off="b"], .scn3-layer[data-off="t"] { border-style: dashed; }
+.scn3-layer[data-off="b"]::before { content: "\2193\00a0"; }
+.scn3-layer[data-off="t"]::before { content: "\2191\00a0"; }
 .scn3-wire { translate: -50% -50%; font-size: 11px; font-weight: 500; color: var(--muted); padding: 1px 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); }
 .scn3-send { translate: -50% -125%; font-size: 11px; font-weight: 600; color: var(--hot-ink); background: var(--surface); border: 1px solid color-mix(in srgb, var(--hot) 60%, var(--line)); padding: 0 7px; border-radius: 99px; }
 .scn3-arrow { translate: -50% -100%; font-size: 11px; font-weight: 600; color: var(--acc-ink); background: var(--acc-softer); border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--line)); padding: 1px 7px; border-radius: 9px; white-space: normal !important; width: max-content; max-width: 150px; text-align: center; }

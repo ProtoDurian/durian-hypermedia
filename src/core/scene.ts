@@ -23,7 +23,7 @@
 // is dropped; several things move together; a closed thing shows its inside when the story zooms into it.
 import { MAX_PIECES, piecesOf, moveToken, splitToken, mergeTokens, applyStory, stepChecks, hiddenBy, openSet, llmLines, type Ctx } from "./story";
 // format version 10 (tools/depth.ts): 3D-only scenes, nested zooms, closed=hidden, lift and put back, the 3D labels rule
-import { liftOp, putBackOp, depthChecks, onlyChecks, applyDepth, participants, depthLlm, LABELS, type DepthState, type DepthFx } from "./depth";
+import { liftOp, putBackOp, depthChecks, onlyChecks, applyDepth, stepPart, depthLlm, LABELS, type DepthState, type DepthFx } from "./depth";
 
 // ---------------------------------------------------------------- the vocabulary (SPEC.md section 6)
 import { parseCamera, CLOSE_SCALE, FAR_GROW, type CamView } from "./camera";
@@ -893,7 +893,7 @@ export interface Box extends Rect { key: number; id: string; kind: string; label
 // bend: how far its middle bows sideways (to the right of its way), so it runs around a thing instead of through it
 // rt (format version 10): its route (tools/route.ts): the sides it leaves from, spread along them, straight or at right
 // angles; null: the old curve with its bow (a circle's lines, a list's arrows, or when no route clears the words)
-export interface Edge { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; lines: string[]; lt: number; lo: number; lw: number; lh: number; lr: Rect | null; bend: number; rt?: Route | null }
+export interface Edge { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; lines: string[]; lt: number; lo: number; lw: number; lh: number; lr: Rect | null; bend: number; rt?: Route | null; part?: boolean }
 // what a step puts on top of the stage: a sent token's resting chip, an arrow's label, speech. Each is placed next to
 // the thing it belongs to (dx, dy: its corner from that thing's centre), where it covers no label and no shape
 export interface Mark { kind: "send" | "alabel" | "say"; at: number; text: string; lines: string[]; r: Rect; dx: number; dy: number; side: "up" | "down" | "left" | "right" | "on" }
@@ -1815,6 +1815,8 @@ export function overlaps(f: Frame): { label: number; shape: number } {
 // own2 (format version 10): a send on its connector: the connector's label is its own too
 export interface Line { pts: Pt[]; own: Rect | null; own2?: Rect | null; send: boolean; ends: [number, number] }
 // a send's hop drawn on its connector (format version 10): no offset, the connector's own route
+// the connectors a send of this frame runs along (the 3D labels rule: such a connector takes part in the step)
+export const ridden = (f: Frame): Set<string> => { const out = new Set<string>(); for (const g of f.sends) for (let k = 0; k + 1 < g.path.length; k++) { const e = ridesOn(f, g, k); if (e) out.add(e.key); } return out; };
 export function ridesOn(f: Frame, g: SendGeom, k: number): Edge | null {
   if (g.show === "token" || g.offs[k]) return null;
   const a = g.path[k], b = g.path[k + 1], rt = g.rts?.[k] ?? null;
@@ -2157,8 +2159,11 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   // (what a zoom reveals takes part in that step too: a hidden inside, and, format version 10 fix, a faint one that opens)
   // (step 1 has no frame before it: there, what a zoom of hidden insides opens was hidden in the setup)
   const zoomed0 = new Set(scene.steps[0]?.ops.flatMap((o) => (o.op === "zoom" && o.id ? o.ids ?? [o.id] : [])) ?? []);
-  frames.forEach((f, k) => { const was = new Set(k ? frames[k - 1].boxes.filter((b) => b.hidden || b.faint).map((b) => b.key) : f.boxes.filter((b) => { for (let x = b.ent.parent, n = 0; x && n < 64; x = r.states[0].ents[x]?.parent ?? null, n++) if (zoomed0.has(x) && r.states[0].ents[x]?.hide) return true; return false; }).map((b) => b.key)); const p = new Set([...participants(f), ...f.boxes.filter((b) => !b.hidden && !b.faint && was.has(b.key)).map((b) => b.key)]); if (p.size) f.part = [...p]; });
+  frames.forEach((f, k) => { const was = new Set(k ? frames[k - 1].boxes.filter((b) => b.hidden || b.faint).map((b) => b.key) : f.boxes.filter((b) => { for (let x = b.ent.parent, n = 0; x && n < 64; x = r.states[0].ents[x]?.parent ?? null, n++) if (zoomed0.has(x) && r.states[0].ents[x]?.hide) return true; return false; }).map((b) => b.key)); const opened = scene.steps[k]?.ops.flatMap((o) => (o.op === "zoom" && o.id ? o.ids ?? [o.id] : [])) ?? []; const p = stepPart(f, k ? frames[k - 1] : null, f.boxes.filter((b) => !b.hidden && !b.faint && was.has(b.key)).map((b) => b.key), opened, ridden); if (p) f.part = p; });
   // (a step that touches nothing and frames nothing in particular keeps every label: f.part stays unset)
+  // a step with beats draws its connectors from the beat frames: they get the step's verdict too (a send of the beat
+  // that runs along one, or both its ends taking part)
+  frames.forEach((f, k) => { if (!f.part) return; const p = new Set(f.part), main = new Map(f.edges.map((e) => [e.key, e.part])); for (const bf of beatFrames[k] ?? []) { const used = ridden(bf); for (const e of bf.edges) e.part = used.has(e.key) || main.get(e.key) === true || (p.has(e.from) && p.has(e.to)); } });
   warnings.push(...crossWarnings(frames, scene));
   return { scene, frames, fx: r.fx, errors: dedupe(errors), warnings: dedupe(warnings), aspect, beats: beatFrames };
 }

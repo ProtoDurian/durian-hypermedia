@@ -10,7 +10,7 @@
 //   put back [fe ...]             (3D only) they settle back into the same place; zoom out puts back what it closes
 // Pure: the engine (tools/scene.ts) and story words (tools/story.ts) call these, so doccheck, the stages and the
 // LLM view read the same state. The 2D floor plan never changes for a lift: only the 3D stage raises a lifted thing.
-import type { State, Ent, Op, Fx, SceneError, Frame } from "./scene";
+import type { State, Ent, Op, Fx, SceneError, Frame, Box } from "./scene";
 import { CAM_DEFAULT, type CamView } from "./camera";
 import type { Ctx } from "./story";
 import { closedCounts } from "./data";
@@ -81,10 +81,12 @@ export function liftOp(s: State, ids: string[], f: Fx & DepthFx, c: Ctx, hidden:
     if (now.includes(id)) throw c.refuse(`${id} is already lifted; put back ${id} first`);
     const by = hidden(id);
     if (by) throw c.refuse(`lift ${id}: it is inside ${by}, which is closed; zoom into ${by} in this step or an earlier one`);
-    const up = now.find((x) => within(s, id, x) || within(s, x, id));
-    if (up) throw c.refuse(`lift ${id}: ${within(s, id, up) ? `it is inside ${up}, which is lifted already (it rises with it)` : `it holds ${up}, which is lifted; put back ${up} first`}`);
+    // lifts nest (format version 10 fix "rlabels"): a thing inside a lifted one rises again, above it; the other way
+    // round is refused, so the outer thing always rises first and settles last
+    const up = now.find((x) => x !== id && within(s, x, id));
+    if (up) throw c.refuse(`lift ${id}: it holds ${up}, which is lifted; put back ${up} first, or lift ${id} before ${up} (lifts nest: the outer one rises first)`);
   }
-  for (const a of ids) for (const b of ids) if (a !== b && within(s, a, b)) throw c.refuse(`lift ${ids.join(" ")}: ${a} is inside ${b}; lift ${b} alone (what it holds rises with it)`);
+  for (const a of ids) for (const b of ids) if (a !== b && within(s, a, b)) throw c.refuse(`lift ${ids.join(" ")}: ${a} is inside ${b}; lift ${b} alone (what it holds rises with it), and lift ${a} out of it in a later step if it should rise again`);
   s.lifted = [...now, ...ids];
   (f.lifts ??= []).push(...ids);
   f.touched.push(...ids);
@@ -94,8 +96,10 @@ export function putBackOp(s: State, ids: string[] | null, f: Fx & DepthFx, c: Ct
   if (!now.length) throw c.refuse(`put back: nothing is lifted; write lift <id> in an earlier step`);
   const which = ids ?? now;
   for (const id of which) { c.ent(s, id); if (!now.includes(id)) throw c.refuse(`put back ${id}: ${id} is not lifted (lifted now: ${now.join(", ")})`); }
-  s.lifted = now.filter((x) => !which.includes(x));
-  (f.puts ??= []).push(...which);
+  // what is lifted inside a thing put back settles with it (lifts nest)
+  const all = now.filter((x) => which.some((w) => within(s, x, w)));
+  s.lifted = now.filter((x) => !all.includes(x));
+  (f.puts ??= []).push(...all);
   f.touched.push(...which);
 }
 // a zoom out puts back what is lifted inside the things it closes
@@ -134,6 +138,8 @@ export function onlyChecks(ops: Op[], only3d: boolean): SceneError[] {
 export function applyDepth(f: Frame, s: State, lit: string[] = []): Frame {
   closedCounts(f, s);
   const lifted = new Set((s.lifted ?? []).filter((id) => s.ents[id]));
+  // lifts nest: a lifted thing that holds another lifted one is only the stand it rose from, so it fades too
+  const leaves = new Set([...lifted].filter((x) => ![...lifted].some((y) => y !== x && within(s, y, x))));
   const top = zoomIds(s).filter((id) => s.ents[id]);
   const deep = top.some((id) => s.ents[id].hide);
   if (!lifted.size && !deep) return f;
@@ -142,7 +148,7 @@ export function applyDepth(f: Frame, s: State, lit: string[] = []): Frame {
     if (b.key <= 0 || b.hidden) continue;
     const ch = chain(s, b.id);
     if (lifted.has(b.id)) b.lift = true;
-    const out = (lifted.size > 0 && !ch.some((x) => lifted.has(x))) || (deep && !top.some((z) => ch.includes(z)));
+    const out = (lifted.size > 0 && !ch.some((x) => leaves.has(x))) || (deep && !top.some((z) => ch.includes(z)));
     if (out && !on.has(b.id) && !(b.ent.anchor && on.has(b.ent.anchor))) b.vis = OUT;
   }
   return f;
@@ -151,22 +157,62 @@ export function applyDepth(f: Frame, s: State, lit: string[] = []): Frame {
 export const visOf = (b?: { hidden?: boolean; vis?: number }) => (!b ? 1 : b.hidden ? 0 : b.vis ?? 1);
 
 // ---------------------------------------------------------------- the 3D labels rule
-// who takes part in a step: what it adds, moves, changes, sends along, highlights, makes speak, lifts or puts back,
-// and the camera's targets. While a step plays in 3D only their labels show (unless the scene says labels=all)
+// who takes part in a step by itself: what it adds, moves, changes, sends along, highlights, makes speak, lifts or puts
+// back, what is lifted (with what it holds) and what stands on a focused layer. The camera's targets are not in it:
+// a camera line often only frames what later steps use (format version 10 fix "rlabels"); stepPart adds them when
+// the camera move is all the step does
 export function participants(f: Frame): number[] {
   const out = new Set<number>(f.touched);
-  for (const k of f.look ?? []) out.add(k);
   // a focused layer is the camera's target too: what stands on it takes part
   if (f.focus != null) for (const b of f.boxes) if (b.key > 0 && b.layer === f.focus && !b.hidden) out.add(b.key);
-  // what is lifted, with what it holds (it rises with it)
+  // what is lifted, with what it holds (it rises with it); lifts nest, and then only the innermost lifted things count
   const byId = new Map(f.boxes.filter((b) => b.key > 0).map((b) => [b.id, b]));
-  for (const b of f.boxes) for (let x: typeof b | undefined = b, n = 0; x && n < 64; x = byId.get(x.ent.parent ?? x.ent.anchor ?? ""), n++) if (x.lift) { out.add(b.key); break; }
+  const up = (b: Box): Box[] => { const o: Box[] = []; for (let x: Box | undefined = b, n = 0; x && n < 64; x = byId.get(x.ent.parent ?? x.ent.anchor ?? ""), n++) o.push(x); return o; };
+  const lifted = f.boxes.filter((b) => b.key > 0 && b.lift);
+  const leaves = new Set(lifted.filter((x) => !lifted.some((y) => y !== x && up(y).includes(x))));
+  for (const b of f.boxes) if (!b.hidden && up(b).some((x) => leaves.has(x))) out.add(b.key);
   return [...out];
 }
-// does a label show? key: whose label (a thing's, or a connector's ends); part: who takes part, or null when every
-// label shows (the reader paused at the end of a step, moved the camera, or the scene says labels=all)
+// who takes part in one step of a story (the 3D labels rule, SPEC.md 6.11), and so shows a label while it plays:
+// participants, what a zoom in this step reveals (revealed) and what it opens (opened: the ids zoomed into), and the
+// camera's targets only when this step moves the camera to them and nothing else takes part (a camera-only step,
+// like a focus on one thing). A camera that stays where an earlier step put it frames; it names no one.
+// A connector shows its label when a send in this step runs along it, or a thing moves from one of its ends to the
+// other (it travels along it), or when both its ends take part (e.part);
+// one end is not enough (kube-proxy's "writes" stayed on while only the pods it does not join were lifted).
+// Returns null when no one in particular takes part: every label shows.
+export function stepPart(f: Frame, prev: Frame | null, revealed: number[], opened: string[], rides: (f: Frame) => Set<string>): number[] | null {
+  const out = new Set<number>([...participants(f), ...revealed]);
+  for (const b of f.boxes) if (b.key > 0 && !b.hidden && opened.includes(b.id)) out.add(b.key);
+  const same = (a: number[] | null | undefined, b: number[] | null | undefined) => (a ?? []).length === (b ?? []).length && (a ?? []).every((k) => (b ?? []).includes(k));
+  if (!out.size && f.look?.length && (!prev || !same(f.look, prev.look))) for (const k of f.look) out.add(k);
+  if (!out.size) { for (const e of f.edges) delete e.part; return null; }
+  const used = rides(f), along = movedAlong(f, prev);
+  for (const e of f.edges) e.part = used.has(e.key) || along.has(`${e.from}>${e.to}`) || along.has(`${e.to}>${e.from}`) || (out.has(e.from) && out.has(e.to));
+  return [...out];
+}
+// the pairs of things (keys "a>b") that something moved between in this step: it was at or in a, now at or in b
+export function movedAlong(f: Frame, prev: Frame | null): Set<string> {
+  const out = new Set<string>();
+  if (!prev) return out;
+  const was = new Map(prev.boxes.filter((b) => b.key > 0).map((b) => [b.key, b]));
+  const key = (fr: Frame, id: string | null | undefined) => (id ? fr.boxes.find((b) => b.key > 0 && b.id === id)?.key : undefined);
+  for (const b of f.boxes) {
+    const pb = b.key > 0 ? was.get(b.key) : undefined;
+    if (!pb) continue;
+    const a = key(prev, pb.ent.anchor ?? pb.ent.parent), c = key(f, b.ent.anchor ?? b.ent.parent);
+    if (a != null && c != null && a !== c) out.add(`${a}>${c}`);
+  }
+  return out;
+}
+// does a label show? key: whose label; part: who takes part, or null when every label shows (the reader paused at
+// the end of a step, moved the camera, or the scene says labels=all)
 export function labelOn(keys: number[], part: Set<number> | null): boolean {
   return !part || keys.some((k) => part.has(k));
+}
+// does a connector's label show? (e.part: stepPart's verdict for this step; a frame with no verdict shows it)
+export function wireLabelOn(e: { part?: boolean } | undefined, part: Set<number> | null): boolean {
+  return !part || !e || e.part !== false;
 }
 
 // ---------------------------------------------------------------- the LLM view

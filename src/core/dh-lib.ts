@@ -273,8 +273,21 @@ export function allParts(nodes: Node[]): PartNode[] {
 // ---------- inline parts ----------
 // :kbd[Ctrl+K]  a key or a combination;  :kbd[Ctrl+K, Ctrl+S]  a sequence;  key names are typed words: Left, Right, Up, Down, Enter ...
 // :mouse[double-click index.ts]  an action word, then what it acts on
-const KBD_RE = /:kbd\[([^\]]+)\]/g;
-const MOUSE_RE = /:mouse\[([^\]]+)\]/g;
+// ":kbd[" or ":mouse[", then at least one character that is not "]", then "]": what /:kbd\[([^\]]+)\]/g matched, found in one
+// pass (the regular expression read to the end of the text again for every opener without a closer)
+function replaceBracketed(t: string, open: string, f: (all: string, inner: string) => string): string {
+  let out = "", from = 0, close = -2;   // close: the first "]" at or after the last place looked (-1: none is left)
+  for (let i = t.indexOf(open); i >= 0;) {
+    const s = i + open.length;
+    if (close !== -1 && close < s) close = t.indexOf("]", s);
+    if (close === -1) break;
+    if (close === s) { i = t.indexOf(open, i + 1); continue; }
+    out += t.slice(from, i) + f(t.slice(i, close + 1), t.slice(s, close));
+    from = close + 1;
+    i = t.indexOf(open, from);
+  }
+  return from === 0 ? t : out + t.slice(from);
+}
 export const KEY_GLYPHS: Record<string, string> = { left: "←", right: "→", up: "↑", down: "↓", enter: "↵ Enter", return: "↵ Return", tab: "⇥ Tab", backspace: "⌫", cmd: "⌘", command: "⌘", shift: "⇧ Shift", option: "⌥", alt: "Alt", ctrl: "Ctrl", esc: "Esc", space: "Space", pageup: "PgUp", pagedown: "PgDn" };
 const KEY_NAMES: Record<string, string> = { left: "Left arrow", right: "Right arrow", up: "Up arrow", down: "Down arrow" };
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -285,7 +298,7 @@ export function mouseParts(inner: string): { act: string; target: string } {
 const chords = (k: string) => k.split(/\s*,\s*/);
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
 export function inlineToLlm(md: string): string {
-  return mapOutsideCode(md, (t) => t.replace(KBD_RE, (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")).replace(MOUSE_RE, (_, inner) => inner));
+  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner));
 }
 // The mouse icon: the button the action presses is filled. A double click adds a "2", a scroll arrows by the wheel,
 // a drag a move arrow, a drop a down arrow, a hover motion lines; so single and double click differ at a glance.
@@ -309,13 +322,48 @@ export function mouseSvg(act: string): string {
   return `<svg class="dh-mouse-icon" data-act="${act}" viewBox="0 0 31 30" width="31" height="30" aria-hidden="true">${btn(MOUSE_L, m.press === "l")}${btn(MOUSE_R, m.press === "r")}${MOUSE_BODY}<line class="ml" x1="11" y1="3" x2="11" y2="13"/><line class="ml" x1="3" y1="13" x2="19" y2="13"/>${wheel}${badge}</svg>`;
 }
 export function inlineToHtml(md: string): string {
-  return mapOutsideCode(md, (t) => t
-    .replace(KBD_RE, (_, k: string) => `<span class="dh-keys" aria-label="${escHtml(chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then "))}">${chords(k).map((chord) => `<span class="dh-chord">${keysOf(chord).map((key) => `<kbd>${escHtml(KEY_GLYPHS[key.toLowerCase()] ?? key)}</kbd>`).join('<span class="dh-plus">+</span>')}</span>`).join('<span class="dh-then">then</span>')}</span>`)
-    .replace(MOUSE_RE, (_, inner: string) => { const { act, target } = mouseParts(inner); return `<span class="dh-mouse">${mouseSvg(act)}<span class="dh-mouse-act">${escHtml(act)}</span>${target ? ` <b>${escHtml(target)}</b>` : ""}</span>`; }));
+  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => `<span class="dh-keys" aria-label="${escHtml(chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then "))}">${chords(k).map((chord) => `<span class="dh-chord">${keysOf(chord).map((key) => `<kbd>${escHtml(KEY_GLYPHS[key.toLowerCase()] ?? key)}</kbd>`).join('<span class="dh-plus">+</span>')}</span>`).join('<span class="dh-then">then</span>')}</span>`), ":mouse[", (_, inner: string) => { const { act, target } = mouseParts(inner); return `<span class="dh-mouse">${mouseSvg(act)}<span class="dh-mouse-act">${escHtml(act)}</span>${target ? ` <b>${escHtml(target)}</b>` : ""}</span>`; }));
 }
+/** f on the text outside code: what md.split(/(```[\s\S]*?```|`[^`\n]*`)/g) separated, found in one pass (the regular expression
+ *  read to the end of the text again from every backtick of a run that had no closer). */
 export function mapOutsideCode(md: string, f: (s: string) => string): string {
-  const parts = md.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
-  return parts.map((p, i) => (i % 2 ? p : f(p))).join("");
+  let out = "", from = 0, noTriple = false;
+  for (let i = md.indexOf("`"); i >= 0;) {
+    let end = -1;
+    if (!noTriple && md.startsWith("```", i)) { const j = md.indexOf("```", i + 3); if (j < 0) noTriple = true; else end = j + 3; }
+    if (end < 0) { let k = i + 1; while (k < md.length && md.charCodeAt(k) !== 96 && md.charCodeAt(k) !== 10) k++; if (md.charCodeAt(k) === 96) end = k + 1; }
+    if (end < 0) { i = md.indexOf("`", i + 1); continue; }
+    out += f(md.slice(from, i)) + md.slice(i, end);
+    from = end;
+    i = md.indexOf("`", end);
+  }
+  return out + f(md.slice(from));
+}
+// a link to another page of the docs, "](x.dh.md)" or "](x.dh.md#a)", becomes the LLM file's "](x.md)": what
+// /\]\((?![a-z]+:)([^)\s#]+)\.dh\.md(#[^)\s]*)?\)/g did, in one pass (the regular expression read the rest of a run again
+// from every "](" inside it)
+const SPACE = /\s/;
+function llmLinks(s: string): string {
+  let out = "", from = 0, runFrom = -1, runEnd = -1, fragAt = -1, fragEnd = -1;
+  for (let i = s.indexOf("]("); i >= 0; i = s.indexOf("](", i + 1)) {
+    const p = i + 2;
+    let q = p; while (q < s.length && s.charCodeAt(q) >= 97 && s.charCodeAt(q) <= 122) q++;
+    if (q > p && s.charCodeAt(q) === 58) continue;
+    // the run of characters other than ")", "#" and white space from p: one end for every "](" inside the same run
+    if (!(runFrom >= 0 && p >= runFrom && p <= runEnd)) { runFrom = p; runEnd = p; while (runEnd < s.length && s[runEnd] !== ")" && s[runEnd] !== "#" && !SPACE.test(s[runEnd])) runEnd++; }
+    if (runEnd - p < 7 || !s.startsWith(".dh.md", runEnd - 6)) continue;
+    let end = -1, frag = "";
+    if (s[runEnd] === ")") end = runEnd + 1;
+    else if (s[runEnd] === "#") {
+      if (fragAt !== runEnd) { fragAt = runEnd; let k = runEnd + 1; while (k < s.length && s[k] !== ")" && !SPACE.test(s[k])) k++; fragEnd = s[k] === ")" ? k : -1; }
+      if (fragEnd >= 0) { end = fragEnd + 1; frag = s.slice(runEnd, fragEnd); }
+    }
+    if (end < 0) continue;
+    out += s.slice(from, p) + s.slice(p, runEnd - 6) + ".md" + frag + ")";
+    from = end;
+    i = end - 1;
+  }
+  return from === 0 ? s : out + s.slice(from);
 }
 
 // ---------- the page's and the site's own marks and prefixes (format version 10) ----------
@@ -652,7 +700,7 @@ function llmOfNodes(nodes: Node[], publicView: boolean): string {
   return out.filter((s) => s.trim() !== "").join("\n\n");
 }
 function llmOfMd(md: string, publicView: boolean): string {
-  let t = mapOutsideCode(inlineToLlm(md), (s) => s.replace(/\]\((?![a-z]+:)([^)\s#]+)\.dh\.md(#[^)\s]*)?\)/g, "]($1.md$2)"));
+  let t = mapOutsideCode(inlineToLlm(md), llmLinks);
   if (publicView) t = dropSecurityBlocks(t);
   return t.replace(/^\n+|(?<!\n)\n+$/g, "");
 }

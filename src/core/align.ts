@@ -20,6 +20,7 @@
 import { parseItem, splitList, itemText, splitAround, tailMark, briefList, TIER_COLOURS, type Err, type Item } from "./tier";
 
 export const ALIGN_MAX = 6; // names on one axis
+const ALIGN_MAX_REGIONS = 400;
 export interface Cell { col: number; row: number; label: string; colour: string; items: Item[]; line: number }
 export interface Region { c0: number; c1: number; r0: number; r1: number; label: string; colour: string; line: number }
 export interface Point extends Item { x: number; y: number; line: number }
@@ -55,7 +56,7 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
   const axis: { x?: string[]; y?: string[] } = {}, axisLine: { x: number; y: number } = { x: baseLine, y: baseLine };
   const cells: Cell[] = [], points: Point[] = [], regions: Region[] = [];
   const cellAt = new Set<string>(); // "col,row" of the cells read so far
-  let arrows = false, arrowsSeen = false;
+  let arrows = false, arrowsSeen = false, regionsCut = false;
   const where = new Map<string, string>(); // item (lower case) -> where it is
   const lines = body.split("\n");
   // pass 1: the two axis lines (they may come after the cells; the cells are read once both are known)
@@ -116,6 +117,9 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
     const rg = t.match(/^region(?=(\s*))\1:(?=(\s*))\2(.*)$/);
     if (rg) {
       if (!xs.length || !ys.length) return; // the missing axis is already reported
+      // a grid within the axis limit holds at most 36 regions; past 400 (axes over the limit) the rest are left out, as
+      // each region is checked against every one before it
+      if (regions.length >= ALIGN_MAX_REGIONS) { if (!regionsCut) err(line, `more than ${ALIGN_MAX_REGIONS} regions; this one and the ones after it are left out`); regionsCut = true; return; }
       const { head: h1, colour, raw: rawC } = takeColour(rg[3]);
       const { head, label } = takeLabel(h1);
       const parts = head.split("/").map((s) => s.trim());
@@ -207,12 +211,22 @@ export function alignLlm(spec: AlignSpec): string {
 export const ALIGN_PHONE_CHIP = 17, ALIGN_PHONE_CELL = 12;
 // The least width (px) of the chip's text box that breaks the name into at most two lines: the wider half when the name
 // is split at its best space, never less than its longest word.
+// width must grow when text is added at either end (chipW does: a sum of positive widths, left to right); then the first
+// line's width only grows with k and the second's only shrinks, and a long name finds its best split by halving.
 export function twoLineW(name: string, width: (s: string) => number): number {
   const words = name.split(/\s+/).filter(Boolean);
   if (words.length < 2) return width(name);
+  const at = (k: number) => Math.max(width(words.slice(0, k).join(" ")), width(words.slice(k).join(" ")));
   let best = Infinity;
-  for (let k = 1; k < words.length; k++) best = Math.min(best, Math.max(width(words.slice(0, k).join(" ")), width(words.slice(k).join(" "))));
-  return Math.max(best, ...words.map(width));
+  if (words.length <= 64) for (let k = 1; k < words.length; k++) best = Math.min(best, at(k));
+  else {
+    // the first k where the first line is at least as wide as the second: the best is there or one before
+    let lo = 1, hi = words.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (width(words.slice(0, mid).join(" ")) >= width(words.slice(mid).join(" "))) hi = mid; else lo = mid + 1; }
+    best = Math.min(at(lo), lo > 1 ? at(lo - 1) : Infinity);
+  }
+  for (const w of words) best = Math.max(best, width(w)); // a loop: a long name has more words than a call takes arguments
+  return best;
 }
 export function alignColMin(spec: AlignSpec, width: (s: string, font: number) => number, font = 12): number {
   let need = 0;

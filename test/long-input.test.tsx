@@ -148,3 +148,16 @@ describe("steps that each carry a whole text", () => {
     expect(d.blocks.some((b: any) => b.type === "error" && /for the whole page/.test(b.message))).toBe(true);
   });
 });
+
+describe("alignment grids, drawn", () => {
+  test("a chip with a very long name", () => {
+    quick(1500, () => all(`${F}alignment\nx: a .. b\ny: c .. d\na / c: ${"w ".repeat(20_000)}\n${F}\n`));
+  });
+  test("many regions", () => {
+    const k = 150, n = 20_000;
+    let d: any;
+    quick(2500, () => { d = all(`${F}alignment\nx: ${Array.from({ length: k }, (_, i) => "a" + i).join(" .. ")}\ny: ${Array.from({ length: k }, (_, i) => "b" + i).join(" .. ")}\n${Array.from({ length: n }, (_, i) => `region: a${i % k} / b${Math.floor(i / k) % k} [c1]`).join("\n")}\n${F}\n`); });
+    expect(d.blocks[0].align.regions.length).toBe(400);
+    expect(d.blocks[0].align.errors.some((e: any) => /more than 400 regions/.test(e.msg))).toBe(true);
+  });
+});

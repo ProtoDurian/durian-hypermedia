@@ -13,7 +13,9 @@ export interface HighlightOptions { /** Code Hike theme name (default "github-fr
 
 export function dedent(text: string): { text: string; by: number } {
   const ls = text.split("\n");
-  const by = Math.min(...ls.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)![0].length));
+  // a loop, not Math.min(...lines): a very long file would pass more arguments than a call may take
+  let by = Infinity;
+  for (const l of ls) if (l.trim()) by = Math.min(by, l.match(/^[ \t]*/)![0].length);
   const n = Number.isFinite(by) ? by : 0;
   return { text: ls.map((l) => l.slice(n)).join("\n"), by: n };
 }

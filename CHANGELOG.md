@@ -4,6 +4,68 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.6.2
+
+A security fix: the text of a page is read in time linear in its length, and the work that cannot be (a YAML parser's,
+an animation's layout) has caps. Format version 10 is unchanged; every fixture, sample and the Format page parse, check
+and render exactly as in 0.6.1. Of about 2,400 other real pages compared with 0.6.1, all but 26 read exactly the same:
+18 differ only as listed under Changed, and 8 drafts with an animation over `maxAnimWork` show it as an error block.
+
+### Fixed
+
+- **Markdown is read by markdown-it, in linear time.** marked (0.6.1 and before) backtracks on some ordinary-looking
+  text, so a short message could keep a page busy for seconds. markdown-it 15.0.3 (MIT) reads CommonMark in time
+  linear in the text; its library build is vendored in `src/vendor/` (src/vendor/README.md says why and what). GFM
+  tables, strikethrough, task items and autolink literals are rules of this package, each one pass over the text. The
+  tree keeps 0.6.1's choices where a page could tell: a list item's paragraphs are text, white space at the start of a
+  line stays, character references other than the five it always decoded stay as written, a link's address and title
+  are as written.
+- The LLM view's rewrites of keys, mouse actions, code spans and links to other pages are one pass each (same results).
+- **Long ordinary text is much faster.** Every part and plain Markdown now take time and memory linear in the input. `test/linear.test.ts` checks it; `bun run bench` holds time and memory per KB to a budget; a CI workflow
+  runs both.
+- A long code block renders in linear time (one text token per line for Code Hike).
+- The parts' own syntax (fences, containers, steps, file tree rows, `@file` lines, terminal prompts, tab headings,
+  tier lists, alignment grids) and `check()`'s scans of prose and code references are read in one pass. A code
+  reference's symbol is matched as text (one with `[` used to stop `check()`).
+- **YAML is sized before any parser reads it.** A parser's work grows with the keys and values it builds, in some
+  parsers with the square of one map's keys. Front matter and each chart may have at most `maxYamlChars` characters
+  and `maxYamlNodes` nodes, and a page `maxPageYamlChars` and `maxPageYamlNodes` in all, counted from the text for
+  any parser; over them, front matter is ignored with a problem and a chart is an error block. The default caps
+  (`LIMITS`) give the largest real pages measured about twice the room they need; a chart with more data written out
+  than the caps is an error block (compute it, or raise the caps).
+- **Animations are laid out on a work budget.** Layout and line routing are counted as they are done, up to
+  `maxAnimWork` for one animation and `maxPageAnimWork` for a page; over them the animation is an error block and the
+  rest of the page draws. Each animation is compiled once per `parse()` (it was compiled about five times), and label
+  wrapping, kept slots and the line router's search no longer rescan; what is drawn is the same.
+
+### Changed
+
+- Markdown edge cases follow CommonMark and GFM where marked did not (on the CommonMark spec's examples: 20 now match
+  the spec that did not, 1 white-space-only case matched before and not now; on GFM's: 19 and 1; the full list is in
+  the 0.6.2 pull request). What real pages showed, checked against commonmark.js and GFM:
+  - one-tilde strikethrough follows the same flanking rules as `~~`: text such as "about ~5 of ~10 (~50%)" stays as
+    written (marked struck through the words between two of the tildes);
+  - white space at the end of a paragraph, and at the start of its continuation lines, is not kept (the page looks the
+    same);
+  - a tab in a fenced code block inside a list item stays a tab (marked turned it into spaces);
+  - `<` followed by something that is not an HTML tag (`<file_name>`) is plain text in one piece (the same text);
+  - a bare `www.` starts at a line start, after white space or after `*`, `_`, `~`, `(` (GFM); a bare `http://`,
+    `https://` or `ftp://` after any character that is not a letter or a digit, as in 0.6.1 (`url=https://...`,
+    `"https://..."`), but not after a letter or a digit, nor after a `<` that opens no autolink; a domain is judged
+    without the punctuation after it, so `_https://example.com_` and `www.example` are links;
+  - an ordered list that does not start at 1 does not interrupt a paragraph (inside a list item it still nests, as
+    before).
+- New output caps far past real pages: a part's steps carry at most 1,000,000 characters (2,000,000 a page), an
+  alignment grid at most 400 cells and 400 regions, a page's tables of contents at most 2,000 headings; past them, an
+  error block with the source as plain code.
+- `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlNodes`,
+  `maxPageYamlNodes`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
+- New export `UNTRUSTED_LIMITS`: `LIMITS` with smaller YAML and animation caps, for text nobody reviewed (a chat reply,
+  a streamed message): its slowest pages parse about three to five times quicker. `LIMITS` stays the default
+  and is sized for authored pages (SECURITY.md has both sets and their measured worst cases).
+- Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`
+  and `uc.micro` are added (MIT, BSD-2-Clause).
+
 ## 0.6.1
 
 A security fix: chart expressions now run on a real work budget. Format version 10 is unchanged; every fixture and the

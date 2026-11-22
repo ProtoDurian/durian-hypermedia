@@ -20,6 +20,10 @@ export interface Limits {
   maxAnimSteps: number;
   /** characters of one animation's source */
   maxAnimChars: number;
+  /** layout work of one animation (playing, laying out, routing and placing its steps), in units of about one small
+   *  step of a loop; and of every animation on the page together, so a page cannot restart the spend (core/work.ts) */
+  maxAnimWork: number;
+  maxPageAnimWork: number;
   /** data points of one chart (all series together) */
   maxChartPoints: number;
   /** items of one tier list or alignment grid */
@@ -38,6 +42,15 @@ export interface Limits {
   maxPageEvalChars: number;
   /** aliases (`*name`) one YAML text may use, whatever the names are spelled with; checked before the YAML is parsed */
   maxYamlAliases: number;
+  /** characters of one YAML text (front matter, one chart), and of all of a page's YAML texts together; checked before
+   *  the YAML is parsed */
+  maxYamlChars: number;
+  maxPageYamlChars: number;
+  /** nodes (keys, values, lists, maps) of one YAML text, and of all of a page's YAML texts together, counted from the
+   *  text before it is parsed (see yamlNodeCount): every node costs a parser some microseconds, and one map's keys cost
+   *  some parsers the square of their number */
+  maxYamlNodes: number;
+  maxPageYamlNodes: number;
 }
 export const LIMITS: Limits = {
   maxInputBytes: 1_000_000,
@@ -46,6 +59,8 @@ export const LIMITS: Limits = {
   maxAnimEntities: 300,
   maxAnimSteps: 200,
   maxAnimChars: 40_000,
+  maxAnimWork: 15_000_000,
+  maxPageAnimWork: 64_000_000,
   maxChartPoints: 5_000,
   maxItems: 500,
   maxMermaidChars: 20_000,
@@ -57,6 +72,24 @@ export const LIMITS: Limits = {
   maxPageEvalValues: 400_000,
   maxPageEvalChars: 400_000,
   maxYamlAliases: 16,
+  maxYamlChars: 32_000,
+  maxPageYamlChars: 200_000,
+  maxYamlNodes: 3_000,
+  maxPageYamlNodes: 24_000,
+};
+/**
+ * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML
+ * and animation caps, so its slowest pages parse about three to five times quicker (SECURITY.md). Pass it as
+ * parse(text, { limits: UNTRUSTED_LIMITS }); an authored page may need more and is refused here past them.
+ */
+export const UNTRUSTED_LIMITS: Limits = {
+  ...LIMITS,
+  maxYamlChars: 32_000,
+  maxPageYamlChars: 64_000,
+  maxYamlNodes: 1_000,
+  maxPageYamlNodes: 4_000,
+  maxAnimWork: 3_000_000,
+  maxPageAnimWork: 6_000_000,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

@@ -14,7 +14,8 @@ import { dirname, extname, join, resolve } from "../host/path";
 import { spawnSync } from "../host/child_process";
 import { chartControls, evalChart } from "./chart";
 import { chartTable } from "./chart-llm";
-import { currentBudget } from "./budget";
+import { currentBudget, BudgetError } from "./budget";
+import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
@@ -113,9 +114,38 @@ export function parseAttrs(s: string | undefined): { attrs: Attrs; words: string
 export class ParseError extends Error { constructor(public line: number, msg: string) { super(msg); } }
 
 function closeFence(lines: string[], from: number, end: number, ticks: string): number {
-  for (let i = from + 1; i < end; i++) { const t = lines[i].trim(); if (t.startsWith(ticks[0].repeat(ticks.length)) && /^[`~]+$/.test(t) && t.length >= ticks.length) return i; }
+  // no line from here on could close it: say so at once (a container's scan asks again for every fence line inside it)
+  if (from + 1 < end && longestCloser(lines, ticks[0])[from + 1] < ticks.length) return -1;
+  const open = ticks[0].repeat(ticks.length);
+  for (let i = from + 1; i < end; i++) { const t = lines[i].trim(); if (t.startsWith(open) && /^[`~]+$/.test(t) && t.length >= ticks.length) return i; }
   return -1;
 }
+// for each line, the longest fence of ` (or ~) that this line or a later one closes: a closing line is backticks and
+// tildes only, and it closes a fence as long as its first run of that character. Made once per page's lines.
+const closers = new WeakMap<string[], Record<string, Int32Array>>();
+function longestCloser(lines: string[], c: string): Int32Array {
+  let m = closers.get(lines);
+  if (!m) {
+    const b = new Int32Array(lines.length + 1), t = new Int32Array(lines.length + 1);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const s = lines[i].trim();
+      let rb = 0, rt = 0;
+      if (/^[`~]+$/.test(s)) { const r = s[0] === "`" ? "`" : "~"; let k = 0; while (k < s.length && s[k] === r) k++; if (r === "`") rb = k; else rt = k; }
+      b[i] = Math.max(rb, b[i + 1]); t[i] = Math.max(rt, t[i + 1]);
+    }
+    m = { "`": b, "~": t };
+    closers.set(lines, m);
+  }
+  return m[c];
+}
+
+// FENCE_RE and OPEN_RE with each run taken whole (a lookahead, then the text it saw): the same matches, but a line whose
+// rest holds a line end ("." matches none) fails at once instead of backtracking through every run, which cost the square
+// of the line. Groups as those patterns give them.
+const FENCE_WHOLE = /^(?=(\s*))\1(?=(`{3,}|~{3,}))\2(?=(\s*))\3(?=([^\s`{]*))\4(.*)$/;
+const OPEN_WHOLE = /^:::(?=(\s*))\1(?=([a-z][a-z0-9-]*))\2(.*)$/;
+const fenceLine = (l: string): string[] | null => { const m = FENCE_WHOLE.exec(l); return m && [m[0], m[1], m[2], m[4], m[5]]; };
+const openLine = (l: string): string[] | null => { const m = OPEN_WHOLE.exec(l); return m && [m[0], m[2], m[3]]; };
 
 function parseNodes(lines: string[], start: number, end: number, base: number, inContainer: string | null): Node[] {
   const out: Node[] = [];
@@ -134,7 +164,7 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
   };
   for (let i = start; i < end; i++) {
     const l = lines[i];
-    const f = l.match(FENCE_RE);
+    const f = fenceLine(l);
     if (f) {
       const close = closeFence(lines, i, end, f[2]);
       if (close < 0) throw new ParseError(base + i + 1, "a code fence is never closed");
@@ -150,16 +180,16 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
       bufLine = i + 1;
       continue;
     }
-    const o = l.match(OPEN_RE);
+    const o = openLine(l);
     if (o) {
       const name = o[1];
       if (inContainer) throw new ParseError(base + i + 1, `:::${name} inside :::${inContainer}: containers do not nest; close the :::${inContainer} first`);
       let close = -1;
       for (let j = i + 1; j < end; j++) {
-        const fj = lines[j].match(FENCE_RE);
+        const fj = fenceLine(lines[j]);
         if (fj) { const c = closeFence(lines, j, end, fj[2]); if (c > 0) { j = c; continue; } }
         if (CLOSE_RE.test(lines[j])) { close = j; break; }
-        if (OPEN_RE.test(lines[j])) throw new ParseError(base + j + 1, `:::${lines[j].match(OPEN_RE)![1]} inside :::${name}: containers do not nest; close the :::${name} first`);
+        if (openLine(lines[j])) throw new ParseError(base + j + 1, `:::${openLine(lines[j])![1]} inside :::${name}: containers do not nest; close the :::${name} first`);
       }
       if (close < 0) throw new ParseError(base + i + 1, `:::${name} is never closed (a line ::: closes it)`);
       flush();
@@ -192,7 +222,8 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   const bodyLines = lines.slice(open + 1, close);
   const p = emptyPart(name, attrs, base + open + 1, base + close + 1, lines.slice(open, close + 1).join("\n"), lines[open], bodyLines.join("\n"), base + open + 2);
   // steps: "@step title" (in mermaid "%% @step title", a mermaid comment, so the diagram still draws on any Markdown viewer)
-  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b\s*(.*)$/ : /^@step\b\s*(.*)$/;
+  // the spaces after @step taken whole (no backtracking into them when the title holds a line end)
+  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b(?=(\s*))\1(.*)$/ : /^@step\b(?=(\s*))\1(.*)$/;
   let cur: Step | null = null;
   const head: string[] = [];
   const raw: string[] = [];
@@ -200,7 +231,7 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
     const m = l.match(stepRe);
     if (m) {
       if (cur) { cur.raw = raw.join("\n"); p.steps.push(cur); raw.length = 0; }
-      const { title, attrs: sa } = splitStepArg(m[1], name === "codewalk");
+      const { title, attrs: sa } = splitStepArg(m[2], name === "codewalk");
       cur = { title, attrs: sa, raw: "", line: base + open + 2 + k, header: l };
       return;
     }
@@ -232,7 +263,7 @@ function splitItems(lines: string[], start: number, end: number, base: number, i
   let level = 7;
   const heads: number[] = [];
   for (let i = start; i < end; i++) {
-    const f = lines[i].match(FENCE_RE);
+    const f = fenceLine(lines[i]);
     if (f) { const c = closeFence(lines, i, end, f[2]); if (c > 0) { i = c; continue; } }
     const h = headOf(lines[i]);
     if (h) { level = Math.min(level, h[1].length); heads.push(i); }
@@ -273,19 +304,33 @@ export function allParts(nodes: Node[]): PartNode[] {
 // ---------- inline parts ----------
 // :kbd[Ctrl+K]  a key or a combination;  :kbd[Ctrl+K, Ctrl+S]  a sequence;  key names are typed words: Left, Right, Up, Down, Enter ...
 // :mouse[double-click index.ts]  an action word, then what it acts on
-const KBD_RE = /:kbd\[([^\]]+)\]/g;
-const MOUSE_RE = /:mouse\[([^\]]+)\]/g;
+// ":kbd[" or ":mouse[", then at least one character that is not "]", then "]": what /:kbd\[([^\]]+)\]/g matched, found in one
+// pass (the regular expression read to the end of the text again for every opener without a closer)
+function replaceBracketed(t: string, open: string, f: (all: string, inner: string) => string): string {
+  let out = "", from = 0, close = -2;   // close: the first "]" at or after the last place looked (-1: none is left)
+  for (let i = t.indexOf(open); i >= 0;) {
+    const s = i + open.length;
+    if (close !== -1 && close < s) close = t.indexOf("]", s);
+    if (close === -1) break;
+    if (close === s) { i = t.indexOf(open, i + 1); continue; }
+    out += t.slice(from, i) + f(t.slice(i, close + 1), t.slice(s, close));
+    from = close + 1;
+    i = t.indexOf(open, from);
+  }
+  return from === 0 ? t : out + t.slice(from);
+}
 export const KEY_GLYPHS: Record<string, string> = { left: "←", right: "→", up: "↑", down: "↓", enter: "↵ Enter", return: "↵ Return", tab: "⇥ Tab", backspace: "⌫", cmd: "⌘", command: "⌘", shift: "⇧ Shift", option: "⌥", alt: "Alt", ctrl: "Ctrl", esc: "Esc", space: "Space", pageup: "PgUp", pagedown: "PgDn" };
 const KEY_NAMES: Record<string, string> = { left: "Left arrow", right: "Right arrow", up: "Up arrow", down: "Down arrow" };
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 export function mouseParts(inner: string): { act: string; target: string } {
-  const m = inner.trim().match(/^(\S+)\s*(.*)$/);
-  return { act: m?.[1] ?? inner, target: (m?.[2] ?? "").replace(/^"|"$/g, "") };
+  const m = inner.trim().match(/^(?=(\S+))\1(?=(\s*))\2(.*)$/); // each run taken whole: no backtracking into them
+  return { act: m?.[1] ?? inner, target: (m?.[3] ?? "").replace(/^"|"$/g, "") };
 }
-const chords = (k: string) => k.split(/\s*,\s*/);
+// k.split(/\s*,\s*/) in one pass (that pattern tries every space of a long run without a comma again)
+const chords = (k: string) => { const p = k.split(","); return p.map((x, i) => (i > 0 ? (i < p.length - 1 ? x.trim() : x.trimStart()) : i < p.length - 1 ? x.trimEnd() : x)); };
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
 export function inlineToLlm(md: string): string {
-  return mapOutsideCode(md, (t) => t.replace(KBD_RE, (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")).replace(MOUSE_RE, (_, inner) => inner));
+  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner));
 }
 // The mouse icon: the button the action presses is filled. A double click adds a "2", a scroll arrows by the wheel,
 // a drag a move arrow, a drop a down arrow, a hover motion lines; so single and double click differ at a glance.
@@ -309,13 +354,50 @@ export function mouseSvg(act: string): string {
   return `<svg class="dh-mouse-icon" data-act="${act}" viewBox="0 0 31 30" width="31" height="30" aria-hidden="true">${btn(MOUSE_L, m.press === "l")}${btn(MOUSE_R, m.press === "r")}${MOUSE_BODY}<line class="ml" x1="11" y1="3" x2="11" y2="13"/><line class="ml" x1="3" y1="13" x2="19" y2="13"/>${wheel}${badge}</svg>`;
 }
 export function inlineToHtml(md: string): string {
-  return mapOutsideCode(md, (t) => t
-    .replace(KBD_RE, (_, k: string) => `<span class="dh-keys" aria-label="${escHtml(chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then "))}">${chords(k).map((chord) => `<span class="dh-chord">${keysOf(chord).map((key) => `<kbd>${escHtml(KEY_GLYPHS[key.toLowerCase()] ?? key)}</kbd>`).join('<span class="dh-plus">+</span>')}</span>`).join('<span class="dh-then">then</span>')}</span>`)
-    .replace(MOUSE_RE, (_, inner: string) => { const { act, target } = mouseParts(inner); return `<span class="dh-mouse">${mouseSvg(act)}<span class="dh-mouse-act">${escHtml(act)}</span>${target ? ` <b>${escHtml(target)}</b>` : ""}</span>`; }));
+  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => `<span class="dh-keys" aria-label="${escHtml(chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then "))}">${chords(k).map((chord) => `<span class="dh-chord">${keysOf(chord).map((key) => `<kbd>${escHtml(KEY_GLYPHS[key.toLowerCase()] ?? key)}</kbd>`).join('<span class="dh-plus">+</span>')}</span>`).join('<span class="dh-then">then</span>')}</span>`), ":mouse[", (_, inner: string) => { const { act, target } = mouseParts(inner); return `<span class="dh-mouse">${mouseSvg(act)}<span class="dh-mouse-act">${escHtml(act)}</span>${target ? ` <b>${escHtml(target)}</b>` : ""}</span>`; }));
 }
+/** f on the text outside code: what md.split(/(```[\s\S]*?```|`[^`\n]*`)/g) separated, found in one pass (the regular expression
+ *  read to the end of the text again from every backtick of a run that had no closer). */
 export function mapOutsideCode(md: string, f: (s: string) => string): string {
-  const parts = md.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
-  return parts.map((p, i) => (i % 2 ? p : f(p))).join("");
+  let out = "", from = 0, noTriple = false;
+  for (let i = md.indexOf("`"); i >= 0;) {
+    let end = -1;
+    if (!noTriple && md.startsWith("```", i)) { const j = md.indexOf("```", i + 3); if (j < 0) noTriple = true; else end = j + 3; }
+    if (end < 0) { let k = i + 1; while (k < md.length && md.charCodeAt(k) !== 96 && md.charCodeAt(k) !== 10) k++; if (md.charCodeAt(k) === 96) end = k + 1; }
+    if (end < 0) { i = md.indexOf("`", i + 1); continue; }
+    out += f(md.slice(from, i)) + md.slice(i, end);
+    from = end;
+    i = md.indexOf("`", end);
+  }
+  return out + f(md.slice(from));
+}
+// a link to another page of the docs, "](x.dh.md)" or "](x.dh.md#a)", becomes the LLM file's "](x.md)": what
+// /\]\((?![a-z]+:)([^)\s#]+)\.dh\.md(#[^)\s]*)?\)/g did, in one pass (the regular expression read the rest of a run again
+// from every "](" inside it)
+const SPACE = /\s/;
+function llmLinks(s: string): string {
+  // fragFrom..fragStop: the last fragment scan (it stops at the first ")" or white space, so every start inside it
+  // stops at the same place)
+  let out = "", from = 0, runFrom = -1, runEnd = -1, fragFrom = -1, fragStop = -1;
+  for (let i = s.indexOf("]("); i >= 0; i = s.indexOf("](", i + 1)) {
+    const p = i + 2;
+    let q = p; while (q < s.length && s.charCodeAt(q) >= 97 && s.charCodeAt(q) <= 122) q++;
+    if (q > p && s.charCodeAt(q) === 58) continue;
+    // the run of characters other than ")", "#" and white space from p: one end for every "](" inside the same run
+    if (!(runFrom >= 0 && p >= runFrom && p <= runEnd)) { runFrom = p; runEnd = p; while (runEnd < s.length && s[runEnd] !== ")" && s[runEnd] !== "#" && !SPACE.test(s[runEnd])) runEnd++; }
+    if (runEnd - p < 7 || !s.startsWith(".dh.md", runEnd - 6)) continue;
+    let end = -1, frag = "";
+    if (s[runEnd] === ")") end = runEnd + 1;
+    else if (s[runEnd] === "#") {
+      if (!(fragFrom >= 0 && runEnd + 1 >= fragFrom && runEnd + 1 <= fragStop)) { fragFrom = runEnd + 1; let k = fragFrom; while (k < s.length && s[k] !== ")" && !SPACE.test(s[k])) k++; fragStop = k; }
+      if (s[fragStop] === ")") { end = fragStop + 1; frag = s.slice(runEnd, fragStop); }
+    }
+    if (end < 0) continue;
+    out += s.slice(from, p) + s.slice(p, runEnd - 6) + ".md" + frag + ")";
+    from = end;
+    i = end - 1;
+  }
+  return from === 0 ? s : out + s.slice(from);
 }
 
 // ---------- the page's and the site's own marks and prefixes (format version 10) ----------
@@ -378,6 +460,26 @@ export function usedMarks(defs: Defs | undefined, names: string[]): Record<strin
 //            (new) (changed) (removed) (generated) (conflict) are badges, (closed) starts a folder closed,
 //            "# text" is a note, and a line "..." stands for entries left out.
 export interface TreeRow { depth: number; name: string; folder: boolean; badges: string[]; closed: boolean; note: string; gap: boolean; path: string; line: number }
+// a row's note: t.match(/\s+#\s+(.*)$/) ?? t.match(/^#\s+(.*)$/), read in one pass (the first pattern tries every
+// space and every "#" and scans to the end from each). [index, text], or null.
+const WS = /\s/;
+const LINE_END_CH = /[\n\r\u2028\u2029]/;
+function noteOf(t: string): [number, string] | null {
+  let lastEnd = -1;
+  for (let i = t.length - 1; i >= 0; i--) if (LINE_END_CH.test(t[i])) { lastEnd = i; break; }
+  // "#", then spaces, then text with no line end ("." matches none): the spaces run as far as they go
+  const after = (b: number): number => { if (b + 1 >= t.length || !WS.test(t[b + 1])) return -1; let c = b + 1; while (c < t.length && WS.test(t[c])) c++; return c > lastEnd ? c : -1; };
+  for (let b = t.indexOf("#", 1); b >= 0; b = t.indexOf("#", b + 1)) {
+    if (!WS.test(t[b - 1])) continue;
+    const c = after(b);
+    if (c < 0) continue;
+    let a = b - 1;
+    while (a > 0 && WS.test(t[a - 1])) a--;
+    return [a, t.slice(c)];
+  }
+  if (t[0] === "#") { const c = after(0); if (c >= 0) return [0, t.slice(c)]; }
+  return null;
+}
 export function parseTree(text: string, base = 0, defs?: Defs): { rows: TreeRow[]; errors: { line: number; msg: string }[] } {
   const own = (f: string) => !!defs?.marks[f];
   const rows: TreeRow[] = [], errors: { line: number; msg: string }[] = [];
@@ -388,10 +490,10 @@ export function parseTree(text: string, base = 0, defs?: Defs): { rows: TreeRow[
     if (ind % 2) errors.push({ line: base + i, msg: `filetree: indent by 2 spaces per level ("${raw.trim()}")` });
     const depth = Math.floor(ind / 2);
     let t = raw.trim(), note = "";
-    const n = t.match(/\s+#\s+(.*)$/) ?? t.match(/^#\s+(.*)$/);
-    if (n) { note = n[1].trim(); t = t.slice(0, n.index).trim(); }
+    const n = noteOf(t);
+    if (n) { note = n[1].trim(); t = t.slice(0, n[0]).trim(); }
     const flags: string[] = [];
-    t = t.replace(/\s*\(([a-z]+(?:-[a-z]+)*)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
+    t = t.replace(/(?<!\s)\s*\(([a-z]+(?:-[a-z]+)*)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
     if (t === "..." || t === "…") { rows.push({ depth, name: "...", folder: false, badges: [], closed: false, note, gap: true, path: `${stack.slice(0, depth).join("")}...`, line: base + i }); return; }
     for (const f of flags) if (!BADGES.includes(f) && !FOLDER_FLAGS.includes(f) && !own(f)) errors.push({ line: base + i, msg: `filetree: unknown mark "(${f})": built-in marks are ${[...BADGES, ...FOLDER_FLAGS].join(", ")}${defs && Object.keys(defs.marks).length ? `; defined here: ${Object.keys(defs.marks).join(", ")}` : ""}; to use your own, define it in the page's front matter (marks: { ${f}: { label: ${f}, colour: warn } }) or for every page with the marks option of parse()` });
     if (!t || t.startsWith("/") || t.includes("\\")) errors.push({ line: base + i, msg: `filetree: "${raw.trim()}" needs a relative name using /` });
@@ -418,10 +520,13 @@ export interface TermLine { k: "cmd" | "out"; text: string; prompt?: string }
 export function parseTermLines(text: string, defs?: Defs): TermLine[] {
   const out: TermLine[] = [];
   // the page's own prefixes first, the longest first, then $ % #
-  const own = Object.keys(defs?.prefixes ?? {}).sort((a, b) => b.length - a.length);
+  // (each line looks its prompt up by length, longest first, instead of trying every prefix the page defines)
+  const own = new Set(Object.keys(defs?.prefixes ?? {}));
+  const lens = [...new Set([...own].map((p) => p.length))].sort((a, b) => b - a);
   for (const l of text.split("\n")) {
     if (!l.trim()) continue;
-    const mine = own.find((p) => l === p || l.startsWith(p + " "));
+    let mine: string | undefined;
+    for (const n of lens) { const p = l.slice(0, n); if (own.has(p) && (l.length === n || l[n] === " ")) { mine = p; break; } }
     if (mine) { out.push({ k: "cmd", prompt: mine, text: l.slice(mine.length + 1) }); continue; }
     const m = l.match(/^([$%#])(?: (.*)|$)/);
     if (m) out.push({ k: "cmd", prompt: m[1], text: m[2] ?? "" });
@@ -429,6 +534,8 @@ export function parseTermLines(text: string, defs?: Defs): TermLine[] {
   }
   return out;
 }
+// the prompts a terminal's steps use (one pass, then each defined prefix is a lookup)
+const usedPrompts = (steps: { lines: TermLine[] }[]): Set<string> => { const s = new Set<string>(); for (const st of steps) for (const l of st.lines) if (l.prompt != null) s.add(l.prompt); return s; };
 export function terminalSteps(p: PartNode): { title: string; lines: TermLine[] }[] {
   if (p.steps.length) return p.steps.map((s) => ({ title: s.title, lines: parseTermLines(s.raw, p.defs) }));
   const steps: { title: string; lines: TermLine[] }[] = [];
@@ -452,8 +559,8 @@ export function madeUpFiles(head: string, bodyLine: number): { files: MadeFile[]
   let cur: MadeFile | null = null; let buf: string[] = [];
   const end = () => { if (cur) { while (buf.length && !buf[buf.length - 1].trim()) buf.pop(); cur.text = buf.join("\n"); files.push(cur); cur = null; buf = []; } };
   head.split("\n").forEach((l, i) => {
-    const fm = l.match(/^@file\s+(\S+)(.*)$/);
-    if (fm) { end(); cur = { path: fm[1], open: /\(open\)/.test(fm[2]), text: "", line: bodyLine + i }; return; }
+    const fm = l.match(/^@file(?=(\s+))\1(?=(\S+))\2(.*)$/);
+    if (fm) { end(); cur = { path: fm[2], open: /\(open\)/.test(fm[3]), text: "", line: bodyLine + i }; return; }
     if (cur) buf.push(l); else rest.push({ text: l, line: bodyLine + i });
   });
   end();
@@ -476,13 +583,14 @@ export function codewalkRefs(doc: Doc, p: PartNode): CodeRef[] {
   let repo = p.attrs.repo, file = p.attrs.file ?? "";
   const made = new Map(madeUpFiles(p.head, p.bodyLine).files.map((f) => [f.path, f.text]));
   let cur: string | undefined;
+  const lineCounts = new Map<string, number>(); // a made-up file's line count, counted once
   return p.steps.map((s) => {
     const m = s.title.match(/^(\S*?)(?:#(L?\d+(?:-L?\d+)?))?$/);
     if (!m || !s.title) return { repo: repo ?? "", file, lines: null, focus: null, marks: [], err: `a code walk step needs a code reference like \`@step src/a.ts#L10-L20\`, got "${s.title}"` };
     // a made-up file (@file) wins over a repo file of the same path
     if (m[1]) { if (made.has(m[1])) { file = m[1]; cur = made.get(m[1]); } else { const r = splitRef(doc, m[1], repo); repo = r.repo; file = r.file; cur = undefined; } }
     // a made-up file may leave out the range: the whole file
-    const lines = parseLines(m[2]) ?? (cur != null ? [1, Math.max(1, cur.split("\n").length)] as [number, number] : null);
+    const lines = parseLines(m[2]) ?? (cur != null ? [1, Math.max(1, lineCounts.get(file) ?? (lineCounts.set(file, cur.split("\n").length), lineCounts.get(file)!))] as [number, number] : null);
     return { repo: cur != null ? "" : repo ?? "", file, lines, focus: parseLines(s.attrs.focus), marks: (s.attrs.mark ?? "").split(",").map((x) => +x.replace(/L/g, "")).filter((x) => x > 0), err: lines ? undefined : `step "${s.title}" has no line range (#L10-L20)`, made: cur };
   });
 }
@@ -576,6 +684,22 @@ export function editorFiles(doc: Doc, p: PartNode, src: string | undefined) {
   return { spec: e, files: e.files.map((f) => { if (f.made) return { ...f, text: f.text ?? "", commit: null as string | null, err: null as string | null }; const c = readCode(doc, f.repo, f.file, src); return { ...f, text: c.text == null ? null : c.text.replace(/\n$/, ""), commit: c.commit, err: c.err ?? null }; }) };
 }
 
+// How many characters a part's steps carry, at most, when every step holds a whole text: an editor's file before and
+// after each edit, a code walk's lines of a made-up file, a mermaid diagram up to each step. That is the steps times
+// the text, so parse() caps it (a part whose steps would carry too much is shown as its source). Other parts: 0.
+export function stepTextSize(doc: Doc, p: PartNode): number {
+  if (p.name === "mermaid") { let acc = p.head.length, n = p.steps.length ? 0 : acc; for (const s of p.steps) { acc += 1 + s.raw.length; n += acc; } return n; }
+  if (p.name === "codewalk") { const keys = new Set<string>(); let n = 0; for (const r of codewalkRefs(doc, p)) { const k = `${r.repo}/${r.file}`; n += (r.made?.length ?? 0) + (keys.has(k) ? 0 : (keys.add(k), r.made?.length ?? 0)); } return n; }
+  if (p.name === "editor") {
+    // a file after an edit is no longer than before it plus the lines the edit adds
+    const e = editorSpec(doc, p), len = new Map<string, number>();
+    for (const f of e.files) if (f.made) len.set(f.path, (f.text ?? "").length);
+    let n = 0;
+    for (const s of e.steps) { const before = len.get(s.file) ?? 0; let after = before; for (const d of s.diff) if (d[0] === "+") after += d.length; n += before + after; len.set(s.file, after); }
+    return n;
+  }
+  return 0;
+}
 // mermaid steps: each "%% @step" line ends a step; step k draws every line up to its end (the diagram builds up)
 export function mermaidSteps(p: PartNode): { title: string; src: string }[] {
   if (!p.steps.length) return [{ title: "", src: p.head }];
@@ -593,7 +717,16 @@ export function animSrc(p: PartNode) {
   for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
-export function animOf(p: PartNode): Compiled { const s = animSrc(p); return compileScene(s.head, s.steps, s.base, s.info); }
+// one compile per part: the page, its JSON, its LLM view and its checks share it (a part over its work budget keeps
+// the BudgetError and throws it again, without compiling again)
+const compiled = new WeakMap<PartNode, Compiled | { over: BudgetError }>();
+export function animOf(p: PartNode): Compiled {
+  const hit = compiled.get(p);
+  if (hit) { if ("over" in hit) throw hit.over; return hit; }
+  const s = animSrc(p);
+  try { const c = compileScene(s.head, s.steps, s.base, s.info); compiled.set(p, c); return c; }
+  catch (e) { if (e instanceof BudgetError) compiled.set(p, { over: e }); throw e; }
+}
 export { SCENE_KINDS };
 
 // ---------- LLM view ----------
@@ -616,7 +749,9 @@ function ownAsIs(p: PartNode): string | null {
     const body = p.body.replace(/\(([a-z]+(?:-[a-z]+)*)\)/g, (all, k) => { if (!defs.marks[k]) return all; hit = true; return `(${defs.marks[k].label})`; });
     return hit ? `${llmOpen(p)}\n${body.replace(/(?<!\n)\n+$/, "")}\n${fence}` : null;
   }
-  const used = Object.keys(defs.prefixes).filter((k) => terminalSteps(p).some((st) => st.lines.some((l) => l.prompt === k)));
+  const keys = Object.keys(defs.prefixes);
+  const prompts = keys.length ? usedPrompts(terminalSteps(p)) : new Set<string>();
+  const used = keys.filter((k) => prompts.has(k));
   if (!used.length) return null;
   const note = used.map((k) => `${k} is ${defs.prefixes[k].label}${defs.prefixes[k].means ? ` (${defs.prefixes[k].means})` : ""}`).join("; ");
   return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}\n\nPrompts: ${note}.`;
@@ -641,7 +776,9 @@ function chartLlm(p: PartNode): string {
   return chartTable(d, chartInitial(p, d)) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
 }
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
-function animLlm(p: PartNode): string { return sceneLlm(animOf(p)); }
+// (made once per compile; it plays the story again, which the compile already paid for: not charged twice)
+const llmText = new WeakMap<Compiled, string>();
+function animLlm(p: PartNode): string { const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
 function llmOfNodes(nodes: Node[], publicView: boolean): string {
   const out: string[] = [];
   for (const n of nodes) {
@@ -652,7 +789,7 @@ function llmOfNodes(nodes: Node[], publicView: boolean): string {
   return out.filter((s) => s.trim() !== "").join("\n\n");
 }
 function llmOfMd(md: string, publicView: boolean): string {
-  let t = mapOutsideCode(inlineToLlm(md), (s) => s.replace(/\]\((?![a-z]+:)([^)\s#]+)\.dh\.md(#[^)\s]*)?\)/g, "]($1.md$2)"));
+  let t = mapOutsideCode(inlineToLlm(md), llmLinks);
   if (publicView) t = dropSecurityBlocks(t);
   return t.replace(/^\n+|(?<!\n)\n+$/g, "");
 }
@@ -757,12 +894,14 @@ export function readCode(doc: Doc, repo: string, file: string, src: string | und
   }
   return { text: null, commit: null, err: repo ? `no pins entry for repo ${repo}` : "no repo: give the part repo=<repo>, start the path with a pinned repo, or make the file up with @file" };
 }
+let lastLines: { text: string; all: string[] } | null = null;
 export function readRange(doc: Doc, r: CodeRef, src: string | undefined) {
   const c = r.made != null ? { text: r.made, commit: null, err: undefined } : readCode(doc, r.repo, r.file, src);
   let text: string | null = null, err = r.err ?? c.err ?? null, total = 0;
   if (!err && c.text != null && r.lines) {
-    const all = c.text.split("\n");
-    if (all[all.length - 1] === "") all.pop();
+    // the lines of the text read last, kept: a code walk reads the same file for step after step
+    if (lastLines?.text !== c.text) { const a = c.text.split("\n"); if (a[a.length - 1] === "") a.pop(); lastLines = { text: c.text, all: a }; }
+    const all = lastLines!.all;
     total = all.length;
     if (r.lines[1] > all.length) err = `lines ${r.lines.join("-")} run past the end of ${r.file} (${all.length} lines)`;
     else text = all.slice(r.lines[0] - 1, r.lines[1]).join("\n");
@@ -770,6 +909,30 @@ export function readRange(doc: Doc, r: CodeRef, src: string | undefined) {
   if (!err && r.focus && r.lines && (r.focus[0] < r.lines[0] || r.focus[1] > r.lines[1])) err = `focus ${r.focus.join("-")} is outside lines ${r.lines.join("-")}`;
   if (!err && r.lines) for (const m of r.marks) if (m < r.lines[0] || m > r.lines[1]) err = `mark ${m} is outside lines ${r.lines.join("-")}`;
   return { text, err, total, commit: c.commit, lang: langOf(r.file) };
+}
+const DEF_WORDS = ["fn", "func", "def", "class", "struct", "enum", "trait", "impl", "interface", "type", "const", "let", "var", "async", "private", "public", "protected", "static", "readonly"];
+// whether a file defines a symbol: what new RegExp(`(fn|func|…|readonly)\s+[^\n]*\b${sym}\b|\b${sym}\s*\(|\b${sym}\s*[:=]`)
+// found for a symbol of letters, digits and _, now with the symbol taken as text (as the check before it takes it) and in
+// one pass: the first branch scanned to the end of the line again after each of those words. That branch holds when a
+// use of the symbol starts after one of the words and its spaces begin, and before the end of the line those spaces end on.
+export function isDefinition(content: string, sym: string): boolean {
+  const lit = sym.replace(/[^\w]/g, "\\$&");
+  if (new RegExp(`\\b${lit}\\s*[(:=]`).test(content)) return true;
+  const at: number[] = [];
+  const re = new RegExp(`\\b${lit}\\b`, "g");
+  for (let m; (m = re.exec(content)); re.lastIndex = m.index + 1) at.push(m.index);
+  if (!at.length) return false;
+  for (let e = 1; e < content.length; e++) {
+    if (!WS.test(content[e]) || WS.test(content[e - 1]) || !DEF_WORDS.some((w) => content.endsWith(w, e))) continue;
+    let f = e;
+    while (f < content.length && WS.test(content[f])) f++;
+    const nl = content.indexOf("\n", f), lineEnd = nl < 0 ? content.length : nl;
+    let lo = 0, hi = at.length; // the first use after e
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (at[mid] > e) hi = mid; else lo = mid + 1; }
+    if (lo < at.length && at[lo] < lineEnd) return true;
+    e = f - 1;
+  }
+  return false;
 }
 export function checkCodeRef(doc: Doc, ref: string, src: string | undefined): string | null {
   const [path, sym] = ref.split("#");
@@ -786,12 +949,22 @@ export function checkCodeRef(doc: Doc, ref: string, src: string | undefined): st
     const segs = sym.split(/::|\./).filter(Boolean);
     for (const seg of segs) if (!new RegExp(`\\b${seg.replace(/[^\w]/g, "\\$&")}\\b`).test(content)) return `code reference ${ref}: symbol "${seg}" is not defined in ${file}`;
     const last = segs[segs.length - 1];
-    const def = new RegExp(`(fn|func|def|class|struct|enum|trait|impl|interface|type|const|let|var|async|private|public|protected|static|readonly)\\s+[^\\n]*\\b${last}\\b|\\b${last}\\s*\\(|\\b${last}\\s*[:=]`);
-    if (!def.test(content)) return `code reference ${ref}: "${last}" appears in ${file} but not as a definition`;
+    if (!isDefinition(content, last)) return `code reference ${ref}: "${last}" appears in ${file} but not as a definition`;
   }
   return null;
 }
-export function mapCodeRefs(t: string): string[] { return [...t.matchAll(/\]\(code:([^)\s]+)\)/g)].map((m) => m[1]); }
+// the code references of a text: [...t.matchAll(/\]\(code:([^)\s]+)\)/g)].map((m) => m[1]), in one pass (the pattern
+// scanned the same long run again from every "](code:" in it)
+export function mapCodeRefs(t: string): string[] {
+  const out: string[] = [];
+  let stop = -1; // where the run of non-")" non-space characters seen last ends
+  for (let i = t.indexOf("](code:"); i >= 0; i = t.indexOf("](code:", i + 1)) {
+    const a = i + 7;
+    if (a > stop) { stop = a; while (stop < t.length && t[stop] !== ")" && !WS.test(t[stop])) stop++; }
+    if (stop > a && t[stop] === ")") { out.push(t.slice(a, stop)); i = stop; }
+  }
+  return out;
+}
 
 // ---------- translations ----------
 export function sectionsOf(bodyText: string): string[] {
@@ -882,7 +1055,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "mermaid": base.steps = mermaidSteps(n); break;
       case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text, 0, n.defs).rows })); base.marks = usedMarks(n.defs, base.trees.flatMap((t: any) => t.rows.flatMap((r: any) => r.badges))); break;
-      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; base.prefixes = Object.fromEntries(Object.entries(n.defs?.prefixes ?? {}).filter(([k]) => base.steps.some((st: any) => st.lines.some((l: any) => l.prompt === k)))); base.title = n.attrs.title ?? null; break;
+      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; { const ps = Object.entries(n.defs?.prefixes ?? {}); const used = ps.length ? usedPrompts(base.steps) : new Set<string>(); base.prefixes = Object.fromEntries(ps.filter(([k]) => used.has(k))); } base.title = n.attrs.title ?? null; break;
       case "codewalk": { const refs = codewalkRefs(doc, n); const modes = codewalkModes(n, refs); base.walkFiles = {}; base.steps = refs.map((r, i) => { const t = readRange(doc, r, src); const key = `${r.repo}/${r.file}`; if (!(key in base.walkFiles)) base.walkFiles[key] = readWhole(doc, r, src); return { animated: modes[i], key, repo: r.repo, file: r.file, commit: t.commit, lines: r.lines, focus: r.focus, marks: r.marks, lang: t.lang, code: t.text, error: t.err, note: noteHtml(n.steps[i].raw.trim()) }; }); break; }
       case "editor": {
         const { spec, files } = editorFiles(doc, n, src);

@@ -73,5 +73,41 @@ export const HANDLERS_BASE = [tokenTransitions, mark, add, del, focus];
 // add block annotations to a highlighted block (line numbers are 1-based within the block)
 export type Ann = { name: "focus" | "mark" | "add" | "del"; from: number; to: number };
 export function annotate(h: HighlightedCode, anns: Ann[]): HighlightedCode {
-  return { ...h, annotations: [...h.annotations, ...anns.map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to }))] };
+  const lines = (h.code ?? "").split("\n").length;
+  return { ...lineTokens(h), annotations: [...h.annotations, ...mergeLineAnns(anns, lines).map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to }))] };
+}
+// One-line annotations of one name on neighbouring lines, as one annotation over those lines (a line marked twice is in
+// two of them). Code Hike gives each line the annotations around it, and none of these handlers draws a block, so the
+// lines draw the same; but it walks every line once per annotation, so a step with thousands of marks cost their
+// product. Annotations over more than one line, or outside 1..lines, stay as they are. A line marked more than 8 times
+// with one name keeps 8 (each only repeats the class name; Code Hike nests one level per repeat).
+export function mergeLineAnns<A extends { name: string; from: number; to: number }>(anns: A[], lines: number): { name: A["name"]; from: number; to: number }[] {
+  const out: { name: A["name"]; from: number; to: number }[] = [];
+  const counts = new Map<A["name"], Map<number, number>>();
+  for (const a of anns) {
+    if (a.from !== a.to || !Number.isInteger(a.from) || a.from < 1 || a.from > lines) { out.push({ name: a.name, from: a.from, to: a.to }); continue; }
+    let m = counts.get(a.name);
+    if (!m) counts.set(a.name, (m = new Map()));
+    m.set(a.from, (m.get(a.from) ?? 0) + 1);
+  }
+  for (const [name, m] of counts) {
+    // layer k holds the lines marked at least k times; each layer's runs of neighbouring lines become one annotation
+    let at = [...m.keys()].sort((x, y) => x - y);
+    for (let layer = 1; at.length && layer <= 8; layer++) {
+      for (let i = 0; i < at.length; ) { let j = i; while (j + 1 < at.length && at[j + 1] === at[j] + 1) j++; out.push({ name, from: at[i], to: at[j] }); i = j + 1; }
+      at = at.filter((l) => m.get(l)! > layer);
+    }
+  }
+  return out;
+}
+// Code Hike cuts a text token at its first line end and joins the rest back together, again for every line, so one
+// token holding many lines costs the square of its line count (plain code is one token; highlighted code keeps a run
+// of blank lines in one). The same text as one token per line draws the same lines in one pass.
+export function lineTokens(h: HighlightedCode): HighlightedCode {
+  const ts = h.tokens as unknown[];
+  const many = ts.some((t) => typeof t === "string" && t.indexOf("\n") >= 0 && t.indexOf("\n", t.indexOf("\n") + 1) >= 0);
+  if (!many) return h;
+  const out: unknown[] = [];
+  for (const t of ts) if (typeof t === "string" && t.indexOf("\n") >= 0) { for (const p of t.split(/(?<=\n)/)) out.push(p); } else out.push(t);
+  return { ...h, tokens: out } as HighlightedCode;
 }

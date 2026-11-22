@@ -6,6 +6,7 @@
 // cuts the lines it shows from it, so a file used by many steps is sent once.
 import React from "react";
 import { InnerLine, getPreRef, InnerPre, type AnnotationHandler, type CustomPreProps, type HighlightedCode } from "codehike/code";
+import { mergeLineAnns } from "./ch";
 
 type PTok = string | [string, number] | [string, number, unknown];
 export type Packed = { lang: string; meta: string; themeName: string; style: unknown; colors: string[]; lines: PTok[][] };
@@ -56,12 +57,15 @@ export function rowsCode(p: Packed, rows: Row[], anns: { name: "focus" | "mark";
     for (const t of line) tokens.push(typeof t === "string" ? t : t.length > 2 ? [t[0], p.colors[t[1]], t[2]] : [t[0], p.colors[t[1]]]);
   });
   const code = texts.join("\n");
-  return { value: code, code, lang: p.lang, meta: p.meta, themeName: p.themeName, style: p.style, tokens, annotations: anns.map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to })) } as unknown as HighlightedCode;
+  return { value: code, code, lang: p.lang, meta: p.meta, themeName: p.themeName, style: p.style, tokens, annotations: mergeLineAnns(anns, rows.length).map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to })) } as unknown as HighlightedCode;
 }
 
 // the open range's focus and marks, as row numbers in the shown block
 export function stillAnns(rows: Row[], focus: [number, number] | null, marks: number[], open: [number, number]) {
-  const at = (n: number) => rows.findIndex((r) => "n" in r && r.n === n) + 1;
+  // a line number to its row (the first row showing it), looked up once per mark instead of searched
+  const rowOf = new Map<number, number>();
+  rows.forEach((r, k) => { if ("n" in r && !rowOf.has(r.n)) rowOf.set(r.n, k); });
+  const at = (n: number) => (rowOf.get(n) ?? -1) + 1;
   const f = focus ?? open;
   const anns: { name: "focus" | "mark"; from: number; to: number }[] = [{ name: "focus", from: at(f[0]), to: at(f[1]) }];
   for (const m of marks) anns.push({ name: "mark", from: at(m), to: at(m) });

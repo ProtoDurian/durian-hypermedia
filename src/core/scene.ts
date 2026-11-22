@@ -34,6 +34,8 @@ import { mapEntries, mapOps, markMap, applyPut, applyGet, dataChecks, mapDesc, d
 import { chipW } from "./chipw";
 import { narrowWins, storyFocus, leastScale } from "./readable";
 import { slideWhole } from "./edge10";
+// the layout work of a compile is counted and charged to the animation's budget (core/work.ts)
+import { work, metered, animPartBudget } from "./work";
 export const SHAPES = ["box", "circle", "pill", "cylinder", "cloud", "person", "diamond", "text", "dot"] as const;
 export const CONTAINERS = ["group", "array", "list", "stack", "queue", "tree", "graph", "grid", "buckets", "table"] as const;
 export const OVERLAYS = ["token", "pointer"] as const;
@@ -502,7 +504,8 @@ export interface Fx extends DepthFx { beats?: number; pace?: string; beat?: Reco
 
 const isContainer = (k: string) => (CONTAINERS as readonly string[]).includes(k) || k === "bucket";
 const isOverlay = (k: string) => (OVERLAYS as readonly string[]).includes(k);
-const clone = (s: State): State => JSON.parse(JSON.stringify(s));
+// (a copy costs about a unit for every 4 characters of its JSON, written and read back)
+const clone = (s: State): State => { const t = JSON.stringify(s); work(t.length / 4); return JSON.parse(t); };
 class Refuse extends Error {}
 
 export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneError[]; subs: State[][] } {
@@ -529,6 +532,7 @@ export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneEr
     const sub: State[] = [];
     st.ops.forEach((op, j) => {
       const b = st.beat?.[j] ?? 0;
+      work(8 + Object.keys(s.ents).length * 3 + s.conns.length * 3 + f.touched.length);
       if (j > 0 && b !== (st.beat?.[j - 1] ?? 0)) sub.push(clone(s));
       const n0 = f.touched.length, ents0 = new Set(Object.keys(s.ents)), conns0 = new Map(s.conns.map((c) => [c.key, c]));
       apply([op], f);
@@ -907,10 +911,20 @@ export interface SendGeom { show: string; label: string; cc: number; path: numbe
 export interface Frame { boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean; view?: CamView; part?: number[] }
 
 // text width: Latin about 7.3 per character at 13px, CJK about 13, Indic scripts about 8.6
+const chW = (ch: string) => { const c = ch.codePointAt(0)!; return c >= 0x2e80 ? 13 : c >= 0x0900 && c <= 0x0dff ? 8.6 : /[A-Z@#%&mwMW]/.test(ch) ? 8.6 : /[ilj.,:;'|!]/.test(ch) ? 3.8 : 7.1; };
 export function textW(s: string, size = 13): number {
+  work(1 + s.length);
   let w = 0;
-  for (const ch of s) { const c = ch.codePointAt(0)!; w += c >= 0x2e80 ? 13 : c >= 0x0900 && c <= 0x0dff ? 8.6 : /[A-Z@#%&mwMW]/.test(ch) ? 8.6 : /[ilj.,:;'|!]/.test(ch) ? 3.8 : 7.1; }
+  for (const ch of s) w += chW(ch);
   return (w * size) / 13;
+}
+// textW(s, size) <= maxW, the same sum stopped as soon as it is over (every character adds to it): a long word is
+// measured only as far as a line goes
+function fitsIn(s: string, size: number, maxW: number): boolean {
+  let w = 0, n = 0;
+  for (const ch of s) { w += chW(ch); n++; if ((w * size) / 13 > maxW) { work(1 + n); return false; } }
+  work(1 + n);
+  return (w * size) / 13 <= maxW;
 }
 
 // ---------------------------------------------------------------- the design system (format version 6)
@@ -950,27 +964,49 @@ export const headW = (s: string, z: SizeTok) => textW(s, z.head) * 1.1 + s.lengt
 
 // where a long word may break (format version 10): just after the last of its own separators (- _ . / :) that still
 // fits on the line, leaving at least 2 characters on each side; 0 when there is none
+// (fits must hold for every start of w up to the longest that fits, and for none longer: widths only add up. So the
+// longest start that fits is found by halving, and only the separators below it are looked at)
 export function longBreak(w: string, fits: (t: string) => boolean): number {
-  for (let k = w.length - 2; k >= 2; k--) if (/[-_./:]/.test(w[k - 1]) && fits(w.slice(0, k))) return k;
+  const top = longestFit(2, w.length - 2, (k) => fits(w.slice(0, k)));
+  work(1 + Math.max(0, top));
+  for (let k = top; k >= 2; k--) if (/[-_./:]/.test(w[k - 1])) return k;
   return 0;
 }
+// the largest k from lo to hi with ok(k), when ok holds up to some k and not after it; lo - 1 when none
+function longestFit(lo: number, hi: number, ok: (k: number) => boolean): number {
+  if (hi < lo) return lo - 1;
+  if (ok(hi)) return hi;
+  let a = lo - 1, b = hi; // ok(a) holds (or a is below lo), ok(b) does not
+  while (b - a > 1) { const m = (a + b) >> 1; if (ok(m)) a = m; else b = m; }
+  return a;
+}
 export function wrapText(s: string, font: number, maxW: number, maxLines = MAX_LINES): string[] {
-  const fits = (t: string) => textW(t, font) <= maxW + 0.5;
+  work(8 + s.length / 2);
+  const fits = (t: string) => fitsIn(t, font, maxW + 0.5);
   const lines: string[] = [];
   let cur = "";
-  for (let w of s.split(/\s+/).filter(Boolean)) {
+  // (once there are more lines than maxLines the answer is known: the first maxLines, the last cut with "…"; a long
+  // label is not wrapped to its end)
+  words: for (const word of s.split(/\s+/).filter(Boolean)) {
+    if (lines.length > maxLines) break;
+    work(2 + word.length);
     // a word longer than a line breaks after its own separator (- _ . / :) when one fits (format version 10: a name
     // such as service-web-replica-b-7f9c keeps its parts whole, no hyphen added); else it is cut where it overflows,
     // with a hyphen only inside a plain word of letters
+    // (what is left of the word is all letters once the cuts are past its last other character)
+    let other = -1;
+    for (let i = 0; i < word.length; i++) { const c = word.charCodeAt(i); if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) other = i; }
+    let w = word, at = 0;
     while (!fits(w)) {
       const sep = longBreak(w, fits);
-      if (sep > 0) { if (cur) { lines.push(cur); cur = ""; } lines.push(w.slice(0, sep)); w = w.slice(sep); continue; }
-      let k = w.length - 1;
-      while (k > 1 && !fits(w.slice(0, k) + "-")) k--;
-      const hy = /^[A-Za-z]+$/.test(w) ? "-" : "";
+      if (sep > 0) { if (cur) { lines.push(cur); cur = ""; } lines.push(w.slice(0, sep)); w = w.slice(sep); at += sep; if (lines.length > maxLines) break words; continue; }
+      // the longest start that fits with a hyphen (2 to its length - 1), else 1
+      const k = w.length - 1 > 1 ? Math.max(1, longestFit(2, w.length - 1, (j) => fits(w.slice(0, j) + "-"))) : w.length - 1;
+      const hy = w.length && other < at ? "-" : "";
       if (cur) { lines.push(cur); cur = ""; }
       lines.push(w.slice(0, k) + hy);
-      w = w.slice(k);
+      w = w.slice(k); at += k;
+      if (lines.length > maxLines) break words;
     }
     const t = cur ? `${cur} ${w}` : w;
     if (fits(t)) cur = t; else { lines.push(cur); cur = w; }
@@ -1092,7 +1128,7 @@ export function bezTan(g: Geom, t: number): Pt {
 export function bezOff(g: Geom, t: number, o: number): Pt { const p = bezAt(g, t), d = bezTan(g, t); return { x: p.x - d.y * o, y: p.y + d.x * o }; }
 export const bezPath = (g: Geom): string => g.segs ? `M${g.P.x.toFixed(1)} ${g.P.y.toFixed(1)}` + g.segs.map((c) => `C${c.c1.x.toFixed(1)} ${c.c1.y.toFixed(1)} ${c.c2.x.toFixed(1)} ${c.c2.y.toFixed(1)} ${c.Q.x.toFixed(1)} ${c.Q.y.toFixed(1)}`).join("") : `M${g.P.x.toFixed(1)} ${g.P.y.toFixed(1)}C${g.c1.x.toFixed(1)} ${g.c1.y.toFixed(1)} ${g.c2.x.toFixed(1)} ${g.c2.y.toFixed(1)} ${g.Q.x.toFixed(1)} ${g.Q.y.toFixed(1)}`;
 
-export const sampleGeom = (g: Geom, n = 64): Pt[] => (g.segs ? routeLine(g) : Array.from({ length: n + 1 }, (_, i) => bezAt(g, i / n)));
+export const sampleGeom = (g: Geom, n = 64): Pt[] => (work(g.segs ? g.segs.length * 9 : n + 1), g.segs ? routeLine(g) : Array.from({ length: n + 1 }, (_, i) => bezAt(g, i / n)));
 // a connector's own geometry, as every stage draws it
 export const edgeGeom = (e: Edge, a: Box | Rect & { kind: string }, b: Box | Rect & { kind: string }, off = 0) => connGeom(a, b, a.kind, b.kind, e.implicit, off, e.bend, e.rt ?? null);
 // the bow that keeps a line from a to b off every obstacle (things it does not end at); the least bow wins
@@ -1123,6 +1159,7 @@ function routeEdges(edges: Edge[], byKey: Map<number, Box>, all: Box[], shapes: 
   // where lines may run: the scene and a margin (a line out there would leave the story's view)
   const area = pad(union(all), 24);
   const conts = all.filter((x) => x.container);
+  work(16 + all.length * 4 + edges.length * 4);
   // a tree's edges from one parent (not circles: theirs run between the centres) leave from their own points along its
   // bottom, in the order of the children, each a straight line (format version 10)
   const kids = new Map<number, Edge[]>();
@@ -1136,6 +1173,8 @@ function routeEdges(edges: Edge[], byKey: Map<number, Box>, all: Box[], shapes: 
   }
   for (const ed of edges) {
     const a = byKey.get(ed.from)!, b = byKey.get(ed.to)!;
+    // (its words, things and containers: a pass over every box)
+    work(all.length * 4 + shapes.length * 2);
     if (ed.implicit || !routable(a, b)) { fixed.push(placed(sampleGeom(edgeGeom(ed, a, b), 24), [a.key, b.key])); continue; }
     const words = all.filter((x) => x.lbl && x.key !== a.key && x.key !== b.key && (heads || !x.container || x.key < 0)).map((x) => x.lbl!);
     const held = new Set([...chain(a), ...chain(b)].map((c) => c.key));
@@ -1147,6 +1186,7 @@ function routeEdges(edges: Edge[], byKey: Map<number, Box>, all: Box[], shapes: 
     if (ed.implicit) continue;
     const a = byKey.get(ed.from)!, b = byKey.get(ed.to)!;
     if (routable(a, b)) continue;
+    work(all.length * 2);
     const words = all.filter((x) => x.lbl && x.key !== a.key && x.key !== b.key && (heads || !x.container || x.key < 0)).map((x) => x.lbl!);
     ed.bend = chooseBend(a, b, words, 0, shapes.filter((r) => !same(r, a) && !same(r, b)));
   }
@@ -1188,7 +1228,10 @@ export const LINE_CLEAR = 4;
 // spot with a small fault beats a clean one 60 units off
 function pick<T extends { r: Rect }>(cands: T[], labels: Rect[], shapes: Rect[], soft: Rect[] = [], lines: Pt[][] = [], near?: (r: Rect) => number): T {
   let best = cands[0], bestScore = Infinity;
+  // (each line a candidate tests is counted by lineThrough)
+  const per = 2 + soft.length + labels.length + shapes.length + lines.length;
   for (const c of cands) {
+    work(per);
     let s = near ? near(c.r) : 0;
     // format version 10: resting on a line (closer than LINE_CLEAR, by an arrowhead) costs; with near, more than straying (a tag stays clear of lines first, then near)
     for (const ln of lines) if (lineThrough(ln, c.r, 0)) s += near ? 490 : 90; else if (lineThrough(ln, c.r, -LINE_CLEAR)) s += near ? 250 : 45;
@@ -1209,6 +1252,7 @@ function nearTo(pts: Pt[], boxes: Box[]): (r: Rect) => number {
   const cs = boxes.filter((b) => b.container && b.key > 0 && b.kind !== "layer" && !b.hidden);
   const at = pts.length === 1 ? pts[0] : null;
   return (r) => {
+    work(pts.length + cs.length);
     const g = Math.min(...pts.map((p) => gapPt(p, r)));
     const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     const stray = at && cs.some((b) => c.x > b.x && c.x < b.x + b.w && c.y > b.y && c.y < b.y + b.h && !(at.x > b.x - 3 && at.x < b.x + b.w + 3 && at.y > b.y - 3 && at.y < b.y + b.h + 3));
@@ -1241,6 +1285,8 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   for (const e of Object.values(s.ents)) if (e.ghost && !s.ents[e.ghost] && !slotOf.has(e.ghost)) slotOf.set(e.ghost, e.id);
   const real = (id: string) => (s.ents[id] ? id : slotOf.get(id) ?? null);
   const links: [string, string][] = [...s.conns.map((c) => [c.from, c.to] as [string, string]), ...story.map(([a, b]) => [real(a), real(b)] as [string, string]).filter(([a, b]) => a && b)];
+  // one layout: a few dozen units for each thing (measured, placed, its colour and layer found) and each line
+  work(32 + Object.keys(s.ents).length * (72 + s.families.length + s.layers.length) + links.length * 8);
   const sz0 = ((SIZE_NAMES as readonly string[]).includes(attrs.size ?? "") ? attrs.size : "m") as SizeName;
   const sizeOf = (id: string, n = 0): SizeName => { const e = s.ents[id]; if (!e || n > 64) return sz0; return (e.size as SizeName | null) ?? (e.parent ? sizeOf(e.parent, n + 1) : e.anchor ? sizeOf(e.anchor, n + 1) : sz0); };
   const DZ = tokens(attrs.phone);
@@ -1261,7 +1307,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   // when the narrow layout turns a graph downward, a column whose things connect outside it turns into a row, so their
   // lines leave side by side instead of running down through each other
   const within = (id: string, c: string) => { for (let x: string | null = id, n = 0; x && n < 64; x = s.ents[x]?.parent ?? null, n++) if (x === c) return true; return false; };
-  const turned = new Set(attrs.narrow && rootLayout0 === "graph" ? Object.values(s.ents).filter((e) => isContainer(e.kind) && e.layout === "column" && e.kids.some((k) => links.some(([a, b]) => (a === k && !within(b, e.id)) || (b === k && !within(a, e.id))))).map((e) => e.id) : []);
+  const turned = new Set(attrs.narrow && rootLayout0 === "graph" ? Object.values(s.ents).filter((e) => isContainer(e.kind) && e.layout === "column" && (work(e.kids.length * (1 + links.length)), e.kids).some((k) => links.some(([a, b]) => (a === k && !within(b, e.id)) || (b === k && !within(a, e.id))))).map((e) => e.id) : []);
   const layoutOf = (e: Ent) => (turned.has(e.id) ? "row" : e.layout);
   const rowLike = (e: Ent) => layoutOf(e) === "row" || ["bucket", "array", "list", "queue"].includes(e.kind);
   // measure bottom-up, placing each container's children relative to its inner box
@@ -1296,7 +1342,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     return [w, h];
   };
   // two of these things are joined by a line (between them, or between anything inside them)
-  const joined = (kids: string[]) => { if (kids.length < 2) return false; const names = new Map(kids.flatMap((k) => [[k, k], [s.ents[k]?.ghost ?? k, k]] as [string, string][])); const own = (id: string) => { for (let x: string | null = id, n = 0; x && n < 64; x = s.ents[x]?.parent ?? null, n++) if (names.has(x)) return names.get(x)!; return null; }; return links.some(([a, b]) => { const p = own(a), q = own(b); return !!p && !!q && p !== q; }); };
+  const joined = (kids: string[]) => { if (kids.length < 2) return false; work(kids.length * 4 + links.length * 4); const names = new Map(kids.flatMap((k) => [[k, k], [s.ents[k]?.ghost ?? k, k]] as [string, string][])); const own = (id: string) => { for (let x: string | null = id, n = 0; x && n < 64; x = s.ents[x]?.parent ?? null, n++) if (names.has(x)) return names.get(x)!; return null; }; return links.some(([a, b]) => { const p = own(a), q = own(b); return !!p && !!q && p !== q; }); };
   const gapOf = (kind: string, z: SizeTok) => (kind === "array" ? 4 : kind === "list" ? LINK_GAP : kind === "bucket" ? LINK_GAP : kind === "stack" ? 4 : kind === "queue" ? 6 : kind === "table" ? 0 : z.gap);
   const place = (owner: string | null, kids: string[], layout: string, dir: string, cols: number, gap: number, z: SizeTok): [number, number] => {
     const sz = kids.map((k) => measure(k));
@@ -1360,6 +1406,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     // a line between two bands shows at least MIN_LINE
     const BG = links.some(([a, b]) => s.ents[a] && s.ents[b] && lay(top(s, a)) !== lay(top(s, b))) ? Math.max(Z0.gap * 0.8, MIN_LINE + 6 - 2 * BP) : Z0.gap * 0.8;
     for (const k of rootKids) measure(k);
+    work(s.layers.length * (rootKids.length + 4));
     const per = s.layers.map((_, L) => rootKids.filter((k) => lay(k) === L));
     const ncol = Math.max(1, ...per.map((p) => p.length));
     const colW = Array.from({ length: ncol }, (_, c) => Math.max(40, ...per.map((p) => (p[c] ? size.get(p[c])![0] : 0))));
@@ -1389,7 +1436,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     if (e.ghost) return; // a kept slot: room only
     const x = ox + r.x, y = oy + r.y;
     const p = e.parent ? s.ents[e.parent] : null;
-    const index = p?.kind === "array" ? String(p.kids.indexOf(id)) : null;
+    const index = p?.kind === "array" ? (work(p.kids.length), String(p.kids.indexOf(id))) : null;
     const sn = sizeOf(id), z = DZ[sn];
     const container = isContainer(e.kind);
     const ls = container ? (e.label ? [e.label] : []) : lines.get(id) ?? [];
@@ -1430,6 +1477,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   // a connector's label: on its middle if that is free, else beside it or further along
   for (const ed of edges) {
     if (!ed.label) continue;
+    work(edges.length + 16);
     const a = byKey.get(ed.from)!, b = byKey.get(ed.to)!;
     const g = edgeGeom(ed, a, b);
     ed.lines = wrapEven(ed.label, CHIP.font, chipOf(attrs.phone).edgeW, 2);
@@ -1443,6 +1491,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
   // tokens and pointers sit next to their anchor (a token by its top-right corner, a pointer above it), never on a label
   for (const e of Object.values(s.ents)) {
     if (!isOverlay(e.kind) || !e.anchor) continue;
+    work(edges.length + 16);
     const a = boxes.get(e.anchor);
     if (!a) continue;
     const text = cut(e.label, CHIP.font, CHIP.maxW);
@@ -1527,6 +1576,7 @@ function onLine(snd: { path: number[]; show: string }, a: Box, b: Box, f: Frame,
 // ---------------------------------------------------------------- what a step adds on top: sends, arrows, speech
 // placed after the layout, where they cover no label and no shape; the renderers draw them where this puts them
 export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []): Frame {
+  work(16 + f.boxes.length * 16 + f.edges.length * 8 + touchedIds.length * 2);
   const byKey = new Map(f.boxes.map((b) => [b.key, b]));
   const byId = new Map(f.boxes.filter((b) => b.key > 0).map((b) => [b.id, b]));
   const labels: Rect[] = [...f.boxes.map((b) => b.lbl), ...f.edges.map((e) => e.lr)].filter((r): r is Rect => !!r);
@@ -1546,6 +1596,7 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
   const lines: Pt[][] = f.edges.map((e) => { const a = byKey.get(e.from), b = byKey.get(e.to); return a && b ? sampleGeom(edgeGeom(e, a, b)) : []; });
   const lineKeys: [number, number][] = f.edges.map((e) => [e.from, e.to]);
   const plan = (fx?.sends ?? []).map((snd) => {
+    work(16 + snd.path.length * (8 + f.boxes.length + f.edges.length + lines.length));
     const path = snd.path.filter((k) => byKey.has(k));
     if (path.length < 2) return null;
     // an arrow drawn over a connector sits beside it (to the right of its way), so a call and its reply do not overlap
@@ -1607,6 +1658,7 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
   });
   for (const pl of plan) {
     if (!pl) continue;
+    work(16 + pl.path.length * (f.edges.length + lines.length * (1 + pl.own.length)));
     const { snd, path, offs, bends, rts, geo, own, ownWay } = pl;
     // format version 10: a hop drawn on its connector is one wire with it: the connector's line is its own too
     const ridden = new Set(path.slice(1).map((k, i) => (offs[i] === 0 && !ownWay.has(i) ? f.edges.findIndex((e) => (e.from === path[i] && e.to === k) || (e.from === k && e.to === path[i])) : -1)).filter((j) => j >= 0 && f.edges[j].rt));
@@ -1643,6 +1695,7 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
     sends.push(g);
   }
   for (const sy of fx?.says ?? []) {
+    work(16 + sy.text.length * 4);
     const a = byKey.get(sy.key);
     if (!a) continue;
     const words = wrapEven(sy.text, CHIP.font + 0.5, chipOf(f.phone).sayW, 2);
@@ -1816,7 +1869,7 @@ export function overlaps(f: Frame): { label: number; shape: number } {
 export interface Line { pts: Pt[]; own: Rect | null; own2?: Rect | null; send: boolean; ends: [number, number] }
 // a send's hop drawn on its connector (format version 10): no offset, the connector's own route
 // the connectors a send of this frame runs along (the 3D labels rule: such a connector takes part in the step)
-export const ridden = (f: Frame): Set<string> => { const out = new Set<string>(); for (const g of f.sends) for (let k = 0; k + 1 < g.path.length; k++) { const e = ridesOn(f, g, k); if (e) out.add(e.key); } return out; };
+export const ridden = (f: Frame): Set<string> => { const out = new Set<string>(); work(f.sends.reduce((n, g) => n + g.path.length, 0) * (2 + f.edges.length)); for (const g of f.sends) for (let k = 0; k + 1 < g.path.length; k++) { const e = ridesOn(f, g, k); if (e) out.add(e.key); } return out; };
 export function ridesOn(f: Frame, g: SendGeom, k: number): Edge | null {
   if (g.show === "token" || g.offs[k]) return null;
   const a = g.path[k], b = g.path[k + 1], rt = g.rts?.[k] ?? null;
@@ -1826,6 +1879,9 @@ export function ridesOn(f: Frame, g: SendGeom, k: number): Edge | null {
   return want.sa === rt.sa && want.sb === rt.sb && !rt.way === !want.way && Math.abs(want.oa - rt.oa) < 0.5 && Math.abs(want.ob - rt.ob) < 0.5 ? e : null;
 }
 export function frameLines(f: Frame): Line[] {
+  // (each connector looks for a send that rides it: every hop of every send, each a pass over the connectors)
+  const P = f.sends.reduce((n, g) => n + g.path.length, 0);
+  work(f.boxes.length + f.edges.length * (8 + P * f.edges.length) + P * (8 + f.edges.length));
   const byKey = new Map(f.boxes.map((b) => [b.key, b]));
   // a routed line (format version 10): its straight runs as they are, each rounded corner in short pieces
   const smp = (g: Geom, n = 72) => (g.segs ? routeLine(g) : Array.from({ length: n + 1 }, (_, i) => bezAt(g, i / n)));
@@ -1842,6 +1898,7 @@ export function frameLines(f: Frame): Line[] {
 }
 // does a polyline run through a rectangle (shrunk by m, so a line that only grazes an edge does not count)?
 export function lineThrough(pts: Pt[], r: Rect, m = 1.5): boolean {
+  work(pts.length);
   const x0 = r.x + m, y0 = r.y + m, x1 = r.x + r.w - m, y1 = r.y + r.h - m;
   if (x1 <= x0 || y1 <= y0) return false;
   for (let i = 0; i + 1 < pts.length; i++) {
@@ -1884,7 +1941,7 @@ export function linesThroughThings(f: Frame): number {
 // a tree: each node centred over its children; in a binary tree (left/right) an empty side keeps its room
 function treeLayout(s: State, kids: string[], size: Map<string, [number, number]>, set: (k: string, x: number, y: number) => void): [number, number] {
   const GAP = 16, LEVEL = 46;
-  const ch = (id: string | null) => kids.filter((k) => (s.ents[k].under ?? null) === id);
+  const ch = (id: string | null) => (work(kids.length), kids).filter((k) => (s.ents[k].under ?? null) === id);
   const binary = kids.some((k) => s.ents[k].side);
   const width = new Map<string, number>();
   const sub = (id: string): number => {
@@ -1928,6 +1985,7 @@ function graphLayout(s: State, kids: string[], size: Map<string, [number, number
   // a label sits beside a vertical arrow and across a horizontal one: leave it room
   const LAYER = dir === "down" ? Math.max(50, Math.min(90, room ? 2 * CHIP.lh + 30 : 0)) : Math.max(84, Math.min(CHIP.edgeW + 50, room + 40));
   const idx = new Map(kids.map((k, i) => [k, i]));
+  work(4 * kids.length + 8 * links.length);
   // a connector between anything inside two children counts as an edge between the two children
   const owner = (id: string): string | null => { let e = s.ents[id]; while (e) { if (idx.has(e.id)) return e.id; e = e.parent ? s.ents[e.parent] : (undefined as any); } return null; };
   const out = new Map<string, Set<string>>(kids.map((k) => [k, new Set()]));
@@ -1937,7 +1995,7 @@ function graphLayout(s: State, kids: string[], size: Map<string, [number, number
   const dfs = (u: string) => { state.set(u, 1); for (const v of out.get(u)!) { if (state.get(v) === 1) back.add(`${u}>${v}`); else if (!state.get(v)) dfs(v); } state.set(u, 2); };
   for (const k of kids) if (!state.get(k)) dfs(k);
   const layer = new Map<string, number>();
-  const lay = (u: string): number => { if (layer.has(u)) return layer.get(u)!; layer.set(u, 0); let L = 0; for (const k of kids) if (out.get(k)!.has(u) && !back.has(`${k}>${u}`)) L = Math.max(L, lay(k) + 1); layer.set(u, L); return L; };
+  const lay = (u: string): number => { if (layer.has(u)) return layer.get(u)!; layer.set(u, 0); work(kids.length); let L = 0; for (const k of kids) if (out.get(k)!.has(u) && !back.has(`${k}>${u}`)) L = Math.max(L, lay(k) + 1); layer.set(u, L); return L; };
   kids.forEach(lay);
   const nL = Math.max(...layer.values()) + 1;
   const layers: string[][] = Array.from({ length: nL }, () => []);
@@ -1948,7 +2006,7 @@ function graphLayout(s: State, kids: string[], size: Map<string, [number, number
   setPos();
   for (let sweep = 0; sweep < 2; sweep++) {
     for (let L = 1; L < nL; L++) {
-      const bc = (k: string) => { const ps = kids.filter((p) => layer.get(p) === L - 1 && out.get(p)!.has(k)); return ps.length ? ps.reduce((a, p) => a + pos.get(p)!, 0) / ps.length : pos.get(k)!; };
+      const bc = (k: string) => { work(kids.length); const ps = kids.filter((p) => layer.get(p) === L - 1 && out.get(p)!.has(k)); return ps.length ? ps.reduce((a, p) => a + pos.get(p)!, 0) / ps.length : pos.get(k)!; };
       layers[L].sort((a, b) => bc(a) - bc(b) || idx.get(a)! - idx.get(b)!);
       setPos();
     }
@@ -2001,34 +2059,45 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
   const ref = new Map<string, Ent>(); // container > thing: the thing as it is there, the first time
   const visible = (s: State, ids: string[]) => ids.filter((k) => s.ents[k] && !isOverlay(s.ents[k].kind));
   states.forEach((s, k) => {
-    const add = (c: string, kids: string[]) => { const l = lists.get(c) ?? []; l.push({ k, l: kids }); lists.set(c, l); for (const x of kids) if (!ref.has(`${c}>${x}`)) ref.set(`${c}>${x}`, s.ents[x]); };
+    const add = (c: string, kids: string[]) => { work(4 + kids.length * 3); const l = lists.get(c) ?? []; l.push({ k, l: kids }); lists.set(c, l); for (const x of kids) if (!ref.has(`${c}>${x}`)) ref.set(`${c}>${x}`, s.ents[x]); };
     add(ROOT, visible(s, s.root));
+    work(Object.keys(s.ents).length);
     for (const e of Object.values(s.ents)) if (SLOT_KINDS.has(e.kind) && e.layout !== "tree") add(e.id, visible(s, e.kids));
   });
   // one order that agrees with every step: a topological order of "comes before", ties by first appearance; then the
   // slots: each thing takes the first slot it can share, else a new one at the end
   const slotsOf = new Map<string, string[][]>();
   for (const [c, ls] of lists) {
-    const seen: string[] = [];
-    for (const { l } of ls) for (const x of l) if (!seen.includes(x)) seen.push(x);
+    // (every check below that looks through a list is counted: T, the things of every step together)
+    const T = ls.reduce((n, { l }) => n + l.length, 0);
+    work(ls.length + T);
+    // (every thing in the order it first appears: a set says what is already in the list)
+    const seen: string[] = [], seenSet = new Set<string>();
+    for (const { l } of ls) for (const x of l) if (!seenSet.has(x)) { seenSet.add(x); seen.push(x); }
     if (ls.every(({ l }) => l.length === seen.length)) continue; // the same things on every step: nothing to keep
     const before = new Map(seen.map((x) => [x, new Set<string>()]));
     for (const { l } of ls) for (let i = 0; i + 1 < l.length; i++) before.get(l[i + 1])!.add(l[i]);
-    const out: string[] = [];
+    const out: string[] = [], ordered = new Set<string>();
     const left = [...seen];
     while (left.length) {
-      const i = left.findIndex((x) => [...before.get(x)!].every((p) => out.includes(p)));
+      const i = left.findIndex((x) => (work(2 + before.get(x)!.size), [...before.get(x)!].every((p) => ordered.has(p))));
       if (i < 0) break;
-      out.push(left.splice(i, 1)[0]);
+      work(left.length);
+      const x = left.splice(i, 1)[0];
+      out.push(x); ordered.add(x);
     }
     if (left.length) continue; // the author reordered things here: it closes up
-    const life = new Map(out.map((x) => [x, new Set(ls.filter(({ l }) => l.includes(x)).map(({ k }) => k))]));
+    // (the steps each thing is here in: one set per step)
+    work(T + out.length * ls.length);
+    const inStep = ls.map(({ l }) => new Set(l));
+    const life = new Map(out.map((x) => [x, new Set(ls.filter((_, i) => inStep[i].has(x)).map(({ k }) => k))]));
     const sizeKey = (x: string) => { const e = ref.get(`${c}>${x}`)!; const z = keep?.get(`${e.kind}:${x}`); return z ? `${e.kind}:${Math.round(z[0])}x${Math.round(z[1])}` : null; };
     const slots: string[][] = [], slotOf = new Map<string, number>();
     for (const x of out) {
       let at = -1;
       if (keep) for (let si = 0; si < slots.length && at < 0; si++) {
         const occ = slots[si];
+        work(4 + occ.length * (4 + ls.length) + 2 * T);
         if (sizeKey(x) == null || occ.some((o) => sizeKey(o) !== sizeKey(x))) continue;
         if (occ.some((o) => [...life.get(o)!].some((k) => life.get(x)!.has(k)))) continue;
         const fits = ls.every(({ l }) => { const p = l.indexOf(x); if (p < 0) return true; return l.every((y, j) => { const sy = slotOf.get(y); return sy == null || y === x || (sy < si ? j < p : sy > si ? j > p : true); }); });
@@ -2043,6 +2112,7 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
   return states.map((s0, k) => {
     const s: State = clone(s0);
     for (const [c, slots] of slotsOf) {
+      work(4 + slots.length * 2);
       if (c !== ROOT && !s.ents[c]) continue;
       const kids = c === ROOT ? s.root : s.ents[c].kids;
       const here = new Set(visible(s, kids));
@@ -2052,6 +2122,7 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
         const real = occ.find((x) => here.has(x));
         if (real) { next.push(real); continue; }
         // an empty slot: the room of the thing that was here last (or comes next)
+        work(occ.length * (2 + Math.log2(occ.length + 1)) * (lists.get(c) ?? []).reduce((n, e) => n + 1 + e.l.length, 0));
         const lastK = (x: string) => Math.max(-1, ...(lists.get(c) ?? []).filter((e) => e.k <= k && e.l.includes(x)).map((e) => e.k));
         const id = [...occ].sort((p, q) => lastK(q) - lastK(p))[0];
         const r = ref.get(`${c}>${id}`)!;
@@ -2059,6 +2130,7 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
         s.ents[gid] = { ...JSON.parse(JSON.stringify(r)), id: gid, ghost: id, kids: [], parent: c === ROOT ? null : c, anchor: null, under: null, side: null, note: "" };
         next.push(gid);
       }
+      work(here.size * (1 + next.length));
       for (const x of here) if (!next.includes(x)) next.push(x);
       const all = [...next, ...overlays];
       if (c === ROOT) s.root = all; else s.ents[c].kids = all;
@@ -2067,22 +2139,27 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
   });
 }
 
+// every compile draws from a budget of its own (a part of the page's, in parse()): over it, it throws a BudgetError
 export function compileScene(head: string, steps: { title: string; raw: string; line: number }[], base: number, info: Record<string, string> = {}): Compiled {
-  const { scene, errors } = parseScene(head, steps, base, info);
-  // format version 10: a scene with scenes inside it compiles each on its own (tools/scenes.ts)
-  const c = scene.subs?.length || scene.steps.some((st) => st.ops.some((o) => o.op === "enter" || o.op === "leave")) ? compileNested(scene, errors, compileParsed) : compileParsed(scene, errors);
-  c.src = { head, steps, base, info };
-  return c;
+  return metered(animPartBudget(), () => {
+    work(head.length + steps.reduce((n, s) => n + s.raw.length + s.title.length + 8, 0));
+    const { scene, errors } = parseScene(head, steps, base, info);
+    // format version 10: a scene with scenes inside it compiles each on its own (tools/scenes.ts)
+    const c = scene.subs?.length || scene.steps.some((st) => st.ops.some((o) => o.op === "enter" || o.op === "leave")) ? compileNested(scene, errors, compileParsed) : compileParsed(scene, errors);
+    c.src = { head, steps, base, info };
+    return c;
+  });
 }
 // one scene, parsed: played, laid out step by step, sized once for the whole story
 export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   const r = play(scene);
   errors.push(...r.errors);
   const story: [string, string][] = [];
-  for (const st of r.states) for (const c of st.conns) if (!story.some(([a, b]) => a === c.from && b === c.to)) story.push([c.from, c.to]);
+  for (const st of r.states) { work(1 + st.conns.length * (1 + story.length)); for (const c of st.conns) if (!story.some(([a, b]) => a === c.from && b === c.to)) story.push([c.from, c.to]); }
   // one size per thing for the whole story: lay out every step, keep each thing's largest size, lay out again until
   // nothing grows (a lift that fills with people, or moves to another floor, keeps its size; so does its floor)
   const labelsOf = [...scene.setup, ...scene.steps.flatMap((st) => st.ops)].flatMap((o) => (o.op === "conn" ? [o.label] : o.op === "send" && o.show !== "token" ? [o.label] : []));
+  work(labelsOf.reduce((n, l) => n + 8 + (l ? l.length * 8 : 0), 0));
   const room = Math.max(0, ...labelsOf.filter(Boolean).map((l) => Math.max(...wrapEven(l, CHIP.font, chipOf(scene.attrs.phone).edgeW, 2).map((x) => textW(x, CHIP.font))) + 2 * CHIP.px));
   let keep = new Map<string, [number, number]>();
   let frames: Frame[] = [];
@@ -2115,7 +2192,7 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   // split the laid-out sequence into the steps' frames and their beats' frames
   const beatFrames: Frame[][] = r.states.map(() => []);
   // format version 10 (tools/depth.ts): what is lifted, and what fades (outside a deep zoom, or not lifted)
-  const mainOf = (all: Frame[]) => { const out: Frame[] = []; all.forEach((f, j) => { const w = where[j]; applyDepth(f, slotted[j], r.fx[w.k]?.touched ?? []); if (w.b < 0) out.push(f); else beatFrames[w.k][w.b] = decorate(f, undefined, []); }); return out; };
+  const mainOf = (all: Frame[]) => { const out: Frame[] = []; all.forEach((f, j) => { const w = where[j]; work(8 + f.boxes.length * 8); applyDepth(f, slotted[j], r.fx[w.k]?.touched ?? []); if (w.b < 0) out.push(f); else beatFrames[w.k][w.b] = decorate(f, undefined, []); }); return out; };
   frames = deco(mainOf(frames));
   // each container's heading slides along its top (left, right, middle ...) to where no line in the whole story
   // crosses it; the same place on every step, so it never jumps
@@ -2128,6 +2205,7 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
       let n = 0;
       frames.forEach((f, i) => {
         const b = f.boxes.find((x) => x.id === id && x.container && x.key > 0);
+        work(f.boxes.length + lineSets[i].length * 2);
         if (!b?.lbl) return;
         const z = tokens(scene.attrs.phone)[b.size], rr = { ...b.lbl, x: b.x + z.pad + frac * Math.max(0, b.w - 2 * z.pad - b.lbl.w) };
         for (const ln of lineSets[i]) if (!ln.ends.includes(b.key) && lineThrough(ln.pts, rr)) n++;
@@ -2159,11 +2237,11 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   // (what a zoom reveals takes part in that step too: a hidden inside, and, format version 10 fix, a faint one that opens)
   // (step 1 has no frame before it: there, what a zoom of hidden insides opens was hidden in the setup)
   const zoomed0 = new Set(scene.steps[0]?.ops.flatMap((o) => (o.op === "zoom" && o.id ? o.ids ?? [o.id] : [])) ?? []);
-  frames.forEach((f, k) => { const was = new Set(k ? frames[k - 1].boxes.filter((b) => b.hidden || b.faint).map((b) => b.key) : f.boxes.filter((b) => { for (let x = b.ent.parent, n = 0; x && n < 64; x = r.states[0].ents[x]?.parent ?? null, n++) if (zoomed0.has(x) && r.states[0].ents[x]?.hide) return true; return false; }).map((b) => b.key)); const opened = scene.steps[k]?.ops.flatMap((o) => (o.op === "zoom" && o.id ? o.ids ?? [o.id] : [])) ?? []; const p = stepPart(f, k ? frames[k - 1] : null, f.boxes.filter((b) => !b.hidden && !b.faint && was.has(b.key)).map((b) => b.key), opened, ridden); if (p) f.part = p; });
+  frames.forEach((f, k) => { work(16 + f.boxes.length * (f.boxes.length + 16) + f.edges.length * 4); const was = new Set(k ? frames[k - 1].boxes.filter((b) => b.hidden || b.faint).map((b) => b.key) : f.boxes.filter((b) => { for (let x = b.ent.parent, n = 0; x && n < 64; x = r.states[0].ents[x]?.parent ?? null, n++) if (zoomed0.has(x) && r.states[0].ents[x]?.hide) return true; return false; }).map((b) => b.key)); const opened = scene.steps[k]?.ops.flatMap((o) => (o.op === "zoom" && o.id ? o.ids ?? [o.id] : [])) ?? []; const p = stepPart(f, k ? frames[k - 1] : null, f.boxes.filter((b) => !b.hidden && !b.faint && was.has(b.key)).map((b) => b.key), opened, ridden); if (p) f.part = p; });
   // (a step that touches nothing and frames nothing in particular keeps every label: f.part stays unset)
   // a step with beats draws its connectors from the beat frames: they get the step's verdict too (a send of the beat
   // that runs along one, or both its ends taking part)
-  frames.forEach((f, k) => { if (!f.part) return; const p = new Set(f.part), main = new Map(f.edges.map((e) => [e.key, e.part])); for (const bf of beatFrames[k] ?? []) { const used = ridden(bf); for (const e of bf.edges) e.part = used.has(e.key) || main.get(e.key) === true || (p.has(e.from) && p.has(e.to)); } });
+  frames.forEach((f, k) => { if (!f.part) return; work(f.edges.length + (beatFrames[k] ?? []).reduce((n, bf) => n + 4 + bf.edges.length * 4, 0)); const p = new Set(f.part), main = new Map(f.edges.map((e) => [e.key, e.part])); for (const bf of beatFrames[k] ?? []) { const used = ridden(bf); for (const e of bf.edges) e.part = used.has(e.key) || main.get(e.key) === true || (p.has(e.from) && p.has(e.to)); } });
   warnings.push(...crossWarnings(frames, scene));
   return { scene, frames, fx: r.fx, errors: dedupe(errors), warnings: dedupe(warnings), aspect, beats: beatFrames };
 }
@@ -2175,6 +2253,7 @@ export function crossWarnings(frames: Frame[], scene: Scene): SceneError[] {
   frames.forEach((f, k) => {
     const id = new Map(f.boxes.map((b) => [b.key, b.id]));
     const ls = frameLines(f).map((l) => ({ l, p: placed(l.pts, l.ends) }));
+    work(f.boxes.length + ls.length * ls.length);
     const pairs: string[] = [];
     for (let i = 0; i < ls.length; i++) for (let j = i + 1; j < ls.length; j++) if (meet(ls[i].p, ls[j].p).cross) pairs.push(`${id.get(ls[i].l.ends[0])} -> ${id.get(ls[i].l.ends[1])} and ${id.get(ls[j].l.ends[0])} -> ${id.get(ls[j].l.ends[1])}`);
     // the same crossings as the step before are said once

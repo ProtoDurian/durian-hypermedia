@@ -1,5 +1,9 @@
 // YAML for front matter and chart data. Bun has a YAML parser built in; anywhere else the host sets one once:
 //   import { parse } from "yaml"; setYamlParser(parse);
+// A parser's own work may grow faster than the text: the yaml package (2.x) compares each new key of a map with the keys
+// before it, so one map of 20,000 keys takes seconds. Before parsing, from the text: at most LIMITS.maxYamlChars characters
+// and LIMITS.maxYamlNodes nodes (yamlNodeCount) in one text, and maxPageYamlChars / maxPageYamlNodes over all of one parse()
+// or check() call's YAML texts.
 // An anchor used many times stands for its whole value each time, so a few bytes of anchors and aliases can stand for
 // gigabytes. Two guards, for any parser:
 //   - before parsing, from the text: at most LIMITS.maxYamlAliases aliases, whatever their names are spelled with, and
@@ -16,6 +20,8 @@ export function setYamlParser(fn: YamlParse | null): void { custom = fn; }
 export function yamlParse(text: string): any {
   // inside parse() or check(), the caps given to that call (parse options); otherwise LIMITS
   const b = currentBudget(), lim = b?.lim ?? LIMITS, part = b?.partLimits ?? partLimitsOf(lim);
+  let page = b; while (page?.parent) page = page.parent;
+  yamlSizeCheck(text, lim, page);
   yamlPrecheck(text, lim.maxYamlAliases);
   let v: unknown;
   if (custom) v = custom(text);
@@ -74,6 +80,37 @@ export function yamlMayMerge(t: string): boolean {
     i++;
   }
   return false;
+}
+/**
+ * An upper bound, from the text alone, on the nodes (keys, values, lists and maps) a YAML parser will build from it, and
+ * so on its work (one map's keys cost some parsers the square of their number, every node costs every parser some
+ * microseconds). Counted, as written: every ":" and "?" (a key), "," and "-" (an item), "[" and "{" (a list or a map),
+ * "!" (a lenient parser, Bun's among them, may make a key of a scalar tagged !!map) and line (a parser that recovers
+ * from an error, as the yaml package does, may make a key of a line with no ":"). Escapes make content, never
+ * structure, so only these characters as written count; a quoted or commented one counts too, so never fewer than the
+ * parser sees (seeded fuzz with Bun's parser and the yaml package). One pass.
+ */
+export function yamlNodeCount(t: string): number {
+  let n = t.length ? 1 : 0; // the last line, which may have no line break
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c === 58 || c === 63 || c === 44 || c === 45 || c === 91 || c === 123 || c === 33 || c === 10 || c === 13) n++;
+  }
+  return n;
+}
+// what one parse() or check() call's YAML texts have used so far (characters, keys), per call budget
+const pageYaml = new WeakMap<object, { c: number; k: number }>();
+/** Throws YamlTooBig, before any parser runs, when the text has more characters or keys (yamlNodeCount) than one text
+ *  may, or would take the page's YAML over its totals. */
+export function yamlSizeCheck(t: string, lim: { maxYamlChars: number; maxYamlNodes: number; maxPageYamlChars: number; maxPageYamlNodes: number } = LIMITS, page: object | null = null): void {
+  if (t.length > lim.maxYamlChars) throw new YamlTooBig(`the YAML is too long (${fmt(t.length)} characters; the limit is ${fmt(lim.maxYamlChars)})`);
+  const k = yamlNodeCount(t);
+  if (k > lim.maxYamlNodes) throw new YamlTooBig(`the YAML has too many keys and values (${fmt(k)}, counting every ":", "?", ",", "-", "!", "[", "{" and line; the limit is ${fmt(lim.maxYamlNodes)})`);
+  if (!page) return;
+  const u = pageYaml.get(page) ?? { c: 0, k: 0 };
+  if (u.c + t.length > lim.maxPageYamlChars) throw new YamlTooBig(`the page's YAML is too long (${fmt(u.c + t.length)} characters with this one; the limit for a page is ${fmt(lim.maxPageYamlChars)})`);
+  if (u.k + k > lim.maxPageYamlNodes) throw new YamlTooBig(`the page's YAML has too many keys and values (${fmt(u.k + k)} with this one; the limit for a page is ${fmt(lim.maxPageYamlNodes)})`);
+  u.c += t.length; u.k += k; pageYaml.set(page, u);
 }
 // blanks and line breaks in the widest sense any YAML parser might take them (only used to find more, never fewer)
 const isBreak = (c: number) => c === 10 || c === 13 || c === 0x85 || c === 0x2028 || c === 0x2029;

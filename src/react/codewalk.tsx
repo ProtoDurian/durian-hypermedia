@@ -3,10 +3,10 @@ import React, { useMemo } from "react";
 import type { HighlightedCode } from "codehike/code";
 import { CodeWalk, type WalkStep } from "../ui/parts";
 import { packCode, walkRuns, type Packed } from "../ui/codewalk";
-import { useDh, plainCode } from "./context";
+import { useDh, plainCode, linesUpTo } from "./context";
 import { Inline } from "./markdown";
 import type { CodeWalkBlock } from "../types";
-const dedent = (text: string) => { const ls = text.split("\n"); const by = Math.min(...ls.filter((l) => l.trim()).map((l) => l.match(/^[ \t]*/)![0].length)); const n = Number.isFinite(by) ? by : 0; return { text: ls.map((l) => l.slice(n)).join("\n"), by: n }; };
+const dedent = (text: string) => { const ls = text.split("\n"); let by = Infinity; for (const l of ls) if (l.trim()) by = Math.min(by, l.match(/^[ \t]*/)![0].length); const n = Number.isFinite(by) ? by : 0; return { text: ls.map((l) => l.slice(n)).join("\n"), by: n }; };
 export function codewalkProps(b: CodeWalkBlock) {
   const steps: WalkStep[] = [];
   const files: Record<string, Packed> = {};
@@ -21,7 +21,7 @@ export function codewalkProps(b: CodeWalkBlock) {
       rows = Math.max(rows, s.lines[1] - s.lines[0] + 1 + folds * 1.5 + (s.lines[0] > 1 && s.lines[0] <= 3 ? s.lines[0] - 1 : 0));
     } else if (s.code) {
       if (s.hl) code = s.hl as HighlightedCode; else { const d = dedent(s.code); by = d.by; code = plainCode(d.text, s.lang); }
-      rows = Math.max(rows, s.code.split("\n").length);
+      rows = Math.max(rows, linesUpTo(s.code, 20));
     }
     // the note is the safe inline tree from parse(), drawn as React children (no HTML string)
     steps.push({ file: s.file, repo: s.repo, commit: s.commit, lines: s.lines, focus: s.focus, marks: s.marks, code, dedent: by, note: <Inline c={s.note ?? []} />, error: s.error, animated: !!s.animated, key: s.key });

@@ -9,6 +9,9 @@
 //     a send drawn beside a connector runs parallel to it, on the same path.
 // A route is stored relative to the two things (which side, how far along it, where the middle leg is), so a line
 // follows its ends while they move, in 2D and in 3D.
+// The router's work is counted (core/work.ts): each test of a line against a rectangle or another line, each step of
+// the search through the free space, charged as it is done.
+import { work, workTotal, firstTime } from "./work";
 
 export interface RPt { x: number; y: number }
 // kind: the thing's shape (a pill's round ends and a cylinder's caps leave less of a side for lines)
@@ -180,6 +183,7 @@ export function distSeg(p: RPt, a: RPt, b: RPt): number {
   return Math.hypot(p.x - a.x - ab.x * t, p.y - a.y - ab.y * t);
 }
 export function rectThrough(pts: RPt[], r: RRect, m = 1.5): boolean {
+  work(pts.length);
   const x0 = r.x + m, y0 = r.y + m, x1 = r.x + r.w - m, y1 = r.y + r.h - m;
   if (x1 <= x0 || y1 <= y0) return false;
   for (let i = 0; i + 1 < pts.length; i++) {
@@ -194,7 +198,7 @@ export function rectThrough(pts: RPt[], r: RRect, m = 1.5): boolean {
 const bbox = (pts: RPt[]) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const p of pts) { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); } return { x0, y0, x1, y1 }; };
 // a line already on the stage, for the router: its points, its two ends (things' keys), its end points
 export interface Placed { pts: RPt[]; ends: [number, number]; at: [RPt, RPt]; box: { x0: number; y0: number; x1: number; y1: number } }
-export const placed = (pts: RPt[], ends: [number, number]): Placed => ({ pts, ends, at: [pts[0], pts[pts.length - 1]], box: bbox(pts) });
+export const placed = (pts: RPt[], ends: [number, number]): Placed => (work(pts.length), { pts, ends, at: [pts[0], pts[pts.length - 1]], box: bbox(pts) });
 // how two lines meet: crossings and touches away from a thing they share, and ends that share a point on one thing
 export function meet(A: Placed, B: Placed): { cross: number; touch: number; bunch: number } {
   const same = (A.ends[0] === B.ends[0] && A.ends[1] === B.ends[1]) || (A.ends[0] === B.ends[1] && A.ends[1] === B.ends[0]);
@@ -202,7 +206,10 @@ export function meet(A: Placed, B: Placed): { cross: number; touch: number; bunc
   const near: RPt[] = [];
   let bunch = 0;
   for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) if (A.ends[i] === B.ends[j]) { near.push(A.at[i], B.at[j]); if (Math.hypot(A.at[i].x - B.at[j].x, A.at[i].y - B.at[j].y) < 6) bunch++; }
+  work(2);
   if (A.box.x1 < B.box.x0 - 3 || B.box.x1 < A.box.x0 - 3 || A.box.y1 < B.box.y0 - 3 || B.box.y1 < A.box.y0 - 3) return { cross: 0, touch: 0, bunch };
+  // every piece of one against every piece of the other, twice at most (crossings, then touches)
+  work(2 * A.pts.length * B.pts.length);
   const ok = (p: RPt) => !near.some((n) => Math.hypot(p.x - n.x, p.y - n.y) < 14);
   for (let a = 0; a + 1 < A.pts.length; a++) for (let b = 0; b + 1 < B.pts.length; b++) { const x = segX(A.pts[a], A.pts[a + 1], B.pts[b], B.pts[b + 1]); if (x && ok(x)) return { cross: 1, touch: 0, bunch }; }
   // touch: two nearly parallel pieces less than 3 apart, side by side for 8 units or more (away from a shared end)
@@ -251,6 +258,7 @@ export function facing(a: RRect, b: RRect): [Side, Side] | null {
 // want weighs more than a middle's
 export interface End { req: number; end: 0 | 1; box: RBox; side: Side; other: RBox; want: number; sure?: boolean }
 export function fanOut(ends: End[]): Map<string, number> {
+  work(8 * ends.length + 2 * ends.length * Math.log2(ends.length + 2));
   const out = new Map<string, number>();
   const groups = new Map<string, End[]>();
   for (const e of ends) { const k = `${e.box.key}:${e.side}`; groups.set(k, [...(groups.get(k) ?? []), e]); }
@@ -310,7 +318,10 @@ export function channels(a: RRect, b: RRect, rt: Route, ga: RRect = a, gb: RRect
   if (gaps.length) {
     const e: [number, number][] = gaps.map((g) => (v ? [g.y, g.y + g.h] : [g.x, g.x + g.w]));
     const lo2 = Math.min(p, q) + 8, hi2 = Math.max(p, q) - 8;
+    work(4 * e.length * Math.log2(e.length + 2));
     const edges = [...new Set(e.flat())].filter((x) => x > lo2 - 20 && x < hi2 + 20).sort((x, y) => x - y);
+    // (each gap between two edges is tested against every thing and container)
+    work(edges.length * (2 + gaps.length));
     for (let i = 0; i + 1 < edges.length; i++) {
       const mid = (edges[i] + edges[i + 1]) / 2;
       if (edges[i + 1] - edges[i] < 12 || mid < lo2 || mid > hi2) continue;
@@ -326,7 +337,7 @@ export function channels(a: RRect, b: RRect, rt: Route, ga: RRect = a, gb: RRect
 // every way worth trying for one line, the simplest first (each with its cost of shape)
 export function candidates(a: RBox, b: RBox, base: Route | null, ga?: RRect, gb?: RRect, shapes: RRect[] = [], conts: RRect[] = []): { rt: Route; cost: number }[] {
   const out: { rt: Route; cost: number }[] = [];
-  const add = (rt: Route, cost: number) => { const sh = routeShape(a, b, rt); if (sh !== "bad") out.push({ rt, cost: cost + (sh === "straight" ? 0 : sh === "z" ? 3 : sh === "l" ? 5 : 14) }); };
+  const add = (rt: Route, cost: number) => { work(4); const sh = routeShape(a, b, rt); if (sh !== "bad") out.push({ rt, cost: cost + (sh === "straight" ? 0 : sh === "z" ? 3 : sh === "l" ? 5 : 14) }); };
   if (base) { const sh = routeShape(a, b, base); for (const c of sh === "z" ? channels(a, b, base, ga, gb, shapes, conts) : [{ m: base.m, cost: 0 }]) add({ ...base, m: c.m }, c.cost); }
   // the base ends moved along their sides (both together, so a straight line stays straight)
   if (base && OPP[base.sa] === base.sb) for (const d of [FAN, -FAN, 2 * FAN, -2 * FAN]) { const b2 = { ...base, oa: base.oa + d, ob: base.ob + d }; for (const c of routeShape(a, b, b2) === "z" ? channels(a, b, b2, ga, gb, shapes, conts).slice(0, 6) : [{ m: 0.5, cost: 0 }]) add({ ...b2, m: c.m }, 2 + Math.abs(d) / FAN + c.cost); }
@@ -356,6 +367,10 @@ export function candidates(a: RBox, b: RBox, base: Route | null, ga?: RRect, gb?
 }
 // resample a polyline every `step` units, so stretches are measured in units, not in samples
 export function resample(pts: RPt[], step = 2): RPt[] {
+  // one point every step units: the line's length decides the work (each point is measured again by its reader)
+  let L0 = 0;
+  for (let i = 0; i + 1 < pts.length; i++) L0 += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
+  work(pts.length + 3 * L0 / step);
   const out: RPt[] = [pts[0]];
   let carry = 0;
   for (let i = 0; i + 1 < pts.length; i++) {
@@ -410,6 +425,8 @@ export const HUG = 7;
 export function hugs(pts: RPt[], conts: RRect[]): number {
   let n = 0;
   // in the middle of a narrow gap between two parallel edges (nested containers) a line runs where it must
+  // (each straight piece compares every pair of container edges, then every container)
+  work(pts.length * (1 + conts.length * (2 + 4 * conts.length)));
   const mid = (at: number, hz: boolean) => { const es = conts.flatMap((x) => (hz ? [x.y, x.y + x.h] : [x.x, x.x + x.w])); return es.some((e1) => es.some((e2) => e2 - e1 > 0 && e2 - e1 <= 16 && Math.abs(at - (e1 + e2) / 2) <= 2)); };
   for (let i = 0; i + 1 < pts.length; i++) {
     const p = pts[i], q = pts[i + 1];
@@ -427,6 +444,10 @@ export function hugs(pts: RPt[], conts: RRect[]): number {
 // units in one counts): router to shard 3 ran along the inside of shard 2's bottom
 export function insideLen(pts: RPt[], away: RRect[]): number {
   let n = 0;
+  // a sample every 4 units of the line, for each container
+  let L0 = 0;
+  for (let i = 0; i + 1 < pts.length; i++) L0 += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
+  work(away.length * (pts.length * 2 + L0 / 4));
   for (const c of away) {
     let k = 0;
     for (let i = 0; i + 1 < pts.length; i++) { const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y), m = Math.max(1, Math.ceil(L / 4)); for (let j = 0; j < m; j++) { const t = (j + 0.5) / m, x = p.x + (q.x - p.x) * t, y = p.y + (q.y - p.y) * t; if (x > c.x + 2 && x < c.x + c.w - 2 && y > c.y + 2 && y < c.y + c.h - 2) k += L / m; } }
@@ -466,6 +487,7 @@ export function bestRoute(req: Req, base0: Route | null, others: Placed[], off =
   const base = base0 ?? (f ? { sa: f[0], sb: f[1], oa: straightWant(req.a, req.b, f[0]), ob: straightWant(req.b, req.a, f[1]), m: 0.5 } : null);
   const cands = candidates(req.a, req.b, base, req.ga, req.gb, req.shapes, req.conts ?? []);
   for (const c of cands.slice(0, 220)) {
+    work(12);
     const pts = routeLine(routeGeom(req.a, req.b, c.rt, off));
     const s = scoreRoute(pts, req, others, [req.a.key, req.b.key]);
     const score = s.score + c.cost;
@@ -485,8 +507,13 @@ export function bestRoute(req: Req, base0: Route | null, others: Placed[], off =
 // heading away from the target costing much more
 const DIRS: RPt[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
 const dirOf = (n: RPt) => DIRS.findIndex((d) => d.x === Math.sign(n.x) && d.y === Math.sign(n.y));
-export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others: Placed[], area: RRect, conts: RRect[] = []): RPt[] | null {
+// memo: what a move between two grid points meets (blocked, or its hug and crossing costs) depends only on its two
+// points, the obstacles, the other lines and the containers: one search of a line (wayRoute) shares it over its tries
+export type Moves = Map<string, { hug: number; cc: number } | null>;
+export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others: Placed[], area: RRect, conts: RRect[] = [], memo: Moves = new Map()): RPt[] | null {
   const S = { x: P.x + na.x * 10, y: P.y + na.y * 10 }, T = { x: Q.x + nb.x * 10, y: Q.y + nb.y * 10 };
+  // the grid's lines, sorted: about 10 units for each obstacle and container edge
+  work(16 + 10 * (obst.length + 4 * conts.length));
   const inside = (p: RPt) => obst.some((r) => p.x > r.x + 0.01 && p.x < r.x + r.w - 0.01 && p.y > r.y + 0.01 && p.y < r.y + r.h - 0.01);
   if (inside(S) || inside(T)) return null;
   const coords = (vals: number[], lo: number, hi: number) => {
@@ -512,8 +539,10 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
   const crossCost = (p: RPt, q: RPt) => {
     let n = 0;
     const x0 = Math.min(p.x, q.x), x1 = Math.max(p.x, q.x), y0 = Math.min(p.y, q.y), y1 = Math.max(p.y, q.y);
+    work(1 + others.length);
     for (const o of others) {
       if (o.box.x1 < x0 - 3 || o.box.x0 > x1 + 3 || o.box.y1 < y0 - 3 || o.box.y0 > y1 + 3) continue;
+      work(2 * o.pts.length);
       for (let k = 0; k + 1 < o.pts.length; k++) {
         const a = o.pts[k], b = o.pts[k + 1];
         if (segX(p, q, a, b)) { n += 300; break; }
@@ -525,6 +554,7 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
   };
   const key = (x: number, y: number, d: number) => (y * W + x) * 4 + d;
   const g = new Map<number, number>(), from = new Map<number, number>();
+  const near = new Map<number, { hug: number; cc: number } | null>();
   const heap: [number, number][] = [];
   const push = (f: number, k: number) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
   const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
@@ -534,6 +564,8 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
   let goal = -1, n = 0;
   while (heap.length && n++ < 6000) {
     const [, k] = pop();
+    // the heap's pop and push, and four moves (each move's tests are counted where they are made)
+    work(24 + 3 * Math.log2(heap.length + 2));
     const d = k % 4, cell = (k - d) / 4, x = cell % W, y = (cell - x) / W, gk = g.get(k)!;
     if (x === xi1 && y === yi1) { if (d === dEnd || goal < 0) { goal = k; if (d === dEnd) break; } continue; }
     for (let d2 = 0; d2 < 4; d2++) {
@@ -541,12 +573,21 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
       const nx = x + DIRS[d2].x, ny = y + DIRS[d2].y;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const p = { x: xs[x], y: ys[y] }, q = { x: xs[nx], y: ys[ny] };
-      if (!segOk(p, q)) continue;
+      // (this search's own moves by grid index first; then the moves of the line's other searches, by their points)
+      const lk = cell * 4 + d2;
+      let seg = near.get(lk);
+      if (seg === undefined) {
+        const mk = `${p.x},${p.y},${q.x},${q.y}`;
+        seg = memo.get(mk);
+        if (seg === undefined) { seg = segOk(p, q) ? { hug: conts.length ? hugs([p, q], conts) * (Math.abs(q.x - p.x) + Math.abs(q.y - p.y)) * 3 : 0, cc: crossCost(p, q) } : null; memo.set(mk, seg); }
+        else work(8);
+        near.set(lk, seg);
+      } else work(3);
+      if (!seg) continue;
       const len = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
       const back = (DIRS[d2].x * wx + DIRS[d2].y * wy) / wl < -0.035 ? len * 4 : 0;
       const end = nx === xi1 && ny === yi1 && d2 !== dEnd ? BEND : 0;
-      const hug = conts.length ? hugs([p, q], conts) * len * 3 : 0;
-      const cost = gk + len + (d2 !== d ? BEND : 0) + back + end + hug + crossCost(p, q);
+      const cost = gk + len + (d2 !== d ? BEND : 0) + back + end + seg.hug + seg.cc;
       const k2 = key(nx, ny, d2);
       if (cost < (g.get(k2) ?? Infinity)) { g.set(k2, cost); from.set(k2, k); push(cost + h(nx, ny), k2); }
     }
@@ -570,12 +611,13 @@ export function wayRoute(req: Req, base: Route | null, others: Placed[], off = 0
   const obst = [...req.shapes.map((r) => ({ x: r.x - 5, y: r.y - 5, w: r.w + 10, h: r.h + 10 })), ...req.words.map((r) => ({ x: r.x - 1.5, y: r.y - 1.5, w: r.w + 3, h: r.h + 3 })), ...[a, b].map((r) => ({ x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }))];
   const dx = cb.x - ca.x, dy = cb.y - ca.y, dl = Math.hypot(dx, dy) || 1;
   let best: Choice | null = null;
+  const memo: Moves = new Map();
   for (const sa of ["t", "b", "l", "r"] as Side[]) for (const sb of ["t", "b", "l", "r"] as Side[]) {
     const na = NORM[sa], nb = NORM[sb];
     if ((na.x * dx + na.y * dy) / dl < -0.3 || (nb.x * -dx + nb.y * -dy) / dl < -0.3) continue;
     const oa = base && base.sa === sa ? base.oa : 0, ob = base && base.sb === sb ? base.ob : 0;
     const P = portAt(a, sa, oa), Q = portAt(b, sb, ob);
-    const path = gridPath(P, na, Q, nb, obst, others, area, req.conts ?? []);
+    const path = gridPath(P, na, Q, nb, obst, others, area, req.conts ?? [], memo);
     if (!path) continue;
     const rt: Route = { sa, sb, oa, ob, m: 0, way: path.slice(1, -1), ca, cb };
     const pts = routeLine(routeGeom(a, b, rt, off));
@@ -588,15 +630,21 @@ export function wayRoute(req: Req, base: Route | null, others: Placed[], off = 0
 
 // route every line of a frame: sides, then the fan on each side, then each line's way, twice over (so a line routed
 // early sees the lines after it); then the ends are spread again on the sides the lines took
-const CACHE = new Map<string, (Choice | null)[]>();
+// (a hit charges again what the routes cost when they were made, the first time the compile meets them, so the count
+// does not depend on what ran before it; a layout pass that routes the same frame again pays only for the key)
+const CACHE = new Map<string, { res: (Choice | null)[]; cost: number }>();
 const rkey = (r: RRect) => `${r.x.toFixed(1)},${r.y.toFixed(1)},${r.w.toFixed(1)},${r.h.toFixed(1)}`;
 export function routeAll(reqs: Req[], fixed: Placed[] = []): (Choice | null)[] {
+  // the key: a few units for each rectangle and point written into it
+  work(reqs.reduce((n, q) => n + 4 * (8 + q.words.length + q.shapes.length + (q.conts?.length ?? 0)), 0) + fixed.reduce((n, f) => n + 2 * f.pts.length, 0));
   const key = reqs.map((q) => [q.a.key, q.a.kind, rkey(q.a), q.b.key, q.b.kind, rkey(q.b), q.words.map(rkey).join(" "), q.shapes.map(rkey).join(" "), (q.conts ?? []).map(rkey).join(" "), q.ga ? rkey(q.ga) : "", q.gb ? rkey(q.gb) : "", q.area ? rkey(q.area) : ""].join("/")).join("|") + "#" + fixed.map((f) => f.pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")).join("|");
   const hit = CACHE.get(key);
-  if (hit) return hit;
+  if (hit) { if (firstTime(key)) work(hit.cost); return hit.res; }
+  const t0 = workTotal();
   const res = routeAllNow(reqs, fixed);
   if (CACHE.size > 400) CACHE.delete(CACHE.keys().next().value!);
-  CACHE.set(key, res);
+  CACHE.set(key, { res, cost: workTotal() - t0 });
+  firstTime(key);
   return res;
 }
 function routeAllNow(reqs: Req[], fixed: Placed[] = []): (Choice | null)[] {

@@ -17,46 +17,69 @@
 // the colon), or at a point (`item @ x, y`, both numbers from 0 to 1: 0 is the first end of the axis, 1 the last, the
 // rest spread evenly). A `region:` line paints a block of cells with a label and a colour; `arrows: on` draws an arrow
 // along each axis. Colours are theme names, never hex.
-import { parseItem, splitList, itemText, TIER_COLOURS, type Err, type Item } from "./tier";
+import { parseItem, splitList, itemText, splitAround, tailMark, briefList, TIER_COLOURS, type Err, type Item } from "./tier";
 
 export const ALIGN_MAX = 6; // names on one axis
+const ALIGN_MAX_REGIONS = 400;
 export interface Cell { col: number; row: number; label: string; colour: string; items: Item[]; line: number }
 export interface Region { c0: number; c1: number; r0: number; r1: number; label: string; colour: string; line: number }
 export interface Point extends Item { x: number; y: number; line: number }
 export interface AlignSpec { title: string; xs: string[]; ys: string[]; cells: Cell[]; regions: Region[]; points: Point[]; arrows: boolean; errors: Err[] }
 
-const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-const POINT = /^(.*\S)\s*@\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*$/;
+// a point line: /^(.*\S)\s*@\s*([+-]?\d*\.?\d+)\s*,\s*([+-]?\d*\.?\d+)\s*$/, read in one pass (the pattern backtracked
+// through the name and through long runs of digits). Nothing after the "@" may hold one, so it is the last "@".
+const NUM = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/; // the same numbers as [+-]?\d*\.?\d+, without the backtracking
+const SPACE = /\s/;
+function pointOf(t: string): [string, string, string, string] | null {
+  const a = t.lastIndexOf("@");
+  if (a < 0) return null;
+  let e = a;
+  while (e > 0 && SPACE.test(t[e - 1])) e--;
+  const name = t.slice(0, e);
+  if (!name || /[\n\r\u2028\u2029]/.test(name)) return null;
+  // after the "@": spaces, a number, spaces, a comma, spaces, a number, spaces
+  let i = a + 1;
+  const skip = () => { while (i < t.length && SPACE.test(t[i])) i++; };
+  const word = () => { const s = i; while (i < t.length && t[i] !== "," && !SPACE.test(t[i])) i++; return t.slice(s, i); };
+  skip(); const x = word(); skip();
+  if (t[i] !== ",") return null;
+  i++; skip(); const y = word(); skip();
+  return i === t.length && NUM.test(x) && NUM.test(y) ? [t, name, x, y] : null;
+}
 // "head [colour]" -> the head and the colour (lower case) or ""; the bracket must be last
-const takeColour = (s: string): { head: string; colour: string; raw: string } => { const m = s.match(/^(.*?)\s*\[([^\]]*)\]\s*$/); return m ? { head: m[1].trim(), colour: m[2].trim().toLowerCase(), raw: m[2].trim() } : { head: s.trim(), colour: "", raw: "" }; };
-const takeLabel = (s: string): { head: string; label: string } => { const m = s.match(/^(.*?)\s*"([^"]*)"$/); return m ? { head: m[1].trim(), label: m[2].trim() } : { head: s.trim(), label: "" }; };
+const takeColour = (s: string): { head: string; colour: string; raw: string } => { const m = tailMark(s, "[", "]", true); return m ? { head: m[0].trim(), colour: m[1].trim().toLowerCase(), raw: m[1].trim() } : { head: s.trim(), colour: "", raw: "" }; };
+const takeLabel = (s: string): { head: string; label: string } => { const m = tailMark(s, '"', '"'); return m ? { head: m[0].trim(), label: m[1].trim() } : { head: s.trim(), label: "" }; };
 
 export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
   const errors: Err[] = [];
   const err = (line: number, msg: string) => errors.push({ line, msg });
   const axis: { x?: string[]; y?: string[] } = {}, axisLine: { x: number; y: number } = { x: baseLine, y: baseLine };
   const cells: Cell[] = [], points: Point[] = [], regions: Region[] = [];
-  let arrows = false, arrowsSeen = false;
+  const cellAt = new Set<string>(); // "col,row" of the cells read so far
+  let arrows = false, arrowsSeen = false, regionsCut = false;
   const where = new Map<string, string>(); // item (lower case) -> where it is
   const lines = body.split("\n");
   // pass 1: the two axis lines (they may come after the cells; the cells are read once both are known)
   lines.forEach((raw, i) => {
-    const m = raw.trim().match(/^([xy])\s*:\s*(.*)$/);
+    const m = raw.trim().match(/^([xy])(?=(\s*))\2:(?=(\s*))\3(.*)$/); // spaces taken whole: no backtracking into them
     if (!m) return;
     const k = m[1] as "x" | "y", line = baseLine + i;
     if (axis[k]) { err(line, `a second "${k}:" line; name the ${k} axis once`); return; }
     axisLine[k] = line;
-    const names = m[2].split(/\s*\.\.\s*/).map((s) => s.trim());
+    const names = splitAround(m[4], "..").map((s) => s.trim());
     if (names.some((n) => !n)) { err(line, `"${k}:" has an empty name; write the names with " .. " between them, like "${k}: ${k === "x" ? "low effort .. high effort" : "high impact .. low impact"}"`); axis[k] = names.filter(Boolean); return; }
     if (names.length < 2) { err(line, `"${k}:" needs at least the two ends of the axis, like "${k}: ${k === "x" ? "lawful .. chaotic" : "good .. evil"}"`); axis[k] = names; return; }
     if (names.length > ALIGN_MAX) err(line, `"${k}:" has ${names.length} names; an axis may have 2 to ${ALIGN_MAX} (more cells would be too small to read): remove ${names.length - ALIGN_MAX}, or split the grid in two`);
     for (const n of names) if (/[\/:"@\[\]]/.test(n)) err(line, `axis name "${n}" may not hold / : " @ [ or ] (cell lines use them)`);
-    names.forEach((n, j) => { if (names.findIndex((o) => eq(o, n)) !== j) err(line, `axis name "${n}" is used twice on the ${k} axis`); });
+    const firstAt = new Map<string, number>();
+    names.forEach((n, j) => { const key = n.trim().toLowerCase(); if (!firstAt.has(key)) firstAt.set(key, j); if (firstAt.get(key) !== j) err(line, `axis name "${n}" is used twice on the ${k} axis`); });
     axis[k] = names;
   });
   for (const k of ["x", "y"] as const) if (!axis[k]) err(baseLine, `the grid has no "${k}:" line; name the ${k} axis' ends, like "${k}: ${k === "x" ? "lawful .. chaotic" : "good .. evil"}"`);
   const xs = axis.x ?? [], ys = axis.y ?? [];
-  const colAt = (n: string) => xs.findIndex((x) => eq(x, n)), rowAt = (n: string) => ys.findIndex((y) => eq(y, n));
+  // a name to its first place on the axis, compared trimmed and in lower case: a lookup, not a search of the axis
+  const placeOf = (names: string[]) => { const m = new Map<string, number>(); names.forEach((x, j) => { const key = x.trim().toLowerCase(); if (!m.has(key)) m.set(key, j); }); return (n: string) => m.get(n.trim().toLowerCase()) ?? -1; };
+  const colAt = placeOf(xs), rowAt = placeOf(ys);
   const add = (line: number, it: Item, at: string): boolean => {
     const key = it.name.toLowerCase();
     if (where.has(key)) { err(line, `"${it.name}" is placed twice (${where.get(key)} and ${at}); each item goes in one place`); return false; }
@@ -71,11 +94,11 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
   // a side of a region: a name, or "first .. last" in the axis order
   const span = (line: number, k: "x" | "y", s: string): [number, number] | null => {
     const names = k === "x" ? xs : ys, at = k === "x" ? colAt : rowAt;
-    const parts = s.split(/\s*\.\.\s*/).map((p) => p.trim());
+    const parts = splitAround(s, "..").map((p) => p.trim());
     if (parts.length > 2 || parts.some((p) => !p)) { err(line, `a region's ${k === "x" ? "columns" : "rows"} are one name or "first .. last"; got "${s}"`); return null; }
     const idx = parts.map(at);
     const bad = parts.find((_, j) => idx[j] < 0);
-    if (bad !== undefined) { err(line, `region: no ${k === "x" ? "column" : "row"} "${bad}"; the ${k === "x" ? "columns" : "rows"} are ${names.join(", ")}`); return null; }
+    if (bad !== undefined) { err(line, `region: no ${k === "x" ? "column" : "row"} "${bad}"; the ${k === "x" ? "columns" : "rows"} are ${briefList(names)}`); return null; }
     if (idx.length === 2 && idx[0] > idx[1]) { err(line, `region: write the ${k === "x" ? "columns" : "rows"} in the axis order: "${parts[1]} .. ${parts[0]}"`); return null; }
     return [idx[0], idx[idx.length - 1]];
   };
@@ -83,18 +106,21 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
   lines.forEach((raw, i) => {
     const line = baseLine + i, t = raw.trim();
     if (!t || /^[xy]\s*:/.test(t)) return;
-    const ar = t.match(/^arrows\s*:\s*(.*)$/);
+    const ar = t.match(/^arrows(?=(\s*))\1:(?=(\s*))\2(.*)$/);
     if (ar) {
-      const v = ar[1].trim().toLowerCase();
+      const v = ar[3].trim().toLowerCase();
       if (arrowsSeen) err(line, `a second "arrows:" line; write it once`);
       arrowsSeen = true;
-      if (v === "on" || v === "off") arrows = v === "on"; else err(line, `"arrows:" is on or off (got "${ar[1].trim()}"); "arrows: on" draws an arrow along each axis`);
+      if (v === "on" || v === "off") arrows = v === "on"; else err(line, `"arrows:" is on or off (got "${ar[3].trim()}"); "arrows: on" draws an arrow along each axis`);
       return;
     }
-    const rg = t.match(/^region\s*:\s*(.*)$/);
+    const rg = t.match(/^region(?=(\s*))\1:(?=(\s*))\2(.*)$/);
     if (rg) {
       if (!xs.length || !ys.length) return; // the missing axis is already reported
-      const { head: h1, colour, raw: rawC } = takeColour(rg[1]);
+      // a grid within the axis limit holds at most 36 regions; past 400 (axes over the limit) the rest are left out, as
+      // each region is checked against every one before it
+      if (regions.length >= ALIGN_MAX_REGIONS) { if (!regionsCut) err(line, `more than ${ALIGN_MAX_REGIONS} regions; this one and the ones after it are left out`); regionsCut = true; return; }
+      const { head: h1, colour, raw: rawC } = takeColour(rg[3]);
       const { head, label } = takeLabel(h1);
       const parts = head.split("/").map((s) => s.trim());
       if (parts.length !== 2 || !parts[0] || !parts[1]) { err(line, `a region line is "region: columns / rows "label" [colour]", like "region: ${xs[0]} .. ${xs[1]} / ${ys[0]} "${label || "Quick wins"}" [good]"`); return; }
@@ -121,7 +147,7 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
     }
     if (looksCell && col >= 0 && row >= 0) {
       const at = `cell ${xs[col]} / ${ys[row]}`;
-      if (cells.some((c) => c.col === col && c.row === row)) { err(line, `${at} has two lines; put all its items on one line`); return; }
+      if (cellAt.has(`${col},${row}`)) { err(line, `${at} has two lines; put all its items on one line`); return; }
       const cell: Cell = { col, row, label, colour: cellColour, items: [], line };
       const rest = t.slice(colon + 1).trim();
       if (rest) for (const raw2 of splitList(rest)) {
@@ -130,10 +156,10 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
         if (typeof it === "string") { err(line, `${at}: ${it}`); continue; }
         if (add(line, it, at)) cell.items.push(it);
       }
-      cells.push(cell);
+      cells.push(cell); cellAt.add(`${col},${row}`);
       return;
     }
-    const p = t.match(POINT);
+    const p = pointOf(t);
     if (p) {
       const it = parseItem(p[1]);
       if (typeof it === "string") { err(line, `point line: ${it}`); return; }
@@ -146,7 +172,7 @@ export function parseAlign(body: string, baseLine = 1, title = ""): AlignSpec {
     if (looksCell) {
       if (!xs.length || !ys.length) return; // the missing axis is already reported
       const why = col < 0 && row < 0 && colAt(headRow) >= 0 && rowAt(headCol) >= 0 ? `the column comes first: write "${headRow} / ${headCol}"`
-        : col < 0 ? `no column "${headCol}": the columns are ${xs.join(", ")}` : `no row "${headRow}": the rows are ${ys.join(", ")}`;
+        : col < 0 ? `no column "${headCol}": the columns are ${briefList(xs)}` : `no row "${headRow}": the rows are ${briefList(ys)}`;
       err(line, `cell "${headCol} / ${headRow}" does not match the axes: ${why}`);
       return;
     }
@@ -185,12 +211,22 @@ export function alignLlm(spec: AlignSpec): string {
 export const ALIGN_PHONE_CHIP = 17, ALIGN_PHONE_CELL = 12;
 // The least width (px) of the chip's text box that breaks the name into at most two lines: the wider half when the name
 // is split at its best space, never less than its longest word.
+// width must grow when text is added at either end (chipW does: a sum of positive widths, left to right); then the first
+// line's width only grows with k and the second's only shrinks, and a long name finds its best split by halving.
 export function twoLineW(name: string, width: (s: string) => number): number {
   const words = name.split(/\s+/).filter(Boolean);
   if (words.length < 2) return width(name);
+  const at = (k: number) => Math.max(width(words.slice(0, k).join(" ")), width(words.slice(k).join(" ")));
   let best = Infinity;
-  for (let k = 1; k < words.length; k++) best = Math.min(best, Math.max(width(words.slice(0, k).join(" ")), width(words.slice(k).join(" "))));
-  return Math.max(best, ...words.map(width));
+  if (words.length <= 64) for (let k = 1; k < words.length; k++) best = Math.min(best, at(k));
+  else {
+    // the first k where the first line is at least as wide as the second: the best is there or one before
+    let lo = 1, hi = words.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (width(words.slice(0, mid).join(" ")) >= width(words.slice(mid).join(" "))) hi = mid; else lo = mid + 1; }
+    best = Math.min(at(lo), lo > 1 ? at(lo - 1) : Infinity);
+  }
+  for (const w of words) best = Math.max(best, width(w)); // a loop: a long name has more words than a call takes arguments
+  return best;
 }
 export function alignColMin(spec: AlignSpec, width: (s: string, font: number) => number, font = 12): number {
   let need = 0;

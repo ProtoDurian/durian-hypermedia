@@ -25,7 +25,7 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 
 | Import | Runs where | Gives |
 | --- | --- | --- |
-| `durian-hypermedia` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `defaultUrlPolicy`, every type |
+| `durian-hypermedia` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `UNTRUSTED_LIMITS`, `defaultUrlPolicy`, every type |
 | `durian-hypermedia/server` | Bun or Node | `highlight(doc)`: colours for code (Code Hike on WebAssembly) |
 | `durian-hypermedia/react` | React 18 or 19 | `DhDocument` (every part), each part component, `DEFAULT_SLOTS`, `UI` |
 | `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; mermaid drawn by your `Mermaid` slot; no mermaid, no DOMPurify, no HTML-string sink |
@@ -44,8 +44,8 @@ matter). The text may be hostile: [SECURITY.md](SECURITY.md) says what `parse()`
 - raw HTML is shown as text, never passed through;
 - every link and image URL goes through `urlPolicy(url, kind)`; script, data, vbscript and file URLs never get through,
   whatever the policy returns;
-- caps on size, block count, nesting, animation things and steps, chart points and items; going over one gives an error
-  block in place of the part and a line in `doc.problems`, never a crash;
+- caps on size, block count, nesting, animation things, steps and layout work, chart points, items and YAML size;
+  going over one gives an error block in place of the part and a line in `doc.problems`, never a crash;
 - mermaid is drawn with `securityLevel: "strict"`, no HTML labels, and the SVG is cleaned before it joins the page.
 
 ```ts
@@ -58,6 +58,16 @@ const doc = parse(text, {
   prefixes: { ">>>": { label: "Python", colour: "c4" } },                                                 // own terminal prompts for every page
 });
 doc.problems;   // [] for a clean page
+```
+
+**Two sets of caps.** `LIMITS` (the default) fits authored pages: the largest real pages need about half of its YAML and
+animation caps. Text nobody has reviewed (a chat reply, a streamed message) should use `UNTRUSTED_LIMITS`, the same caps
+with smaller YAML and animation work caps, so its slowest pages parse about three to five times quicker (SECURITY.md has
+the measured worst cases). Lower any cap further by spreading it:
+
+```ts
+import { parse, UNTRUSTED_LIMITS } from "durian-hypermedia";
+const doc = parse(reply, { limits: { ...UNTRUSTED_LIMITS, maxInputBytes: 100_000 } });
 ```
 
 **Own marks and prefixes for the whole host.** A page defines its own `marks:` (file tree) and `prefixes:` (terminal) in

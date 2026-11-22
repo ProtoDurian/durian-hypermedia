@@ -1,10 +1,16 @@
 // The evaluation budget (0.6.1): one deterministic budget of steps, value slots and characters per parse() call, with
 // a cap per part, charged before the work. These tests count work; they never time it.
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { parse, check, llmView, LIMITS } from "../src/index";
 import { Budget, BudgetError, partLimitsOf, pageLimitsOf, withBudget, pageBudget } from "../src/core/budget";
 import { evaluate, parse as parseExpr, parseDefs, evalDefs, fillHoles, sizeOf, ExprError, EXPR_CAPS, type Val } from "../src/core/expr";
 import { evalChart } from "../src/core/chart";
+
+// these tests reach the evaluation guards through long YAML texts: the YAML size caps (0.6.2, test/yaml-size.test.ts)
+// are raised while they run, so each test still meets the guard it is about
+const YAML_CAPS = { maxYamlChars: LIMITS.maxYamlChars, maxPageYamlChars: LIMITS.maxPageYamlChars, maxYamlNodes: LIMITS.maxYamlNodes, maxPageYamlNodes: LIMITS.maxPageYamlNodes };
+beforeAll(() => { Object.assign(LIMITS, { maxYamlChars: 1e8, maxPageYamlChars: 1e9, maxYamlNodes: 1e8, maxPageYamlNodes: 1e9 }); });
+afterAll(() => { Object.assign(LIMITS, YAML_CAPS); });
 
 const F = "```";
 // a chart; let entries are quoted for YAML

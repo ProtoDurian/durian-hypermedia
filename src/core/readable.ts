@@ -19,6 +19,7 @@
 // top to bottom) when the scene is wide (more than WIDE wide per unit of height, as before), or when it keeps whole
 // more steps than the plain phone layout does (fewer steps whose touched things must be cut to their focus).
 import { compileScene, touchedRect, union, pad, center, fitAspect, minFont, MIN_PX, MARGIN, NARROW, type Compiled, type Frame, type Rect } from "./scene";
+import { BudgetError } from "./budget";
 
 // a scene wider than this per unit of height always takes the narrow layout on a phone (format version 8)
 export const WIDE = 1.4;
@@ -90,6 +91,27 @@ function cutSteps(c: Compiled, px: number): number {
   const ar = px / phoneStageH(px, c.aspect);
   return c.frames.filter((f) => { const t = touchedRect(f); return t && !fits(t, px / leastScale(f, px), ar); }).length;
 }
+// the phone's layouts of a scene (the phone's tokens, and the narrow layout too), each compiled once per scene, on a
+// budget of its own (core/work.ts): null when it is over it, and then the stage keeps the wide layout
+const phones = new WeakMap<Compiled, { phone?: Compiled | null; narrow?: Compiled | null }>();
+export function phoneScene(wide: Compiled, narrow: boolean): Compiled | null {
+  const src = wide.src;
+  if (!src) return null;
+  const m = phones.get(wide) ?? {};
+  phones.set(wide, m);
+  const k = narrow ? "narrow" : "phone";
+  if (m[k] === undefined) {
+    try { m[k] = compileScene(src.head, src.steps, src.base, { ...src.info, phone: "1", ...(narrow ? { narrow: "1" } : {}) }); }
+    catch (e) { if (!(e instanceof BudgetError)) throw e; m[k] = null; }
+  }
+  return m[k]!;
+}
+// the scene as the stage draws it: a block parse() accepted compiles within its budget; one made under a host's higher
+// caps may not, and then the stage shows the steps' captions on an empty stage rather than fail
+export function stageScene(src: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> }): Compiled {
+  try { return compileScene(src.head, src.steps, src.base, src.info); }
+  catch (e) { if (!(e instanceof BudgetError)) throw e; return compileScene("", src.steps.map((s) => ({ ...s, raw: "" })), src.base, src.info); }
+}
 // the narrow layout or not, on a phone stage px wide (wide: the scene compiled as written). Cached per scene and width
 const cache = new WeakMap<Compiled, Map<number, boolean>>();
 export function narrowWins(wide: Compiled, px: number): boolean {
@@ -101,12 +123,12 @@ export function narrowWins(wide: Compiled, px: number): boolean {
   cache.set(wide, m);
   const hit = m.get(px);
   if (hit != null) return hit;
-  const phone = compileScene(src.head, src.steps, src.base, { ...src.info, phone: "1" });
-  const cp = cutSteps(phone, px);
+  const phone = phoneScene(wide, false);
+  const cp = phone ? cutSteps(phone, px) : 0;
   let win = false;
   if (cp > 0) {
-    const narrow = compileScene(src.head, src.steps, src.base, { ...src.info, phone: "1", narrow: "1" });
-    win = !narrow.errors.length && cutSteps(narrow, px) < cp;
+    const narrow = phoneScene(wide, true);
+    win = !!narrow && !narrow.errors.length && cutSteps(narrow, px) < cp;
   }
   m.set(px, win);
   return win;

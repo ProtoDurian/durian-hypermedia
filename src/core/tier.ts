@@ -24,6 +24,44 @@ export const DEFAULT_TIERS = ["S", "A", "B", "C", "D"];
 const BY_PLACE = ["c7", "c5", "c3", "c8", "c6", "c4", "c2", "c1"];
 export const tierColourAt = (k: number) => BY_PLACE[k % BY_PLACE.length];
 
+// ---- one-pass forms of patterns that backtracked on long text (same results; each scanned ahead from every space) ----
+const WS = /\s/;
+const LINE_END = /[\n\r\u2028\u2029]/;
+/** s.split(/\s*SEP\s*\/) for a literal separator: the spaces around each separator go with it. */
+export function splitAround(s: string, sep: string): string[] {
+  const out: string[] = [];
+  let last = 0;
+  for (let d = s.indexOf(sep); d >= 0; d = s.indexOf(sep, last)) {
+    let a = d, e = d + sep.length;
+    while (a > last && WS.test(s[a - 1])) a--;
+    while (e < s.length && WS.test(s[e])) e++;
+    out.push(s.slice(last, a));
+    last = e;
+  }
+  out.push(s.slice(last));
+  return out;
+}
+/** s.match(/^(.*?)\s*OPEN([^CLOSE]*)CLOSE$/) (with trailingWs: CLOSE\s*$) for one-character OPEN and CLOSE: [head, inner],
+ *  or null. "." matches no line end, so the head may hold none. */
+export function tailMark(s: string, open: string, close: string, trailingWs = false): [string, string] | null {
+  let e = s.length - 1;
+  if (trailingWs) while (e >= 0 && WS.test(s[e])) e--;
+  if (e < 0 || s[e] !== close) return null;
+  // the opener: the first one after the last closer before the end (the inner text holds no closer)
+  const b = open === close ? s.lastIndexOf(close, e - 1) : s.indexOf(open, s.lastIndexOf(close, e - 1) + 1);
+  if (b < 0 || b >= e) return null;
+  let p = b;
+  while (p > 0 && WS.test(s[p - 1])) p--;
+  const head = s.slice(0, p);
+  return LINE_END.test(head) ? null : [head, s.slice(b + 1, e)];
+}
+/** A list of names for a message, at most about 300 characters: a page may define thousands, and one message per line
+ *  that names them all would grow with lines times names. */
+export function briefList(names: string[], sep = ", "): string {
+  let out = "", k = 0;
+  for (; k < names.length; k++) { const next = k ? out + sep + names[k] : names[k]; if (next.length > 300 && k) break; out = next; }
+  return k < names.length ? `${out}${sep}… (${names.length} in all)` : out;
+}
 // split at the commas that are not inside "quotes" or (brackets)
 export function splitList(s: string): string[] {
   const out: string[] = []; let cur = "", depth = 0, quote = false;
@@ -40,9 +78,9 @@ export function splitList(s: string): string[] {
 export function parseItem(raw: string): Item | string {
   const s = raw.trim();
   let name = s, note = "";
-  const q = s.match(/^"([^"]*)"\s*(.*)$/);
+  const q = s.match(/^"([^"]*)"(?=(\s*))\2(.*)$/); // the spaces taken whole (no backtracking into them)
   let rest = s;
-  if (q) { name = q[1].trim(); rest = q[2]; if (!rest) return name ? { name, note: "" } : "an item has an empty name"; if (!rest.startsWith("(")) return `after the quoted name "${name}" only a (note) may follow, found "${rest.slice(0, 20)}"`; }
+  if (q) { name = q[1].trim(); rest = q[3]; if (!rest) return name ? { name, note: "" } : "an item has an empty name"; if (!rest.startsWith("(")) return `after the quoted name "${name}" only a (note) may follow, found "${rest.slice(0, 20)}"`; }
   if (q || s.endsWith(")")) {
     if (!rest.endsWith(")")) return q ? `the note after "${name}" is not closed: end it with )` : "an item is cut off";
     let depth = 0, at = -1;
@@ -60,7 +98,6 @@ export function itemText(it: Item): string {
   const name = /[,()"]/.test(it.name) ? `"${it.name.replace(/"/g, "'")}"` : it.name;
   return it.note ? `${name} (${it.note})` : name;
 }
-const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 export function parseTier(body: string, baseLine = 1, title = ""): TierSpec {
   const errors: Err[] = [];
@@ -68,28 +105,31 @@ export function parseTier(body: string, baseLine = 1, title = ""): TierSpec {
   const lines = body.split("\n");
   let tiers: TierRow[] = DEFAULT_TIERS.map((name, k) => ({ name, colour: tierColourAt(k), items: [], line: baseLine }));
   let declared = false, seenAny = false;
+  // a tier by its name, trimmed and in lower case (how tier names compare): a lookup, not a search of every tier
+  const key = (s: string) => s.trim().toLowerCase();
+  let byName = new Map(tiers.map((x, k) => [key(x.name), k]));
   const seenTier = new Set<string>();
   const where = new Map<string, string>(); // item (lower case) -> the tier it is in
   lines.forEach((raw, i) => {
     const line = baseLine + i;
     const t = raw.trim();
     if (!t) return;
-    const d = t.match(/^tiers\s*:\s*(.*)$/);
+    const d = t.match(/^tiers(?=(\s*))\1:(?=(\s*))\2(.*)$/);
     if (d) {
       if (declared) { err(line, `a second "tiers:" line; name all the tiers on one line`); return; }
       if (seenAny) { err(line, `the "tiers:" line comes first, before the tier lines`); return; }
       declared = true;
-      const names = splitList(d[1]);
-      tiers = [];
+      const names = splitList(d[3]);
+      tiers = []; byName = new Map();
       names.forEach((n, k) => {
-        const m = n.match(/^(.*?)\s*\[([^\]]*)\]$/);
-        const name = (m ? m[1] : n).trim();
-        let colour = m ? m[2].trim().toLowerCase() : tierColourAt(k);
+        const m = tailMark(n, "[", "]");
+        const name = (m ? m[0] : n).trim();
+        let colour = m ? m[1].trim().toLowerCase() : tierColourAt(k);
         if (!name) { err(line, `the "tiers:" line has an empty tier name; write it like "tiers: Must [good], Should, Could"`); return; }
         if (/[:\[\]]/.test(name)) err(line, `tier name "${name}" may not hold : [ or ]`);
-        if (m && !TIER_COLOURS.includes(colour)) { err(line, `tier "${name}": unknown colour "${m[2].trim()}"; colours are ${TIER_COLOURS.join(", ")}`); colour = tierColourAt(k); }
-        if (tiers.some((x) => eq(x.name, name))) { err(line, `tier "${name}" is named twice on the "tiers:" line`); return; }
-        tiers.push({ name, colour, items: [], line });
+        if (m && !TIER_COLOURS.includes(colour)) { err(line, `tier "${name}": unknown colour "${m[1].trim()}"; colours are ${TIER_COLOURS.join(", ")}`); colour = tierColourAt(k); }
+        if (byName.has(key(name))) { err(line, `tier "${name}" is named twice on the "tiers:" line`); return; }
+        byName.set(key(name), tiers.length); tiers.push({ name, colour, items: [], line });
       });
       if (!names.filter(Boolean).length) err(line, `the "tiers:" line names no tier; write it like "tiers: Must [good], Should, Could"`);
       return;
@@ -98,8 +138,8 @@ export function parseTier(body: string, baseLine = 1, title = ""): TierSpec {
     const c = t.indexOf(":");
     if (c <= 0) { err(line, `"${t.slice(0, 40)}" is not a tier line; write the tier's name, a colon, then its items: S: Postgres, SQLite`); return; }
     const name = t.slice(0, c).trim();
-    const tier = tiers.find((x) => eq(x.name, name));
-    if (!tier) { err(line, `there is no tier "${name}": the tiers are ${tiers.map((x) => x.name).join(", ")}${declared ? "; add it to the tiers: line or fix the name" : `; to use other names, start with a line like "tiers: Must, Should, Could"`}`); return; }
+    const tier = tiers[byName.get(key(name)) ?? -1];
+    if (!tier) { err(line, `there is no tier "${name}": the tiers are ${briefList(tiers.map((x) => x.name))}${declared ? "; add it to the tiers: line or fix the name" : `; to use other names, start with a line like "tiers: Must, Should, Could"`}`); return; }
     if (seenTier.has(tier.name)) { err(line, `tier "${tier.name}" has two lines; put all its items on one line`); return; }
     seenTier.add(tier.name);
     tier.line = line;

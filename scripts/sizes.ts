@@ -27,7 +27,7 @@ export const ENTRIES: [string, string][] = [
   ["react/alignment", "src/react/alignment.tsx"],
   ["react/containers", "src/react/containers.tsx"],
 ];
-const DEPS = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "codehike", "chart.js", "three", "mermaid", "marked", "dompurify"];
+const DEPS = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "codehike", "chart.js", "three", "mermaid", "entities", "linkify-it", "mdurl", "punycode.js", "uc.micro", "dompurify"];
 const BASE = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"];
 const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
 

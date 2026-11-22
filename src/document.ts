@@ -12,11 +12,15 @@ import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
 import { pageBudget, withBudget } from "./core/budget";
+import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
+import { stepTextSize } from "./core/dh-lib";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
 /** check() evaluates every chart at several control values: its budget is this many times the page's */
 const CHECK_FACTOR = 8;
+// check() reads a page's YAML texts again (about once more each): its YAML page totals are this many times the page's
+const CHECK_YAML_FACTOR = 3;
 
 /**
  * The texts a reader sees in an animation block, in story order: the quoted labels, the captions (step titles), the
@@ -94,10 +98,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const refused = new Set<PartNode>();
   const hosts: Kept["hosts"] = new Map();
   const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
-  let count = 0, stopped = false;
+  let count = 0, stopped = false, stepText = 0;
 
-  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it
-  return withBudget(pageBudget(lim), () => withHostParts(defs, problems, () => {
+  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
+  // layout budget that every animation draws from (core/work.ts)
+  return withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     const fmOn = opts.frontMatter !== false;
@@ -142,7 +147,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       collect(blocks);
       for (const h of ctx.heads) if (partIds.has(h.id)) problems.push({ line: partIds.get(h.id)!, level: "warn", message: `the heading "${h.text}" and a part both have the id "${h.id}"; a link to #${h.id} reaches only one of them. Rename the part's #id` });
       // a table of contents lists the headings after the walk
-      fillTocs(blocks, ctx.heads);
+      fillTocs(blocks, ctx.heads, problems);
       for (const p of ctx.problems) problems.push({ line: p.line, level: "error", message: p.message });
       const hasPart = blocks.some((x) => x.type !== "markdown" && x.type !== "toc");
       const path = opts.path ?? (hasPart ? "page.dh.md" : "page.md");
@@ -153,6 +158,15 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       kept.set(doc, { dh, refused, hosts, opts });
       return doc;
     }
+
+    // a part that would draw too much: an error, then its source as plain code (nothing the author wrote is lost; its
+    // LLM view stays as it is)
+    function asSource(p: PartNode, message: string): Block[] {
+      refused.add(p);
+      problems.push({ line: p.line, level: "error", message: `${p.name}: ${message}` });
+      return [{ type: "error", line: p.line, part: p.name, message }, { type: "markdown", line: p.line, md: [{ t: "code", lang: "", text: p.body }] } as Block];
+    }
+    function tooMuchText(chars: number): string { return `its steps would show ${chars.toLocaleString("en-US")} characters; the limit is ${(chars > MAX_STEP_TEXT ? MAX_STEP_TEXT : MAX_PAGE_STEP_TEXT).toLocaleString("en-US")}${chars > MAX_STEP_TEXT ? "" : " for the whole page"}, so its source is shown instead`; }
 
     function refuse(p: PartNode, message: string): ErrorBlock {
       refused.add(p);
@@ -174,7 +188,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         }
         if (n.kind === "md") { ctx.line = n.line; out.push({ type: "markdown", line: n.line, md: mdBlocks(n.text, ctx) }); continue; }
         if (n.kind === "toc") { out.push({ type: "toc", line: n.line, depth: Math.min(4, Math.max(2, +(n.attrs.depth ?? 3) || 3)), scope: n.attrs.section ? "section" : "page", items: [] }); continue; }
-        try { out.push(part(n)); }
+        try { const b = part(n); if (Array.isArray(b)) out.push(...b); else out.push(b); }
         catch (e) { out.push(refuse(n, `could not be read (${(e as Error).message})`)); }
       }
       return out;
@@ -184,7 +198,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       return { id: p.attrs.id ? idPrefix + p.attrs.id : null, line: p.line, attrs: { ...p.attrs }, llm: (llmOfPart(p, !!opts.publicView) || null) as string | null, llmKind: llmKindOf(p) as LlmKind };
     }
 
-    function part(p: PartNode): Block {
+    function part(p: PartNode): Block | Block[] {
       const def = PARTS[p.name];
       const host = defs.get(p.name);
       if (host && def) {
@@ -214,9 +228,13 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         if (p.body.length > lim.maxAnimChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxAnimChars.toLocaleString("en-US")}`);
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
         const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
-        const values = [...p.body.matchAll(/\[([^\]]*)\]/g)].reduce((a, m) => a + m[1].split(",").length, 0);
+        // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
+        let values = 0;
+        for (let i = p.body.indexOf("["); i >= 0; i = p.body.indexOf("[", i + 1)) { const j = p.body.indexOf("]", i + 1); if (j < 0) break; values += p.body.slice(i + 1, j).split(",").length; i = j; }
         if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
-        const c = animOf(p);
+        // compiled once (core/dh-lib.ts animOf); over its work budget, or the page's, it is refused here
+        let c: ReturnType<typeof animOf>;
+        try { c = animOf(p); } catch (e) { const m = animOverMessage(e, lim); if (m) return refuse(p, m); throw e; }
         animTexts = [...c.scene.texts];
         const most = Math.max(0, ...c.frames.map((f) => f.boxes.length));
         if (most > lim.maxAnimEntities) return refuse(p, `${most} things on the stage; the limit is ${lim.maxAnimEntities}`);
@@ -224,17 +242,30 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "chart" || p.name === "tierlist" || p.name === "alignment") {
         if (tooManyAliases(p.body)) return refuse(p, "too many YAML anchors and aliases");
       }
-      // the YAML is sized as it parses (host/yaml.ts): anchors that stand for too much refuse the chart before anything reads it
-      if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself/.test(ye)) return refuse(p, ye); }
+      // the YAML is sized as it parses (host/yaml.ts): a text over its size caps, or anchors that stand for too much,
+      // refuse the chart before anything reads it
+      if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself|YAML is too long|YAML has too many keys/.test(ye)) return refuse(p, ye); }
       if (p.name === "mermaid") {
         if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
       }
+      // steps that each carry a whole text (an editor's file before and after, a code walk's lines, a mermaid diagram so
+      // far) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
+      const carried = stepTextSize(dh, p);
+      if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(carried));
+      stepText += carried;
       // the format's own JSON for this one part
       const j = jsonOf({ ...dh, body: [p] } as DhDoc, undefined, !!opts.publicView).blocks[0] as Record<string, any>;
       delete j.source; delete j.size; delete j.type; delete j.id; delete j.attrs; delete j.line; delete j.llm; delete j.llmKind;
       const blk: Record<string, any> = { type: p.name, ...base(p), ...j };
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
+        case "filetree": {
+          // each row carries its whole path: deep rows under long folder names carry the square of the tree
+          const n = (blk.trees ?? []).reduce((a: number, t: any) => a + t.rows.reduce((b: number, r: any) => b + r.path.length, 0), 0);
+          if (n > MAX_STEP_TEXT || stepText + n > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(n));
+          stepText += n;
+          break;
+        }
         case "chart": {
           if (blk.initial?.limit) return refuse(p, blk.initial.error);
           const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
@@ -242,7 +273,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           break;
         }
         case "tierlist": { const n = (blk.tier?.tiers ?? []).reduce((a: number, t: any) => a + (t.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
-        case "alignment": { const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
+        case "alignment": {
+          // the grid draws every cell: axes far over their limit of 6 names would draw columns times rows of them
+          const nx = blk.align?.xs?.length ?? 0, ny = blk.align?.ys?.length ?? 0;
+          if (nx * ny > MAX_ALIGN_CELLS) return asSource(p, `a grid of ${nx} × ${ny} cells; the limit is ${MAX_ALIGN_CELLS}, so its source is shown instead`);
+          const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
         case "codewalk":
           blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }) }));
           break;
@@ -256,25 +291,59 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  }));
+  })));
 }
 
-function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[]) {
+// all the tables of contents of one page together list at most this many headings (each lists the page's headings
+// again, so many of them on a page with many headings would grow with the square of the page)
+const MAX_TOC_ITEMS = 2_000;
+// the text a part's steps carry (each step a whole file, diagram or tree of paths), per part and for the whole page
+const MAX_STEP_TEXT = 1_000_000, MAX_PAGE_STEP_TEXT = 2_000_000;
+// the cells an alignment grid draws (within the axis limit, 6 × 6 = 36)
+const MAX_ALIGN_CELLS = 400;
+function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[], problems: Problem[]) {
   // the headings in page order are ctx.heads; a section toc takes the h3+ under the h2 it sits in
-  let seen = 0;
+  const H = heads.length;
+  // lastH2[i]: the last h2 before heading i (-1: none); nextTop[i]: the first heading at or after i of depth 1 or 2 (-1: none);
+  // upTo(low, d): sum[i] = how many of the headings before i have a depth from low to d, and those headings in order
+  // (so a toc takes its items as one slice: its work is what it lists, which MAX_TOC_ITEMS bounds)
+  const lastH2 = new Int32Array(H + 1), nextTop = new Int32Array(H + 1);
+  for (let i = 0, l = -1; i <= H; i++) { lastH2[i] = l; if (i < H && heads[i].depth === 2) l = i; }
+  nextTop[H] = -1;
+  for (let i = H - 1; i >= 0; i--) nextTop[i] = heads[i].depth <= 2 ? i : nextTop[i + 1];
+  const sums = new Map<string, { sum: Int32Array; match: typeof heads }>();
+  const upTo = (low: number, d: number) => {
+    const k = `${low},${d}`; let a = sums.get(k);
+    if (!a) {
+      const sum = new Int32Array(H + 1), match: typeof heads = [];
+      for (let i = 0; i < H; i++) { const ok = heads[i].depth >= low && heads[i].depth <= d; sum[i + 1] = sum[i] + (ok ? 1 : 0); if (ok) match.push(heads[i]); }
+      a = { sum, match }; sums.set(k, a);
+    }
+    return a;
+  };
+  let seen = 0, listed = 0;
   const visit = (bs: Block[]) => {
-    for (const b of bs) {
+    bs.forEach((b, k) => {
       if (b.type === "markdown") seen += b.md.filter((m) => m.t === "h").length;
       else if (b.type === "toc") {
+        let from = 0, to = H, low = 2;
         if (b.scope === "section") {
-          const before = heads.slice(0, seen);
-          const parent = before.map((h, i) => ({ h, i })).filter(({ h }) => h.depth === 2).pop()?.i ?? -1;
-          const end = heads.findIndex((h, i) => i > parent && h.depth <= 2);
-          b.items = heads.slice(parent + 1, end < 0 ? undefined : end).filter((h) => h.depth > 2 && h.depth <= b.depth);
-        } else b.items = heads.filter((h) => h.depth >= 2 && h.depth <= b.depth);
+          const parent = lastH2[Math.min(seen, H)];
+          const end = nextTop[parent + 1];
+          from = parent + 1; to = end < 0 ? H : end; low = 3;
+        }
+        const u = upTo(low, b.depth), s = u.sum, n = s[to] - s[from];
+        if (listed + n > MAX_TOC_ITEMS) {
+          const message = `the tables of contents on this page would list more than ${MAX_TOC_ITEMS.toLocaleString("en-US")} headings; this one is not shown`;
+          problems.push({ line: b.line, level: "error", message });
+          bs[k] = { type: "error", line: b.line, part: "toc", message };
+          return;
+        }
+        listed += n;
+        b.items = u.match.slice(s[from], s[to]);
       } else if (b.type === "tabs" || b.type === "accordion") b.items.forEach((it) => visit(it.body));
       else if (b.type === "human") visit(b.body);
-    }
+    });
   };
   visit(blocks);
 }
@@ -294,14 +363,17 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   const out: Problem[] = d.problems.map((p) => ({ ...p }));
   if (!k || !k.dh) return out; // a page over a cap (or one that could not be read) has only its problems
   // take refused parts out so the checks do not evaluate them again
-  const strip = (nodes: DhNode[]): DhNode[] => nodes.map((n) => (n.kind === "part" && k!.refused.has(n) ? ({ kind: "md", text: "", line: n.line } as DhMd) : n.kind === "part" ? ({ ...n, nodes: strip(n.nodes), items: n.items.map((it) => ({ ...it, nodes: strip(it.nodes) })) } as PartNode) : n));
+  // (a part with nothing inside stays the same node, so the checks reuse what parse() compiled for it)
+  const strip = (nodes: DhNode[]): DhNode[] => nodes.map((n) => (n.kind === "part" && k!.refused.has(n) ? ({ kind: "md", text: "", line: n.line } as DhMd) : n.kind === "part" && (n.nodes.length || n.items.length) ? ({ ...n, nodes: strip(n.nodes), items: n.items.map((it) => ({ ...it, nodes: strip(it.nodes) })) } as PartNode) : n));
   const dh = { ...k.dh, body: strip(k.dh.body) } as DhDoc;
   const issues: { file: string; line: number; msg: string; level: "error" | "warn" }[] = [];
   const defs = registeredBlocks(k.opts.blocks ?? []);
   // the checks evaluate every chart again for each control value: one budget of their own for the whole call, eight
-  // times the page's (a chart is checked at several values); when it is spent the rest is a warning, not an error
+  // times the page's (a chart is checked at several values); when it is spent the rest is a warning, not an error.
+  // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
+  // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR }), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }));
+  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

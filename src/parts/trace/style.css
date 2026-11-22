@@ -1,0 +1,83 @@
+:root {
+ --trace-bar-h: 18px; --trace-critical: var(--ink); --trace-error: var(--bad); --trace-grid: var(--line); --trace-stripe: color-mix(in oklab, var(--surface-2) 60%, var(--surface));
+ --trace-minimap-h: 44px; --trace-brush: color-mix(in oklab, var(--acc) 18%, transparent);
+ --trace-log-debug: var(--faint); --trace-log-info: var(--c6); --trace-log-warn: var(--warn); --trace-log-error: var(--bad);
+}
+@media (prefers-color-scheme: dark) {
+ :root:not([data-theme="light"]) { --trace-error: var(--bad); }
+}
+:root[data-theme="dark"] { --trace-error: var(--bad); }
+/* pass 11 trace: the trace waterfall (DESIGN 12.1). Tokens only (--trace-*, base tokens); light and dark follow the theme. */
+.trace { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); padding: 14px 16px; box-shadow: var(--shadow-sm); position: relative; }
+.trace svg { display: block; max-width: none; }
+.trace-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; }
+.trace-seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
+.trace-seg button { min-height: 32px; padding: 0 14px; border: 0; background: transparent; color: var(--ink-2); font: 500 var(--fs-xs) var(--font-sans); cursor: pointer; }
+.trace-seg button[aria-pressed="true"] { background: var(--acc-soft); color: var(--acc-ink); }
+.trace-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.trace-btn { min-height: 32px; min-width: 32px; padding: 0 12px; border-radius: var(--r-pill); border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); font: 500 var(--fs-xs) var(--font-sans); cursor: pointer; }
+.trace-btn[aria-pressed="true"] { background: var(--acc-soft); border-color: var(--acc); color: var(--acc-ink); }
+.trace-btn:disabled { opacity: .45; cursor: default; }
+.trace button:focus-visible, .trace input:focus-visible, .trace-mini:focus-visible, .tr-row:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.tr-row:focus-visible { outline: none; }
+.tr-row:focus-visible .tr-stripe { fill: var(--acc-softer); stroke: var(--acc); stroke-width: 2; }
+.trace-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.trace-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border-radius: var(--chip-radius, var(--r-pill)); border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: 500 var(--fs-xs) var(--font-sans); cursor: pointer; }
+.trace-chip[aria-pressed="true"] { background: var(--trace-svc-soft); border-color: var(--trace-svc); color: var(--trace-svc-ink); }
+.trace-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--trace-svc); flex: none; }
+.trace-n { color: var(--faint); font-weight: 400; }
+.trace-mini { width: 100%; height: var(--trace-minimap-h); margin: 2px 0 8px; touch-action: none; cursor: crosshair; border-radius: 6px; }
+.tr-mini-bg { fill: var(--surface-2); stroke: var(--line); }
+.tr-mini-brush { fill: var(--trace-brush); stroke: var(--acc); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.tr-mini-grip { fill: var(--acc); }
+.trace-box { overflow-x: auto; border-radius: var(--r-s); overscroll-behavior-x: contain; }
+.tr-stripe { fill: transparent; }
+.tr-row:nth-of-type(even) .tr-stripe { fill: var(--trace-stripe); }
+.tr-row { cursor: pointer; outline: none; transition: opacity var(--dur) var(--ease); }
+.tr-row:hover .tr-stripe { fill: var(--acc-softer); }
+.tr-row.is-sel .tr-stripe { fill: var(--acc-soft); }
+.tr-row.is-dim { opacity: .3; }
+.tr-row.is-hit .tr-stripe { fill: var(--warn-soft); }
+.tr-grid { stroke: var(--trace-grid); stroke-width: 1; }
+.tr-tick { font: 400 12px var(--font-mono); fill: var(--muted); }
+.tr-unit { fill: var(--faint); }
+.tr-name { font: 400 12px var(--font-mono); fill: var(--ink); pointer-events: none; }
+.tr-row.is-error .tr-name { fill: var(--bad-ink); }
+.tr-chip-t { font: 500 12px var(--font-mono); pointer-events: none; }
+.tr-more { font: 500 12px var(--font-sans); fill: var(--muted); pointer-events: none; }
+.tr-len { font: 400 12px var(--font-mono); fill: var(--ink-2); pointer-events: none; }
+.tr-arrow { fill: var(--muted); transition: transform var(--dur) var(--ease); }
+.tr-arrow.is-open { transform: rotate(90deg); }
+.tr-chev { cursor: pointer; }
+.tr-chev:hover .tr-arrow { fill: var(--ink); }
+.tr-err circle { fill: var(--trace-error); } .tr-err text { font: 700 12px var(--font-sans); fill: var(--on-acc); }
+.tr-crit { fill: none; stroke: var(--trace-critical); stroke-width: 1.5; }
+.tr-bar { transition: filter var(--dur) var(--ease); }
+.tr-row:hover .tr-bar { filter: brightness(1.06); }
+.tr-log { stroke: var(--surface); stroke-width: 1; }
+.tr-detail { font-size: var(--fs-xs); }
+.tr-detail p { margin: 0 0 4px; }
+.tr-d-err { color: var(--bad-ink); }
+.tr-d-line { color: var(--muted); }
+.tr-d-attrs { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0; }
+.tr-d-attrs dt { color: var(--muted); font-family: var(--font-mono); } .tr-d-attrs dd { margin: 0; overflow-wrap: anywhere; }
+.tr-d-logs { list-style: none; margin: 4px 0 0; padding: 0; } .tr-d-logs li { margin: 2px 0; overflow-wrap: anywhere; }
+.tr-lv { font-weight: 600; } .tr-d-t { color: var(--faint); font-family: var(--font-mono); }
+@media (prefers-reduced-motion: reduce) { .tr-row, .tr-arrow, .tr-bar { transition: none; } }
+[data-dh-motion="off"] .tr-row, [data-dh-motion="off"] .tr-arrow, [data-dh-motion="off"] .tr-bar { transition: none; }
+@container (max-width: 600px) {
+  .trace { padding: 12px; }
+  .trace-bar .flame-search { flex: 1 1 100%; } .trace-bar .flame-search input { width: 100%; }
+  .trace-tools { margin-left: 0; }
+  .trace-btn, .trace-seg button { min-height: 40px; } .trace-chip { min-height: 40px; }
+}
+
+.trace { min-width: 0; }
+.trace .chart-title { font-weight: 600; margin-bottom: 8px; }
+.trace .chart-table { font-size: 12px; margin-top: 8px; }
+.trace .chart-table th, .trace .chart-table td { padding: 4px 8px; overflow-wrap: anywhere; }
+.trace .table-wrap { overflow-x: auto; }
+.trace[data-dh-static] * { animation: none; transition: none; }
+@media print { .trace-bar, .trace-legend, .trace-mini, .trace .part-hint { display: none; } .tr-row, .tr-arrow, .tr-bar { transition: none; } }
+.trace-chip { max-width: 100%; min-width: 0; overflow-wrap: anywhere; white-space: normal; }
+.trace .chart-title { overflow-wrap: anywhere; }

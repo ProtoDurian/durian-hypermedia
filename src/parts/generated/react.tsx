@@ -7,6 +7,7 @@ import FlameView from "../flame/view";
 import GalleryView from "../gallery/view";
 import SankeyView from "../sankey/view";
 import SequenceView from "../sequence/view";
+import VennView from "../venn/view";
 
 export const DownloadsPart = partComponent("downloads", DownloadsView);
 export const FishbonePart = partComponent("fishbone", FishboneView);
@@ -14,4 +15,5 @@ export const FlamePart = partComponent("flame", FlameView);
 export const GalleryPart = partComponent("gallery", GalleryView);
 export const SankeyPart = partComponent("sankey", SankeyView);
 export const SequencePart = partComponent("sequence", SequenceView);
-export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "sankey": SankeyPart, "sequence": SequencePart };
+export const VennPart = partComponent("venn", VennView);
+export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "sankey": SankeyPart, "sequence": SequencePart, "venn": VennPart };

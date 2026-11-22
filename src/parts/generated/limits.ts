@@ -6,8 +6,9 @@ import * as flame from "../flame/limits";
 import * as gallery from "../gallery/limits";
 import * as sankey from "../sankey/limits";
 import * as sequence from "../sequence/limits";
+import * as venn from "../venn/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS;
-export const PART_LIMITS: PartLimits = { ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS };
+export type PartLimits = typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof venn.LIMITS;
+export const PART_LIMITS: PartLimits = { ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...venn.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS };

@@ -5,7 +5,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { parse, check, llmView } from "../src/index";
 import { DhDocument } from "../src/react/index";
-import { parseTree, parseTermLines, madeUpFiles, parseDoc } from "../src/core/dh-lib";
+import { parseTree, parseTermLines, madeUpFiles, parseDoc, isDefinition } from "../src/core/dh-lib";
 import { checkDoc } from "../src/core/doccheck";
 
 const F = "```";
@@ -186,5 +186,21 @@ describe("alignment grids far over the axis limit", () => {
     quick(1500, () => { d = parse(text); check(d); llmView(text, { publicView: true }); });
     expect(d.blocks[0]).toMatchObject({ type: "error", part: "alignment" });
     expect(d.blocks[1].md[0].t).toBe("code");
+  });
+});
+
+describe("headings, step lines and code references", () => {
+  test("a tab heading with a long run of spaces", () => {
+    const ls = String.fromCharCode(0x2028);
+    quick(1500, () => all(`:::tabs\n## ${" ".repeat(60_000)}a${ls}b\n:::\n`));
+    expect(parse(`:::tabs\n## One ##\nx\n## Two\ny\n:::\n`).blocks[0]).toMatchObject({ items: [{ title: "One" }, { title: "Two" }] });
+  });
+  test("a code walk step line with a long run of spaces", () => {
+    quick(1500, () => all(`${F}codewalk\n@file a.ts\nx\n@step a.ts${" ".repeat(60_000)}x\nnote\n${F}\n`));
+  });
+  test("a symbol is looked for as written, in one pass over the file", () => {
+    expect(isDefinition("const x[ = 1", "x[")).toBe(true);
+    expect(isDefinition("x[0] + 1", "x[")).toBe(false);
+    quick(500, () => isDefinition(`${"let ".repeat(60_000)}\nuse(foo)`, "foo"));
   });
 });

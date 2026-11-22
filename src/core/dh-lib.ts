@@ -907,6 +907,30 @@ export function readRange(doc: Doc, r: CodeRef, src: string | undefined) {
   if (!err && r.lines) for (const m of r.marks) if (m < r.lines[0] || m > r.lines[1]) err = `mark ${m} is outside lines ${r.lines.join("-")}`;
   return { text, err, total, commit: c.commit, lang: langOf(r.file) };
 }
+const DEF_WORDS = ["fn", "func", "def", "class", "struct", "enum", "trait", "impl", "interface", "type", "const", "let", "var", "async", "private", "public", "protected", "static", "readonly"];
+// whether a file defines a symbol: what new RegExp(`(fn|func|…|readonly)\s+[^\n]*\b${sym}\b|\b${sym}\s*\(|\b${sym}\s*[:=]`)
+// found for a symbol of letters, digits and _, now with the symbol taken as text (as the check before it takes it) and in
+// one pass: the first branch scanned to the end of the line again after each of those words. That branch holds when a
+// use of the symbol starts after one of the words and its spaces begin, and before the end of the line those spaces end on.
+export function isDefinition(content: string, sym: string): boolean {
+  const lit = sym.replace(/[^\w]/g, "\\$&");
+  if (new RegExp(`\\b${lit}\\s*[(:=]`).test(content)) return true;
+  const at: number[] = [];
+  const re = new RegExp(`\\b${lit}\\b`, "g");
+  for (let m; (m = re.exec(content)); re.lastIndex = m.index + 1) at.push(m.index);
+  if (!at.length) return false;
+  for (let e = 1; e < content.length; e++) {
+    if (!WS.test(content[e]) || WS.test(content[e - 1]) || !DEF_WORDS.some((w) => content.endsWith(w, e))) continue;
+    let f = e;
+    while (f < content.length && WS.test(content[f])) f++;
+    const nl = content.indexOf("\n", f), lineEnd = nl < 0 ? content.length : nl;
+    let lo = 0, hi = at.length; // the first use after e
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (at[mid] > e) hi = mid; else lo = mid + 1; }
+    if (lo < at.length && at[lo] < lineEnd) return true;
+    e = f - 1;
+  }
+  return false;
+}
 export function checkCodeRef(doc: Doc, ref: string, src: string | undefined): string | null {
   const [path, sym] = ref.split("#");
   const repo = path.split("/")[0];
@@ -922,8 +946,7 @@ export function checkCodeRef(doc: Doc, ref: string, src: string | undefined): st
     const segs = sym.split(/::|\./).filter(Boolean);
     for (const seg of segs) if (!new RegExp(`\\b${seg.replace(/[^\w]/g, "\\$&")}\\b`).test(content)) return `code reference ${ref}: symbol "${seg}" is not defined in ${file}`;
     const last = segs[segs.length - 1];
-    const def = new RegExp(`(fn|func|def|class|struct|enum|trait|impl|interface|type|const|let|var|async|private|public|protected|static|readonly)\\s+[^\\n]*\\b${last}\\b|\\b${last}\\s*\\(|\\b${last}\\s*[:=]`);
-    if (!def.test(content)) return `code reference ${ref}: "${last}" appears in ${file} but not as a definition`;
+    if (!isDefinition(content, last)) return `code reference ${ref}: "${last}" appears in ${file} but not as a definition`;
   }
   return null;
 }

@@ -97,3 +97,17 @@ describe("tier lists and alignment grids", () => {
     expect(msg).toContain("(400 in all)");
   });
 });
+
+describe("tables of contents", () => {
+  test("a section table lists the h3s under its h2", () => {
+    const d: any = parse("## a\n\n### b\n\n::toc section=1\n\n### c\n\n## d\n\n### e\n");
+    expect(d.blocks.find((b: any) => b.type === "toc").items.map((h: any) => h.text)).toEqual(["b", "c"]);
+  });
+  test("many tables on a page with many headings", () => {
+    let d: any;
+    quick(1500, () => { d = all("## h\n\n::toc\n\n### g\n\n".repeat(1_500)); });
+    const tocs = d.blocks.filter((b: any) => b.type === "toc");
+    expect(tocs.reduce((a: number, b: any) => a + b.items.length, 0)).toBeLessThanOrEqual(2_000);
+    expect(d.problems.some((p: any) => /tables of contents on this page would list more than/.test(p.message))).toBe(true);
+  });
+});

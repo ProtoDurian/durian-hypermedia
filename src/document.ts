@@ -146,7 +146,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       collect(blocks);
       for (const h of ctx.heads) if (partIds.has(h.id)) problems.push({ line: partIds.get(h.id)!, level: "warn", message: `the heading "${h.text}" and a part both have the id "${h.id}"; a link to #${h.id} reaches only one of them. Rename the part's #id` });
       // a table of contents lists the headings after the walk
-      fillTocs(blocks, ctx.heads);
+      fillTocs(blocks, ctx.heads, problems);
       for (const p of ctx.problems) problems.push({ line: p.line, level: "error", message: p.message });
       const hasPart = blocks.some((x) => x.type !== "markdown" && x.type !== "toc");
       const path = opts.path ?? (hasPart ? "page.dh.md" : "page.md");
@@ -266,22 +266,43 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   })));
 }
 
-function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[]) {
+// all the tables of contents of one page together list at most this many headings (each lists the page's headings
+// again, so many of them on a page with many headings would grow with the square of the page)
+const MAX_TOC_ITEMS = 2_000;
+function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[], problems: Problem[]) {
   // the headings in page order are ctx.heads; a section toc takes the h3+ under the h2 it sits in
-  let seen = 0;
+  const H = heads.length;
+  // lastH2[i]: the last h2 before heading i (-1: none); nextTop[i]: the first heading at or after i of depth 1 or 2 (-1: none);
+  // upTo(low, d)[i]: how many of the headings before i have a depth from low to d
+  const lastH2 = new Int32Array(H + 1), nextTop = new Int32Array(H + 1);
+  for (let i = 0, l = -1; i <= H; i++) { lastH2[i] = l; if (i < H && heads[i].depth === 2) l = i; }
+  nextTop[H] = -1;
+  for (let i = H - 1; i >= 0; i--) nextTop[i] = heads[i].depth <= 2 ? i : nextTop[i + 1];
+  const sums = new Map<string, Int32Array>();
+  const upTo = (low: number, d: number) => { const k = `${low},${d}`; let a = sums.get(k); if (!a) { a = new Int32Array(H + 1); for (let i = 0; i < H; i++) a[i + 1] = a[i] + (heads[i].depth >= low && heads[i].depth <= d ? 1 : 0); sums.set(k, a); } return a; };
+  let seen = 0, listed = 0;
   const visit = (bs: Block[]) => {
-    for (const b of bs) {
+    bs.forEach((b, k) => {
       if (b.type === "markdown") seen += b.md.filter((m) => m.t === "h").length;
       else if (b.type === "toc") {
+        let from = 0, to = H, low = 2;
         if (b.scope === "section") {
-          const before = heads.slice(0, seen);
-          const parent = before.map((h, i) => ({ h, i })).filter(({ h }) => h.depth === 2).pop()?.i ?? -1;
-          const end = heads.findIndex((h, i) => i > parent && h.depth <= 2);
-          b.items = heads.slice(parent + 1, end < 0 ? undefined : end).filter((h) => h.depth > 2 && h.depth <= b.depth);
-        } else b.items = heads.filter((h) => h.depth >= 2 && h.depth <= b.depth);
+          const parent = lastH2[Math.min(seen, H)];
+          const end = nextTop[parent + 1];
+          from = parent + 1; to = end < 0 ? H : end; low = 3;
+        }
+        const s = upTo(low, b.depth), n = s[to] - s[from];
+        if (listed + n > MAX_TOC_ITEMS) {
+          const message = `the tables of contents on this page would list more than ${MAX_TOC_ITEMS.toLocaleString("en-US")} headings; this one is not shown`;
+          problems.push({ line: b.line, level: "error", message });
+          bs[k] = { type: "error", line: b.line, part: "toc", message };
+          return;
+        }
+        listed += n;
+        b.items = heads.slice(from, to).filter((h) => h.depth >= low && h.depth <= b.depth);
       } else if (b.type === "tabs" || b.type === "accordion") b.items.forEach((it) => visit(it.body));
       else if (b.type === "human") visit(b.body);
-    }
+    });
   };
   visit(blocks);
 }

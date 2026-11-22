@@ -93,13 +93,11 @@ describe("frontMatter: false", () => {
   test("default: the leading block is front matter", () => {
     const d = parse(text);
     expect(d.title).toBe("x");
-    expect(d.banner).not.toBeNull();
     expect(d.frontMatter.title).toBe("x");
   });
   test("off: the leading block stays visible Markdown, with the same line numbers", () => {
     const d = parse(text, { frontMatter: false });
     expect(d.title).toBeNull();
-    expect(d.banner).toBeNull();
     expect(d.frontMatter).toEqual({});
     const h = render(<DhDocument doc={d} />);
     expect(h).toContain("<hr/>");

@@ -11,7 +11,7 @@ import type { UrlPolicy } from "../safety";
 import type { InlineDef } from "../markdown";
 import type { Block, Document, HostBlock } from "../types";
 import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type Slots, cx } from "./context";
-import { Md, Inline } from "./markdown";
+import { Md } from "./markdown";
 
 export interface DocumentProps {
   doc: Document;
@@ -29,7 +29,7 @@ export interface DocumentProps {
   theme?: "light" | "dark";
   /** "off" stills every animation, morph, typing and chart transition (also set by prefers-reduced-motion) */
   motion?: "on" | "off";
-  /** swap the chrome (the part frame, callouts, the banner, error blocks, the spinner) and draw Markdown elements
+  /** swap the chrome (the part frame, callouts, error blocks, the spinner) and draw Markdown elements
    *  yourself (Code, InlineCode, Link, Table, Heading) or mermaid diagrams (Mermaid) */
   slots?: Partial<Slots>;
   /** add this to every Markdown heading's level, so a page's "#" sits below the host's own headings (default 0) */
@@ -64,7 +64,8 @@ export function Blocks({ blocks }: { blocks: Block[] }): React.ReactElement {
     if (b.type === "toc") return b.items.length ? <nav key={i} className={`toc-block toc-${b.scope}`} aria-label="Contents"><ol>{b.items.map((h, k) => <li key={k} className={`toc-${h.depth}`}><a href={`#${h.id}`}>{h.text}</a></li>)}</ol></nav> : null;
     if (b.type === "human") { const C = components.human; return C ? <C key={i} block={b} /> : <Fallback key={i} block={b} />; }
     const C = (b.type === "host" ? HostPart : components[b.type]) as React.ComponentType<{ block: Block }> | undefined;
-    return <slots.Frame key={i} block={b}>{C ? <C block={b} /> : <Fallback block={b} />}<Peek block={b} /></slots.Frame>;
+    const part = C ? <C block={b} /> : <Fallback block={b} />;
+    return <slots.Frame key={i} block={b}>{part}<Peek block={b} /></slots.Frame>;
   })}</>;
 }
 
@@ -80,11 +81,9 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
   }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings]);
   const { doc } = p;
-  const Banner = settings.slots.Banner;
   return (
     <DhContext.Provider value={settings}>
       <div className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>
-        {doc.banner ? <Banner kind={doc.banner.kind}><span className="banner-kind">{(settings.ui.bannerKind as any)?.[doc.banner.kind] ?? doc.banner.kind}</span><Inline c={doc.banner.text} /></Banner> : null}
         <Blocks blocks={doc.blocks} />
       </div>
     </DhContext.Provider>

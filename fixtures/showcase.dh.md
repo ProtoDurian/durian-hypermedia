@@ -1,10 +1,9 @@
 ---
 title: Showcase
 description: Several parts on one page, to compare the style variants (soft, flat, bold) and light and dark.
-banner:
-  kind: new
-  text: One page, three styles. Switch them at the top.
 ---
+
+> **Note:** One page, three styles. Switch them at the top.
 
 ## A terminal
 

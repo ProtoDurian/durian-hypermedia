@@ -217,7 +217,7 @@ function decodeEntities(s: string): string {
 
 /** Inline Markdown (a code walk's note) to the inline tree. */
 export function mdInline(src: string, ctx: MdContext): MdInline[] {
-  // a heading inside an inline text (a code walk note, a banner) has no id on the page and is not in its table of contents: it must not take a number from the page's counter
+  // a heading inside an inline text (a code walk note) has no id on the page and is not in its table of contents: it must not take a number from the page's counter
   const b = mdBlocks(src, { ...ctx, slugger: new GithubSlugger(), heads: [] });
   const flat = (x: MdBlock): MdInline[] => (x.t === "p" || x.t === "text" || x.t === "h" ? x.c : x.t === "raw" ? [{ t: "text", v: x.text }] : x.t === "code" ? [{ t: "code", v: x.text }] : []);
   return b.flatMap((x, i) => [...(i ? [{ t: "br" } as MdInline] : []), ...flat(x)]);

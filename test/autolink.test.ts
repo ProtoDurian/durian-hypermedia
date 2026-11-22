@@ -1,5 +1,5 @@
 // Bare links (0.6.2): www. as GFM reads it; http://, https:// and ftp:// after any character that is not a letter or a
-// digit, as 0.6.1 read them; a domain judged without its trailing punctuation; brackets of a written link first. And the
+// digit (but "<"), as 0.6.1 read them; a domain judged without its trailing punctuation; brackets of a written link first. And the
 // two places the tree keeps 0.6.1's shape: a callout's first text, an escaped bracket in a link's text.
 import { describe, expect, test } from "bun:test";
 import { parse } from "../src/index";
@@ -18,8 +18,9 @@ describe("bare links", () => {
       expect(links(s).length).toBe(1);
     expect(links("url=https://x.com/a b")).toEqual(["https://x.com/a"]);
   });
-  test("not after a letter or a digit", () => {
-    for (const s of ["xhttps://x.com", "éhttps://x.com", "1https://x.com"]) expect(links(s)).toEqual([]);
+  test("not after a letter or a digit, nor after a < that opens no autolink (CommonMark, GFM)", () => {
+    for (const s of ["xhttps://x.com", "éhttps://x.com", "1https://x.com", "<http://foo.bar/baz bim>"]) expect(links(s)).toEqual([]);
+    expect(links("<http://foo.bar/baz>")).toEqual(["http://foo.bar/baz"]);
   });
   test("www. only after white space, a line start or * _ ~ ( (GFM)", () => {
     expect(links("see www.x.com")).toEqual(["http://www.x.com"]);

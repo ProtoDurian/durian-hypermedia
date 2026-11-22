@@ -122,14 +122,15 @@ function lowerBound(a: number[], x: number): number { let lo = 0, hi = a.length;
 
 // ---- GFM autolink literals (github.github.com/gfm, "Autolinks (extension)"): www., http://, https://, ftp:// and e-mail
 // addresses. www. starts after a line start, white space or one of * _ ~ ( (GFM); a scheme starts after any character
-// that is not a letter or a digit, as 0.6.1 read it ("url=https://...", "key:https://...", a quote before it). The rule
+// that is not a letter or a digit, as 0.6.1 read it ("url=https://...", "key:https://...", a quote before it), except
+// "<" (a "<" that does not open an autolink is text, CommonMark and GFM agree). The rule
 // reads forward once: a domain is scanned once for every start inside it (domainEnd keeps its last scan).
 function litStart(src: string, pos: number): boolean {
   const pre = litPrefix(src, pos);
   if (!pre) return false;
   const p = pos > 0 ? src.charCodeAt(pos - 1) : -1;
   if (p < 0 || isWs(p) || p === 0x2a || p === 0x5f || p === 0x7e || p === 0x28) return true;
-  if ((src.charCodeAt(pos) | 0x20) === 0x77) return false;
+  if ((src.charCodeAt(pos) | 0x20) === 0x77 || p === 0x3c) return false;
   return !isWordBefore(src, pos);
 }
 /** Whether the character before pos is a letter or a digit (any script). */

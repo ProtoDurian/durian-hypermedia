@@ -24,6 +24,7 @@ Make these files. The names are fixed; the generator refuses a folder that misse
 | `fixtures/good-*.dh.md` | at least one page with 0 problems |
 | `fixtures/hostile-*.dh.md` | at least one page that tries to do too much |
 | `<name>.test.ts` | the tests (section 6) |
+| `media/` (optional) | files the sample uses (small images, sound); the sample names them `media/<file>` |
 
 You may add more files (a `layout.ts`, a second view file, more fixtures). The folder name is the fence word: lower case
 letters and digits, words joined by `-` (`sankey`, `flame-graph`).

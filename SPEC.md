@@ -326,6 +326,43 @@ data: [112, 98, 143, 131, 87, 205, 119]
 - **Caps** (LIMITS; UNTRUSTED_LIMITS in brackets): `chartKindsValues` 5000 (2500) raw values, `chartKindsViolinValues` 1500 (750), `chartKindsBins` 400 (200), `chartKindsCategories` 40 (20), `chartKindsSeries` 4, `chartKindsMarks` 8, `chartKindsStages` 20, `chartKindsSteps` 20 (10), `chartKindsTreeNodes` 2000 (1000), `chartKindsTreeDepth` 8 (6), `chartKindsDays` 740 (400), `chartKindsLabel` 60 characters of a tree name. Counting, sorting, the density (about 48 steps a value), the tree and both layouts are charged to the page's work budget when the part is read.
 - **doccheck refuses:** YAML that cannot be read or has no `kind:`; no data, a value that is not a number (it names the index), an empty list; `bins` not a whole number from 1 to the cap, `bins` with `bin`, a `bin` that makes too many bins; a mark that is not `pNN`, `mean` or a number; more marks, series, categories, stages, steps or values than the caps; a name list that does not match the data lists; a funnel with fewer than 2 stages or a first stage of 0; a waterfall that starts with `"="` or has an entry that is neither a number nor `"="`; a tree leaf with no value above 0, an entry with no name, an unknown key, `tone` on a deeper entry, an empty `children`, a bad `depth`, a tree past its caps; a calendar date that is not real, twice, outside `from`/`to`, over the day cap, a bad `week`; an unknown key (it lists the keys), tone or format; a step that changes what the kind does not have; and a chart over the page's work budget. It warns about values outside `from`/`to` and a funnel stage larger than the one before.
 
+#### Compare
+
+````
+```compare title="Which queue?" winner=on pick=Kafka
+options: Redis Streams [c1], Kafka [c2], SQS [c3]
+Ordering: yes, yes, partial (FIFO queues only)
+Runs itself: no, no, yes
+Throughput: 3, 5, 3 (score 1-5)
+Latency (lower is better): 4 ms, 12 ms, 25 ms
+Cost at our size: good, bad, good
+```
+````
+
+- The first line is `options:` and the names (an optional colour word in square brackets after a name). Every other line is `<criterion>: <value>, <value>, ...`, one value for each option, in order. A value is `yes`, `no`, `partial`, `good`, `warn`, `bad`, a number with an optional unit (a score), `-` or `n/a` (no data), or a word. A note in round brackets after a value shows on hover, focus or tap, in the one popover card. `score 1-5` in a note sets the row's scale (the bar); `(lower is better)` in the criterion or a note turns a score round.
+- **One row holds one kind of value** (yes/no/partial, good/warn/bad, numbers, or words). Lines starting `//` are comments.
+- Fence keys: `title`, `winner=on` (marks the best value of each yes/no, scored and good/bad row, and says how many rows each option wins; a row of equal values has no best), `pick=<option>` (a flag on the option you recommend), `view=single` (on a phone, one option at a time), `static=`.
+- On a wide stage the options are columns. Under 560 px the matrix scrolls inside its own box with the criterion fixed at the left and a shaded edge, and a switcher offers one option at a time. Colour is never the only signal: a yes is a tick and the word, a good is the word in a chip. Slots: `title`, `switch`, `tabs`, `scroll`, `table`, `pick`, `wins`, `best`, `popover`.
+- **LLM view:** a Markdown table, options as columns, notes kept; with `winner=on` the best values are bold. A body that does not read stays a code block.
+- **Caps:** `compareOptions` (8), `compareRows` (40; 25 in UNTRUSTED_LIMITS), `compareValue` (120) and `compareName` (80) characters, `compareNote` (300; 200) characters.
+- **doccheck refuses:** a row with the wrong number of values (it counts them), mixed kinds in one row (it names both), a first line that is not `options:`, fewer than 2 options, a repeated option, a colour word that is not one, an empty value, a scale that does not go up or a value outside it, an unknown key, `winner=` not `on` or `off`, `view=` not `table` or `single`, a `pick=` that is not an option, more options, rows, characters than the caps, and a part over the page's work budget.
+
+#### Compare image
+
+````
+```compare-image title="A dashboard, light and dark" before="Light" after="Dark"
+before: media/before-light.svg "A dashboard with four tiles and a bar chart on a light page"
+after: media/after-dark.svg "The same dashboard on a dark page"
+```
+````
+
+- Each image line is `before:` or `after:`, an address and the **alt text in double quotes** (required: it is the LLM view and what a screen reader says; `\"` is a quote inside it). The address goes through a URL policy: a relative path, http or https, to an image file (png, jpg, webp, gif, avif, svg); never `data:`, `blob:`, `javascript:`, a `//` address, a backslash or a `..` that leaves the folder. The host's own `urlPolicy` is applied again when the image is drawn, and an address it refuses is shown as a message in place of the pictures. Lines starting `//` are comments.
+- Fence keys: `title`, `before=` and `after=` (the two labels, "Before" and "After" by default), `start=` (0 to 100, the bar's first place), `direction=vertical`, `ratio=16:9`, `fit=contain` (with `ratio=`), `static=`.
+- Drag the bar or anywhere on the picture; the arrow keys move it by 1 (Shift: 10), Page Up and Page Down by 10, Home and End to either side; Enter or Space flips from one picture to the other; a tap that does not move flips too; the two labels are buttons that show a whole picture. The bar is a slider (`aria-valuenow`, "Light 40%, Dark 60%"); the grip is 44 px. Slots: `title`, `stage`, `before`, `after`, `label-before`, `label-after`, `bar`, `handle`.
+- **LLM view:** the title and the two labels, then each label with its alt text. A body that does not read stays a code block.
+- **Caps:** `compareImageAlt` (300; 200 in UNTRUSTED_LIMITS) characters of alt text, `compareImageLabel` (40) of a label, `compareImageUrl` (500; 300) of an address.
+- **doccheck refuses:** a line with no alt text, a missing `before` or `after`, one given twice, an address the policy refuses (it says why), an empty alt text or one over its cap, a bad `start=`, `direction=`, `ratio=` or `fit=`, an unknown key, and a part over the page's work budget.
+
 #### Downloads
 
 ````

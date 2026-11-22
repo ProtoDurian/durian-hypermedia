@@ -2,6 +2,8 @@
 // Only the limits files are imported here (they import nothing), so safety.ts may import this file.
 import * as audio from "../audio/limits";
 import * as chartKinds from "../chart-kinds/limits";
+import * as compare from "../compare/limits";
+import * as compareImage from "../compare-image/limits";
 import * as downloads from "../downloads/limits";
 import * as fishbone from "../fishbone/limits";
 import * as flame from "../flame/limits";
@@ -17,6 +19,6 @@ import * as video from "../video/limits";
 import * as wardley from "../wardley/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof audio.LIMITS & typeof chartKinds.LIMITS & typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof lottie.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof stacktrace.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS & typeof video.LIMITS & typeof wardley.LIMITS;
-export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...chartKinds.LIMITS, ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...lottie.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...stacktrace.LIMITS, ...trace.LIMITS, ...venn.LIMITS, ...video.LIMITS, ...wardley.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...chartKinds.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...lottie.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };
+export type PartLimits = typeof audio.LIMITS & typeof chartKinds.LIMITS & typeof compare.LIMITS & typeof compareImage.LIMITS & typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof lottie.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof stacktrace.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS & typeof video.LIMITS & typeof wardley.LIMITS;
+export const PART_LIMITS: PartLimits = { ...audio.LIMITS, ...chartKinds.LIMITS, ...compare.LIMITS, ...compareImage.LIMITS, ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...lottie.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...stacktrace.LIMITS, ...trace.LIMITS, ...venn.LIMITS, ...video.LIMITS, ...wardley.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...audio.UNTRUSTED_LIMITS, ...chartKinds.UNTRUSTED_LIMITS, ...compare.UNTRUSTED_LIMITS, ...compareImage.UNTRUSTED_LIMITS, ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...lottie.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...video.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };

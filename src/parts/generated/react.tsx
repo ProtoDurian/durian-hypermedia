@@ -3,6 +3,8 @@
 import { partComponent } from "../react";
 import AudioView from "../audio/view";
 import ChartKindsView from "../chart-kinds/view";
+import CompareView from "../compare/view";
+import CompareImageView from "../compare-image/view";
 import DownloadsView from "../downloads/view";
 import FishboneView from "../fishbone/view";
 import FlameView from "../flame/view";
@@ -19,6 +21,8 @@ import WardleyView from "../wardley/view";
 
 export const AudioPart = partComponent("audio", AudioView);
 export const ChartKindsPart = partComponent("chart-kinds", ChartKindsView);
+export const ComparePart = partComponent("compare", CompareView);
+export const CompareImagePart = partComponent("compare-image", CompareImageView);
 export const DownloadsPart = partComponent("downloads", DownloadsView);
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const FlamePart = partComponent("flame", FlameView);
@@ -32,4 +36,4 @@ export const TracePart = partComponent("trace", TraceView);
 export const VennPart = partComponent("venn", VennView);
 export const VideoPart = partComponent("video", VideoView);
 export const WardleyPart = partComponent("wardley", WardleyView);
-export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "chart-kinds": ChartKindsPart, "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "lottie": LottiePart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "trace": TracePart, "venn": VennPart, "video": VideoPart, "wardley": WardleyPart };
+export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "chart-kinds": ChartKindsPart, "compare": ComparePart, "compare-image": CompareImagePart, "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "lottie": LottiePart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "trace": TracePart, "venn": VennPart, "video": VideoPart, "wardley": WardleyPart };

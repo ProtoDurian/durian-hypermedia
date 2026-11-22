@@ -2,6 +2,8 @@
 import type { PartDef } from "../types";
 import audio from "../audio/part";
 import chartKinds from "../chart-kinds/part";
+import compare from "../compare/part";
+import compareImage from "../compare-image/part";
 import downloads from "../downloads/part";
 import fishbone from "../fishbone/part";
 import flame from "../flame/part";
@@ -17,15 +19,17 @@ import video from "../video/part";
 import wardley from "../wardley/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, downloads, fishbone, flame, gallery, gantt, lottie, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
+export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, fishbone, flame, gallery, gantt, lottie, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;
+export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
   "audio": ReturnType<typeof audio.parse>;
   "chart-kinds": ReturnType<typeof chartKinds.parse>;
+  "compare": ReturnType<typeof compare.parse>;
+  "compare-image": ReturnType<typeof compareImage.parse>;
   "downloads": ReturnType<typeof downloads.parse>;
   "fishbone": ReturnType<typeof fishbone.parse>;
   "flame": ReturnType<typeof flame.parse>;

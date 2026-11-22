@@ -218,7 +218,8 @@ export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: 
   }
   const label = (b: string) => marks?.[b]?.label ?? (ui.marks as any)[b] ?? b;
   const chip = (b: string) => <span key={b} className={marks?.[b] ? `fx-badge b-own tone-${marks[b].colour}` : `fx-badge b-${b}`}>{label(b)}</span>;
-  const keyed = Object.entries(marks ?? {}).filter(([k, m]) => m.means && t.rows.some((r) => r.badges.includes(k)));
+  const shownMarks = new Set(t.rows.flatMap((r) => r.badges));
+  const keyed = Object.entries(marks ?? {}).filter(([k, m]) => m.means && shownMarks.has(k));
   return (
     <div className="fx" onKeyDown={(e) => trees.length > 1 && onArrows(e, (d) => setK((x) => Math.max(0, Math.min(trees.length - 1, x + d))))}>
       <div className="fx-head"><span className="fx-title">{ui.explorer}</span>{t.title && <span className="fx-step">{t.title}</span>}</div>

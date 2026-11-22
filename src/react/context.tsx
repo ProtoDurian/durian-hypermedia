@@ -93,6 +93,8 @@ export function useDh(): DhSettings {
   return c ?? { ui: UI.en, slots: DEFAULT_SLOTS, components: {}, hostBlocks: new Map(), hostInlines: new Map(), llmPeek: false, demoteHeadings: 0 };
 }
 
+/** The line count of a text, counted no further than max (a pane is only so many rows tall: no need to split every step). */
+export function linesUpTo(text: string, max: number): number { let n = 1; for (let i = text.indexOf("\n"); i >= 0 && n < max; i = text.indexOf("\n", i + 1)) n++; return n; }
 /** Code with no colours, in the shape Code Hike draws (used when highlight() did not run on the server). */
 export function plainCode(text: string, lang = "text"): HighlightedCode {
   return { value: text, code: text, annotations: [], tokens: [text], lang, meta: "", themeName: "github-from-css", style: {} } as unknown as HighlightedCode;

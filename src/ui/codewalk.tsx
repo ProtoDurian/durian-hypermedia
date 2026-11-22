@@ -61,7 +61,10 @@ export function rowsCode(p: Packed, rows: Row[], anns: { name: "focus" | "mark";
 
 // the open range's focus and marks, as row numbers in the shown block
 export function stillAnns(rows: Row[], focus: [number, number] | null, marks: number[], open: [number, number]) {
-  const at = (n: number) => rows.findIndex((r) => "n" in r && r.n === n) + 1;
+  // a line number to its row (the first row showing it), looked up once per mark instead of searched
+  const rowOf = new Map<number, number>();
+  rows.forEach((r, k) => { if ("n" in r && !rowOf.has(r.n)) rowOf.set(r.n, k); });
+  const at = (n: number) => (rowOf.get(n) ?? -1) + 1;
   const f = focus ?? open;
   const anns: { name: "focus" | "mark"; from: number; to: number }[] = [{ name: "focus", from: at(f[0]), to: at(f[1]) }];
   for (const m of marks) anns.push({ name: "mark", from: at(m), to: at(m) });

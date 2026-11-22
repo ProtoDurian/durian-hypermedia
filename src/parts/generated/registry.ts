@@ -5,14 +5,15 @@ import downloads from "../downloads/part";
 import fishbone from "../fishbone/part";
 import gallery from "../gallery/part";
 import lottie from "../lottie/part";
+import pdf from "../pdf/part";
 import sankey from "../sankey/part";
 import video from "../video/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, downloads, fishbone, gallery, lottie, sankey, video } as const;
+export const FOLDER_PARTS = { audio, downloads, fishbone, gallery, lottie, pdf, sankey, video } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "downloads", "fishbone", "gallery", "lottie", "sankey", "video"] as const;
+export const FOLDER_PART_NAMES = ["audio", "downloads", "fishbone", "gallery", "lottie", "pdf", "sankey", "video"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -21,6 +22,7 @@ export interface FolderPartData {
   "fishbone": ReturnType<typeof fishbone.parse>;
   "gallery": ReturnType<typeof gallery.parse>;
   "lottie": ReturnType<typeof lottie.parse>;
+  "pdf": ReturnType<typeof pdf.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
   "video": ReturnType<typeof video.parse>;
 }

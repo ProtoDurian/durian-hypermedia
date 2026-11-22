@@ -90,7 +90,7 @@ describe("parts: adding a part edits no shared file", () => {
       const at = join(tmp, "src/parts/zz-probe");
       mkdirSync(join(at, "fixtures"), { recursive: true });
       const files: Record<string, string> = {
-        "part.ts": `import { definePart } from "../types";\nexport default definePart<{ n: number }>({ name: "zz-probe", form: "fenced", steps: false, llmKind: "own", fences: [{ word: "txt", flag: "probe" }], chartKinds: ["probe-kind"],\n  parse: (input, ctx) => { ctx.budget.charge(1); return { n: input.body.split("\\n").length, lang: input.attrs.lang ?? "" }; },\n  llm: (d) => \`probe with \${d.n} lines\`, check: () => [] });\n`,
+        "part.ts": `import { definePart } from "../types";\nexport default definePart<{ n: number }>({ name: "zz-probe", form: "fenced", steps: false, llmKind: "own", fences: [{ word: "txt", flag: "probe" }], chartKinds: ["probe-kind"],\n  parse: (input, ctx) => { ctx.budget.charge(1); return { n: input.body.split("\\n").length, lang: input.attrs.lang ?? "", fm: String(ctx.frontMatter?.title ?? "") }; },\n  llm: (d) => \`probe with \${d.n} lines\`, check: () => [] });\n`,
         "limits.ts": "export const LIMITS = { zzProbeLines: 10 };\nexport const UNTRUSTED_LIMITS: typeof LIMITS = { ...LIMITS };\n",
         "view.tsx": `import React from "react";\nimport type { PartViewProps } from "../types";\nexport default function ZzProbeView({ data }: PartViewProps<{ n: number }>) { return <p>{data.n}</p>; }\n`,
         "style.css": ":root { --zz-probe-ink: var(--ink); }\n@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) { --zz-probe-ink: var(--ink); }\n}\n:root[data-theme=\"dark\"] { --zz-probe-ink: var(--ink); }\n",
@@ -113,10 +113,11 @@ describe("parts: adding a part edits no shared file", () => {
       expect(cut(readFileSync(join(tmp, "SPEC.md"), "utf8"))).toBe(cut(readFileSync(join(PKG, "SPEC.md"), "utf8")));
       expect(readFileSync(join(tmp, "SPEC.md"), "utf8")).toContain("#### Zz probe");
       // the copy parses the new part with no shared file touched: its block, its LLM view and its caps
-      const probe = Bun.spawnSync(["bun", "-e", `import { parse, LIMITS, PART_NAMES } from "./src/index"; const d = parse("# P\\n\\n\`\`\`zz-probe\\na\\nb\\n\`\`\`\\n", { path: "p.dh.md" }); console.log(JSON.stringify({ t: d.blocks[1].type, n: d.blocks[1].data?.n, llm: d.llm.includes("probe with 2 lines"), cap: LIMITS.zzProbeLines, named: PART_NAMES.includes("zz-probe"), fence: [parse("# P\\n\\n\`\`\`txt probe\\na\\n\`\`\`\\n").blocks[1], parse("# P\\n\\n\`\`\`txt\\na\\n\`\`\`\\n").blocks.map((b) => b.type).join()], kind: parse("# P\\n\\n\`\`\`chart\\ntitle: x\\nkind: \\"probe-kind\\"\\n\`\`\`\\n").blocks[1].type, chart: parse("# P\\n\\n\`\`\`chart\\nkind: bar\\n\`\`\`\\n").blocks[1].type }));`], { cwd: tmp, env: { ...process.env } });
+      const probe = Bun.spawnSync(["bun", "-e", `import { parse, LIMITS, PART_NAMES } from "./src/index"; const d = parse("# P\\n\\n\`\`\`zz-probe\\na\\nb\\n\`\`\`\\n", { path: "p.dh.md" }); console.log(JSON.stringify({ t: d.blocks[1].type, n: d.blocks[1].data?.n, llm: d.llm.includes("probe with 2 lines"), cap: LIMITS.zzProbeLines, named: PART_NAMES.includes("zz-probe"), fence: [parse("# P\\n\\n\`\`\`txt probe\\na\\n\`\`\`\\n").blocks[1], parse("# P\\n\\n\`\`\`txt\\na\\n\`\`\`\\n").blocks.map((b) => b.type).join()], kind: parse("# P\\n\\n\`\`\`chart\\ntitle: x\\nkind: \\"probe-kind\\"\\n\`\`\`\\n").blocks[1].type, chart: parse("# P\\n\\n\`\`\`chart\\nkind: bar\\n\`\`\`\\n").blocks[1].type, fm: parse("---\\ntitle: Hi\\n---\\n# P\\n\\n\`\`\`zz-probe\\na\\n\`\`\`\\n").blocks[1].data.fm }));`], { cwd: tmp, env: { ...process.env } });
       expect(probe.stderr.toString()).toBe("");
       const got = JSON.parse(probe.stdout.toString());
-      expect({ ...got, fence: undefined, kind: undefined, chart: undefined }).toEqual({ t: "zz-probe", n: 2, llm: true, cap: 10, named: true });
+      expect(got.fm).toBe("Hi"); // the page's front matter reaches the part's parse
+      expect({ ...got, fence: undefined, kind: undefined, chart: undefined, fm: undefined }).toEqual({ t: "zz-probe", n: 2, llm: true, cap: 10, named: true });
       // a part's fences: ```txt probe is the part (lang txt), ```txt stays code; its chart kind: a ```chart of that kind is the part
       expect([got.fence[0].type, got.fence[0].data.lang, got.fence[1]]).toEqual(["zz-probe", "txt", "markdown"]);
       expect([got.kind, got.chart]).toEqual(["zz-probe", "chart"]);

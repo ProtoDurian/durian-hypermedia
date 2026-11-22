@@ -72,6 +72,7 @@ export interface PartNode {
   nodes: Node[]; items: Item[];      // container: its content, and (tabs, accordion) one item per heading
   llm?: PartNode;                    // a :::llm right after this part
   defs?: Defs;                       // the page's and the site's own marks and prefixes (format version 10), set by parseDoc
+  fm?: Record<string, unknown>;      // the page's front matter (an object, else {}), set by parseDoc, for folder parts
 }
 export type Node = MdNode | TocNode | PartNode;
 export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[] }
@@ -297,7 +298,8 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const lines = bodyText.split("\n");
   const body = parseNodes(lines, 0, lines.length, bodyStart, null);
   const defs = defsOf(path, fm, opts.site);
-  for (const p of allParts(body)) p.defs = defs.defs;
+  const fmObj = fm && typeof fm === "object" && !Array.isArray(fm) ? (fm as Record<string, unknown>) : {};
+  for (const p of allParts(body)) { p.defs = defs.defs; p.fm = fmObj; }
   return { path, fmRaw, fm, body, bodyText, bodyStart, defErrors: defs.errors };
 }
 // every part of a page, in order, including parts inside containers and :::llm blocks

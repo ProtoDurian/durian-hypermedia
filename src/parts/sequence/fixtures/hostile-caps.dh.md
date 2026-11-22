@@ -1,0 +1,287 @@
+---
+title: Sequence, hostile
+---
+# Sequence over its caps
+
+More participants than the cap, blocks nested too deep, a block never closed and more lines than the cap: refused with a line and a fix, never a hang.
+
+```sequence title="Too much"
+participant p0 "P0"
+participant p1 "P1"
+participant p2 "P2"
+participant p3 "P3"
+participant p4 "P4"
+participant p5 "P5"
+participant p6 "P6"
+participant p7 "P7"
+participant p8 "P8"
+participant p9 "P9"
+participant p10 "P10"
+participant p11 "P11"
+participant p12 "P12"
+participant p13 "P13"
+loop 1
+loop 2
+loop 3
+loop 4
+p0 -> p1: message number 0
+p1 -> p2: message number 1
+p2 -> p3: message number 2
+p3 -> p4: message number 3
+p4 -> p5: message number 4
+p5 -> p6: message number 5
+p6 -> p7: message number 6
+p7 -> p8: message number 7
+p8 -> p9: message number 8
+p9 -> p10: message number 9
+p10 -> p11: message number 10
+p11 -> p12: message number 11
+p12 -> p13: message number 12
+p13 -> p0: message number 13
+p0 -> p1: message number 14
+p1 -> p2: message number 15
+p2 -> p3: message number 16
+p3 -> p4: message number 17
+p4 -> p5: message number 18
+p5 -> p6: message number 19
+p6 -> p7: message number 20
+p7 -> p8: message number 21
+p8 -> p9: message number 22
+p9 -> p10: message number 23
+p10 -> p11: message number 24
+p11 -> p12: message number 25
+p12 -> p13: message number 26
+p13 -> p0: message number 27
+p0 -> p1: message number 28
+p1 -> p2: message number 29
+p2 -> p3: message number 30
+p3 -> p4: message number 31
+p4 -> p5: message number 32
+p5 -> p6: message number 33
+p6 -> p7: message number 34
+p7 -> p8: message number 35
+p8 -> p9: message number 36
+p9 -> p10: message number 37
+p10 -> p11: message number 38
+p11 -> p12: message number 39
+p12 -> p13: message number 40
+p13 -> p0: message number 41
+p0 -> p1: message number 42
+p1 -> p2: message number 43
+p2 -> p3: message number 44
+p3 -> p4: message number 45
+p4 -> p5: message number 46
+p5 -> p6: message number 47
+p6 -> p7: message number 48
+p7 -> p8: message number 49
+p8 -> p9: message number 50
+p9 -> p10: message number 51
+p10 -> p11: message number 52
+p11 -> p12: message number 53
+p12 -> p13: message number 54
+p13 -> p0: message number 55
+p0 -> p1: message number 56
+p1 -> p2: message number 57
+p2 -> p3: message number 58
+p3 -> p4: message number 59
+p4 -> p5: message number 60
+p5 -> p6: message number 61
+p6 -> p7: message number 62
+p7 -> p8: message number 63
+p8 -> p9: message number 64
+p9 -> p10: message number 65
+p10 -> p11: message number 66
+p11 -> p12: message number 67
+p12 -> p13: message number 68
+p13 -> p0: message number 69
+p0 -> p1: message number 70
+p1 -> p2: message number 71
+p2 -> p3: message number 72
+p3 -> p4: message number 73
+p4 -> p5: message number 74
+p5 -> p6: message number 75
+p6 -> p7: message number 76
+p7 -> p8: message number 77
+p8 -> p9: message number 78
+p9 -> p10: message number 79
+p10 -> p11: message number 80
+p11 -> p12: message number 81
+p12 -> p13: message number 82
+p13 -> p0: message number 83
+p0 -> p1: message number 84
+p1 -> p2: message number 85
+p2 -> p3: message number 86
+p3 -> p4: message number 87
+p4 -> p5: message number 88
+p5 -> p6: message number 89
+p6 -> p7: message number 90
+p7 -> p8: message number 91
+p8 -> p9: message number 92
+p9 -> p10: message number 93
+p10 -> p11: message number 94
+p11 -> p12: message number 95
+p12 -> p13: message number 96
+p13 -> p0: message number 97
+p0 -> p1: message number 98
+p1 -> p2: message number 99
+p2 -> p3: message number 100
+p3 -> p4: message number 101
+p4 -> p5: message number 102
+p5 -> p6: message number 103
+p6 -> p7: message number 104
+p7 -> p8: message number 105
+p8 -> p9: message number 106
+p9 -> p10: message number 107
+p10 -> p11: message number 108
+p11 -> p12: message number 109
+p12 -> p13: message number 110
+p13 -> p0: message number 111
+p0 -> p1: message number 112
+p1 -> p2: message number 113
+p2 -> p3: message number 114
+p3 -> p4: message number 115
+p4 -> p5: message number 116
+p5 -> p6: message number 117
+p6 -> p7: message number 118
+p7 -> p8: message number 119
+p8 -> p9: message number 120
+p9 -> p10: message number 121
+p10 -> p11: message number 122
+p11 -> p12: message number 123
+p12 -> p13: message number 124
+p13 -> p0: message number 125
+p0 -> p1: message number 126
+p1 -> p2: message number 127
+p2 -> p3: message number 128
+p3 -> p4: message number 129
+p4 -> p5: message number 130
+p5 -> p6: message number 131
+p6 -> p7: message number 132
+p7 -> p8: message number 133
+p8 -> p9: message number 134
+p9 -> p10: message number 135
+p10 -> p11: message number 136
+p11 -> p12: message number 137
+p12 -> p13: message number 138
+p13 -> p0: message number 139
+p0 -> p1: message number 140
+p1 -> p2: message number 141
+p2 -> p3: message number 142
+p3 -> p4: message number 143
+p4 -> p5: message number 144
+p5 -> p6: message number 145
+p6 -> p7: message number 146
+p7 -> p8: message number 147
+p8 -> p9: message number 148
+p9 -> p10: message number 149
+p10 -> p11: message number 150
+p11 -> p12: message number 151
+p12 -> p13: message number 152
+p13 -> p0: message number 153
+p0 -> p1: message number 154
+p1 -> p2: message number 155
+p2 -> p3: message number 156
+p3 -> p4: message number 157
+p4 -> p5: message number 158
+p5 -> p6: message number 159
+p6 -> p7: message number 160
+p7 -> p8: message number 161
+p8 -> p9: message number 162
+p9 -> p10: message number 163
+p10 -> p11: message number 164
+p11 -> p12: message number 165
+p12 -> p13: message number 166
+p13 -> p0: message number 167
+p0 -> p1: message number 168
+p1 -> p2: message number 169
+p2 -> p3: message number 170
+p3 -> p4: message number 171
+p4 -> p5: message number 172
+p5 -> p6: message number 173
+p6 -> p7: message number 174
+p7 -> p8: message number 175
+p8 -> p9: message number 176
+p9 -> p10: message number 177
+p10 -> p11: message number 178
+p11 -> p12: message number 179
+p12 -> p13: message number 180
+p13 -> p0: message number 181
+p0 -> p1: message number 182
+p1 -> p2: message number 183
+p2 -> p3: message number 184
+p3 -> p4: message number 185
+p4 -> p5: message number 186
+p5 -> p6: message number 187
+p6 -> p7: message number 188
+p7 -> p8: message number 189
+p8 -> p9: message number 190
+p9 -> p10: message number 191
+p10 -> p11: message number 192
+p11 -> p12: message number 193
+p12 -> p13: message number 194
+p13 -> p0: message number 195
+p0 -> p1: message number 196
+p1 -> p2: message number 197
+p2 -> p3: message number 198
+p3 -> p4: message number 199
+p4 -> p5: message number 200
+p5 -> p6: message number 201
+p6 -> p7: message number 202
+p7 -> p8: message number 203
+p8 -> p9: message number 204
+p9 -> p10: message number 205
+p10 -> p11: message number 206
+p11 -> p12: message number 207
+p12 -> p13: message number 208
+p13 -> p0: message number 209
+p0 -> p1: message number 210
+p1 -> p2: message number 211
+p2 -> p3: message number 212
+p3 -> p4: message number 213
+p4 -> p5: message number 214
+p5 -> p6: message number 215
+p6 -> p7: message number 216
+p7 -> p8: message number 217
+p8 -> p9: message number 218
+p9 -> p10: message number 219
+p10 -> p11: message number 220
+p11 -> p12: message number 221
+p12 -> p13: message number 222
+p13 -> p0: message number 223
+p0 -> p1: message number 224
+p1 -> p2: message number 225
+p2 -> p3: message number 226
+p3 -> p4: message number 227
+p4 -> p5: message number 228
+p5 -> p6: message number 229
+p6 -> p7: message number 230
+p7 -> p8: message number 231
+p8 -> p9: message number 232
+p9 -> p10: message number 233
+p10 -> p11: message number 234
+p11 -> p12: message number 235
+p12 -> p13: message number 236
+p13 -> p0: message number 237
+p0 -> p1: message number 238
+p1 -> p2: message number 239
+p2 -> p3: message number 240
+p3 -> p4: message number 241
+p4 -> p5: message number 242
+p5 -> p6: message number 243
+p6 -> p7: message number 244
+p7 -> p8: message number 245
+p8 -> p9: message number 246
+p9 -> p10: message number 247
+p10 -> p11: message number 248
+p11 -> p12: message number 249
+p12 -> p13: message number 250
+p13 -> p0: message number 251
+p0 -> p1: message number 252
+p1 -> p2: message number 253
+p2 -> p3: message number 254
+p3 -> p4: message number 255
+p4 -> p5: message number 256
+p5 -> p6: message number 257
+p6 -> p7: message number 258
+p7 -> p8: message number 259
+```

@@ -2,8 +2,9 @@
 // Only the limits files are imported here (they import nothing), so safety.ts may import this file.
 import * as fishbone from "../fishbone/limits";
 import * as sankey from "../sankey/limits";
+import * as sequence from "../sequence/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof fishbone.LIMITS & typeof sankey.LIMITS;
-export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...sankey.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS };
+export type PartLimits = typeof fishbone.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS;
+export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS };

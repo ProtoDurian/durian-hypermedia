@@ -3,7 +3,9 @@
 import { partComponent } from "../react";
 import FishboneView from "../fishbone/view";
 import SankeyView from "../sankey/view";
+import SequenceView from "../sequence/view";
 
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const SankeyPart = partComponent("sankey", SankeyView);
-export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "sankey": SankeyPart };
+export const SequencePart = partComponent("sequence", SequenceView);
+export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "sankey": SankeyPart, "sequence": SequencePart };

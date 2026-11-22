@@ -911,10 +911,20 @@ export interface SendGeom { show: string; label: string; cc: number; path: numbe
 export interface Frame { boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean; view?: CamView; part?: number[] }
 
 // text width: Latin about 7.3 per character at 13px, CJK about 13, Indic scripts about 8.6
+const chW = (ch: string) => { const c = ch.codePointAt(0)!; return c >= 0x2e80 ? 13 : c >= 0x0900 && c <= 0x0dff ? 8.6 : /[A-Z@#%&mwMW]/.test(ch) ? 8.6 : /[ilj.,:;'|!]/.test(ch) ? 3.8 : 7.1; };
 export function textW(s: string, size = 13): number {
+  work(1 + s.length);
   let w = 0;
-  for (const ch of s) { const c = ch.codePointAt(0)!; w += c >= 0x2e80 ? 13 : c >= 0x0900 && c <= 0x0dff ? 8.6 : /[A-Z@#%&mwMW]/.test(ch) ? 8.6 : /[ilj.,:;'|!]/.test(ch) ? 3.8 : 7.1; }
+  for (const ch of s) w += chW(ch);
   return (w * size) / 13;
+}
+// textW(s, size) <= maxW, the same sum stopped as soon as it is over (every character adds to it): a long word is
+// measured only as far as a line goes
+function fitsIn(s: string, size: number, maxW: number): boolean {
+  let w = 0, n = 0;
+  for (const ch of s) { w += chW(ch); n++; if ((w * size) / 13 > maxW) { work(1 + n); return false; } }
+  work(1 + n);
+  return (w * size) / 13 <= maxW;
 }
 
 // ---------------------------------------------------------------- the design system (format version 6)
@@ -954,27 +964,49 @@ export const headW = (s: string, z: SizeTok) => textW(s, z.head) * 1.1 + s.lengt
 
 // where a long word may break (format version 10): just after the last of its own separators (- _ . / :) that still
 // fits on the line, leaving at least 2 characters on each side; 0 when there is none
+// (fits must hold for every start of w up to the longest that fits, and for none longer: widths only add up. So the
+// longest start that fits is found by halving, and only the separators below it are looked at)
 export function longBreak(w: string, fits: (t: string) => boolean): number {
-  for (let k = w.length - 2; k >= 2; k--) if (/[-_./:]/.test(w[k - 1]) && fits(w.slice(0, k))) return k;
+  const top = longestFit(2, w.length - 2, (k) => fits(w.slice(0, k)));
+  work(1 + Math.max(0, top));
+  for (let k = top; k >= 2; k--) if (/[-_./:]/.test(w[k - 1])) return k;
   return 0;
 }
+// the largest k from lo to hi with ok(k), when ok holds up to some k and not after it; lo - 1 when none
+function longestFit(lo: number, hi: number, ok: (k: number) => boolean): number {
+  if (hi < lo) return lo - 1;
+  if (ok(hi)) return hi;
+  let a = lo - 1, b = hi; // ok(a) holds (or a is below lo), ok(b) does not
+  while (b - a > 1) { const m = (a + b) >> 1; if (ok(m)) a = m; else b = m; }
+  return a;
+}
 export function wrapText(s: string, font: number, maxW: number, maxLines = MAX_LINES): string[] {
-  const fits = (t: string) => textW(t, font) <= maxW + 0.5;
+  work(8 + s.length / 2);
+  const fits = (t: string) => fitsIn(t, font, maxW + 0.5);
   const lines: string[] = [];
   let cur = "";
-  for (let w of s.split(/\s+/).filter(Boolean)) {
+  // (once there are more lines than maxLines the answer is known: the first maxLines, the last cut with "…"; a long
+  // label is not wrapped to its end)
+  words: for (const word of s.split(/\s+/).filter(Boolean)) {
+    if (lines.length > maxLines) break;
+    work(2 + word.length);
     // a word longer than a line breaks after its own separator (- _ . / :) when one fits (format version 10: a name
     // such as service-web-replica-b-7f9c keeps its parts whole, no hyphen added); else it is cut where it overflows,
     // with a hyphen only inside a plain word of letters
+    // (what is left of the word is all letters once the cuts are past its last other character)
+    let other = -1;
+    for (let i = 0; i < word.length; i++) { const c = word.charCodeAt(i); if (!((c >= 65 && c <= 90) || (c >= 97 && c <= 122))) other = i; }
+    let w = word, at = 0;
     while (!fits(w)) {
       const sep = longBreak(w, fits);
-      if (sep > 0) { if (cur) { lines.push(cur); cur = ""; } lines.push(w.slice(0, sep)); w = w.slice(sep); continue; }
-      let k = w.length - 1;
-      while (k > 1 && !fits(w.slice(0, k) + "-")) k--;
-      const hy = /^[A-Za-z]+$/.test(w) ? "-" : "";
+      if (sep > 0) { if (cur) { lines.push(cur); cur = ""; } lines.push(w.slice(0, sep)); w = w.slice(sep); at += sep; if (lines.length > maxLines) break words; continue; }
+      // the longest start that fits with a hyphen (2 to its length - 1), else 1
+      const k = w.length - 1 > 1 ? Math.max(1, longestFit(2, w.length - 1, (j) => fits(w.slice(0, j) + "-"))) : w.length - 1;
+      const hy = w.length && other < at ? "-" : "";
       if (cur) { lines.push(cur); cur = ""; }
       lines.push(w.slice(0, k) + hy);
-      w = w.slice(k);
+      w = w.slice(k); at += k;
+      if (lines.length > maxLines) break words;
     }
     const t = cur ? `${cur} ${w}` : w;
     if (fits(t)) cur = t; else { lines.push(cur); cur = w; }
@@ -2036,26 +2068,36 @@ export function keepSlots(states: State[], keep?: Map<string, [number, number]>)
   // slots: each thing takes the first slot it can share, else a new one at the end
   const slotsOf = new Map<string, string[][]>();
   for (const [c, ls] of lists) {
-    const seen: string[] = [];
-    for (const { l } of ls) for (const x of l) if (!seen.includes(x)) seen.push(x);
+    // (every check below that looks through a list is counted: T, the things of every step together)
+    const T = ls.reduce((n, { l }) => n + l.length, 0);
+    work(ls.length + T);
+    // (every thing in the order it first appears: a set says what is already in the list)
+    const seen: string[] = [], seenSet = new Set<string>();
+    for (const { l } of ls) for (const x of l) if (!seenSet.has(x)) { seenSet.add(x); seen.push(x); }
     if (ls.every(({ l }) => l.length === seen.length)) continue; // the same things on every step: nothing to keep
     const before = new Map(seen.map((x) => [x, new Set<string>()]));
     for (const { l } of ls) for (let i = 0; i + 1 < l.length; i++) before.get(l[i + 1])!.add(l[i]);
-    const out: string[] = [];
+    const out: string[] = [], ordered = new Set<string>();
     const left = [...seen];
     while (left.length) {
-      const i = left.findIndex((x) => [...before.get(x)!].every((p) => out.includes(p)));
+      const i = left.findIndex((x) => (work(2 + before.get(x)!.size), [...before.get(x)!].every((p) => ordered.has(p))));
       if (i < 0) break;
-      out.push(left.splice(i, 1)[0]);
+      work(left.length);
+      const x = left.splice(i, 1)[0];
+      out.push(x); ordered.add(x);
     }
     if (left.length) continue; // the author reordered things here: it closes up
-    const life = new Map(out.map((x) => [x, new Set(ls.filter(({ l }) => l.includes(x)).map(({ k }) => k))]));
+    // (the steps each thing is here in: one set per step)
+    work(T + out.length * ls.length);
+    const inStep = ls.map(({ l }) => new Set(l));
+    const life = new Map(out.map((x) => [x, new Set(ls.filter((_, i) => inStep[i].has(x)).map(({ k }) => k))]));
     const sizeKey = (x: string) => { const e = ref.get(`${c}>${x}`)!; const z = keep?.get(`${e.kind}:${x}`); return z ? `${e.kind}:${Math.round(z[0])}x${Math.round(z[1])}` : null; };
     const slots: string[][] = [], slotOf = new Map<string, number>();
     for (const x of out) {
       let at = -1;
       if (keep) for (let si = 0; si < slots.length && at < 0; si++) {
         const occ = slots[si];
+        work(4 + occ.length * (4 + ls.length) + 2 * T);
         if (sizeKey(x) == null || occ.some((o) => sizeKey(o) !== sizeKey(x))) continue;
         if (occ.some((o) => [...life.get(o)!].some((k) => life.get(x)!.has(k)))) continue;
         const fits = ls.every(({ l }) => { const p = l.indexOf(x); if (p < 0) return true; return l.every((y, j) => { const sy = slotOf.get(y); return sy == null || y === x || (sy < si ? j < p : sy > si ? j > p : true); }); });

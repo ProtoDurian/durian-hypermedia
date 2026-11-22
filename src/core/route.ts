@@ -507,8 +507,13 @@ export function bestRoute(req: Req, base0: Route | null, others: Placed[], off =
 // heading away from the target costing much more
 const DIRS: RPt[] = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
 const dirOf = (n: RPt) => DIRS.findIndex((d) => d.x === Math.sign(n.x) && d.y === Math.sign(n.y));
-export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others: Placed[], area: RRect, conts: RRect[] = []): RPt[] | null {
+// memo: what a move between two grid points meets (blocked, or its hug and crossing costs) depends only on its two
+// points, the obstacles, the other lines and the containers: one search of a line (wayRoute) shares it over its tries
+export type Moves = Map<string, { hug: number; cc: number } | null>;
+export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others: Placed[], area: RRect, conts: RRect[] = [], memo: Moves = new Map()): RPt[] | null {
   const S = { x: P.x + na.x * 10, y: P.y + na.y * 10 }, T = { x: Q.x + nb.x * 10, y: Q.y + nb.y * 10 };
+  // the grid's lines, sorted: about 10 units for each obstacle and container edge
+  work(16 + 10 * (obst.length + 4 * conts.length));
   const inside = (p: RPt) => obst.some((r) => p.x > r.x + 0.01 && p.x < r.x + r.w - 0.01 && p.y > r.y + 0.01 && p.y < r.y + r.h - 0.01);
   if (inside(S) || inside(T)) return null;
   const coords = (vals: number[], lo: number, hi: number) => {
@@ -549,6 +554,7 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
   };
   const key = (x: number, y: number, d: number) => (y * W + x) * 4 + d;
   const g = new Map<number, number>(), from = new Map<number, number>();
+  const near = new Map<number, { hug: number; cc: number } | null>();
   const heap: [number, number][] = [];
   const push = (f: number, k: number) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
   const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
@@ -567,12 +573,21 @@ export function gridPath(P: RPt, na: RPt, Q: RPt, nb: RPt, obst: RRect[], others
       const nx = x + DIRS[d2].x, ny = y + DIRS[d2].y;
       if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
       const p = { x: xs[x], y: ys[y] }, q = { x: xs[nx], y: ys[ny] };
-      if (!segOk(p, q)) continue;
+      // (this search's own moves by grid index first; then the moves of the line's other searches, by their points)
+      const lk = cell * 4 + d2;
+      let seg = near.get(lk);
+      if (seg === undefined) {
+        const mk = `${p.x},${p.y},${q.x},${q.y}`;
+        seg = memo.get(mk);
+        if (seg === undefined) { seg = segOk(p, q) ? { hug: conts.length ? hugs([p, q], conts) * (Math.abs(q.x - p.x) + Math.abs(q.y - p.y)) * 3 : 0, cc: crossCost(p, q) } : null; memo.set(mk, seg); }
+        else work(8);
+        near.set(lk, seg);
+      } else work(3);
+      if (!seg) continue;
       const len = Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
       const back = (DIRS[d2].x * wx + DIRS[d2].y * wy) / wl < -0.035 ? len * 4 : 0;
       const end = nx === xi1 && ny === yi1 && d2 !== dEnd ? BEND : 0;
-      const hug = conts.length ? hugs([p, q], conts) * len * 3 : 0;
-      const cost = gk + len + (d2 !== d ? BEND : 0) + back + end + hug + crossCost(p, q);
+      const cost = gk + len + (d2 !== d ? BEND : 0) + back + end + seg.hug + seg.cc;
       const k2 = key(nx, ny, d2);
       if (cost < (g.get(k2) ?? Infinity)) { g.set(k2, cost); from.set(k2, k); push(cost + h(nx, ny), k2); }
     }
@@ -596,12 +611,13 @@ export function wayRoute(req: Req, base: Route | null, others: Placed[], off = 0
   const obst = [...req.shapes.map((r) => ({ x: r.x - 5, y: r.y - 5, w: r.w + 10, h: r.h + 10 })), ...req.words.map((r) => ({ x: r.x - 1.5, y: r.y - 1.5, w: r.w + 3, h: r.h + 3 })), ...[a, b].map((r) => ({ x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }))];
   const dx = cb.x - ca.x, dy = cb.y - ca.y, dl = Math.hypot(dx, dy) || 1;
   let best: Choice | null = null;
+  const memo: Moves = new Map();
   for (const sa of ["t", "b", "l", "r"] as Side[]) for (const sb of ["t", "b", "l", "r"] as Side[]) {
     const na = NORM[sa], nb = NORM[sb];
     if ((na.x * dx + na.y * dy) / dl < -0.3 || (nb.x * -dx + nb.y * -dy) / dl < -0.3) continue;
     const oa = base && base.sa === sa ? base.oa : 0, ob = base && base.sb === sb ? base.ob : 0;
     const P = portAt(a, sa, oa), Q = portAt(b, sb, ob);
-    const path = gridPath(P, na, Q, nb, obst, others, area, req.conts ?? []);
+    const path = gridPath(P, na, Q, nb, obst, others, area, req.conts ?? [], memo);
     if (!path) continue;
     const rt: Route = { sa, sb, oa, ob, m: 0, way: path.slice(1, -1), ca, cb };
     const pts = routeLine(routeGeom(a, b, rt, off));

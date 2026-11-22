@@ -9,7 +9,9 @@ export interface Chapter { t: number; title: string; line: number }
 export interface Marker { t: number; title: string; tone: string; line: number }
 export interface Cue { t: number; speaker: string; text: string; line: number }
 export interface CaptionFile { src: string; label: string; default: boolean; line: number }
-export interface Timed { chapters: Chapter[]; markers: Marker[]; cues: Cue[]; transcriptFile: string | null; peaks: string | null; thumbs: string | null; sources: string[]; captions: CaptionFile[] }
+export interface Timed { chapters: Chapter[]; markers: Marker[]; cues: Cue[]; transcriptFile: string | null; peaks: string | null; thumbs: string | null; sources: string[]; captions: CaptionFile[];
+  /** the files the body names (peaks, sources, thumbs, transcript) and the line each is on: the Node entry reads them */
+  files: { path: string; line: number }[] }
 /** the caps a timed body reads (audio and video give their own names to the same four) */
 export interface TimedCaps { transcriptLines: number; chapters: number; markers: number; captionFiles: number }
 
@@ -50,7 +52,7 @@ function captionsParts(rest: string): [string, string, boolean] | null {
 }
 
 export function parseTimedBody(body: string, baseLine: number, o: BodyOpts, budget: Budget): Timed {
-  const t: Timed = { chapters: [], markers: [], cues: [], transcriptFile: null, peaks: null, thumbs: null, sources: [], captions: [] };
+  const t: Timed = { chapters: [], markers: [], cues: [], transcriptFile: null, peaks: null, thumbs: null, sources: [], captions: [], files: [] };
   const err = (line: number, msg: string) => o.errors.push({ line, msg: `${o.part}: ${msg}` });
   const total = o.caps.transcriptLines + o.caps.chapters + o.caps.markers;
   let lastCue = -1, lastCh = -1;
@@ -67,14 +69,14 @@ export function parseTimedBody(body: string, baseLine: number, o: BodyOpts, budg
       const why = urlRefusal(m);
       if (why) { err(line, `peaks file "${m}" is not allowed: ${why}`); continue; }
       if (extOf(m) !== "json") { err(line, `peaks file "${m}" is not .json (the BBC audiowaveform format; bun src/parts/audio/peaks.ts <file> writes one)`); continue; }
-      t.peaks = m; continue;
+      t.peaks = m; t.files.push({ path: m, line }); continue;
     }
     if ((m = afterColon(s, "source:")) !== null) {
       if (!o.allow.includes("source")) { err(line, `"source:" is for video only`); continue; }
       const why = urlRefusal(m);
       if (why) { err(line, `source "${m}" is not allowed: ${why}`); continue; }
       if (!VIDEO_EXT.includes(extOf(m))) { err(line, `source "${m}" is not a video file (${VIDEO_EXT.join(", ")})`); continue; }
-      t.sources.push(m); continue;
+      t.sources.push(m); t.files.push({ path: m, line }); continue;
     }
     if ((m = afterColon(s, "captions:")) !== null) {
       if (!o.allow.includes("captions")) { err(line, `"captions:" is for video only`); continue; }
@@ -93,13 +95,13 @@ export function parseTimedBody(body: string, baseLine: number, o: BodyOpts, budg
       const why = urlRefusal(m);
       if (why) { err(line, `thumbs file "${m}" is not allowed: ${why}`); continue; }
       if (extOf(m) !== "vtt") { err(line, `thumbs file "${m}" is not .vtt (a WebVTT file whose cues name an image)`); continue; }
-      t.thumbs = m; continue;
+      t.thumbs = m; t.files.push({ path: m, line }); continue;
     }
     if ((m = afterColon(s, "transcript:")) !== null) {
       const why = urlRefusal(m);
       if (why) { err(line, `transcript file "${m}" is not allowed: ${why}`); continue; }
       if (extOf(m) !== "vtt" && extOf(m) !== "srt") { err(line, `transcript file "${m}" is not .vtt or .srt`); continue; }
-      t.transcriptFile = m; continue;
+      t.transcriptFile = m; t.files.push({ path: m, line }); continue;
     }
     const [w1, r1] = firstWord(s);
     if (w1 === "chapter") {

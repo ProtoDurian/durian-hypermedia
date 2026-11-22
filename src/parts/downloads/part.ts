@@ -7,7 +7,7 @@
 //
 // A line is `<address> ["label"] [size] [sha256=|sha512=<hex>] [note=...]`. The size, the checksum and the note are the
 // author's words about the file; nothing is fetched, here or in the view, until the reader presses Download.
-import { definePart } from "../types";
+import { definePart, type PartFileRef } from "../types";
 import { bodyLines, extOf, firstWord, iconOf, isDecimal, isHex, nameOf, unknownKeys, urlRefusal, type Err } from "./media";
 
 export const DOWNLOADS_KEYS = ["id", "title", "llm"];
@@ -119,6 +119,22 @@ export function downloadsLlm(d: DownloadsSpec): string {
   }).join("\n");
 }
 
+/** the files a downloads list names, for the Node entry: each file's stated size and checksum must be the file's */
+export function downloadsFiles(d: DownloadsSpec, limits: { downloadsCheckBytes: number }): PartFileRef[] {
+  return d.files.map((f) => ({
+    path: f.src, line: f.line, readMax: limits.downloadsCheckBytes,
+    hash: f.sum && f.algo ? { algo: f.algo, hex: f.sum } : undefined,
+    check: ({ size }) => {
+      if (f.bytes === null) return [];
+      // the stated size must be what the file's size rounds to, at the precision written (2.4 MB means 2.35 to 2.45 MB)
+      const dot = f.size.indexOf("."), sp = f.size.indexOf(" ");
+      const decimals = dot < 0 ? 0 : sp - dot - 1;
+      const half = (decimals ? 0.5 * 10 ** -decimals : 0.5) * UNITS[f.size.slice(sp + 1)];
+      return Math.abs(size - f.bytes) > half ? [`${f.src} is ${humanSize(size)} (${size} bytes), not ${f.size}; write the size the file has`] : [];
+    },
+  }));
+}
+
 export default definePart<DownloadsSpec>({
   name: "downloads",
   form: "fenced",
@@ -126,5 +142,6 @@ export default definePart<DownloadsSpec>({
   llmKind: "own",
   parse: (input, ctx) => parseDownloads(input.body, input.bodyLine, input.attrs, input.line, ctx.limits, ctx.budget),
   llm: (d) => downloadsLlm(d),
+  files: (d, { limits }) => downloadsFiles(d, limits),
   check: (d) => d.errors.map((e) => ({ line: e.line, message: e.msg })),
 });

@@ -124,7 +124,8 @@
     "example": "bun example/build.tsx && bun example/serve.ts",
     "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
     "prepare": "bun scripts/build.ts",
-    "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types"
+    "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types",
+    "bench": "bun scripts/bench.ts"
   },
   "peerDependencies": {
     "react": ">=18 <20",

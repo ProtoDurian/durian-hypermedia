@@ -126,7 +126,8 @@ Not theme tokens: ${[...INTERNAL].filter((t) => used.has(t)).map((t) => `\`${t}\
 | \`.term\`, \`.fx\`, \`.ide\`, \`.cw\`, \`.chart\`, \`.dg\`, \`.scn\`, \`.tl\`, \`.al\` | the terminal, file tree, editor, code walk, chart, diagram, animation stage, tier list, alignment grid |
 | \`.tabs\`, \`.tab-bar\`, \`.tab-panel\`, \`.accordion\`, \`.acc-item\`, \`.human\` | the containers |
 | \`.ctl\`, \`.btn\`, \`.btn-go\`, \`.ctl-range\` | the step controls (Back, Play, the slider, Next) |
-| \`.callout.callout-<kind>\`, \`.banner.banner-<kind>\` | callouts (\`note\`, \`tip\`, \`important\`, \`warn\`, \`security\`) and the page banner |
+| \`.callout.callout-<kind>\` | callouts (\`note\`, \`tip\`, \`important\`, \`warn\`, \`security\`); a note about the whole page is a callout under the title |
+| \`.dh-turn\` | a block with no height at the top of a part: where the hydration queue finds the part on the page |
 | \`.code-block\`, \`.ch-pre\`, \`.ch-focus\`, \`.ch-mark\`, \`.ch-add\`, \`.ch-del\` | code, and its focused, marked, added and removed lines |
 | \`.dh-error\` | a part parse() refused (over a cap, unsafe, unreadable) |
 | \`.dh-spinner\`, \`.dh-spin\` | the loading spinner (mermaid) |
@@ -148,7 +149,7 @@ A host style writes its own the same way: override the shape and motion tokens u
 .dh-doc[data-dh-variant="paper"] .term { border: 1px dashed var(--line-2); }
 \`\`\`
 
-For changes CSS cannot make, \`slots\` swap the chrome components: \`Frame\` (the box around each part), \`Callout\`, \`Banner\`,
+For changes CSS cannot make, \`slots\` swap the chrome components: \`Frame\` (the box around each part), \`Callout\`,
 \`Error\` and \`Spinner\`; they also draw Markdown elements your own way (\`Code\`, \`InlineCode\`, \`Link\`, \`Table\`, \`Heading\`) and mermaid diagrams (\`Mermaid\`): see ADOPT.md.
 
 ## Motion

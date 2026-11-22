@@ -54,9 +54,17 @@ const doc = parse(text, {
   limits: { maxInputBytes: 300_000 },
   blocks: [terminalSession, taskBlock],      // the host's own blocks (section 7)
   inlines: [fileRef, taskRef],               // the host's own inline references (section 7)
+  marks: { deprecated: { label: "deprecated", colour: "warn", means: "still works, will be removed" } },   // own file tree marks for every page (SPEC.md 3.1)
+  prefixes: { ">>>": { label: "Python", colour: "c4" } },                                                 // own terminal prompts for every page
 });
 doc.problems;   // [] for a clean page
 ```
+
+**Own marks and prefixes for the whole host.** A page defines its own `marks:` (file tree) and `prefixes:` (terminal) in
+its front matter (SPEC.md section 3.1). To define some for every page (the way a docs site keeps one list), pass the
+same shape as the `marks` and `prefixes` options of `parse()`; the page's own entry of the same name wins. A bad entry is a
+line of `check(doc)`, naming the host's list. They show only where a part uses them, and the LLM view reads a mark as its
+label.
 
 The parser reads no files: a code walk or editor that names a file in a repo (not written in the page with `@file`)
 shows "no code" with the reason. Write the code in the page with `@file`, or resolve repo files before parsing.
@@ -79,7 +87,7 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   variant="flat"             // the host's style name: data-dh-variant on the root
   theme="dark"               // or leave it to <html data-theme> / the system
   motion="off"               // still everything (also: prefers-reduced-motion)
-  slots={{ Frame, Callout, Banner, Error, Spinner }}   // swap the chrome
+  slots={{ Frame, Callout, Error, Spinner }}   // swap the chrome
   // and draw Markdown your way (no default: leave one out and the renderer draws it):
   //   Code {lang,text,meta,hl}, InlineCode {text}, Link {href,title,external,children},
   //   Table {align,head,rows,headText}, Heading {depth,level,id,text,children}, Mermaid {src,title,step,active}
@@ -94,6 +102,22 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
 Server render with `renderToString` and hydrate with `hydrateDocument(el, doc, sameProps)`, or render in the browser
 with `renderDocument`. Pass the `Document` from server to browser as JSON with `documentJson(doc)` inside
 `<script type="application/json">` (it escapes `<`), read it with `readDocument(id)`.
+
+**Hydration order, and class `js`.** `hydrateDocument()` hydrates a page's heavy parts (animation, chart, terminal, code
+walk, editor, file tree, tier list, alignment grid, mermaid) in the order the reader needs them: the parts on screen (and
+just below) first, one per task so the page paints between them; the one the reader scrolls to jumps the queue; then the
+rest in page order; a part the reader touches, clicks, focuses or types in works at once. A server-rendered part keeps its
+HTML until its turn, so nothing flashes. It also puts the class `js` on `<html>` (the phone's first-paint rule in
+`styles.css` needs it: under 560 px an animation shows an empty stage until it has measured itself, instead of the
+server's wide drawing with words of about 6 px; without scripts the server's drawing stays). **A host with its own shell
+or its own `hydrateRoot` must add the class itself, before the page paints:** `<script>document.documentElement.classList.add("js")</script>`
+in the `<head>` (a nonce or hash under a strict CSP). A host that calls `hydrateRoot` itself gets the old behaviour
+(every part at once), unless it opts in: `const order = new HydrationOrder(); hydrateRoot(el, <TurnContext.Provider value={order}><DhDocument ... /></TurnContext.Provider>); order.watch(el);`
+(both exported from `durian-hypermedia/react/hydrate`; `order.stop()` lets every waiting part go).
+So `hydrateDocument` is that, with the class `js`. A page that re-renders its root (a variant or theme prop)
+while it hydrates should wrap that update in `React.startTransition`: React switches a part that gets an update before it
+has hydrated to client rendering (its error 424), which throws the server's drawing away. The queue finds a part by a block with no height, class
+`dh-turn`, that sits at the top of the part inside its frame.
 
 **Strict CSP.** No part uses `eval`, `new Function` or WebAssembly in the browser; no CDN; no font is fetched.
 Proved by the example site served with

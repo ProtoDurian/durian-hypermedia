@@ -4,6 +4,83 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.6.0
+
+Format version 10 (SPEC.md section 11): a scene inside a scene, depth, lines that never cross, words never under 11 pixels,
+candlesticks, free alignment grids, your own marks and prompts, and a banner that is gone. `FORMAT_VERSION` is 10;
+`Document.format` says 10. A page that was valid in version 9 reads and draws as before, except one with a front matter
+`banner:`, which `check()` now refuses.
+
+### Removed (API change)
+
+- **The banner.** Front matter `banner:` and the old `:::banner` are refused by `check()` (*banner was removed in format
+  version 10: put the note in a callout under the title (> **Note:** ...), or drop it*); `parse()` ignores them and draws
+  nothing. Removed from the API:
+  - `Document.banner` (the field) and the exported `Banner` type;
+  - the `Banner` slot (`Slots.Banner`, `DEFAULT_SLOTS.Banner`) of `DhDocument` / `DocumentView`;
+  - `Ui.bannerKind` (the banner's words, in every language);
+  - the CSS `.banner`, `.banner-<kind>`, `.banner-icon`, `.banner-kind`; a note about the whole page is a callout under
+    the title.
+  To move: drop `Banner` from your `slots`, and write `> **Note:** ...` under the title instead of `banner:`.
+
+### Added (one bullet per new author word or part)
+
+- **A scene inside a scene** (SPEC.md 6.12): `scene <id> "label" ... end` in the setup, `enter <scene> from <thing>`, `leave`.
+  The caption shows the chip `Inside · <label>` (`Ui.inScene`, 6 languages); "All steps" nests under the step that enters.
+- **Data structures** (SPEC.md 6.12): `map <id>: key: value, ...`, `buckets=<n>` (a hash table), `put <map> <key>: <value>`,
+  `get <map> <key>` and `get <array> <index>`.
+- **3D only** (SPEC.md 6.11): ```` ```animation 3d only ````, a scene with no flat form (a list of steps without WebGL).
+- **`closed=hidden`** (SPEC.md 6.11): an inside not drawn until the story zooms in; zooms nest: `zoom into n1 n2`, `zoom out`
+  (one level), `zoom out all`.
+- **`lift <ids>` and `put back [ids]`** (SPEC.md 6.11, 3D only): a box rises with what it holds, the rest fades.
+- **`labels=all`** on the fence (SPEC.md 6.11): keep every 3D label showing while a step plays.
+- **`kind: candlestick`** (SPEC.md 3 and 7): `data: [[open, high, low, close], ...]`, lines on top, `y2`, controls; up and down
+  take the theme's good and bad; the LLM view is `period | open | high | low | close`. New UI strings: `candleUp`, `candleDown`,
+  `candlePeriod`, `candleWords`, `marksKey`.
+- **Alignment grids of any size** (SPEC.md 3): 2 to 6 names on an axis, the axes may differ; `[colour]` on a cell;
+  `region: <columns> / <rows> "label" [colour]`; `arrows: on`. The 2x2 and 3x3 refusals are replaced by *an axis may have 2
+  to 6 names*.
+- **Tier lists** say plainly that `tiers:` takes any names and any count (SPEC.md 3).
+- **Own marks and prefixes** (SPEC.md 3.1): front matter `marks:` for a file tree and `prefixes:` for a terminal, each with a
+  label, a theme colour and an optional `means`; only what a part uses shows. For every page of a host: the new `marks` and
+  `prefixes` options of `parse()` (same shape; the page's own entry wins). `FileTreeBlock.marks`, `TerminalBlock.prefixes`
+  and the `MarkDef` type carry them to the renderer; the LLM view reads a mark as its label and lists a custom prompt under
+  the terminal. doccheck refuses an undefined mark, naming where to define it.
+- **New CSS class** `.dh-turn`: a block with no height at the top of a part, where the hydration queue finds it.
+- **Checks:** `src/core/readable.ts` (the story camera's focus), `src/core/route.ts` (line routes) and the line counts used
+  by `test/animation-v10.test.ts`.
+
+### Changed
+
+- **Lines** (SPEC.md 6.8): lines on one side of a thing fan out from their own points; a line is straight where it can be, else
+  at right angles with rounded corners, around what is in the way; none crosses another or doubles back; sends travel their
+  connector; in 3D a line on one layer runs on the floor. doccheck warns when two lines must cross.
+- **Words never under 11 px** (SPEC.md 6.8): the story camera never draws words under 11 pixels on any screen (version 9:
+  a phone only); when what a step touches does not fit at that size, it frames the step's focus. Shaded edges on every
+  screen; the narrow layout on a phone also when it keeps more steps whole.
+- **3D labels** (SPEC.md 6.11): while a step plays only who takes part shows a label; the rest come back at rest.
+- **Play starts at once** (SPEC.md 4) in the terminal and the animation, 2D and 3D.
+- **The editor on a phone** (SPEC.md 4): the tree above the file (a closed drawer when long), code at 14 px, a pane of at
+  least 8 lines, rows of 36 px.
+- **Hydration order** (SPEC.md 11, ADOPT.md section 4): `hydrateDocument()` hydrates the heavy parts on screen first, one per
+  task, the one scrolled to next, then in page order; a part the reader touches works at once. It also puts the class `js` on
+  `<html>`, which the phone's first-paint rule needs: under 560 px an animation shows an empty stage until it has measured
+  itself, instead of the server's wide drawing. On a slow phone the first drawing used to stay 12 to 15 seconds, now about
+  one. A host that calls `hydrateRoot` itself gets the old behaviour (everything at once) and adds the class itself.
+- `check()` reports a bad `marks:` or `prefixes:` definition, a front matter `banner:` and a mark nobody defined.
+
+### Fixed
+
+- A long name breaks after its own `-`, `_`, `.`, `/` or `:`, with no hyphen added; chips are sized from the measured width of
+  their words (`seq 2001` fits); a token sent along a connector travels beside it, clear of its label and arrowhead; an
+  arrow alone on a connector with no label draws on it, not as a second line.
+- A line never dips under a box to come back into a side, and runs in the middle of the gap between two nested boxes.
+- A chart's crowded category axis sets each label on one line, cut with "…", turned up to 90 degrees.
+- 3D: meters (`level=`) are drawn; the gap between stacked layers grows on a phone; a floor line climbs over container slabs
+  instead of through their walls; layer planes fade during a move into or out of a scene; moving chips step aside from words
+  and other chips; no 3D word is under 11 px; labels of who takes part show inside a scene inside the scene.
+- The code walk's fold bar is not dimmed with the lines out of focus, and its border shows on dark.
+
 ## 0.5.1
 
 - Licence: MIT. Adds the `LICENSE` file; `package.json` `license` is `MIT`. No code or format change.

@@ -50,6 +50,9 @@ import { hydrateDocument, readDocument } from "durian-hypermedia/react/hydrate";
 hydrateDocument(document.getElementById("dh-root")!, readDocument("dh-doc")!);
 ```
 
+`hydrateDocument` hydrates the heavy parts in the order the reader needs them (on screen first, one per task) and puts the
+class `js` on `<html>`; a host with its own shell adds that class itself (ADOPT.md section 4).
+
 Or render in the browser only: `renderDocument(el, parse(text))` (code then shows without colours; the colours need
 `highlight()`, which runs on WebAssembly and so belongs on the server under a strict CSP).
 
@@ -66,7 +69,7 @@ import { ChartPart } from "durian-hypermedia/react/chart";
 
 ## What the parser gives you
 
-`parse(text, options)` returns a `Document`: front matter, a banner, `blocks` (one typed object per Markdown run or
+`parse(text, options)` returns a `Document`: front matter, `blocks` (one typed object per Markdown run or
 part), `headings`, `problems` (what it refused or changed) and `llm` (the LLM view). Every block kind has an exported
 TypeScript type (`TerminalBlock`, `ChartBlock`, `AnimationBlock` ...). Markdown arrives as a small tree (paragraphs,
 lists, tables, links ...), never as HTML. Every animation block also has `texts`, its labels, captions, say and note texts in
@@ -81,6 +84,8 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | `inlines` | none | the host's own inline references, like `@src/a.ts` (ADOPT.md) |
 | `publicView` | `false` | drop `> **Security finding:**` callouts from the LLM view |
 | `frontMatter` | `true` | `false`: a leading `---` block is Markdown (a rule and text the reader sees), not front matter |
+| `marks` | none | own file tree marks for every page, as the front matter `marks:` writes them (ADOPT.md); a page's own entry wins |
+| `prefixes` | none | own terminal prompts for every page, as the front matter `prefixes:` writes them |
 
 ## Drawing Markdown your own way
 

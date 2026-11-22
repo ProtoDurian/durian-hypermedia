@@ -539,7 +539,7 @@ Error: request failed
     at run (node:internal/process:10:5)
 ```
 
-Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references.
+Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references. The matching front matter pins entry supplies the commit: the frame detail shows its first seven characters, and the reference tooltip keeps the complete commit. Without a matching pin the reference still names the file and line.
 
 The LLM reads the trace as written. Above 400 tokens library runs become one line; llm=full retains all frames. A following :::llm replaces this view.
 

@@ -393,7 +393,7 @@ cli -> tc: init call: one more answer
 
 ## Stacktrace
 
-A fence named `stacktrace`. It reads a trace as printed by Go, .NET, Bun or Node, Dart, Java or Python: the error line, each cause in its own block, threads as groups. Library frames fold into one bar; frames of your own code (`app=`) are marked, and with `repo=` and `strip=` they point at the file and line at that path and line. Tap a frame to open it.
+A fence named `stacktrace`. It reads a trace as printed by Go, .NET, Bun or Node, Dart, Java or Python: the error line, each cause in its own block, threads as groups. Library frames fold into one bar; frames of your own code (`app=`) are marked, and with `repo=` and `strip=` they name the file and line at the page’s pinned commit (when its front matter has a matching pins entry). Tap a frame to open it.
 
 ```stacktrace lang=go app=example.com/shop repo=example.com/shop strip=/src/shop/ title="A Go panic"
 panic: runtime error: index out of range [3] with length 3

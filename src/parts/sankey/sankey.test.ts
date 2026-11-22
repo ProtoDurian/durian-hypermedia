@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, partLimitsOf } from "../../core/budget";
 import sankey, { parseSankey, sankeyLlm, flowLine, nodeLine, flowShare } from "./part";
-import { layoutSankey, pathOf } from "./layout";
+import { layoutSankey, pathOf, innerWidth, labelMargins, fitLabel, LABEL_PX } from "./layout";
 
 const fence = (body: string, info = 'title="T" unit=ms') => `# Page\n\n\`\`\`sankey ${info}\n${body}\n\`\`\`\n`;
 const GOOD = "request -> auth: 12\nrequest -> handler: 80\nhandler -> db: 55\nnode db \"Postgres\" [c3]";
@@ -131,6 +131,23 @@ describe("sankey: the layout", () => {
     const v = layoutSankey(s, 390, 500, true);
     expect(v.vertical).toBe(true);
     expect(v.nodes.every((n) => n.x >= -0.5 && n.x + n.w <= 390 + 0.5)).toBe(true);
+  });
+  test("the drawing fits the card, the end columns keep room for their labels, long labels end with an ellipsis", () => {
+    expect(innerWidth(1000)).toBe(1000 - 2 - 32);
+    expect(innerWidth(390)).toBe(390 - 2 - 24);
+    expect(innerWidth(10)).toBe(240);
+    const m = labelMargins([7], [8, 3], 760);
+    expect(m.l).toBe(Math.ceil(7 * LABEL_PX + 10));
+    expect(m.r).toBe(Math.ceil(8 * LABEL_PX + 10));
+    expect(labelMargins([200], [], 360)).toEqual({ l: 108, r: 0 });
+    expect(fitLabel("Postgres", 200)).toBe("Postgres");
+    expect(fitLabel("Infrastructure", 5 * LABEL_PX)).toBe("Infr…");
+    expect(fitLabel("abc", 3)).toBe("…");
+    const s = spec(GOOD + "\ndb -> disk: 20\nhandler -> sink: 3");
+    const p = layoutSankey(s, 700, 320, false);
+    const mm = labelMargins(p.nodes.filter((n) => n.x <= 1).map((n) => n.label.length), p.nodes.filter((n) => n.x + n.w >= 699).map((n) => n.label.length), 700);
+    const l = layoutSankey(s, 700, 320, false, 14, 14, mm);
+    expect(l.nodes.every((n) => n.x >= mm.l - 0.5 && n.x + n.w <= 700 - mm.r + 0.5)).toBe(true);
   });
   test("a flow's path lights everything upstream and downstream", () => {
     const s = spec("a -> b: 1\nb -> c: 1\nx -> y: 1");

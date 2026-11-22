@@ -39,3 +39,22 @@ export function pathOf(spec: SankeySpec, i: number): Set<number> {
   up(spec.flows[i].from); down(spec.flows[i].to);
   return out;
 }
+
+/** a character of the 12 px label, estimated a little wide so a label is cut by us, never by the box */
+export const LABEL_PX = 7.2;
+/** the room the drawing has inside the card (its border and side padding, which follow the same stage width the card's CSS does) */
+export function innerWidth(stageWidth: number): number {
+  const pad = stageWidth <= 600 ? 12 : 16;
+  return Math.max(240, Math.floor(stageWidth) - 2 - 2 * pad);
+}
+/** the left and right room a left-to-right layout keeps for the labels of its first and last columns: what the longest needs, never more than 30% of the width */
+export function labelMargins(firstLens: number[], lastLens: number[], width: number): { l: number; r: number } {
+  const cap = Math.floor(width * 0.3), need = (lens: number[]) => (lens.length ? Math.max(...lens) * LABEL_PX + 10 : 0);
+  return { l: Math.min(cap, Math.ceil(need(firstLens))), r: Math.min(cap, Math.ceil(need(lastLens))) };
+}
+/** a label cut with an ellipsis to the pixels it has; whole when it fits */
+export function fitLabel(text: string, room: number): string {
+  const chars = Math.floor(room / LABEL_PX);
+  if (text.length <= chars) return text;
+  return chars <= 1 ? "…" : text.slice(0, chars - 1) + "…";
+}

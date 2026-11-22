@@ -6,10 +6,12 @@ import FishboneView from "../fishbone/view";
 import FlameView from "../flame/view";
 import GalleryView from "../gallery/view";
 import SankeyView from "../sankey/view";
+import SequenceView from "../sequence/view";
 
 export const DownloadsPart = partComponent("downloads", DownloadsView);
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const FlamePart = partComponent("flame", FlameView);
 export const GalleryPart = partComponent("gallery", GalleryView);
 export const SankeyPart = partComponent("sankey", SankeyView);
-export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "sankey": SankeyPart };
+export const SequencePart = partComponent("sequence", SequenceView);
+export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "sankey": SankeyPart, "sequence": SequencePart };

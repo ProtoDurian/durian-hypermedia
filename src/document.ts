@@ -12,6 +12,7 @@ import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
 import { pageBudget, withBudget } from "./core/budget";
+import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -98,8 +99,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
   let count = 0, stopped = false;
 
-  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it
-  return withBudget(pageBudget(lim), () => withHostParts(defs, problems, () => {
+  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
+  // layout budget that every animation draws from (core/work.ts)
+  return withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     const fmOn = opts.frontMatter !== false;
@@ -218,7 +220,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
         const values = [...p.body.matchAll(/\[([^\]]*)\]/g)].reduce((a, m) => a + m[1].split(",").length, 0);
         if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
-        const c = animOf(p);
+        // compiled once (core/dh-lib.ts animOf); over its work budget, or the page's, it is refused here
+        let c: ReturnType<typeof animOf>;
+        try { c = animOf(p); } catch (e) { const m = animOverMessage(e, lim); if (m) return refuse(p, m); throw e; }
         animTexts = [...c.scene.texts];
         const most = Math.max(0, ...c.frames.map((f) => f.boxes.length));
         if (most > lim.maxAnimEntities) return refuse(p, `${most} things on the stage; the limit is ${lim.maxAnimEntities}`);
@@ -258,7 +262,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  }));
+  })));
 }
 
 function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[]) {
@@ -296,15 +300,17 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   const out: Problem[] = d.problems.map((p) => ({ ...p }));
   if (!k || !k.dh) return out; // a page over a cap (or one that could not be read) has only its problems
   // take refused parts out so the checks do not evaluate them again
-  const strip = (nodes: DhNode[]): DhNode[] => nodes.map((n) => (n.kind === "part" && k!.refused.has(n) ? ({ kind: "md", text: "", line: n.line } as DhMd) : n.kind === "part" ? ({ ...n, nodes: strip(n.nodes), items: n.items.map((it) => ({ ...it, nodes: strip(it.nodes) })) } as PartNode) : n));
+  // (a part with nothing inside stays the same node, so the checks reuse what parse() compiled for it)
+  const strip = (nodes: DhNode[]): DhNode[] => nodes.map((n) => (n.kind === "part" && k!.refused.has(n) ? ({ kind: "md", text: "", line: n.line } as DhMd) : n.kind === "part" && (n.nodes.length || n.items.length) ? ({ ...n, nodes: strip(n.nodes), items: n.items.map((it) => ({ ...it, nodes: strip(it.nodes) })) } as PartNode) : n));
   const dh = { ...k.dh, body: strip(k.dh.body) } as DhDoc;
   const issues: { file: string; line: number; msg: string; level: "error" | "warn" }[] = [];
   const defs = registeredBlocks(k.opts.blocks ?? []);
   // the checks evaluate every chart again for each control value: one budget of their own for the whole call, eight
   // times the page's (a chart is checked at several values); when it is spent the rest is a warning, not an error.
-  // The YAML page totals are CHECK_YAML_FACTOR times the page's.
+  // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
+  // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlKeys: cl.maxPageYamlKeys * CHECK_YAML_FACTOR }), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }));
+  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlKeys: cl.maxPageYamlKeys * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

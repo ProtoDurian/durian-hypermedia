@@ -14,7 +14,8 @@ import { dirname, extname, join, resolve } from "../host/path";
 import { spawnSync } from "../host/child_process";
 import { chartControls, evalChart } from "./chart";
 import { chartTable } from "./chart-llm";
-import { currentBudget } from "./budget";
+import { currentBudget, BudgetError } from "./budget";
+import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
@@ -641,7 +642,16 @@ export function animSrc(p: PartNode) {
   for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
-export function animOf(p: PartNode): Compiled { const s = animSrc(p); return compileScene(s.head, s.steps, s.base, s.info); }
+// one compile per part: the page, its JSON, its LLM view and its checks share it (a part over its work budget keeps
+// the BudgetError and throws it again, without compiling again)
+const compiled = new WeakMap<PartNode, Compiled | { over: BudgetError }>();
+export function animOf(p: PartNode): Compiled {
+  const hit = compiled.get(p);
+  if (hit) { if ("over" in hit) throw hit.over; return hit; }
+  const s = animSrc(p);
+  try { const c = compileScene(s.head, s.steps, s.base, s.info); compiled.set(p, c); return c; }
+  catch (e) { if (e instanceof BudgetError) compiled.set(p, { over: e }); throw e; }
+}
 export { SCENE_KINDS };
 
 // ---------- LLM view ----------
@@ -689,7 +699,9 @@ function chartLlm(p: PartNode): string {
   return chartTable(d, chartInitial(p, d)) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
 }
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
-function animLlm(p: PartNode): string { return sceneLlm(animOf(p)); }
+// (made once per compile; it plays the story again, which the compile already paid for: not charged twice)
+const llmText = new WeakMap<Compiled, string>();
+function animLlm(p: PartNode): string { const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
 function llmOfNodes(nodes: Node[], publicView: boolean): string {
   const out: string[] = [];
   for (const n of nodes) {

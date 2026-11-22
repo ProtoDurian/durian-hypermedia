@@ -10,6 +10,7 @@ import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, Parse
 import { parseDefs } from "./expr";
 import { BudgetError, partBudget } from "./budget";
 import { chartRoom, briefJson } from "./chart";
+import { animOverMessage } from "./work";
 import { parseTier } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
@@ -85,6 +86,8 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     if (p.steps.length && !def.steps) err(p.steps[0].line, "part data", `${p.name} takes no @step lines`);
     // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none
     if (p.steps.length === 1 && p.name !== "editor") err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
+    // an animation over its layout budget is said once and not checked further (core/work.ts)
+    if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
     const none = p.attrs.llm === "none";
     if (p.name === "human") {
       if (p.llm && none) err(p.line, "fence partner", `human-only segment has both llm=none and a :::llm after it`);

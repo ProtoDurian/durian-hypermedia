@@ -1,0 +1,8 @@
+java.lang.IllegalStateException: cart failed
+	at com.acme.shop.Cart.item(Cart.java:42)
+	at com.acme.shop.Api.get(Api.java:88)
+	at java.base/java.util.ArrayList.get(ArrayList.java:427)
+	... 12 more
+Caused by: java.io.IOException: boom
+	at com.acme.shop.Db.read(Db.java:7)
+	... 5 common frames omitted

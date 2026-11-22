@@ -1,0 +1,7 @@
+Error: request failed
+    at fetchItem (file:///src/shop/api.ts:42:11)
+    at async handler (/src/shop/server.ts:10:3)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at run (/src/shop/node_modules/lib/index.js:5:9)
+Caused by: TypeError: bad json
+    at parse (/src/shop/util.ts:7:2)

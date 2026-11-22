@@ -311,6 +311,24 @@ node db "Postgres" [c3]
 - **Caps:** `sankeyFlows` (300; 150 in UNTRUSTED_LIMITS), `sankeyNodes` (120; 60) and `sankeySteps` (30). The layout's cost (about nodes times flows) is charged to the page's work budget when the part is read.
 - **doccheck refuses:** a loop (it names it), an amount of 0 or less, a flow from a node to itself, an unknown colour, a line it does not understand, an unknown attribute, no flows, more flows, nodes or steps than the caps, and a part over the page's work budget. It warns when a node sends out more than comes in, and on a label over 60 characters.
 
+#### Stacktrace
+
+A printed Go, .NET, Bun/Node, Dart, Java or Python trace.
+
+```stacktrace lang=js app=/src/shop
+Error: request failed
+    at handler (/src/shop/api.ts:42:11)
+    at run (node:internal/process:10:5)
+```
+
+Language detection can be overridden with lang=. Library frames fold; app= marks a comma-separated set of module, package, function or path prefixes. Vendored code stays a library. Causes, suppressed errors, goroutine groups, Python source lines, async gaps and omitted-frame counts are preserved. Tap or focus a frame to read its raw detail. repo= and strip= identify code references.
+
+The LLM reads the trace as written. Above 400 tokens library runs become one line; llm=full retains all frames. A following :::llm replaces this view.
+
+Caps: stacktraceLines is 2000 (1000 in UNTRUSTED_LIMITS); hosts may lower it. Every scan charges the page budget.
+
+Doccheck refuses unknown options, an unknown language, strip= without repo=, secret-looking text, an undetectable language, no recognizable frame, a .NET frame before its exception, too many lines, and too much work. app= matching no frame warns.
+
 <!-- parts:end -->
 
 ## 4. Steps are an attachment

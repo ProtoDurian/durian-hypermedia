@@ -147,10 +147,11 @@ input[type=range]{width:min(100%,260px);accent-color:var(--acc,Highlight)}input[
 label{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}output{font-variant-numeric:tabular-nums}`;
 /** the token names the frame receives (values are read from the page and sent as a message) */
 export const IX_TOKENS = ["--ink", "--ink-2", "--muted", "--faint", "--surface", "--surface-2", "--line", "--line-2", "--acc", "--acc-soft", "--acc-ink", "--good", "--warn", "--bad", "--c1", "--c2", "--c3", "--c4", "--c5", "--c6", "--c7", "--c8", "--font-sans", "--font-mono", "--r-s", "--r-m", "--r-pill"];
-// runs first in the frame: takes token values from the page, reports its height (a number: the only thing it ever says)
-const BASE_SCRIPT = `(function(){var last=-1;function h(){var n=Math.ceil(document.documentElement.scrollHeight);if(n!==last){last=n;try{window.parent.postMessage({dhHeight:n},"*")}catch(e){}}}
+// runs first in the frame: takes token values from the page, reports its height (a number: the only thing it ever says).
+// The height is the body's own (the page's scroll height is never under the frame's, so the frame could never shrink).
+const BASE_SCRIPT = `(function(){var last=-1;function h(){var b=document.body;if(!b)return;var n=Math.ceil(b.getBoundingClientRect().height);if(n!==last){last=n;try{window.parent.postMessage({dhHeight:n},"*")}catch(e){}}}
 window.addEventListener("message",function(e){var d=e.data;if(d&&typeof d==="object"&&d.dhTokens){for(var k in d.dhTokens){if(/^--[a-z0-9-]+$/.test(k))document.documentElement.style.setProperty(k,String(d.dhTokens[k]))}document.documentElement.style.colorScheme=d.dark?"dark":"light";h()}});
-window.addEventListener("load",h);if(window.ResizeObserver)new ResizeObserver(h).observe(document.documentElement);setTimeout(h,0)})();`;
+window.addEventListener("load",h);if(window.ResizeObserver)new ResizeObserver(h).observe(document.body);setTimeout(h,0)})();`;
 /** The frame's policy: nothing is fetched, no form is sent, and only inline script and style run. */
 export const IX_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'";
 const closeTag = (s: string, tag: string) => { const low = s.toLowerCase(), end = `</${tag}`; if (!low.includes(end)) return s; let out = "", from = 0; for (let i = low.indexOf(end); i >= 0; i = low.indexOf(end, i + 1)) { out += s.slice(from, i) + "<\\/" + s.slice(i + 2, i + 2 + tag.length); from = i + 2 + tag.length; } return out + s.slice(from); };

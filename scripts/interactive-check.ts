@@ -75,8 +75,7 @@ try {
   const probeH = parseInt(open[0]?.height ?? "0", 10);
   want("open: the probe runs (it reported its height)", open[0]?.state === "running" && open[0]?.frame, open[0]);
   want("open: sandbox is allow-scripts, nothing else", open[0]?.sandbox === "allow-scripts", open[0]?.sandbox);
-  // 400 + 10 x bits, plus the frame body's 8 px padding above and below (a frame's reported height is never under its
-  // current height, 280 px, so the bits ride above it)
+  // 400 + 10 x bits, plus the frame body's 8 px padding above and below
   const f = (probeH - 416) / 10;
   want("open: storage, cookies, fetch and the page are all refused (bits 1+2+4+8)", f === 15, { height: probeH, bits: f });
   want("open: the frame that loads a second page is stopped, its still shown", open[1]?.state === "stopped" && !open[1]?.frame && /tried to leave/.test(open[1]?.chip ?? ""), open[1]);

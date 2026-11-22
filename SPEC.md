@@ -469,6 +469,24 @@ launch "Launch" milestone after beta
 - **Caps:** `ganttTasks` (200; 100 in UNTRUSTED_LIMITS), `ganttSteps` (30; 15), `ganttSections` (30; 15), `ganttDeps` (600 `after` arrows; 300) and `ganttSpanDays` (3,700 days; 1,850). The schedule of every task at every step is charged to the page's work budget when the part is read.
 - **doccheck refuses:** `after` an unknown id, a task that waits for itself or for one that first appears in a later step, a loop of `after`s (it names the tasks), an end before its start, an unknown length unit, a length of 0 or a length over the span, progress over 100%, a task written twice, an unknown colour, a line it does not understand, a step command (`progress`, `done`, `move`) outside a step or on an unknown task, an unknown fence key, a `tz`, `today` or `workdays` it cannot read, no tasks, more tasks, sections, arrows or steps than the caps, a chart that would span more days than the cap, and a part over the page's work budget. It warns on a label over 60 characters.
 
+#### Glossary
+
+````
+```glossary title="Words we use"
+term "UL" also "ubiquitous language": the words a team agrees on and uses in code and in talk
+term bc "bounded context" also "context map": one part of the system with its own **words**
+```
+
+Each team keeps its own UL inside a bounded context.
+````
+
+- A glossary block draws the list of its terms, each with an anchor (`#term-<id>`). A line is `term [id] "<term>" [also "<other name>", ...]: <meaning>`; an indented line goes on with the meaning; a blank line or `//` line is skipped. The meaning is small Markdown: `code`, **bold**, *italic* and an https link. The id is made from the term unless given. `title=` names the list; `#id` is the block's id.
+- The same terms can go in front matter: `glossary:` and then `UL: the words a team agrees on`. A term defined in front matter or in a block is a term of the whole page.
+- **In the text:** a term is found as a whole word (the first letter's case is free, the rest as written; the longest name wins), and its first use in each section (up to the next heading of level 1 or 2) is a button with a dotted underline. Hover (after a short wait), tap, or focus it and press Enter: a card shows the meaning, "All terms" (when the page has a glossary block) and Copy; Esc or a tap outside closes it. A term is never marked inside inline code, a code block, a link, an image, a heading, a table's rule row or an HTML tag.
+- **LLM view:** the glossary once, as a list (`- **UL** (also: ...): meaning`), where the block is; front matter terms are kept in the front matter at the top. The marks in the text are plain text.
+- **Caps:** `glossaryTerms` (200 on a page; 100 in UNTRUSTED_LIMITS), `glossaryLabel` (60 characters), `glossaryDef` (600 characters; 400 in UNTRUSTED_LIMITS) and `glossaryAliases` (5 other names).
+- **doccheck refuses:** a line that is not a term line, an empty meaning, a name or meaning over its cap, a bad id, too many other names, more terms than the cap, a term (or its id) defined twice (it names both lines), an unknown key, front matter `glossary:` that is not a map of text. It warns on a term the text never uses.
+
 #### Log
 
 ```log labels="app=shop" title="Checkout"

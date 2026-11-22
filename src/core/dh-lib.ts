@@ -857,7 +857,7 @@ export function llmKindOf(p: PartNode): "text" | "none" | PartDef["llm"] {
   if (p.attrs.llm === "none" || p.name === "human") return "none";
   return PARTS[p.name]?.llm ?? "none";
 }
-const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "marks", "prefixes"];
+const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "marks", "prefixes", "glossary"];
 export function llmView(doc: Doc, sourceRel: string, publicView = false): string {
   const fm = keepTopKeys(doc.fmRaw, LLM_FM_KEYS);
   const body = llmOfNodes(doc.body, publicView).replace(/\n{3,}/g, "\n\n");

@@ -15,6 +15,7 @@ import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
 import { folderBlock } from "./parts/runtime";
+import { finishInlines, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -140,8 +141,10 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         return doc;
       }
       dh = d;
-      const blocks = walk(dh.body);
       const fm = (dh.fm && typeof dh.fm === "object" && !Array.isArray(dh.fm) ? dh.fm : {}) as Record<string, any>;
+      // the parts of a sentence (parts/inline.ts): each reads the page's facts once, then every plain text run of its Markdown
+      ctx.inlineParts = prepareInlines(fm, dh.body, lim);
+      const blocks = walk(dh.body);
       // a heading id and a part id (or a tab or accordion item id) share one namespace on the page: name a clash
       const partIds = new Map<string, number>();
       const collect = (bs: any[]) => { for (const x of bs) { if (x.id) partIds.set(x.id, x.line); for (const it of x.items ?? []) { if (it.id) for (const k of x.type === "tabs" ? [it.id + "-t", it.id + "-p"] : [it.id]) partIds.set(k, x.line); collect(it.body ?? []); } collect(x.type === "human" ? x.body : []); } };
@@ -149,7 +152,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       for (const h of ctx.heads) if (partIds.has(h.id)) problems.push({ line: partIds.get(h.id)!, level: "warn", message: `the heading "${h.text}" and a part both have the id "${h.id}"; a link to #${h.id} reaches only one of them. Rename the part's #id` });
       // a table of contents lists the headings after the walk
       fillTocs(blocks, ctx.heads, problems);
-      for (const p of ctx.problems) problems.push({ line: p.line, level: "error", message: p.message });
+      for (const p of ctx.problems) problems.push({ line: p.line, level: p.level ?? "error", message: p.message });
+      for (const p of finishInlines(ctx.inlineParts)) problems.push({ line: p.line, level: p.level, message: p.message });
       const hasPart = blocks.some((x) => x.type !== "markdown" && x.type !== "toc");
       const path = opts.path ?? (hasPart ? "page.dh.md" : "page.md");
       dh.path = path;

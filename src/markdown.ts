@@ -9,7 +9,8 @@
 import GithubSlugger, { slug as githubSlug } from "github-slugger";
 import MarkdownIt, { type MarkdownIt as Reader, type Token as Tok } from "./vendor/markdown-it";
 import { KEY_GLYPHS, MOUSE_PRESS } from "./core/dh-lib";
-import { applyUrlPolicy, decodeRefs, type UrlPolicy } from "./safety";
+import { applyUrlPolicy, decodeRefs, LIMITS, type UrlPolicy } from "./safety";
+import { inlineSection, prepareInlines, scanRun, type InlineRun } from "./parts/inline-runtime";
 
 
 export type MdInline =
@@ -48,7 +49,16 @@ export interface InlineDef<D = unknown, C = unknown> {
   /** the React component that draws it: receives { text, data } (only the React entry reads this) */
   Component?: C;
 }
-export interface MdContext { inlines?: InlineDef<any, any>[]; policy?: UrlPolicy; idPrefix: string; slugger: GithubSlugger; maxDepth: number; problems: { line: number; message: string }[]; line: number; heads: { depth: number; text: string; id: string }[] }
+export interface MdContext {
+  inlines?: InlineDef<any, any>[]; policy?: UrlPolicy; idPrefix: string; slugger: GithubSlugger; maxDepth: number;
+  problems: { line: number; message: string; level?: "error" | "warn" }[]; line: number; heads: { depth: number; text: string; id: string }[];
+  /** the page's inline parts (parts/inline.ts), made once by parse() (prepareInlines); made here, for an empty page, when a caller gave none */
+  inlineParts?: InlineRun;
+  /** inside a heading the inline parts read nothing (a count, not a flag: the walk nests) */
+  noScan?: number;
+  /** the page line of the block being read, for the problems an inline part reports */
+  runLine?: number;
+}
 
 export const CALLOUT_WORDS: Record<string, CalloutKind> = { Note: "note", Tip: "tip", Important: "important", "Watch out": "warn", "Security finding": "security" };
 const KEY_WORDS: Record<string, string> = { left: "Left arrow", right: "Right arrow", up: "Up arrow", down: "Down arrow" };
@@ -579,6 +589,8 @@ function lineNesting(l: string): { marks: number; quotes: number; indent: number
 
 /** Markdown text to blocks. Never throws: a problem becomes a "raw" block and a message in ctx.problems. */
 export function mdBlocks(src: string, ctx: MdContext): MdBlock[] {
+  // the page's inline parts: made by parse() once; a caller that gave none gets the parts for an empty page
+  ctx.inlineParts ??= prepareInlines({}, [], LIMITS);
   // a nesting deeper than the cap is refused before the reader sees it (each level is a frame of the reader's stack, and
   // past its own cap the reader would drop the rest of the text)
   let deep = false;
@@ -615,6 +627,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
     const t = toks[i];
     switch (t.type) {
       case "paragraph_open": {
+        ctx.runLine = ctx.line + (t.map?.[0] ?? 0);
         const inl = toks[i + 1];
         const c = kidsOf(inl);
         // a list item's own paragraphs are "text", tight or loose (0.6.0's tree; a loose list draws as a tight one)
@@ -626,10 +639,13 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
       }
       case "heading_open": {
         const c = kidsOf(toks[i + 1]);
-        const tree = inlines(c, 0, c.length, ctx, depth);
+        ctx.noScan = (ctx.noScan ?? 0) + 1;
+        let tree: MdInline[];
+        try { tree = inlines(c, 0, c.length, ctx, depth); } finally { ctx.noScan--; }
         const text = plain(tree);
         const id = headingId(ghText(c), ctx);
         const d = +t.tag.slice(1);
+        if (ctx.inlineParts) inlineSection(ctx.inlineParts, d);
         ctx.heads.push({ depth: d, text, id });
         out.push({ t: "h", depth: d, id, text, c: tree });
         i = closeOf(toks, i, to);
@@ -666,6 +682,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
         break;
       }
       case "table_open": {
+        ctx.runLine = ctx.line + (t.map?.[0] ?? 0);
         const end = closeOf(toks, i, to);
         const align: ("left" | "right" | "center" | null)[] = [], head: MdInline[][] = [], rows: MdInline[][][] = [];
         let row: MdInline[][] | null = null, inHead = false;
@@ -732,7 +749,7 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
   // plain text and soft line breaks join into one text node, as the tree had them; an escaped character is a node of its own,
   // except an escaped bracket in a link's text, which joins the text around it (as 0.6.1 had it)
   let buf: string | null = null;
-  const flush = () => { if (buf !== null) { out.push({ t: "text", v: decodeEntities(buf) }); buf = null; } };
+  const flush = () => { if (buf !== null) { pushText(out, decodeEntities(buf), ctx, inLink); buf = null; } };
   for (let i = from; i < to; i++) {
     const t = toks[i];
     switch (t.type) {
@@ -795,6 +812,25 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
   }
   flush();
   return out;
+}
+/** A plain text run to the tree: text, with a ref node for every range an inline part (parts/inline.ts) took. Never inside a link or a
+ *  heading (the callers say so): code, images and HTML are not plain text runs at all. */
+const MAX_INLINE_PROBLEMS = 100;
+function pushText(out: MdInline[], v: string, ctx: MdContext, off: boolean): void {
+  const run = ctx.inlineParts;
+  if (!run || off || ctx.noScan || !run.active.length || !v) { out.push({ t: "text", v }); return; }
+  const found = scanRun(run, v, (p) => {
+    if (run.reported++ < MAX_INLINE_PROBLEMS) ctx.problems.push({ line: ctx.runLine ?? ctx.line, message: p.message, level: p.level });
+    else if (run.reported === MAX_INLINE_PROBLEMS + 1) ctx.problems.push({ line: ctx.runLine ?? ctx.line, message: `more than ${MAX_INLINE_PROBLEMS} problems with parts of a sentence; the rest are not listed`, level: "warn" });
+  });
+  if (!found.length) { out.push({ t: "text", v }); return; }
+  let at = 0;
+  for (const m of found) {
+    if (m.from > at) out.push({ t: "text", v: v.slice(at, m.from) });
+    out.push({ t: "ref", name: m.name, text: v.slice(m.from, m.to), data: m.data });
+    at = m.to;
+  }
+  if (at < v.length) out.push({ t: "text", v: v.slice(at) });
 }
 const attr = (t: Tok, k: string): string | undefined => { const v = t.attrGet(k); return v == null ? undefined : String(v); };
 // character references stay as written in text; the tree holds the characters of these few (as 0.6.0 did)

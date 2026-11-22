@@ -6,13 +6,15 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { run, readFolders, camel, NOT_PARTS, SPEC_BEGIN, SPEC_END } from "../scripts/parts";
-import { FOLDER_PART_DEFS, FOLDER_PART_NAMES } from "../src/parts/generated/registry";
+import { FOLDER_PART_DEFS, FOLDER_PART_NAMES, INLINE_PARTS, INLINE_PART_NAMES } from "../src/parts/generated/registry";
 import { PART_LIMITS, PART_UNTRUSTED_LIMITS } from "../src/parts/generated/limits";
 import { LIMITS, UNTRUSTED_LIMITS, PART_NAMES } from "../src/index";
 
 const PKG = resolve(import.meta.dir, "..");
 const PARTS = join(PKG, "src/parts");
 const folders = readdirSync(PARTS).filter((n) => !NOT_PARTS.has(n) && statSync(join(PARTS, n)).isDirectory());
+/** the folders with a part.ts (a fenced part) and the folders with an inline.ts (a part of a sentence) */
+const fenced = folders.filter((n) => existsSync(join(PARTS, n, "part.ts"))), inlined = folders.filter((n) => existsSync(join(PARTS, n, "inline.ts")));
 const GENERATED = ["src/parts/generated/registry.ts", "src/parts/generated/limits.ts", "src/parts/generated/react.tsx", "src/parts/generated/css.ts", "fixtures/parts/samples.dh.md"];
 
 describe("parts: the generated files", () => {
@@ -26,8 +28,10 @@ describe("parts: the generated files", () => {
     expect(readFileSync(join(PKG, "SPEC.md"), "utf8")).toContain(SPEC_BEGIN);
   });
   test("list every folder, and only folders", () => {
-    expect([...FOLDER_PART_NAMES as readonly string[]].sort()).toEqual(folders.sort());
-    for (const n of folders) { expect(FOLDER_PART_DEFS[n].name).toBe(n); expect((PART_NAMES as readonly string[]).includes(n)).toBe(true); }
+    expect([...FOLDER_PART_NAMES as readonly string[]].sort()).toEqual([...fenced].sort());
+    for (const n of fenced) { expect(FOLDER_PART_DEFS[n].name).toBe(n); expect((PART_NAMES as readonly string[]).includes(n)).toBe(true); }
+    expect([...INLINE_PART_NAMES as readonly string[]].sort()).toEqual([...inlined].sort());
+    expect(INLINE_PARTS.map((d) => d.name).sort()).toEqual([...inlined].sort());
   });
 });
 
@@ -35,8 +39,8 @@ describe("parts: every folder keeps the rules", () => {
   const importsOf = (src: string) => [...src.matchAll(/^\s*import\s[^;]*?from\s+"([^"]+)"/gm)].map((m) => m[1]);
   for (const n of folders) {
     const at = join(PARTS, n);
-    test(`${n}: part.ts and limits.ts load before the parser (no import of the shared parser, checks, Markdown or React)`, () => {
-      for (const i of importsOf(readFileSync(join(at, "part.ts"), "utf8"))) expect(i).not.toMatch(/dh-lib|doccheck|document|markdown|react|\.\/view/);
+    test(`${n}: part.ts, inline.ts and limits.ts load before the parser (no import of the shared parser, checks, Markdown or React)`, () => {
+      for (const f of ["part.ts", "inline.ts"]) if (existsSync(join(at, f))) for (const i of importsOf(readFileSync(join(at, f), "utf8"))) expect(i).not.toMatch(/dh-lib|doccheck|document|markdown|react|\.\/view|inline-view/);
       expect(importsOf(readFileSync(join(at, "limits.ts"), "utf8"))).toEqual([]);
     });
     test(`${n}: caps named after the part, in both sets, the strict one no higher`, () => {
@@ -66,7 +70,7 @@ describe("parts: every folder keeps the rules", () => {
     });
     test(`${n}: the npm packages it imports are dependencies at an exact version`, () => {
       const pkg = JSON.parse(readFileSync(join(PKG, "package.json"), "utf8"));
-      for (const d of FOLDER_PART_DEFS[n].dependencies ?? []) expect(pkg.dependencies?.[d] ?? "").toMatch(/^\d+\.\d+\.\d+$/);
+      for (const d of FOLDER_PART_DEFS[n]?.dependencies ?? []) expect(pkg.dependencies?.[d] ?? "").toMatch(/^\d+\.\d+\.\d+$/);
     });
   }
 });
@@ -96,6 +100,9 @@ describe("parts: adding a part edits no shared file", () => {
         "style.css": ":root { --zz-probe-ink: var(--ink); }\n@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) { --zz-probe-ink: var(--ink); }\n}\n:root[data-theme=\"dark\"] { --zz-probe-ink: var(--ink); }\n",
         "spec.md": "#### Zz probe\n\nA throwaway part.\n",
         "sample.md": "```zz-probe\none\ntwo\n```\n",
+        // the probe is also a part of a sentence: it takes every "zzq" in a text (parts/inline.ts), with a cap read from its own limits
+        "inline.ts": `import { defineInline } from "../inline";\nexport default defineInline<{ cap: number }, { at: number }>({ name: "zz-probe", prepare: (page) => ({ cap: page.limits.zzProbeLines }), llm: (d) => \`<\${d.at}>\`,\n  scan: (text, st, budget) => { const hits: { from: number; to: number; data: { at: number } }[] = []; for (let i = text.indexOf("zzq"); i >= 0 && hits.length < st.cap; i = text.indexOf("zzq", i + 3)) { budget.charge(1); hits.push({ from: i, to: i + 3, data: { at: i } }); } return hits; } });\n`,
+        "inline-view.tsx": `import React from "react";\nimport type { InlineViewProps } from "../inline";\nexport default function ZzProbeInline({ text, data }: InlineViewProps<{ at: number }>) { return <b data-at={data.at}>{text}</b>; }\n`,
         "zz-probe.test.ts": "",
         "fixtures/good-one.dh.md": "# P\n\n```zz-probe\none\n```\n",
         "fixtures/hostile-one.dh.md": "# P\n\n```zz-probe\none\n```\n",
@@ -113,11 +120,14 @@ describe("parts: adding a part edits no shared file", () => {
       expect(cut(readFileSync(join(tmp, "SPEC.md"), "utf8"))).toBe(cut(readFileSync(join(PKG, "SPEC.md"), "utf8")));
       expect(readFileSync(join(tmp, "SPEC.md"), "utf8")).toContain("#### Zz probe");
       // the copy parses the new part with no shared file touched: its block, its LLM view and its caps
-      const probe = Bun.spawnSync(["bun", "-e", `import { parse, LIMITS, PART_NAMES } from "./src/index"; const d = parse("# P\\n\\n\`\`\`zz-probe\\na\\nb\\n\`\`\`\\n", { path: "p.dh.md" }); console.log(JSON.stringify({ t: d.blocks[1].type, n: d.blocks[1].data?.n, llm: d.llm.includes("probe with 2 lines"), cap: LIMITS.zzProbeLines, named: PART_NAMES.includes("zz-probe"), fence: [parse("# P\\n\\n\`\`\`txt probe\\na\\n\`\`\`\\n").blocks[1], parse("# P\\n\\n\`\`\`txt\\na\\n\`\`\`\\n").blocks.map((b) => b.type).join()], kind: parse("# P\\n\\n\`\`\`chart\\ntitle: x\\nkind: \\"probe-kind\\"\\n\`\`\`\\n").blocks[1].type, chart: parse("# P\\n\\n\`\`\`chart\\nkind: bar\\n\`\`\`\\n").blocks[1].type, fm: parse("---\\ntitle: Hi\\n---\\n# P\\n\\n\`\`\`zz-probe\\na\\n\`\`\`\\n").blocks[1].data.fm }));`], { cwd: tmp, env: { ...process.env } });
+      const probe = Bun.spawnSync(["bun", "-e", `import { parse, LIMITS, PART_NAMES } from "./src/index"; const d = parse("# P\\n\\n\`\`\`zz-probe\\na\\nb\\n\`\`\`\\n", { path: "p.dh.md" }); console.log(JSON.stringify({ t: d.blocks[1].type, n: d.blocks[1].data?.n, llm: d.llm.includes("probe with 2 lines"), cap: LIMITS.zzProbeLines, named: PART_NAMES.includes("zz-probe"), fence: [parse("# P\\n\\n\`\`\`txt probe\\na\\n\`\`\`\\n").blocks[1], parse("# P\\n\\n\`\`\`txt\\na\\n\`\`\`\\n").blocks.map((b) => b.type).join()], kind: parse("# P\\n\\n\`\`\`chart\\ntitle: x\\nkind: \\"probe-kind\\"\\n\`\`\`\\n").blocks[1].type, chart: parse("# P\\n\\n\`\`\`chart\\nkind: bar\\n\`\`\`\\n").blocks[1].type, fm: parse("---\\ntitle: Hi\\n---\\n# P\\n\\n\`\`\`zz-probe\\na\\n\`\`\`\\n").blocks[1].data.fm, inl: parse("# P\\n\\nhello zzq and \`zzq\` and zzq", { path: "p.md" }).blocks[0].md[1].c.map((x) => x.t + ":" + (x.t === "ref" ? x.name + "=" + x.text : x.v)), inlLlm: parse("# P\\n\\nhello zzq", { path: "p.md" }).llm.includes("hello <") }));`], { cwd: tmp, env: { ...process.env } });
       expect(probe.stderr.toString()).toBe("");
       const got = JSON.parse(probe.stdout.toString());
       expect(got.fm).toBe("Hi"); // the page's front matter reaches the part's parse
-      expect({ ...got, fence: undefined, kind: undefined, chart: undefined, fm: undefined }).toEqual({ t: "zz-probe", n: 2, llm: true, cap: 10, named: true });
+      // its inline part: a ref node for each "zzq" in plain text, none inside code; the LLM view says <at>
+      expect(got.inl).toEqual(["text:hello ", "ref:zz-probe=zzq", "text: and ", "code:zzq", "text: and ", "ref:zz-probe=zzq"]);
+      expect(got.inlLlm).toBe(true);
+      expect({ ...got, fence: undefined, kind: undefined, chart: undefined, fm: undefined, inl: undefined, inlLlm: undefined }).toEqual({ t: "zz-probe", n: 2, llm: true, cap: 10, named: true });
       // a part's fences: ```txt probe is the part (lang txt), ```txt stays code; its chart kind: a ```chart of that kind is the part
       expect([got.fence[0].type, got.fence[0].data.lang, got.fence[1]]).toEqual(["zz-probe", "txt", "markdown"]);
       expect([got.kind, got.chart]).toEqual(["zz-probe", "chart"]);

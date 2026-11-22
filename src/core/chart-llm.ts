@@ -17,18 +17,28 @@ export function chartTable(d: any): string | null {
   const notes: string[] = [];
   const names = (f: (s: (typeof r.series)[number]) => boolean) => list(r.series.filter(f).map((s) => s.name));
   const own = (s: (typeof r.series)[number]) => s.kind ?? d.kind;
+  if (m.candle) notes.push(`Each row is one candle: the value at the open, the highest and lowest values reached, and the value at the close; up means the close is at or above the open.${r.series.some((s) => s.kind === "line") ? " The other columns are lines drawn over the candles." : ""}${m.y2 ? ` Right axis (y2${d.y2?.label ? `: ${d.y2.label}` : ""}): ${names((s) => s.axis === "y2")}.` : ""}`);
   if (m.horizontal) notes.push("The bars run horizontally.");
   if (m.mixed) for (const [k, word] of [["bar", "Bars"], ["line", "Lines"], ["area", "Areas"]]) { const these = names((s) => own(s) === k); if (these) notes.push(`${word}: ${these}.`); }
-  if (m.y2) {
+  if (m.y2 && !m.candle) {
     const y2 = names((s) => s.axis === "y2");
     notes.push(`Right axis (y2${d.y2?.label ? `: ${d.y2.label}` : ""}): ${y2}. Left axis${d.y?.label ? ` (${d.y.label})` : ""}: ${names((s) => s.axis !== "y2")}.`);
   }
   if (m.stacked === "percent") notes.push("Each bar or area is scaled to 100%; the cells hold the real values.");
   const logs = [m.scale.x === "log" && m.points ? "x" : "", m.scale.y === "log" ? "y" : "", m.scale.y2 === "log" && m.y2 ? "y2" : ""].filter(Boolean);
   if (logs.length) notes.push(`Log scale on ${logs.join(" and ")}.`);
-  if (r.series.some((s) => s.data.some((v) => Array.isArray(v)))) notes.push(`A cell "a to b" is a floating bar from a to b.`);
+  if (!m.candle && r.series.some((s) => s.data.some((v) => Array.isArray(v)))) notes.push(`A cell "a to b" is a floating bar from a to b.`);
   if (d.kind === "bubble") notes.push("Size is the size of the bubble.");
   const top = notes.length ? `${head}\n\n${notes.join(" ")}` : head;
+  if (m.candle) {
+    // one row per period: open, high, low, close, then each line on top
+    const candles = r.series.find((s) => s.kind !== "line");
+    const lines = r.series.filter((s) => s.kind === "line");
+    const first = (typeof d.x === "object" && !Array.isArray(d.x) && d.x?.label) || "period";
+    const cols = [first, "open", "high", "low", "close", ...lines.map((s) => s.name)];
+    const rows = r.x.map((x, i) => `| ${cell(x)} | ${[0, 1, 2, 3].map((k) => cell(candles?.data[i]?.[k])).join(" | ")}${lines.length ? " | " + lines.map((s) => cell(s.data[i])).join(" | ") : ""} |`);
+    return `${top}\n\n| ${cols.join(" | ")} |\n| ${cols.map(() => "---").join(" | ")} |\n${rows.join("\n")}`;
+  }
   if (m.points) {
     const bubble = d.kind === "bubble";
     const xl = (typeof d.x === "object" && !Array.isArray(d.x) && d.x?.label) || "x";

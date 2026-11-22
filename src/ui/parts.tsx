@@ -11,7 +11,8 @@ export const reducedMotion = () => typeof window !== "undefined" && (!!window.ma
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ---------------------------------------------------------------- controls: Back, (Play), the slider, Next
-export function Controls(p: { ui: Ui; i: number; n: number; onGo: (k: number) => void; playing?: boolean; onPlay?: () => void; slider?: boolean; label?: string; nextDisabled?: boolean; children?: React.ReactNode }) {
+// bands (format version 10): under the slider, where the story is inside a scene of its own (an animation's scene inside a scene)
+export function Controls(p: { ui: Ui; i: number; n: number; onGo: (k: number) => void; playing?: boolean; onPlay?: () => void; slider?: boolean; label?: string; nextDisabled?: boolean; children?: React.ReactNode; bands?: { from: number; to: number; label: string; depth: number }[] }) {
   const { ui, i, n } = p;
   return (
     <div className="ctl" role="group" aria-label={p.label ?? ui.step}>
@@ -21,6 +22,7 @@ export function Controls(p: { ui: Ui; i: number; n: number; onGo: (k: number) =>
         {p.children ?? (p.slider !== false && n > 1 ? (
           <input type="range" className="ctl-range" min={0} max={n - 1} step={1} value={i} aria-label={ui.step} aria-valuetext={`${ui.step} ${i + 1} / ${n}`} onChange={(e) => p.onGo(+e.currentTarget.value)} style={{ ["--pct" as any]: `${n > 1 ? (i / (n - 1)) * 100 : 0}%` }} />
         ) : null)}
+        {!p.children && p.slider !== false && n > 1 && p.bands && p.bands.length > 0 && <span className="ctl-bands" aria-hidden="true">{p.bands.map((b, k) => <span key={k} className={`ctl-band d-${b.depth}`} title={b.label} style={{ left: `${(b.from / (n - 1)) * 100}%`, width: `${(Math.max(0.5, b.to - b.from) / (n - 1)) * 100}%` }} />)}</span>}
         <span className="ctl-count" aria-live="polite">{i + 1} / {n}</span>
       </div>
       <button type="button" className="btn btn-go" onClick={() => p.onGo(i + 1)} disabled={p.nextDisabled ?? i >= n - 1}>{ui.next}</button>
@@ -123,6 +125,9 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
   const [before, setBefore] = useState(false);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), []);
+  // on a phone the file tree sits above the file; with more than 4 rows it starts as a closed drawer (a button in the crumbs row)
+  const treeRows = useMemo(() => { let n = 0; const count = (t: TreeNode) => t.kids.forEach((c) => { n++; if (c.file === undefined) count(c); }); count(tree); return n; }, []);
+  const [drawer, setDrawer] = useState(treeRows <= 4);
   const goStep = (n: number) => {
     const c = Math.max(0, Math.min(steps.length, n));
     setK(c); setBefore(false);
@@ -165,12 +170,12 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
   return (
     <div className="ide" onKeyDown={(e) => steps.length > 0 && onArrows(e, (d) => goStep(k + d))}>
       <div className="ide-body" style={{ ["--rows" as any]: rows }}>
-        <nav className="ide-side" aria-label={ui.files}>
+        <nav className={cx("ide-side", !drawer && "is-shut")} id="ide-tree" aria-label={ui.files}>
           <div className="ide-side-head">{ui.explorer}</div>
           <ul role="tree">{renderNode(tree, 0)}</ul>
         </nav>
         <div className="ide-main">
-          <div className="ide-crumbs"><FileIcon name={f.path} /><span>{f.path.split("/").join(" › ")}</span>{f.commit ? <span className="ide-pin"> · {ui.pinned} {f.commit.slice(0, 7)}</span> : null}</div>
+          <div className="ide-crumbs">{files.length > 1 && <button type="button" className="ide-drawer" aria-expanded={drawer} aria-controls="ide-tree" onClick={() => setDrawer(!drawer)}>{ui.files}<span className={cx("chev", drawer && "is-open")} aria-hidden="true" /></button>}<FileIcon name={f.path} /><span>{f.path.split("/").join(" › ")}</span>{f.commit ? <span className="ide-pin"> · {ui.pinned} {f.commit.slice(0, 7)}</span> : null}</div>
           <div className="ide-code" tabIndex={0}>{shown ? <Pre code={shown} handlers={[...HANDLERS_BASE, lineNumbers(1)]} className="ch-pre" /> : <div className="cw-error">{f.error ?? "no code"}</div>}</div>
         </div>
       </div>
@@ -196,7 +201,8 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
 export type TreeRow = { depth: number; name: string; folder: boolean; badges: string[]; closed: boolean; note: string; gap: boolean; path: string };
 export type Tree = { title: string | null; rows: TreeRow[] };
 // a mark is shown as its own word (the source writes "(new)", the page shows "new"): no letters to learn
-export function FileTree({ trees, ui }: { trees: Tree[]; ui: Ui }) {
+export type OwnMark = { label: string; colour: string; means: string };
+export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: Record<string, OwnMark> }) {
   const [k, setK] = useState(0);
   const [closed, setClosed] = useState<Record<string, boolean>>(() => Object.fromEntries(trees.flatMap((t) => t.rows.filter((r) => r.folder && r.closed).map((r) => [r.path, true]))));
   const t = trees[k];
@@ -210,7 +216,9 @@ export function FileTree({ trees, ui }: { trees: Tree[]; ui: Ui }) {
     if (!stack.some((s) => s.closed)) visible.push(r);
     if (r.folder) stack.push({ depth: r.depth, closed: !!closed[r.path] });
   }
-  const label = (b: string) => (ui.marks as any)[b] ?? b;
+  const label = (b: string) => marks?.[b]?.label ?? (ui.marks as any)[b] ?? b;
+  const chip = (b: string) => <span key={b} className={marks?.[b] ? `fx-badge b-own tone-${marks[b].colour}` : `fx-badge b-${b}`}>{label(b)}</span>;
+  const keyed = Object.entries(marks ?? {}).filter(([k, m]) => m.means && t.rows.some((r) => r.badges.includes(k)));
   return (
     <div className="fx" onKeyDown={(e) => trees.length > 1 && onArrows(e, (d) => setK((x) => Math.max(0, Math.min(trees.length - 1, x + d))))}>
       <div className="fx-head"><span className="fx-title">{ui.explorer}</span>{t.title && <span className="fx-step">{t.title}</span>}</div>
@@ -224,12 +232,12 @@ export function FileTree({ trees, ui }: { trees: Tree[]; ui: Ui }) {
               {r.folder ? (
                 <button type="button" className="fx-line" onClick={() => setClosed((s) => ({ ...s, [r.path]: !isClosed }))}>
                   <span className={cx("chev", !isClosed && "is-open")} aria-hidden="true" /><FileIcon name={r.name} folder open={!isClosed} /><span className="fx-name">{r.name.replace(/\/$/, "")}</span>
-                  {r.badges.map((b) => <span key={b} className={`fx-badge b-${b}`}>{label(b)}</span>)}
+                  {r.badges.map(chip)}
                 </button>
               ) : (
                 <span className="fx-line">
                   <span className="chev chev-none" aria-hidden="true" /><FileIcon name={r.name} /><span className="fx-name">{r.name}</span>
-                  {r.badges.map((b) => <span key={b} className={`fx-badge b-${b}`}>{label(b)}</span>)}
+                  {r.badges.map(chip)}
                 </span>
               )}
               {r.note && <span className="fx-note">{r.note}</span>}
@@ -237,6 +245,7 @@ export function FileTree({ trees, ui }: { trees: Tree[]; ui: Ui }) {
           );
         })}
       </ul>
+      {keyed.length > 0 && <ul className="fx-key" aria-label={ui.marksKey ?? "Marks"}>{keyed.map(([k, m]) => <li key={k}>{chip(k)} <span>{m.means}</span></li>)}</ul>}
       {trees.length > 1 && <Controls ui={ui} i={k} n={trees.length} onGo={(x) => setK(Math.max(0, Math.min(trees.length - 1, x)))} />}
     </div>
   );
@@ -254,11 +263,12 @@ function typedToks(l: TermLine, n: number): React.ReactNode[] {
   toks.forEach(([s, c], i) => { if (left <= 0) return; const part = s.slice(0, left); left -= s.length; out.push(c ? <span key={i} style={{ color: c }}>{part}</span> : part); });
   return out;
 }
-export function Terminal({ steps, ui, title }: { steps: { title: string; lines: TermLine[] }[]; ui: Ui; title: string | null }) {
+export function Terminal({ steps, ui, title, prefixes }: { steps: { title: string; lines: TermLine[] }[]; ui: Ui; title: string | null; prefixes?: Record<string, OwnMark> }) {
   const [k, setK] = useState(0);
   const [typed, setTyped] = useState<number>(Infinity); // characters of the current step shown so far; Infinity = all
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const instant = useRef(false); // Play was just pressed: the next character is typed now, not after the pause
   const box = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
   // what a step shows, in order: a command is typed key by key, an output line appears whole
@@ -281,7 +291,8 @@ export function Terminal({ steps, ui, title }: { steps: { title: string; lines: 
     while (li < sc.length && at >= sc[li]) { at -= sc[li]; li++; }
     const line = steps[k].lines[li];
     const typing = line && line.k === "cmd" && at < sc[li] - 1;
-    const delay = typing ? (at === 0 ? 380 : 42 + Math.random() * 40) : line?.k === "out" ? 140 : 260;
+    let delay = typing ? (at === 0 ? 380 : 42 + Math.random() * 40) : line?.k === "out" ? 140 : 260;
+    if (instant.current) { delay = 0; instant.current = false; }
     const t = setTimeout(() => setTyped(typed + 1), delay);
     return () => clearTimeout(t);
   }, [typed, started, k, playing]);
@@ -301,7 +312,7 @@ export function Terminal({ steps, ui, title }: { steps: { title: string; lines: 
         lastPrompt = l.prompt ?? "$";
         const n = Math.min(l.text.length, left);
         const done = left > l.text.length;
-        out.push(<div key={key} className="t-line t-cmd"><span className={l.prompt === "#" ? "t-pr t-root" : "t-pr"}>{l.prompt ?? "$"}</span>{typedToks(l, n)}{!done && <span className="t-cur" aria-hidden="true" />}</div>);
+        out.push(<div key={key} className="t-line t-cmd"><span className={prefixes?.[l.prompt ?? ""] ? `t-pr t-own tone-${prefixes[l.prompt!].colour}` : l.prompt === "#" ? "t-pr t-root" : "t-pr"}>{l.prompt ?? "$"}</span>{typedToks(l, n)}{!done && <span className="t-cur" aria-hidden="true" />}</div>);
         if (!done) cursorShown = true;
         left -= l.text.length + 1;
       } else {
@@ -316,7 +327,8 @@ export function Terminal({ steps, ui, title }: { steps: { title: string; lines: 
     <div className="term" ref={box}>
       <div className="term-chrome"><span className="win-dots" aria-hidden="true"><i /><i /><i /></span><span className="term-title">{title ?? ui.terminal}</span></div>
       <div className="term-body" ref={body} style={{ ["--rows" as any]: rows }} role="log" aria-label={ui.terminal}>{out}</div>
-      {steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} onPlay={() => { if (!playing && k === steps.length - 1) go(0); setPlaying(!playing); }} />
+      {prefixes && Object.keys(prefixes).length > 0 && <ul className="t-key" aria-label={ui.marksKey ?? "Prompts"}>{Object.entries(prefixes).map(([k, m]) => <li key={k}><span className={`t-pr t-own tone-${m.colour}`}>{k}</span> <b>{m.label}</b>{m.means ? <span> {m.means}</span> : null}</li>)}</ul>}
+      {steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} onPlay={() => { if (!playing) { instant.current = true; const done = typed === Infinity || typed >= total(k); if (k === steps.length - 1 && done) go(0); else if (done) { setK(k + 1); setTyped(0); setStarted(true); } else setStarted(true); } setPlaying(!playing); }} />
         : <div className="ctl ctl-one"><button type="button" className="btn" onClick={() => go(0)}>{ui.replay}</button></div>}
     </div>
   );

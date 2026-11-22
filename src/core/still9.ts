@@ -25,7 +25,7 @@ function mayMove(c: Compiled, k: number): Set<string> {
     else if (o.op === "set" && Object.keys(o.kv).some((x) => ["layout", "dir", "cols", "layer", "size"].includes(x))) roots.add(o.id);
     else if (o.op === "push" || o.op === "pop") roots.add(o.s);
   }
-  const prev = k > 0 ? c.frames[k - 1] : null, cur = c.frames[k];
+  const prev = prevFrame(c, k), cur = c.frames[k];
   const out = new Set<string>(roots);
   // carried: inside a thing that may move, before or after
   for (const f of [prev, cur]) {
@@ -49,11 +49,20 @@ function mayMove(c: Compiled, k: number): Set<string> {
   return out;
 }
 
+// the frame before step k of the same scene (format version 10): across a step that enters or leaves a scene inside the
+// scene, a scene is compared with itself as it was left, so the overview must come back exactly where it was
+export function prevFrame(c: Compiled, k: number) {
+  if (!c.nest) return k > 0 ? c.frames[k - 1] : null;
+  const id = (j: number) => c.nest!.path[j]?.at(-1) ?? "";
+  for (let j = k - 1; j >= 0; j--) if (id(j) === id(k)) return c.frames[j];
+  return null;
+}
 const rect = (b: Box): [number, number, number, number] => [b.x, b.y, b.w, b.h];
 export function stillCheck(c: Compiled): Still[] {
   const out: Still[] = [];
   for (let k = 1; k < c.frames.length; k++) {
-    const prev = c.frames[k - 1], cur = c.frames[k];
+    const prev = prevFrame(c, k), cur = c.frames[k];
+    if (!prev) continue;
     const ok = mayMove(c, k);
     const before = new Map(prev.boxes.filter((b) => b.key > 0 && b.kind !== "token" && b.kind !== "pointer").map((b) => [b.id, b]));
     for (const b of cur.boxes) {

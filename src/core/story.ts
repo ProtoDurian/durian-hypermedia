@@ -11,7 +11,7 @@
 // Pure: the engine (tools/scene.ts) calls these for its play, layout and LLM view, so doccheck, the 2D stage and the
 // 3D stage all read the same state.
 import type { State, Ent, Op, Fx, SceneError, Place } from "./scene";
-import { CAM_DEFAULT } from "./camera";
+import { zoomOp, zoomIds, zoomLlm } from "./depth";
 
 // a split makes at most this many pieces: more chips than this cannot be read on a stage
 export const MAX_PIECES = 8;
@@ -40,7 +40,8 @@ export function piecesOf(id: string, n: number, label: string | null): { id: str
 // what is open: the thing the story zoomed into, and everything around it
 export function openSet(s: State): Set<string> {
   const out = new Set<string>();
-  for (let id = s.zoom ?? null, n = 0; id && s.ents[id] && n < 64; id = s.ents[id].parent, n++) out.add(id);
+  // format version 10 (tools/depth.ts): every thing of the innermost zoom level, and what holds them
+  for (const z of zoomIds(s)) for (let id: string | null = z, n = 0; id && s.ents[id] && n < 64; id = s.ents[id].parent, n++) out.add(id);
   return out;
 }
 // the closed container that hides a thing (its inside is drawn faint, without words), or null when it shows. A token
@@ -110,23 +111,8 @@ export function mergeTokens(s: State, es: Ent[], into: { id: string; label: stri
 type StoryOp = Extract<Op, { op: "zoom" } | { op: "drop" } | { op: "join" }>;
 export function applyStory(s: State, op: StoryOp, f: Fx, c: Ctx) {
   switch (op.op) {
-    case "zoom": {
-      if (op.id) {
-        const e = c.ent(s, op.id);
-        if (!c.isContainer(e.kind)) throw c.refuse(`${op.id} is a ${e.kind}, and a ${e.kind} has no inside to zoom into; give it one: declare it as group ${op.id} "${e.label}" closed=yes and put its parts in it`);
-        if (!e.kids.length) throw c.refuse(`${op.id} holds nothing: there is no inside to show`);
-        if (!s.zoom) { s.zoomCam = s.camera; s.zoomView = s.view; }
-        s.zoom = op.id;
-        // the camera flies in: the camera words' close (tools/camera.ts), keeping the turn and tilt the author set
-        s.camera = [op.id];
-        s.view = { ...CAM_DEFAULT, ...(s.view ?? {}), close: true, far: false };
-      } else {
-        if (!s.zoom) throw c.refuse(`zoom out: nothing is zoomed into; write zoom into <id> in an earlier step`);
-        s.camera = s.zoomCam ?? null; s.view = s.zoomView;
-        s.zoom = null; s.zoomCam = null; s.zoomView = undefined;
-      }
-      return;
-    }
+    // format version 10: zooms nest, several things at one level, zoom out all (tools/depth.ts)
+    case "zoom": zoomOp(s, op, f, c); return;
     case "drop": {
       const at = op.at ? c.ent(s, op.at) : null;
       for (const id of op.ids) {
@@ -167,7 +153,7 @@ export function stepChecks(s: State, ops: Op[], f: Fx): SceneError[] {
   const check = (id: string, line: number, what: string) => {
     if (!s.ents[id]) return;
     const by = hiddenBy(s, id, open);
-    if (by) out.push({ line, msg: `${what} ${id}, which is inside ${by}; ${by} is closed (its inside is drawn faint, without words): zoom into ${by} in this step or an earlier one` });
+    if (by) out.push({ line, msg: `${what} ${id}, which is inside ${by}; ${by} is closed (its inside is ${s.ents[by]?.hide ? "not drawn" : "drawn faint, without words"}): zoom into ${by} in this step or an earlier one` });
   };
   for (const op of ops) {
     if (op.op === "highlight") op.ids.forEach((id) => check(id, op.line, "highlight"));
@@ -199,7 +185,7 @@ export function llmLines(prev: State, next: State, ops: Op[]): string[] {
     else if (op.op === "move") { const ids = (op.ids ?? [op.id]).filter((id) => isTok(next, id)); if (ids.length) movesOf(ids); }
     else if (op.op === "pop") { const q = prev.ents[op.s]; const id = q ? (q.kind === "stack" ? q.kids[q.kids.length - 1] : q.kids[0]) : null; if (id && isTok(prev, id) && op.to) movesOf([id]); }
     else if (op.op === "drop") for (const id of op.ids) out.push(op.at ? `${at(prev.ents[id])} -> ${op.at}: ${lab(prev, id)}, dropped there (lost)` : `${lab(prev, id)} is dropped (lost) ${prev.ents[id]?.anchor ? "at" : "in"} ${at(prev.ents[id])}`);
-    else if (op.op === "zoom") out.push(op.id ? `zoom into ${op.id}` : `zoom out of ${prev.zoom ?? "it"}`);
+    else if (op.op === "zoom") out.push(zoomLlm(prev, op));
   }
   return out;
 }

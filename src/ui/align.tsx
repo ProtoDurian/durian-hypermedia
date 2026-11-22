@@ -52,9 +52,11 @@ export function placeLabels(plane: HTMLElement) {
 export function Alignment({ spec, ui }: { spec: AlignSpec; ui: Ui }) {
   const [picked, pick] = useState<Picked>(null);
   const plane = useRef<HTMLDivElement>(null);
-  const n = spec.xs.length;
+  const nx = spec.xs.length, ny = spec.ys.length;
   const has = spec.points.length > 0;
   const any = spec.cells.some((c) => c.items.some((i) => i.note)) || spec.points.some((p) => p.note);
+  // with arrows on, one extra row (under the column names) and one extra column (beside the row names) carry them
+  const c0 = spec.arrows ? 3 : 2, r0 = spec.arrows ? 3 : 2;
   useIsoLayout(() => {
     const el = plane.current;
     if (!el) return;
@@ -65,19 +67,27 @@ export function Alignment({ spec, ui }: { spec: AlignSpec; ui: Ui }) {
     return () => ro.disconnect();
   }, [spec]);
   const cell = (r: number, c: number) => spec.cells.find((x) => x.row === r && x.col === c);
+  const regionOf = (r: number, c: number) => spec.regions.find((g) => c >= g.c0 && c <= g.c1 && r >= g.r0 && r <= g.r1);
   return (
-    <div className={`al al-${n} ${has ? "al-has-points" : ""}`} style={{ "--n": n } as React.CSSProperties}>
+    <div className={`al ${has ? "al-has-points" : ""}${spec.arrows ? " al-arrows" : ""}`} style={{ "--nx": nx, "--ny": ny } as React.CSSProperties}>
       {spec.title ? <div className="al-title">{spec.title}</div> : null}
+      <div className="al-scroll">
       <div className="al-grid">
         <div className="al-corner" style={{ gridColumn: 1, gridRow: 1 }} />
-        {spec.xs.map((x, c) => <div key={x} className="al-col" style={{ gridColumn: c + 2, gridRow: 1 }}>{x}</div>)}
+        {spec.xs.map((x, c) => <div key={x} className="al-col" style={{ gridColumn: c + c0, gridRow: 1 }}>{x}</div>)}
+        {spec.arrows ? <div className="al-ax al-ax-x" aria-hidden="true" style={{ gridColumn: `${c0} / span ${nx}`, gridRow: 2 }} /> : null}
+        {spec.arrows ? <div className="al-ax al-ax-y" aria-hidden="true" style={{ gridColumn: 2, gridRow: `${r0} / span ${ny}` }} /> : null}
+        {spec.regions.map((g, k) => (
+          <div key={k} className={`al-region tone-${g.colour}`} aria-hidden="true" style={{ gridColumn: `${g.c0 + c0} / ${g.c1 + c0 + 1}`, gridRow: `${g.r0 + r0} / ${g.r1 + r0 + 1}` }}>{g.label ? <span className="al-region-label">{g.label}</span> : null}</div>
+        ))}
         {spec.ys.map((y, r) => (
           <React.Fragment key={y}>
-            <div className="al-row" style={{ gridColumn: 1, gridRow: r + 2 }}><span>{y}</span></div>
+            <div className="al-row" style={{ gridColumn: 1, gridRow: r + r0 }}><span>{y}</span></div>
             {spec.xs.map((x, c) => {
-              const cl = cell(r, c);
+              const cl = cell(r, c), g = regionOf(r, c);
+              const cls = `al-cell${cl?.colour ? ` tone-${cl.colour} al-tint` : g ? " in-region" : ""}${g?.label && r === g.r0 ? " rg-top" : ""}`;
               return (
-                <div key={x} className="al-cell" role="group" aria-label={`${x} / ${y}`} style={{ gridColumn: c + 2, gridRow: r + 2 }}>
+                <div key={x} className={cls} role="group" aria-label={`${x} / ${y}${g?.label ? ` (${g.label})` : ""}`} style={{ gridColumn: c + c0, gridRow: r + r0 }}>
                   {cl?.label ? <div className="al-cell-label">{cl.label}</div> : null}
                   {cl?.items.length ? <div className="al-items">{cl.items.map((it) => <Chip key={it.name} it={it} picked={picked} pick={pick} />)}</div> : null}
                 </div>
@@ -86,7 +96,7 @@ export function Alignment({ spec, ui }: { spec: AlignSpec; ui: Ui }) {
           </React.Fragment>
         ))}
         {has ? (
-          <div className="al-plane" ref={plane}>
+          <div className="al-plane" ref={plane} style={{ gridColumn: `${c0} / span ${nx}`, gridRow: `${r0} / span ${ny}` }}>
             {spec.points.map((p) => (
               <div key={p.name} className={`al-pt ${p.x > 0.6 ? "al-flip" : ""}`} data-x={p.x} data-y={p.y} style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}>
                 <span className="al-link" /><span className="al-dot" />
@@ -95,6 +105,7 @@ export function Alignment({ spec, ui }: { spec: AlignSpec; ui: Ui }) {
             ))}
           </div>
         ) : null}
+      </div>
       </div>
       <NoteBar picked={picked} any={any} ui={ui} />
     </div>

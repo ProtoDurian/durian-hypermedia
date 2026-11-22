@@ -114,16 +114,13 @@ th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--lin
 th { font-weight: 600; color: var(--ink); background: var(--surface-2); }
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
 
-/* callouts and banners */
-.callout, .banner { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
-.callout p:last-child, .banner p:last-child { margin-bottom: 0; }
-.callout-icon, .banner-icon { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--font-sans); color: var(--on-acc); background: var(--info); margin-top: 2px; }
+/* callouts */
+.callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-icon { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--font-sans); color: var(--on-acc); background: var(--info); margin-top: 2px; }
 .callout-note { border-color: var(--acc-soft); background: var(--info-soft); }
 .callout-tip { border-color: var(--good-soft); background: var(--good-soft); } .callout-tip .callout-icon { background: var(--good); }
 .callout-warn { border-color: var(--warn); background: var(--warn-soft); } .callout-warn .callout-icon { background: var(--warn); }
-.banner-info { background: var(--info-soft); border-color: var(--acc-soft); }
-.banner-warn { background: var(--warn-soft); border-color: var(--warn); } .banner-warn .banner-icon { background: var(--warn); }
-.banner-new { background: var(--hot-soft); border-color: var(--hot); } .banner-new .banner-icon { background: var(--hot); }
 blockquote { margin: 0 0 20px; padding: 4px 16px; border-left: 3px solid var(--line-2); color: var(--muted); }
 
 /* ---- code (Code Hike, github-from-css reads the --ch-* tokens) ---- */
@@ -279,7 +276,7 @@ figure.part { margin-inline: 0; }
 .pane-label b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--acc); color: var(--on-acc); font-size: 11px; }
 .pane-label span { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); }
 .pane-src .ch-pre { max-height: 22rem; overflow: auto; }
-.pane-out > .part, .pane-out > .human, .pane-out > .banner { margin-top: 0; margin-bottom: 0; }
+.pane-out > .part, .pane-out > .human, { margin-top: 0; margin-bottom: 0; }
 .pane-llm { white-space: pre-wrap; overflow-wrap: anywhere; font: 400 13px/1.6 var(--font-mono); background: var(--surface-2); border: 1px dashed var(--line-2); border-radius: var(--r-m); padding: 12px 14px; margin: 0; color: var(--ink-2); }
 .pane-none { color: var(--faint); font-size: var(--fs-s); }
 
@@ -289,7 +286,6 @@ figure.part { margin-inline: 0; }
 .nums b { display: block; font: 600 clamp(1.5rem, 6vw, 2.4rem)/1.1 var(--font-display); color: var(--ink); letter-spacing: -.02em; }
 .nums div:first-child b { color: var(--acc-ink); }
 .nums span { display: block; font-size: var(--fs-xs); color: var(--muted); line-height: 1.35; margin-top: 4px; }
-.human-plain > .banner { margin: 0 0 20px; }
 .mt-note { margin-bottom: 20px; }
 .tree-file pre { margin-top: 8px; max-height: 28rem; overflow: auto; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 12px; margin-top: 28px; }

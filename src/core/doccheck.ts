@@ -6,7 +6,7 @@ import { yamlParse } from "../host/yaml";
 // Format version 3: parts are fenced blocks (```terminal ...) or containers (:::tabs ...); see SPEC.md.
 import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
 import { dirname, join, relative, resolve } from "../host/path";
-import { PARTS, LLM_LIMIT, CALLOUTS, BANNER_KINDS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
+import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
 import { parseDefs } from "./expr";
 import { parseTier } from "./tier";
 import { parseAlign } from "./align";
@@ -33,11 +33,8 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   const ids = new Map<string, number>();
   let inSummary = true; // the summary is the text before the first ## heading
   let partsSeen = 0;
-  const b = doc.fm?.banner;
-  if (b != null) {
-    if (typeof b !== "object" || !BANNER_KINDS.includes(b.kind)) err(1, "part data", `front matter banner needs kind (${BANNER_KINDS.join(", ")}) and text`);
-    else if (!String(b.text ?? "").trim()) err(1, "part data", `front matter banner has no text`);
-  }
+  for (const e of doc.defErrors ?? []) err(1, "part data", e);
+  if (doc.fm && "banner" in doc.fm) err(1, "part data", `banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
   const visit = (nodes: Node[], ctx: Ctx) => {
     for (const n of nodes) {
       if (n.kind === "md") checkMd(n, ctx);
@@ -49,7 +46,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     for (const m of mapCodeRefs(n.text)) { const e = checkCodeRef(doc, m, src); if (e) err(n.line, "code references", e); }
     const noCode = n.text.replace(/```[\s\S]*?```/g, "");
     for (const m of noCode.matchAll(/^>\s*\*\*([^*]+?):\*\*/gm)) if (!CALLOUTS.includes(m[1])) err(n.line, "part data", `"**${m[1]}:**" is not a callout marker (markers: ${CALLOUTS.join(", ")})`);
-    if (/^:::\s*banner/m.test(noCode)) err(n.line, "part data", `:::banner is gone in format version 3: a banner is about the whole page, so it sits in the front matter (banner: {kind: new, text: ...})`);
+    if (/^:::\s*banner/m.test(noCode)) err(n.line, "part data", `:::banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
     const inl = noCode.replace(/`[^`\n]*`/g, "");
     for (const m of inl.matchAll(/:kbd\[([^\]]*)\]/g)) {
       if (!m[1].trim() || m[1].split(/\s*,\s*/).some((c) => !c || /^\+|\+\+\+/.test(c))) err(n.line, "part data", `:kbd[${m[1]}] needs keys joined by + and chords separated by commas, like :kbd[Ctrl+K, Ctrl+S]`);
@@ -156,7 +153,7 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
     case "mermaid": if (!p.body.trim()) err(p.line, `empty mermaid block`); break;
     case "filetree": {
       if (p.steps.length && p.head.trim()) err(p.line, "filetree: with @step lines, put every tree under a step");
-      for (const s of treeSteps(p)) { const t = parseTree(s.text, s.line); for (const e of t.errors) err(e.line, e.msg); if (!t.rows.length) err(s.line, "filetree has no entries"); }
+      for (const s of treeSteps(p)) { const t = parseTree(s.text, s.line, p.defs); for (const e of t.errors) err(e.line, e.msg); if (!t.rows.length) err(s.line, "filetree has no entries"); }
       break;
     }
     case "editor": {

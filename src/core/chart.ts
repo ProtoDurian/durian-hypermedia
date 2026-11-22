@@ -16,10 +16,11 @@ export function chartControls(d: any): { controls: ChartControl[]; errors: strin
   }
   return { controls, errors };
 }
-export const CHART_KINDS = ["bar", "line", "area", "scatter", "bubble", "radar", "pie", "doughnut", "polar"];
+export const CHART_KINDS = ["bar", "line", "area", "scatter", "bubble", "radar", "pie", "doughnut", "polar", "candlestick"];
 export const CHART_KEYS = ["kind", "title", "x", "y", "y2", "series", "stacked", "horizontal", "controls", "let"];
 export const SERIES_KEYS = ["name", "label", "data", "values", "kind", "tone", "axis"];
 export const SERIES_KINDS = ["bar", "line", "area"]; // a series' own kind (mixed charts)
+export const CANDLE_SERIES_KINDS = ["line", "candlestick"]; // in a candlestick chart: the candles (no kind, or candlestick) and lines on top
 export const CHART_TONES = ["1", "2", "3", "4", "5", "6", "7", "8", "accent", "good", "warn", "bad", "muted"];
 export const CHART_SCALES = ["linear", "log"];
 const CATEGORY = ["bar", "line", "area"]; // charts with a category x axis and a value axis
@@ -31,7 +32,7 @@ const typeOf = (k: string) => (k === "area" ? "line" : k);
 
 export interface ChartMeta {
   kind: string; horizontal: boolean; stacked: false | true | "percent";
-  mixed: boolean; y2: boolean; round: boolean; points: boolean; category: boolean; radial: boolean;
+  mixed: boolean; candle: boolean; y2: boolean; round: boolean; points: boolean; category: boolean; radial: boolean;
   scale: { x: string; y: string; y2: string }; // "linear" or "log"
 }
 // what the renderer and the LLM view need to know about a chart, from its source alone
@@ -42,6 +43,7 @@ export function chartMeta(d: any): ChartMeta {
   const sc = (a: any) => (isObj(a) && a.scale === "log" ? "log" : "linear");
   return {
     kind, horizontal: d?.horizontal === true, stacked: d?.stacked === "percent" ? "percent" : d?.stacked === true,
+    candle: kind === "candlestick",
     mixed: CATEGORY.includes(kind) && (types.size > 1 || (types.size === 1 && !types.has(typeOf(kind)))), y2: isObj(d?.y2), round: ROUND.includes(kind), points: POINTS.includes(kind),
     category: CATEGORY.includes(kind), radial: kind === "radar" || kind === "polar",
     scale: { x: sc(d?.x), y: sc(d?.y), y2: sc(d?.y2) },
@@ -56,9 +58,9 @@ export function chartCheck(d: any): string[] {
   const m = chartMeta(d);
   const series: any[] = Array.isArray(d.series) ? d.series : [];
   if (d.stacked !== undefined && d.stacked !== true && d.stacked !== false && d.stacked !== "percent") out.push(`stacked must be true, false or percent (not ${JSON.stringify(d.stacked)})`);
-  if (m.stacked && !m.category) out.push(`stacked works with kind bar, line or area (this chart is ${kind}); remove stacked`);
+  if (m.stacked && !m.category) out.push(m.candle ? `a candlestick chart cannot be stacked (a candle is one period's open, high, low and close); remove stacked` : `stacked works with kind bar, line or area (this chart is ${kind}); remove stacked`);
   if (d.horizontal !== undefined && typeof d.horizontal !== "boolean") out.push(`horizontal must be true or false`);
-  if (d.horizontal === true && kind !== "bar") out.push(`horizontal works with kind: bar (this chart is ${kind}); remove horizontal`);
+  if (d.horizontal === true && kind !== "bar") out.push(m.candle ? `a candlestick chart has its periods along the bottom and cannot be horizontal; remove horizontal` : `horizontal works with kind: bar (this chart is ${kind}); remove horizontal`);
   if (d.horizontal === true && m.mixed) out.push(`a horizontal chart draws bars only; remove the series that has kind: line or kind: area, or remove horizontal`);
   if (d.horizontal === true && m.y2) out.push(`a horizontal chart has one value axis; remove y2 and axis: y2, or remove horizontal`);
   // axes: keys, min and max, scale
@@ -71,7 +73,7 @@ export function chartCheck(d: any): string[] {
     for (const k of ["min", "max"]) if (a[k] !== undefined && !num(a[k])) out.push(`${name}.${k} must be a number`);
     if (num(a.min) && num(a.max) && a.min >= a.max) out.push(`${name}: min must be below max`);
     if (a.scale !== undefined) {
-      const ok = name === "x" ? m.points : name === "y2" ? m.category : m.category || m.points;
+      const ok = name === "x" ? m.points : name === "y2" ? m.category || m.candle : m.category || m.points || m.candle;
       if (!CHART_SCALES.includes(a.scale)) out.push(`${name}.scale must be linear or log (symlog and time scales are not drawn; use log, or write the dates as x labels)`);
       else if (!ok) out.push(`${name}.scale does not apply to ${kind === "bar" || kind === "line" || kind === "area" ? `the ${name} axis` : `kind ${kind}`}; remove it${name === "x" && m.category ? " (a category axis has no scale)" : ""}`);
       else if (a.scale === "log") {
@@ -87,21 +89,29 @@ export function chartCheck(d: any): string[] {
     if (!isObj(s)) { out.push(`series ${nm} must be an object with name and data`); return; }
     for (const k of Object.keys(s)) if (!SERIES_KEYS.includes(k)) out.push(`series "${nm}": unknown key "${k}" (keys: ${SERIES_KEYS.join(", ")})`);
     if (s.kind !== undefined) {
-      if (!m.category) out.push(`series "${nm}": its own kind works in a bar, line or area chart (this chart is ${kind}); remove it`);
+      if (m.candle) { if (!CANDLE_SERIES_KINDS.includes(s.kind)) out.push(`series "${nm}": in a candlestick chart a series is the candles (no kind) or a line on top (kind: line); ${JSON.stringify(s.kind)} is not drawn there`); }
+      else if (!m.category) out.push(`series "${nm}": its own kind works in a bar, line or area chart (this chart is ${kind}); remove it`);
       else if (!SERIES_KINDS.includes(s.kind)) out.push(`series "${nm}": kind must be bar, line or area`);
     }
     if (s.axis !== undefined) {
       if (s.axis !== "y" && s.axis !== "y2") out.push(`series "${nm}": axis must be y or y2`);
-      else if (!m.category) out.push(`series "${nm}": axis works in a bar, line or area chart (this chart is ${kind}); remove it`);
+      else if (!m.category && !m.candle) out.push(`series "${nm}": axis works in a bar, line or area chart (this chart is ${kind}); remove it`);
+      else if (m.candle && !isLine(s, m)) out.push(`series "${nm}": the candles sit on the main axis; remove axis (only a line on top can use y2)`);
       else if (s.axis === "y2" && !m.y2) out.push(`series "${nm}": axis: y2 needs a second axis; add y2: { label: ... } to the chart`);
     }
     if (s.tone !== undefined && !CHART_TONES.includes(String(s.tone))) out.push(`series "${nm}": tone must be 1 to 8, accent, good, warn, bad or muted (got ${JSON.stringify(s.tone)})`);
   });
-  if (m.y2 && m.category && onY2 === 0) out.push(`y2 is declared but no series uses it; add axis: y2 to a series, or remove y2`);
+  if (m.candle) {
+    const candles = series.filter((s) => isObj(s) && !isLine(s, m));
+    if (candles.length !== 1) out.push(candles.length === 0 ? `a candlestick chart needs one series without a kind (the candles: data is [open, high, low, close] per period); add it, or use kind: line` : `a candlestick chart draws one set of candles; make the other ${candles.length - 1} series lines (kind: line) or remove them`);
+    for (const s of candles) if (s.tone !== undefined) out.push(`series "${String(s.name ?? s.label ?? "candles")}": the candles take good (up) and bad (down) from the theme; remove tone (a line on top may have one)`);
+  }
+  if (m.y2 && (m.category || m.candle) && onY2 === 0) out.push(`y2 is declared but no series uses it; add axis: y2 to a series, or remove y2`);
   if (m.stacked === "percent" && series.some((s) => isObj(s) && typeOf(String(s.kind ?? kind)) !== typeOf(kind) && s.axis !== "y2")) out.push(`with stacked: percent, a series of another kind must use axis: y2 (it cannot sit on the 0 to 100 percent axis)`);
   return out;
 }
 
+const isLine = (s: any, m: ChartMeta) => (m.candle ? s?.kind === "line" : false);
 export interface ChartSeries { name: string; data: any[]; kind?: string; tone?: string; axis?: string }
 // evaluate a chart for given control values; returns the data Chart.js draws, or an error
 // Category kinds: data is a list of numbers (null = gap), or [low, high] in a bar series (a floating bar).
@@ -139,9 +149,11 @@ export function evalChart(d: any, values?: Record<string, Val>): { x: Val[]; ser
         });
         continue;
       }
+      if (m.candle && s.kind === "line" && s.data.some((v: any) => v !== null && !num(v))) throw new Error(`series "${s.name}" is a line on top of the candles: one number (or null) per period`);
       if (s.data.length !== x.length) throw new Error(`series "${s.name}" has ${s.data.length} values, x has ${x.length}`);
+      if (m.candle && s.kind !== "line") { checkCandles(s, x, m.scale.y === "log" ? (v: number) => log(s, "y", v) : undefined); continue; }
       const type = typeOf(s.kind ?? d.kind);
-      const lg = (s.axis === "y2" ? m.scale.y2 : m.scale.y) === "log" && m.category;
+      const lg = (s.axis === "y2" ? m.scale.y2 : m.scale.y) === "log" && (m.category || m.candle);
       s.data.forEach((v: any, i: number) => {
         if (v === null || num(v)) { if (lg) log(s, "y", v); if (m.round && v !== null && v < 0) throw new Error(`series "${s.name}" has ${v}; a ${d.kind} chart needs values of 0 or more`); return; }
         if (Array.isArray(v)) {
@@ -157,5 +169,21 @@ export function evalChart(d: any, values?: Record<string, Val>): { x: Val[]; ser
     }
     return { x, series, vars };
   } catch (e) { return { x: [], series: [], vars: {}, error: (e as Error).message }; }
+}
+// a candle is [open, high, low, close]: high is the top of the wick, low the bottom, so neither may be crossed by the open or close
+export const CANDLE_PARTS = ["open", "high", "low", "close"];
+function checkCandles(s: ChartSeries, x: Val[], lg?: (v: number) => void) {
+  if (s.data.length !== x.length) throw new Error(`series "${s.name}" has ${s.data.length} candles, x has ${x.length} periods`);
+  s.data.forEach((c: any, i: number) => {
+    if (c === null) return;
+    const at = `series "${s.name}" candle ${i + 1} (${String(x[i])})`;
+    if (!Array.isArray(c) || c.length !== 4 || !c.every(num)) throw new Error(`${at} must be four numbers [open, high, low, close]${Array.isArray(c) ? ` (it has ${c.length === 4 ? "a value that is not a number" : c.length})` : ""}; use null for a period with no candle`);
+    const [o, h, l, cl] = c as number[];
+    const top = [["open", o], ["close", cl], ["low", l]].sort((p, q) => (q[1] as number) - (p[1] as number))[0];
+    const bot = [["open", o], ["close", cl], ["high", h]].sort((p, q) => (p[1] as number) - (q[1] as number))[0];
+    if (h < (top[1] as number)) throw new Error(`${at}: high ${h} is below the ${top[0]} (${top[1]}); the order is [open, high, low, close] and high must be the largest`);
+    if (l > (bot[1] as number)) throw new Error(`${at}: low ${l} is above the ${bot[0]} (${bot[1]}); the order is [open, high, low, close] and low must be the smallest`);
+    if (lg) for (const v of c) lg(v);
+  });
 }
 function evalStr(src: string, vars: Record<string, Val>, defs: any): Val { return evalAst(parseExpr(src), { vars, fns: defs.fns }); }

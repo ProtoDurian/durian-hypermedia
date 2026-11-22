@@ -49,7 +49,6 @@ export const LLM_LIMIT = 400;
 export const BADGES = ["new", "changed", "removed", "generated", "conflict"];
 export const FOLDER_FLAGS = ["closed", "open"];
 export const CALLOUTS = ["Note", "Tip", "Important", "Watch out", "Security finding"];
-export const BANNER_KINDS = ["info", "new", "draft", "deprecated"];
 export const MOUSE_WORDS = ["click", "double-click", "right-click", "middle-click", "drag", "drop", "scroll", "hover", "select"];
 export const TEXT_KEYS = ["label", "caption", "text", "title", "note", "name", "button"]; // translatable keys inside chart YAML
 const LANG_BY_EXT: Record<string, string> = { ".rs": "rust", ".go": "go", ".ts": "ts", ".tsx": "tsx", ".js": "js", ".py": "python", ".cs": "csharp", ".yaml": "yaml", ".yml": "yaml", ".json": "json", ".md": "markdown", ".sh": "bash", ".toml": "toml" };
@@ -67,9 +66,10 @@ export interface PartNode {
   head: string; steps: Step[];       // fenced: text before the first @step, and the steps
   nodes: Node[]; items: Item[];      // container: its content, and (tabs, accordion) one item per heading
   llm?: PartNode;                    // a :::llm right after this part
+  defs?: Defs;                       // the page's and the site's own marks and prefixes (format version 10), set by parseDoc
 }
 export type Node = MdNode | TocNode | PartNode;
-export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number }
+export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[] }
 export interface Issue { file: string; line: number; msg: string; level: "error" | "warn" }
 
 // ---------- parsing ----------
@@ -170,7 +170,9 @@ function emptyPart(name: string, attrs: Attrs, line: number, endLine: number, so
 function fencedPart(lines: string[], open: number, close: number, base: number, name: string, rest: string): PartNode {
   const { attrs, words } = parseAttrs(rest);
   // an animation's first bare word: 3d or 2d is the view it opens in (format version 5); any other word was a version 3 kind
-  if (name === "animation" && words.length) { if (/^[23]d$/i.test(words[0])) attrs.view = words[0].toLowerCase(); else attrs.kind = words[0]; }
+  if (name === "animation" && words.length) { if (/^[23]d$/i.test(words[0])) attrs.view = words[0].toLowerCase(); else if (words[0] === "only") attrs.only = "?"; else attrs.kind = words[0]; }
+  // format version 10: ```animation 3d only: the scene has no flat form (tools/depth.ts)
+  if (name === "animation" && words[1] === "only") attrs.only = attrs.view ?? "?";
   const bodyLines = lines.slice(open + 1, close);
   const p = emptyPart(name, attrs, base + open + 1, base + close + 1, lines.slice(open, close + 1).join("\n"), lines[open], bodyLines.join("\n"), base + open + 2);
   // steps: "@step title" (in mermaid "%% @step title", a mermaid comment, so the diagram still draws on any Markdown viewer)
@@ -230,7 +232,7 @@ function splitItems(lines: string[], start: number, end: number, base: number, i
 }
 
 // frontMatter: false reads a leading "---" block as Markdown (a rule, then text), not as front matter
-export function parseDoc(path: string, text?: string, opts: { frontMatter?: boolean } = {}): Doc {
+export function parseDoc(path: string, text?: string, opts: { frontMatter?: boolean; site?: { marks?: unknown; prefixes?: unknown } } = {}): Doc {
   const src = text ?? readFileSync(path, "utf8");
   const m = opts.frontMatter === false ? null : src.match(/^---\n([\s\S]*?)\n---\n/);
   const fmRaw = m ? m[1] : "";
@@ -240,7 +242,9 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const bodyStart = m ? m[0].split("\n").length - 1 : 0;
   const lines = bodyText.split("\n");
   const body = parseNodes(lines, 0, lines.length, bodyStart, null);
-  return { path, fmRaw, fm, body, bodyText, bodyStart };
+  const defs = defsOf(path, fm, opts.site);
+  for (const p of allParts(body)) p.defs = defs.defs;
+  return { path, fmRaw, fm, body, bodyText, bodyStart, defErrors: defs.errors };
 }
 // every part of a page, in order, including parts inside containers and :::llm blocks
 export function allParts(nodes: Node[]): PartNode[] {
@@ -297,12 +301,68 @@ export function mapOutsideCode(md: string, f: (s: string) => string): string {
   return parts.map((p, i) => (i % 2 ? p : f(p))).join("");
 }
 
+// ---------- the page's and the site's own marks and prefixes (format version 10) ----------
+// A page (front matter) or a site (docs/outline.yaml) may define marks for a file tree and prefixes for a terminal:
+//   marks:
+//     deprecated: { label: deprecated, colour: warn, means: still works, will be removed }
+//   prefixes:
+//     ">>>": { label: Python, colour: c4, means: a line typed at the Python prompt }
+// A mark's name is lower-case letters (and hyphens); a prefix is 1 to 8 characters with no space. A page's own entry beats the site's.
+export interface MarkDef { label: string; colour: string; means: string }
+export interface Defs { marks: Record<string, MarkDef>; prefixes: Record<string, MarkDef> }
+const MARK_COLOURS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "good", "warn", "bad"];
+const MARK_KEYS = ["label", "colour", "means"];
+export const MARK_NAME = /^[a-z]+(-[a-z]+)*$/;
+const BUILT_IN_PREFIXES = ["$", "%", "#"];
+function readDefs(raw: any, where: string, into: Defs, errors: string[]) {
+  for (const kind of ["marks", "prefixes"] as const) {
+    const m = raw?.[kind];
+    if (m === undefined || m === null) continue;
+    if (typeof m !== "object" || Array.isArray(m)) { errors.push(`${where}: ${kind} must be a list of names, each with a label and a colour (${kind}: { name: { label: ..., colour: warn } })`); continue; }
+    for (const [k, v] of Object.entries<any>(m)) {
+      const at = `${where}: ${kind === "marks" ? "mark" : "prefix"} "${k}"`;
+      if (kind === "marks") {
+        if (!MARK_NAME.test(k)) { errors.push(`${at} is not a name: use lower-case letters and hyphens, like "deprecated" or "needs-review"`); continue; }
+        if (BADGES.includes(k) || FOLDER_FLAGS.includes(k)) { errors.push(`${at} is built in (built-in marks: ${[...BADGES, ...FOLDER_FLAGS].join(", ")}); pick another name`); continue; }
+      } else {
+        if (!k || /\s/.test(k) || k.length > 8) { errors.push(`${at} must be 1 to 8 characters with no space, like ">" or ">>>"`); continue; }
+        if (BUILT_IN_PREFIXES.includes(k)) { errors.push(`${at} is built in (built-in prompts: ${BUILT_IN_PREFIXES.join(" ")}); pick another prefix`); continue; }
+      }
+      if (v === null || typeof v !== "object" || Array.isArray(v)) { errors.push(`${at} needs { label: ..., colour: ... }`); continue; }
+      for (const key of Object.keys(v)) if (!MARK_KEYS.includes(key)) errors.push(`${at}: unknown key "${key}" (keys: ${MARK_KEYS.join(", ")})`);
+      const label = v.label === undefined ? k : String(v.label).trim();
+      if (!label) errors.push(`${at}: the label is empty; write the word the reader sees, or leave the label out to use "${k}"`);
+      else if (/[()#\n]/.test(label) || label.length > 24) errors.push(`${at}: the label "${label}" must be at most 24 characters with no ( ) or #`);
+      const colour = v.colour === undefined ? "" : String(v.colour);
+      if (!colour) errors.push(`${at} needs a colour: ${MARK_COLOURS.join(", ")} (theme names, never a hex value)`);
+      else if (!MARK_COLOURS.includes(colour)) errors.push(`${at}: unknown colour "${colour}"; colours are ${MARK_COLOURS.join(", ")} (theme names, never a hex value)`);
+      if (v.means !== undefined && (typeof v.means !== "string" || !v.means.trim())) errors.push(`${at}: means is a short sentence, or leave it out`);
+      if (label && MARK_COLOURS.includes(colour)) (into[kind] as Record<string, MarkDef>)[k] = { label, colour, means: v.means ? String(v.means).trim() : "" };
+    }
+  }
+}
+// the host's definitions (the marks and prefixes options of parse()) under the page's own (front matter)
+export function defsOf(path: string, fm: any, site?: { marks?: unknown; prefixes?: unknown }): { defs: Defs; errors: string[] } {
+  const defs: Defs = { marks: {}, prefixes: {} }, errors: string[] = [];
+  // the package reads no files: a host-wide set arrives as the `marks` and `prefixes` options of parse()
+  if (site) readDefs(site, "the host's marks and prefixes", defs, errors);
+  readDefs(fm, "front matter", defs, errors);
+  return { defs, errors };
+}
+// the defined marks a list of mark names uses, for the renderer (only what the part uses is shown)
+export function usedMarks(defs: Defs | undefined, names: string[]): Record<string, MarkDef> {
+  const out: Record<string, MarkDef> = {};
+  for (const n of names) if (defs?.marks[n]) out[n] = defs.marks[n];
+  return out;
+}
+
 // ---------- the parts' own syntaxes ----------
 // filetree:  one entry per line, two spaces per level; a name ending in / is a folder;
 //            (new) (changed) (removed) (generated) (conflict) are badges, (closed) starts a folder closed,
 //            "# text" is a note, and a line "..." stands for entries left out.
 export interface TreeRow { depth: number; name: string; folder: boolean; badges: string[]; closed: boolean; note: string; gap: boolean; path: string; line: number }
-export function parseTree(text: string, base = 0): { rows: TreeRow[]; errors: { line: number; msg: string }[] } {
+export function parseTree(text: string, base = 0, defs?: Defs): { rows: TreeRow[]; errors: { line: number; msg: string }[] } {
+  const own = (f: string) => !!defs?.marks[f];
   const rows: TreeRow[] = [], errors: { line: number; msg: string }[] = [];
   const stack: string[] = [];
   text.split("\n").forEach((raw, i) => {
@@ -314,9 +374,9 @@ export function parseTree(text: string, base = 0): { rows: TreeRow[]; errors: { 
     const n = t.match(/\s+#\s+(.*)$/) ?? t.match(/^#\s+(.*)$/);
     if (n) { note = n[1].trim(); t = t.slice(0, n.index).trim(); }
     const flags: string[] = [];
-    t = t.replace(/\s*\(([a-z]+)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
+    t = t.replace(/\s*\(([a-z]+(?:-[a-z]+)*)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
     if (t === "..." || t === "…") { rows.push({ depth, name: "...", folder: false, badges: [], closed: false, note, gap: true, path: `${stack.slice(0, depth).join("")}...`, line: base + i }); return; }
-    for (const f of flags) if (!BADGES.includes(f) && !FOLDER_FLAGS.includes(f)) errors.push({ line: base + i, msg: `filetree: unknown mark "(${f})" (badges: ${BADGES.join(", ")}; folders: ${FOLDER_FLAGS.join(", ")})` });
+    for (const f of flags) if (!BADGES.includes(f) && !FOLDER_FLAGS.includes(f) && !own(f)) errors.push({ line: base + i, msg: `filetree: unknown mark "(${f})": built-in marks are ${[...BADGES, ...FOLDER_FLAGS].join(", ")}${defs && Object.keys(defs.marks).length ? `; defined here: ${Object.keys(defs.marks).join(", ")}` : ""}; to use your own, define it in the page's front matter (marks: { ${f}: { label: ${f}, colour: warn } }) or for every page with the marks option of parse()` });
     if (!t || t.startsWith("/") || t.includes("\\")) errors.push({ line: base + i, msg: `filetree: "${raw.trim()}" needs a relative name using /` });
     if (depth > stack.length) errors.push({ line: base + i, msg: `filetree: "${t}" is indented deeper than a folder above it` });
     const folder = t.endsWith("/");
@@ -324,7 +384,7 @@ export function parseTree(text: string, base = 0): { rows: TreeRow[]; errors: { 
     stack.length = Math.min(depth, stack.length);
     const path = stack.join("") + t;
     if (folder) stack[depth] = t;
-    rows.push({ depth, name: t, folder, badges: flags.filter((f) => BADGES.includes(f)), closed: flags.includes("closed"), note, gap: false, path, line: base + i });
+    rows.push({ depth, name: t, folder, badges: flags.filter((f) => BADGES.includes(f) || own(f)), closed: flags.includes("closed"), note, gap: false, path, line: base + i });
   });
   return { rows, errors };
 }
@@ -338,10 +398,14 @@ export function treeSteps(p: PartNode): { title: string | null; text: string; li
 //            Each command starts a new step unless @step lines are used.
 export const TERM_PROMPTS = ["$", "%", "#"];
 export interface TermLine { k: "cmd" | "out"; text: string; prompt?: string }
-export function parseTermLines(text: string): TermLine[] {
+export function parseTermLines(text: string, defs?: Defs): TermLine[] {
   const out: TermLine[] = [];
+  // the page's own prefixes first, the longest first, then $ % #
+  const own = Object.keys(defs?.prefixes ?? {}).sort((a, b) => b.length - a.length);
   for (const l of text.split("\n")) {
     if (!l.trim()) continue;
+    const mine = own.find((p) => l === p || l.startsWith(p + " "));
+    if (mine) { out.push({ k: "cmd", prompt: mine, text: l.slice(mine.length + 1) }); continue; }
     const m = l.match(/^([$%#])(?: (.*)|$)/);
     if (m) out.push({ k: "cmd", prompt: m[1], text: m[2] ?? "" });
     else out.push({ k: "out", text: l });
@@ -349,10 +413,10 @@ export function parseTermLines(text: string): TermLine[] {
   return out;
 }
 export function terminalSteps(p: PartNode): { title: string; lines: TermLine[] }[] {
-  if (p.steps.length) return p.steps.map((s) => ({ title: s.title, lines: parseTermLines(s.raw) }));
+  if (p.steps.length) return p.steps.map((s) => ({ title: s.title, lines: parseTermLines(s.raw, p.defs) }));
   const steps: { title: string; lines: TermLine[] }[] = [];
   const cur = () => steps[steps.length - 1];
-  for (const l of parseTermLines(p.head)) {
+  for (const l of parseTermLines(p.head, p.defs)) {
     if (!steps.length || (l.k === "cmd" && cur().lines.some((x) => x.k === "cmd"))) steps.push({ title: "", lines: [] });
     cur().lines.push(l);
   }
@@ -509,7 +573,7 @@ export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEY
 // animation: see tools/scene.ts (pure, shared with the browser)
 export function animSrc(p: PartNode) {
   const info: Record<string, string> = {};
-  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace"]) if (p.attrs[k]) info[k] = p.attrs[k];
+  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
 export function animOf(p: PartNode): Compiled { const s = animSrc(p); return compileScene(s.head, s.steps, s.base, s.info); }
@@ -524,12 +588,28 @@ function llmOpen(p: PartNode): string {
   const keep = Object.entries(p.attrs).filter(([k]) => !DISPLAY_ATTRS.includes(k) && k !== "kind").map(([k, v]) => `${k}=${/\s/.test(v) ? `"${v}"` : v}`);
   return [fence + p.open.match(FENCE_RE)![3], p.attrs.kind ?? "", ...keep].filter(Boolean).join(" ");
 }
+// a file tree with marks of its own reads them as their labels; a terminal with prompts of its own lists them under it
+function ownAsIs(p: PartNode): string | null {
+  const defs = p.defs!;
+  const fence = p.open.match(FENCE_RE)![2];
+  if (p.name === "filetree") {
+    const used = Object.keys(defs.marks);
+    if (!used.length) return null;
+    let hit = false;
+    const body = p.body.replace(/\(([a-z]+(?:-[a-z]+)*)\)/g, (all, k) => { if (!defs.marks[k]) return all; hit = true; return `(${defs.marks[k].label})`; });
+    return hit ? `${llmOpen(p)}\n${body.replace(/\n+$/, "")}\n${fence}` : null;
+  }
+  const used = Object.keys(defs.prefixes).filter((k) => terminalSteps(p).some((st) => st.lines.some((l) => l.prompt === k)));
+  if (!used.length) return null;
+  const note = used.map((k) => `${k} is ${defs.prefixes[k].label}${defs.prefixes[k].means ? ` (${defs.prefixes[k].means})` : ""}`).join("; ");
+  return `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n${fence}\n\nPrompts: ${note}.`;
+}
 // what an LLM reads in place of a part, without a :::llm block
 export function llmFormOf(p: PartNode, publicView: boolean): string {
   const def = PARTS[p.name];
   if (!def) return "";
   switch (def.llm) {
-    case "as-is": { const fence = p.open.match(FENCE_RE)![2]; const text = `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n${fence}`; return p.name === "codewalk" ? text.split("\n").map((l, i) => (i === 0 || /^@step\b/.test(l) ? dropAnimate(l) : l)).join("\n") : text; }
+    case "as-is": if (p.defs && (p.name === "filetree" || p.name === "terminal")) { const t = ownAsIs(p); if (t) return t; } { const fence = p.open.match(FENCE_RE)![2]; const text = `${llmOpen(p)}\n${p.body.replace(/\n+$/, "")}\n${fence}`; return p.name === "codewalk" ? text.split("\n").map((l, i) => (i === 0 || /^@step\b/.test(l) ? dropAnimate(l) : l)).join("\n") : text; }
     case "data": return p.name === "alignment" ? alignLlm(parseAlign(p.body, p.bodyLine, p.attrs.title ?? "")) : chartLlm(p);
     case "lines": return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
     case "steps": return animLlm(p);
@@ -583,7 +663,7 @@ export function llmKindOf(p: PartNode): "text" | "none" | PartDef["llm"] {
   if (p.attrs.llm === "none" || p.name === "human") return "none";
   return PARTS[p.name]?.llm ?? "none";
 }
-const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "banner"];
+const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "marks", "prefixes"];
 export function llmView(doc: Doc, sourceRel: string, publicView = false): string {
   const fm = keepTopKeys(doc.fmRaw, LLM_FM_KEYS);
   const body = llmOfNodes(doc.body, publicView).replace(/\n{3,}/g, "\n\n");
@@ -725,11 +805,11 @@ export function structureOf(doc: Doc) {
         if (n.name === "mermaid") data = `${n.body.split("\n").length} lines, ${n.steps.length} steps`;
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
-        if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
+        if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t, 0, n.defs).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
         if (n.name === "editor") data = JSON.stringify([n.head.trim(), ...n.steps.map((s) => s.raw.trim())]);
         if (n.name === "codewalk") data = JSON.stringify(n.steps.map((s) => `${s.title}${JSON.stringify(s.attrs)}`));
         if (n.name === "tierlist") data = JSON.stringify(parseTier(n.body).tiers.map((t) => [t.colour, t.items.length]));
-        if (n.name === "alignment") { const a = parseAlign(n.body); data = JSON.stringify([a.xs.length, a.ys.length, a.cells.map((c) => [c.col, c.row, c.items.length, !!c.label]), a.points.map((p) => [p.x, p.y])]); }
+        if (n.name === "alignment") { const a = parseAlign(n.body); data = JSON.stringify([a.xs.length, a.ys.length, a.cells.map((c) => [c.col, c.row, c.items.length, !!c.label, c.colour]), a.regions.map((r) => [r.c0, r.c1, r.r0, r.r1, !!r.label, r.colour]), a.arrows, a.points.map((p) => [p.x, p.y])]); }
         if (n.name === "tabs" || n.name === "accordion") data = `${n.items.length} items`;
         parts.push(`${n.name}${JSON.stringify(a)}${data}${n.llm ? "+llm" : ""}`);
         walk(n.nodes);
@@ -761,8 +841,8 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "mermaid": base.steps = mermaidSteps(n); break;
-      case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text).rows })); break;
-      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; base.title = n.attrs.title ?? null; break;
+      case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text, 0, n.defs).rows })); base.marks = usedMarks(n.defs, base.trees.flatMap((t: any) => t.rows.flatMap((r: any) => r.badges))); break;
+      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; base.prefixes = Object.fromEntries(Object.entries(n.defs?.prefixes ?? {}).filter(([k]) => base.steps.some((st: any) => st.lines.some((l: any) => l.prompt === k)))); base.title = n.attrs.title ?? null; break;
       case "codewalk": { const refs = codewalkRefs(doc, n); const modes = codewalkModes(n, refs); base.walkFiles = {}; base.steps = refs.map((r, i) => { const t = readRange(doc, r, src); const key = `${r.repo}/${r.file}`; if (!(key in base.walkFiles)) base.walkFiles[key] = readWhole(doc, r, src); return { animated: modes[i], key, repo: r.repo, file: r.file, commit: t.commit, lines: r.lines, focus: r.focus, marks: r.marks, lang: t.lang, code: t.text, error: t.err, note: noteHtml(n.steps[i].raw.trim()) }; }); break; }
       case "editor": {
         const { spec, files } = editorFiles(doc, n, src);

@@ -5,7 +5,7 @@ description: A fixture made from the Format page section of the same name.
 
 ## Callouts
 
-A callout is about the paragraph next to it. It is a blockquote that opens with a bold marker. The marker picks the icon and the colour; the author never picks an icon.
+A callout is a note beside the text it is about. A note about the whole page is a callout too: put it under the title. It is a blockquote that opens with a bold marker. The marker picks the icon and the colour; the author never picks an icon.
 
 > **Note:** a fact worth knowing, but not needed to follow the text.
 

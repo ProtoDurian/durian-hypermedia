@@ -5,7 +5,7 @@
 // prose, lists, tables, quotes, links and long paragraphs).
 import { describe, expect, test } from "bun:test";
 import { parse } from "../src/index";
-import { mixed, only, piece, grow, part, type Piece } from "./text-gen";
+import { mixed, only, piece, grow, part, repeated, type Piece } from "./text-gen";
 
 /** At most this many times longer for 8 times the text (linear is about 8; quadratic about 64). */
 const MOST = 20;
@@ -16,6 +16,7 @@ const shapes: [string, (bytes: number) => string][] = [
   ...(Object.keys(piece) as Piece[]).map((k): [string, (b: number) => string] => [k, (b) => only(k, b)]),
   ...Object.entries(grow),
   ...Object.entries(part),
+  ...Object.entries(repeated),
 ];
 
 const opts = { frontMatter: false } as const;
@@ -55,4 +56,21 @@ describe("8 times the text takes about 8 times as long", () => {
       expect(m.r).toBeLessThanOrEqual(MOST);
     }, 60_000);
   }
+});
+
+describe("a table of contents costs what it lists", () => {
+  // headings no table of contents lists (too deep) cost nothing more for each table: the same page with and without
+  // 1,900 of them takes about as long (0.6.2 before this test: about 5 times as long)
+  test("many headings, many tables of contents", () => {
+    const heads = "##### h\n".repeat(60_000), tocs = heads + "\n" + "::toc\n\n".repeat(1_900);
+    const d = parse(tocs, opts);
+    expect(d.problems).toEqual([]);
+    expect(d.blocks.filter((b) => b.type === "toc").length).toBe(1_900);
+    use = opts;
+    const once = (s: string) => { let b = Infinity; for (let i = 0; i < 3; i++) { const t = performance.now(); parse(s, opts); b = Math.min(b, performance.now() - t); } return b; };
+    parse(heads, opts);
+    let a = once(heads), b = once(tocs);
+    for (let k = 0; k < 2 && b > a * 2 + 20; k++) { a = once(heads); b = once(tocs); }
+    expect(b).toBeLessThanOrEqual(a * 2 + 20);
+  }, 60_000);
 });

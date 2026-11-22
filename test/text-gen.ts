@@ -63,3 +63,16 @@ export const part: Record<string, (bytes: number) => string> = {
   keysAndMouse: (b) => rows(b, 60, (i) => `Press :kbd[Ctrl+${i % 10}] then :mouse[click]{target="Save ${i}"}.\n\n`),
   manyParts: (b) => rows(b, 120, (i) => `${F}terminal\n$ run ${i}\nok\n${F}\n\n${F}filetree\nd${i}/\n  f.ts\n${F}\n\n`),
 };
+
+/**
+ * Short pieces repeated: each makes a rule that reads ahead start again inside text it has already read (an autolink's
+ * domain or the rest of its run, a page link's fragment). Each must still take one pass.
+ */
+export const repeated: Record<string, (bytes: number) => string> = {
+  wwwAfterUnderscore: (b) => "_www.".repeat(Math.ceil(b / 5)),
+  wwwSegments: (b) => "_www.a".repeat(Math.ceil(b / 6)),
+  schemeAfterPunctuation: (b) => "url=https://x_.".repeat(Math.ceil(b / 15)),
+  schemeRun: (b) => "=http://a_".repeat(Math.ceil(b / 10)),
+  pageLinkFragments: (b) => "x.dh.md#](".repeat(Math.ceil(b / 10)),
+  schemeRunTails: (b) => "(http://a_(http://a.b!!".repeat(Math.ceil(b / 23)),
+};

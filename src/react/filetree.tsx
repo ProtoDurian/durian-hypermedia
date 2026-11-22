@@ -5,6 +5,6 @@ import { useDh } from "./context";
 import type { FileTreeBlock } from "../types";
 export function FileTreePart({ block }: { block: FileTreeBlock }) {
   const { ui } = useDh();
-  return <FileTree trees={block.trees as any} ui={ui} />;
+  return <FileTree trees={block.trees as any} ui={ui} marks={block.marks} />;
 }
 export default FileTreePart;

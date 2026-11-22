@@ -20,7 +20,8 @@ draws that data with React, so author text is always a text node or an escaped a
 | an unknown container | an error block | `hostile/14` |
 | ids that clobber page globals (`id="location"`) | every id the page makes is prefixed (`dh-`), and `#anchor` links follow | `hostile/15` |
 | a host block whose parse throws | an error block with its message | `hostile/16` |
-| broken front matter; HTML in a banner | ignored with a problem; banner text is text, an unknown kind becomes `info` | `hostile/17`, `18` |
+| broken front matter | ignored with a problem; the page still renders (its text in the front matter is never drawn) | `hostile/17` |
+| a front matter `banner:` with HTML (removed in format version 10) | nothing is drawn for it; `check()` refuses it | `hostile/18` |
 | a huge page | over `maxInputBytes` (UTF-8): one error block, nothing else is parsed | `test/caps.test.ts` |
 
 `test/hostile.test.tsx` renders each fixture and checks that no `<script>`, `<iframe>`, `<object>`, `<embed>`,

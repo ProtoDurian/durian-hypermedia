@@ -16,7 +16,7 @@ box s1 "hill station" in field is=st
 box s2 "lake station" in field is=st
 box s3 "city station" in field is=st
 box hub "hub" is=hub level=10 note="keeps readings until it has a full batch"
-cylinder db "readings store" is=store
+cylinder db "readings store" is=store level=20 note="its meter: how full it is"
 s1 -> hub
 s2 -> hub
 s3 -> hub
@@ -34,9 +34,14 @@ set hub level=90 tone=warn
 @step The buffer is full: the hub writes one batch to the store and empties.
 send arrow "batch of 600" hub -> db
 set hub level=5 tone=plain
-@step Readings keep coming; the store grows by a batch at a time.
+set db level=40
+@step Readings keep coming. When the buffer is full again, the next batch goes in: the store grows by a batch at a time.
 send stream s1 -> hub
 send stream s2 -> hub
 send stream s3 -> hub
-set hub level=30
+set hub level=90
+then
+send arrow "next batch" hub -> db
+set hub level=5
+set db level=60
 ```

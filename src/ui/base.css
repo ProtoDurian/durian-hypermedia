@@ -59,7 +59,16 @@ kbd { font: 500 .8em var(--font-mono); padding: .1em .5em; border: 1px solid var
 .site-head { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 16px; padding: 10px var(--gutter); background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); text-decoration: none; white-space: nowrap; }
 .brand-mark { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--acc); color: var(--on-acc); font-size: 14px; }
-.site-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; }
+.nav-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.site-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; flex: 1; min-width: 0; scroll-snap-type: x proximity; scroll-padding-inline: 14px; }
+.site-nav::-webkit-scrollbar { display: none; }
+.site-nav a { scroll-snap-align: start; transition: opacity .15s; }
+/* a link cut by an edge of the scrolling bar is not drawn until it scrolls fully in (a host script marks it with data-off) */
+.site-nav a[data-off] { opacity: 0; }
+.nav-wrap::before, .nav-wrap::after { position: absolute; top: 0; bottom: 0; width: 14px; display: none; place-items: center; color: var(--muted); font-size: var(--fs-s); line-height: 1; pointer-events: none; }
+.nav-wrap::before { content: "‹"; left: 0; }
+.nav-wrap::after { content: "›"; right: 0; }
+.nav-wrap[data-more="left"]::before, .nav-wrap[data-more="both"]::before, .nav-wrap[data-more="right"]::after, .nav-wrap[data-more="both"]::after { display: grid; }
 .site-nav a { padding: 6px 10px; border-radius: var(--r-pill); color: var(--muted); text-decoration: none; font-size: var(--fs-s); white-space: nowrap; font-weight: 400; }
 .site-nav a:hover { background: var(--surface-2); color: var(--ink); }
 .site-nav a[aria-current] { background: var(--acc-soft); color: var(--acc-ink); font-weight: 500; }
@@ -113,17 +122,18 @@ table { border-collapse: collapse; width: 100%; font-size: var(--fs-s); }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-weight: 600; color: var(--ink); background: var(--surface-2); }
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+/* format version 10: code in a table cell keeps its words whole (the global "anywhere" let a column shrink until
+   "(changed)" broke after "chang"); a table wider than a phone scrolls inside its box and says so */
+td code, th code { overflow-wrap: break-word; }
+.table-more { margin: -12px 0 20px; font: 500 12px var(--font-sans); color: var(--muted); }
 
-/* callouts and banners */
-.callout, .banner { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
-.callout p:last-child, .banner p:last-child { margin-bottom: 0; }
-.callout-icon, .banner-icon { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--font-sans); color: var(--on-acc); background: var(--info); margin-top: 2px; }
+/* callouts */
+.callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
+.callout p:last-child { margin-bottom: 0; }
+.callout-icon { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 700 13px var(--font-sans); color: var(--on-acc); background: var(--info); margin-top: 2px; }
 .callout-note { border-color: var(--acc-soft); background: var(--info-soft); }
 .callout-tip { border-color: var(--good-soft); background: var(--good-soft); } .callout-tip .callout-icon { background: var(--good); }
 .callout-warn { border-color: var(--warn); background: var(--warn-soft); } .callout-warn .callout-icon { background: var(--warn); }
-.banner-info { background: var(--info-soft); border-color: var(--acc-soft); }
-.banner-warn { background: var(--warn-soft); border-color: var(--warn); } .banner-warn .banner-icon { background: var(--warn); }
-.banner-new { background: var(--hot-soft); border-color: var(--hot); } .banner-new .banner-icon { background: var(--hot); }
 blockquote { margin: 0 0 20px; padding: 4px 16px; border-left: 3px solid var(--line-2); color: var(--muted); }
 
 /* ---- code (Code Hike, github-from-css reads the --ch-* tokens) ---- */
@@ -279,7 +289,7 @@ figure.part { margin-inline: 0; }
 .pane-label b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--acc); color: var(--on-acc); font-size: 11px; }
 .pane-label span { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); }
 .pane-src .ch-pre { max-height: 22rem; overflow: auto; }
-.pane-out > .part, .pane-out > .human, .pane-out > .banner { margin-top: 0; margin-bottom: 0; }
+.pane-out > .part, .pane-out > .human, { margin-top: 0; margin-bottom: 0; }
 .pane-llm { white-space: pre-wrap; overflow-wrap: anywhere; font: 400 13px/1.6 var(--font-mono); background: var(--surface-2); border: 1px dashed var(--line-2); border-radius: var(--r-m); padding: 12px 14px; margin: 0; color: var(--ink-2); }
 .pane-none { color: var(--faint); font-size: var(--fs-s); }
 
@@ -289,7 +299,6 @@ figure.part { margin-inline: 0; }
 .nums b { display: block; font: 600 clamp(1.5rem, 6vw, 2.4rem)/1.1 var(--font-display); color: var(--ink); letter-spacing: -.02em; }
 .nums div:first-child b { color: var(--acc-ink); }
 .nums span { display: block; font-size: var(--fs-xs); color: var(--muted); line-height: 1.35; margin-top: 4px; }
-.human-plain > .banner { margin: 0 0 20px; }
 .mt-note { margin-bottom: 20px; }
 .tree-file pre { margin-top: 8px; max-height: 28rem; overflow: auto; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 12px; margin-top: 28px; }
@@ -312,6 +321,5 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); color:
 }
 .chart svg.hbar { max-width: 520px; }
 @media (max-width: 640px) {
-  .site-nav { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); padding-right: 24px; }
   .site-nav a { padding: 6px 8px; }
 }

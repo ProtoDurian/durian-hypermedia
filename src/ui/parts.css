@@ -51,6 +51,7 @@
 .cw-notes { display: grid; padding: 14px 16px 10px; background: var(--surface); }
 .cw-note { grid-area: 1 / 1; display: flex; align-items: flex-start; font-size: var(--fs-s); line-height: 1.5; color: var(--ink-2); opacity: 0; transition: opacity .25s; }
 .cw-note.is-active { opacity: 1; }
+.cw-nt { flex: 1 1 0; min-width: 0; } /* the note is one box: inline code in it no longer becomes a flex column of its own */
 .cw-note[aria-hidden="true"] { visibility: hidden; }
 
 /* ---- editor: a small IDE ---- */
@@ -79,10 +80,21 @@
 .seg { margin-left: auto; display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-pill); overflow: hidden; }
 .seg button { border: 0; background: var(--surface); color: var(--muted); font: 500 12px var(--font-sans); padding: 5px 12px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--acc-soft); color: var(--acc-ink); }
+.ide-drawer { display: none; }
 @media (max-width: 640px) {
+  /* the editor on a phone (format version 10): the tree above the file (a closed drawer when it is long), code at 14 px,
+     a pane at least 8 lines tall, rows a finger can hit, nothing sticking out */
   .ide-body { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: auto; }
-  .ide-side { max-height: 128px; border-right: 0; border-bottom: 1px solid var(--term-line); }
-  .ide-code .ch-pre { height: calc(var(--rows) * 1.6 * 13px + 24px); max-height: 60vh; }
+  .ide-side { max-height: 144px; border-right: 0; border-bottom: 1px solid var(--term-line); }
+  .ide-side.is-shut { display: none; }
+  .ide-side-head { display: none; }
+  .ide-row { min-height: 36px; font-size: 14px; }
+  .ide-code .ch-pre { font-size: 14px; line-height: 1.6; height: calc(max(var(--rows), 8) * 1.6 * 14px + 24px); max-height: 70vh; }
+  .ide-code .ch-ln { width: 2.6em; padding-right: .8em; }
+  .ide-crumbs { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 10px; min-height: 36px; }
+  .ide-crumbs > span { overflow: hidden; text-overflow: ellipsis; }
+  .ide-drawer { display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 28px; padding: 3px 10px; border: 1px solid var(--term-line); border-radius: var(--r-pill); background: var(--term-2); color: var(--term-ink); font: 500 12px var(--font-sans); cursor: pointer; }
+  .ide-drawer .chev { transform: rotate(0deg); } .ide-drawer .chev.is-open { transform: rotate(90deg); }
 }
 
 /* ---- file icons, chevrons ---- */
@@ -113,6 +125,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .fx-badge b { font: 700 11px var(--font-mono); color: inherit; }
 .b-new { background: var(--good-soft); color: var(--good-ink); } .b-changed { background: var(--warn-soft); color: var(--warn-ink); }
 .b-removed { background: var(--bad-soft); color: var(--bad-ink); } .b-generated { background: var(--info-soft); color: var(--info-ink); } .b-conflict { background: var(--hot-soft); color: var(--hot); }
+.fx-row.is-removed { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
 .fx-row.is-removed .fx-name { text-decoration: line-through; color: var(--muted); }
 .fx-note { color: var(--muted); font-size: var(--fs-xs); padding: 0 8px 4px 46px; flex-basis: 100%; }
 .fx-gap { color: var(--faint); font-style: italic; font-size: var(--fs-xs); gap: 8px; padding-top: 2px; padding-bottom: 4px; }
@@ -223,10 +236,6 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .callout-security { border-color: var(--bad); background: var(--bad-soft); } .callout-security .callout-icon { background: var(--bad); }
 .callout-label { font-weight: 600; }
 
-/* banner: one per page, from the front matter, above the title */
-.banner-draft { background: var(--surface-2); border-color: var(--line-2); border-style: dashed; } .banner-draft .banner-icon { background: var(--muted); }
-.banner-deprecated { background: var(--bad-soft); border-color: var(--bad); } .banner-deprecated .banner-icon { background: var(--bad); }
-.banner-kind { font-weight: 600; margin-right: .4em; }
 
 /* stepped diagram: every step drawn into one cell; only the current one shows */
 .dg { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); overflow: hidden; }
@@ -389,7 +398,8 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
   .scn-tools .scn-back { padding: 0 12px; font-size: 13px; }
   .scn-hint { font-size: 12px; }
   .scn-how { width: 40px; height: 40px; }
-  .scn3-l.is-cont.sz-s { font-size: 11px; }
+  /* (format version 10) .scn raises it over the general 10.5 px rule further down, which won before */
+  .scn .scn3-l.is-cont.sz-s { font-size: 11px; }
 }
 .scn-more { position: absolute; inset: 0; pointer-events: none; }
 .scn-more span { position: absolute; display: grid; place-items: center; color: var(--muted); }
@@ -412,6 +422,17 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-steps button { all: unset; display: block; text-align: left; cursor: pointer; color: var(--ink-2); line-height: 1.45; padding: 2px 0; }
 .scn-steps button:hover { color: var(--acc-ink); text-decoration: underline; }
 .scn-steps button.is-cur { color: var(--acc-ink); font-weight: 600; }
+/* format version 10: a scene inside a scene: its steps in a list inside the step that enters it, a chip on the
+   caption naming the scene, and a band under the slider where the story is inside it */
+.scn-steps .scn-sub { border-left: 2px solid var(--acc-soft); margin: 2px 0 4px; }
+.scn-steps .scn-sub ol { padding: 0 0 0 30px; }
+.scn-where { display: inline-block; margin-right: 6px; padding: 0 7px; border-radius: 9px; background: var(--acc-softer); color: var(--acc-ink); font-size: 12px; font-weight: 600; line-height: 18px; vertical-align: 1px; }
+.scn-where-k { font-weight: 500; }
+.ctl-mid { position: relative; }
+.ctl-bands { position: absolute; left: 0; right: calc(3.6em + 10px); bottom: -3px; height: 3px; pointer-events: none; }
+.ctl-band { position: absolute; top: 0; height: 3px; border-radius: 2px; background: var(--acc); opacity: .55; }
+.ctl-band.d-2 { top: 4px; }
+@media (max-width: 480px) { .ctl-bands { right: calc(3.6em + 10px); } }
 .t-pr.t-root { color: var(--ch-5); }
 
 /* ---- animation, format version 5: layer bands (2D), the 3D stage and its toggle ---- */
@@ -430,7 +451,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* the same size tokens as the 2D stage: a label wraps at its size's width (set in anim3d.ts) */
 .scn3-labels > .scn3-l:not(.is-cont) { white-space: normal; width: max-content; text-align: center; }
 .scn3-l.sz-s { font-size: 11px; } .scn3-l.sz-l { font-size: 15px; }
-.scn3-l.is-cont.sz-s { font-size: 10.5px; } .scn3-l.is-cont.sz-l { font-size: 12.5px; }
+/* format version 10: never under 11 px, also on a laptop (was 10.5) */ .scn3-l.is-cont.sz-s { font-size: 11px; } .scn3-l.is-cont.sz-l { font-size: 12.5px; }
 .scn3-l.is-cont { translate: 0 -100%; background: none; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; padding: 0; text-shadow: 0 0 3px var(--surface), 0 0 3px var(--surface); }
 .scn3-l.k-text { background: none; color: var(--ink-2); font-weight: 400; }
 .scn3-l.k-token { translate: -50% -130%; background: var(--surface); color: var(--acc-ink); border: 1px solid color-mix(in srgb, var(--acc) 55%, var(--line)); font-weight: 600; font-size: 11px; padding: 0 7px; border-radius: 99px; text-shadow: none; }
@@ -440,6 +461,10 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn3-l.is-hl, .scn3-l.is-sel { color: var(--acc-ink); font-weight: 600; text-decoration: underline 2px color-mix(in srgb, var(--acc) 60%, transparent); text-underline-offset: 3px; }
 .scn3-layer { translate: -100% -50%; font-size: 12px; font-weight: 600; color: var(--acc-ink); padding: 2px 9px; border-radius: 99px; background: var(--surface); border: 1px solid color-mix(in srgb, var(--acc) 35%, var(--line)); }
 .scn3-layer.is-on { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
+/* (rfit) the name of the nearest layer whose plane is off the stage: at that edge, dashed, with an arrow pointing that way */
+.scn3-layer[data-off="b"], .scn3-layer[data-off="t"] { border-style: dashed; }
+.scn3-layer[data-off="b"]::before { content: "\2193\00a0"; }
+.scn3-layer[data-off="t"]::before { content: "\2191\00a0"; }
 .scn3-wire { translate: -50% -50%; font-size: 11px; font-weight: 500; color: var(--muted); padding: 1px 7px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); }
 .scn3-send { translate: -50% -125%; font-size: 11px; font-weight: 600; color: var(--hot-ink); background: var(--surface); border: 1px solid color-mix(in srgb, var(--hot) 60%, var(--line)); padding: 0 7px; border-radius: 99px; }
 .scn3-arrow { translate: -50% -100%; font-size: 11px; font-weight: 600; color: var(--acc-ink); background: var(--acc-softer); border: 1px solid color-mix(in srgb, var(--acc) 45%, var(--line)); padding: 1px 7px; border-radius: 9px; white-space: normal !important; width: max-content; max-width: 150px; text-align: center; }
@@ -448,7 +473,38 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* format version 6: a meter (level=) and a stream (send stream) */
 /* format version 8: the fill is the meter's own token in every family and tone (a tone colours the box's border,
    so a fill of the same colour would vanish into it) */
-.scn-meter-track { fill: var(--meter-track); }
+.scn-meter-track { fill: var(--meter-track); stroke: var(--meter); stroke-width: 1; stroke-opacity: 0.55; }
 .scn-meter-fill { fill: var(--meter); transition: none; }
 .scn-stream-track { fill: none; stroke: color-mix(in srgb, var(--hot) 30%, transparent); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; }
 .scn-send.cc .scn-stream-track { stroke: color-mix(in srgb, var(--k) 40%, transparent); }
+/* format version 10: a 3D-only scene where 3D cannot be drawn (no WebGL): a note and its steps, in place of the stage */
+.scn-only3d { position: absolute; inset: 0; overflow: auto; padding: 14px 16px; font-size: 14px; line-height: 1.45; color: var(--ink); }
+.scn-only3d p { margin: 0 0 8px; color: var(--muted); }
+.scn-only3d ol { margin: 0; padding-left: 22px; }
+.scn-only3d li + li { margin-top: 4px; }
+.scn-only3d li.is-cur { font-weight: 600; color: var(--acc); }
+
+/* candlestick key: up is a light body with a good edge, down a solid bad body (never colour alone) */
+.candle-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+/* each swatch stays with its words: the key wraps between items, never inside one */
+.candle-key .ck-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.candle-key .ck { flex: none; display: inline-block; width: 10px; height: 16px; border-radius: 2px; border: 2px solid var(--good); background: var(--good-soft); }
+.candle-key .ck-down { border-color: var(--bad); background: var(--bad); }
+
+/* a file tree's own marks and a terminal's own prompts (format version 10): a tone sets the colours; only the ones a part uses are listed */
+.fx-badge.b-own { background: var(--t-soft); color: var(--t-ink); box-shadow: inset 0 0 0 1px var(--t); }
+.fx-key { list-style: none; margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); }
+.fx-key li { display: inline-flex; align-items: center; gap: 6px; }
+.t-pr.t-own { color: var(--t); }
+.t-key { list-style: none; margin: 0; padding: 8px 14px; border-top: 1px solid var(--term-line); display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; color: var(--term-faint); }
+.t-key li { display: inline-flex; align-items: baseline; gap: 6px; }
+.t-key .t-pr { margin-right: 0; }
+.t-key b { color: var(--term-ink); font-weight: 600; }
+/* format version 10: on a phone, until an animation is live (it has measured its stage and picked its phone layout), its
+   stage shows no server-drawn 2D: that is the wide layout, words of about 6 px, and a scene that opens in 3D would flash
+   it. Only when scripts run (the html has class js); without them the server's drawing stays */
+@media (max-width: 560px) { .js .scn:not([data-live]) .scn-svg { visibility: hidden; } }
+
+/* ---- format version 10: a mermaid edge label sits on a solid card, so its arrow never runs through the words
+   (mermaid's own sheet draws that card at half opacity; its rules are by id, so these need !important) ---- */
+.mermaid-svg svg .edgeLabel rect, .mermaid-svg svg .edgeLabel .background { opacity: 1 !important; fill: var(--surface) !important; }

@@ -1,6 +1,6 @@
 // Untrusted input: each hostile fixture is one attack, and each is neutralised.
 import { describe, expect, test } from "bun:test";
-import { parse, defaultUrlPolicy, applyUrlPolicy, schemeOf } from "../src/index";
+import { parse, check, defaultUrlPolicy, applyUrlPolicy, schemeOf } from "../src/index";
 import { fixtures, html, taskBlock } from "./helpers";
 
 const H = Object.fromEntries(fixtures("hostile").map((f) => [f.name.replace(/^hostile\//, "").replace(/\.dh\.md$/, ""), f.text]));
@@ -67,12 +67,14 @@ describe("hostile fixtures", () => {
     expect(out).toContain('href="#dh-location"');
   });
   test("a host block that throws becomes an error block", () => { const { d } = render("16-host-block-throws"); expect(d.blocks.some((b) => b.type === "error" && /needs id/.test(b.message))).toBe(true); });
-  test("broken front matter: ignored with a message", () => { const { d, out } = render("17-front-matter-broken"); expect(d.problems[0].message).toContain("front matter"); expect(out).toContain("still renders"); });
-  test("a banner with HTML: text, kind info, no link", () => {
-    const { d, out } = render("18-banner-html");
-    expect(d.banner?.kind).toBe("info");
-    expect(out).toContain("&lt;img src=x");
+  test("broken front matter: ignored with a message, the page still renders", () => { const { d, out } = render("17-front-matter-broken"); expect(d.problems[0].message).toContain("front matter"); expect(out).toContain("still renders"); });
+  test("a banner (removed in format version 10): nothing is drawn for it, check() refuses it", () => {
+    const { d, out } = render("18-banner-refused");
+    expect("banner" in d).toBe(false);
+    expect(out).not.toContain("banner");
+    expect(out).not.toContain("<img");
     expect(out).not.toMatch(/<a [^>]*href=/i);
+    expect(check(d).some((p) => p.level === "error" && p.message.includes("banner was removed in format version 10"))).toBe(true);
   });
 });
 

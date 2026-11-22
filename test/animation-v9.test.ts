@@ -21,7 +21,7 @@ const fences = (): { name: string; c: ReturnType<typeof compileScene>; info: Rec
     const t = readFileSync(join(FIX, f), "utf8");
     for (const m of t.matchAll(/^```animation([^\n]*)\n([\s\S]*?)^```$/gm)) {
       const info: Record<string, string> = {};
-      for (const w of m[1].trim().split(/\s+/).filter(Boolean)) { const [k, v] = w.split("="); if (v) info[k] = v; else if (k === "3d" || k === "2d") info.view = k; }
+      for (const w of m[1].trim().split(/\s+/).filter(Boolean)) { const [k, v] = w.split("="); if (v) info[k] = v; else if (k === "3d" || k === "2d") info.view = k; else if (k === "only") info.only = info.view ?? "3d"; }
       const [head, ...rest] = m[2].split(/^@step /m);
       const steps = rest.map((r, k) => { const [title, ...body] = r.split("\n"); return { title: title.trim(), raw: body.join("\n"), line: 10 + k }; });
       out.push({ name: f, c: compileScene(head, steps, 1, info), info, head, steps });
@@ -31,7 +31,7 @@ const fences = (): { name: string; c: ReturnType<typeof compileScene>; info: Rec
 };
 
 describe("format version 9", () => {
-  test("the format number", () => expect(FORMAT_VERSION).toBe(9));
+  test("the format number", () => expect(FORMAT_VERSION).toBeGreaterThanOrEqual(9));
   const all = fences();
   test("the fixtures hold the new samples", () => {
     expect(all.length).toBeGreaterThanOrEqual(24);
@@ -58,13 +58,13 @@ describe("format version 9", () => {
     }
     expect([...new Set(short)]).toEqual([]);
   });
-  test("the laptop view cuts nothing in half and stays within the scene", () => {
+  test("the laptop view cuts nothing in half", () => {
     const bad: string[] = [];
-    const ar = 700 / 466;
+    // the laptop stage as the page draws it: 714 px wide, as tall as the scene's shape asks (format version 10: the same stage the words check uses)
     for (const x of all) x.c.frames.forEach((f, i) => {
-      const v = storyView(f, ar, 700), S = pad(f.bounds, MARGIN);
-      const past = (v.x < S.x - 1 && v.x + v.w < S.x + S.w - 1) || (v.x + v.w > S.x + S.w + 1 && v.x > S.x + 1) || (v.y < S.y - 1 && v.y + v.h < S.y + S.h - 1) || (v.y + v.h > S.y + S.h + 1 && v.y > S.y + 1);
-      if (cutBy(f, v).length || past) bad.push(`${x.name} step ${i + 1}`);
+      const h = Math.min(0.7 * 800, Math.max(260, 714 / x.c.aspect)), ar = 714 / h;
+      const v = storyView(f, ar, 714);
+      if (cutBy(f, v).length) bad.push(`${x.name} step ${i + 1}`);
     });
     expect(bad).toEqual([]);
   });

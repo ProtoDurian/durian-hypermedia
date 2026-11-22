@@ -5,16 +5,26 @@
 // this file tweens between frames, draws with page tokens only, and lets the reader explore with a camera:
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, union, pad, center, edgePoint, fitAspect, storyView, connGeom, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { moreSides } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
+import { lerpRoute } from "../core/route";
 import { FAINT } from "../core/story";
+import { visOf, REST_MS } from "../core/depth";
+// format version 10: a scene inside a scene (tools/scenes.ts; the stage's part in ./anim-scenes)
+import { sceneMove, sceneFrames, stepScene } from "../core/scenes";
+import { moveCam, moveO, SceneChip, StepList, sceneBands } from "./anim-scenes";
+import { hasWebGL } from "./gl";
 
-// 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle
-function can3d(): boolean {
-  if (typeof window === "undefined" || reducedMotion()) return false;
-  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
+// 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle. A 3D-only scene (format
+// version 10) needs only WebGL: with reduced motion it shows still 3D frames, one per step
+function can3d(only = false): boolean {
+  if (typeof window === "undefined" || (!only && reducedMotion())) return false;
+  // asked once per page; the test context is given back at once (site/src/gl.ts: a throwaway context per animation
+  // pushed the 3D stages' own contexts out)
+  return hasWebGL();
 }
 
 // the page's width without its scrollbar, for the phone's edge-to-edge stage (parts.css): 100vw counts a visible
@@ -39,7 +49,11 @@ export type SceneSrc = { head: string; steps: { title: string; raw: string; line
 // anchorY: a pointer's anchor top (a pointer below its anchor points up)
 // lv: its meter (level=) at this moment, tweened
 // g (format version 9): how fully it is drawn, FAINT inside a closed thing (its words hidden) to 1 when open, tweened
-type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number };
+// lift (format version 10): how far it is lifted out of its box (0 to 1, tweened; only the 3D stage raises it)
+type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number; lift?: number };
+// a line's end as the router measured it (format version 10): with its heading, so a queue's line meets its rails
+const endRect = (s: Shown): Rect & { head?: number } => (s.box.head ? { ...s.r, head: s.box.head } : s.r);
+const liftOf = (b?: Box) => (b?.lift ? 1 : 0);
 const gOf = (b?: Box) => (b?.faint ? FAINT : 1);
 const wordsO = (g?: number) => (g == null ? 1 : Math.max(0, Math.min(1, (g - FAINT) / (1 - FAINT))));
 const bandOff = (b: Box) => b.y - b.ly;
@@ -71,13 +85,25 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const [user3, setUser3] = useState(false);               // the reader moved the 3D camera
   const [pickL, setPickL] = useState<number | null>(null); // the layer the reader clicked
   const [active, setActive] = useState(false);             // the reader took the stage (clicked, tapped or focused it): the wheel and one finger move it
+  // format version 10 (tools/depth.ts): a 3D-only scene has no flat form; in 3D, while a step plays, only who takes
+  // part shows a label (labels=all keeps them all); the others come back REST_MS after the step ends and the player stops
+  const only3d = !!cWide.scene.attrs.only3d, labelsAll = cWide.scene.attrs.labels === "all";
+  const [rest, setRest] = useState(true);
+  const firstStep = useRef(true);
   const host3 = useRef<HTMLDivElement>(null);
   const s3 = useRef<Stage3 | null>(null);
+  // (rfit) "Show everything" pressed before the 3D stage is live (the part hydrates on that very tap, or three.js is still
+  // loading): kept here and done once the stage mounts; before, the tap was lost and the story's crop stayed
+  const fitAsked = useRef(false);
   const view3 = useRef<View3 | null>(null);
   // the floor plan of the whole story: where the 3D stage puts its layer planes and its centre
-  const families = c.frames[0]?.families ?? [];
-  const foot = useMemo(() => union(c.frames.flatMap((f) => f.boxes.filter((b) => b.kind !== "layer").map((b) => ({ x: b.x, y: b.ly, w: b.w, h: b.h })))), [c]);
-  useEffect(() => { watchPageW(); const ok = can3d(); setOk3d(ok); if (ok && src.info.view === "3d") setMode("3d"); }, []);
+  // (format version 10) of the scene the story is in: each scene has its own floor plan and families
+  const sceneNow = stepScene(c, i).id;
+  const families = (c.frames[i] ?? c.frames[0])?.families ?? [];
+  const foot = useMemo(() => union(sceneFrames(c, i).flatMap((f) => f.boxes.filter((b) => b.kind !== "layer").map((b) => ({ x: b.x, y: b.ly, w: b.w, h: b.h })))), [c, sceneNow]);
+  useEffect(() => { watchPageW(); const ok = can3d(only3d); setOk3d(ok); if (ok && (src.info.view === "3d" || only3d)) setMode("3d"); }, []);
+  useEffect(() => { if (firstStep.current) { firstStep.current = false; return; } setRest(false); }, [i]);
+  useEffect(() => { if (t < 1 || playing || rest) return; const tm = setTimeout(() => setRest(true), REST_MS); return () => clearTimeout(tm); }, [t, playing, rest, i]);
   useEffect(() => {
     if (mode !== "3d") return;
     let dead = false, h: Stage3 | null = null;
@@ -88,9 +114,10 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
         h = m.mount3d(host3.current, {
           pick: (p: Pick) => { if (!p) { setSel(null); setPickL(null); } else if (p.kind === "ent") { setSel(p.key); setPickL(null); } else { setPickL(p.L); setSel(null); } },
           user: (a) => setUser3(a),
-        });
+        }, { still: reducedMotion() });
         s3.current = h;
         if (view3.current) h.update(view3.current);
+        if (fitAsked.current) { fitAsked.current = false; h.fit(); }
       } catch { setOk3d(false); setMode("2d"); }
       setLoading3d(false);
     }).catch(() => { setOk3d(false); setMode("2d"); setLoading3d(false); });
@@ -130,14 +157,14 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   }, [mode]);
   // a step's length: longer with sends (or a token that moves or is dropped); each beat (a "then" line) is that long again; pace slow or fast (format version 9)
   const PACE: Record<string, number> = { slow: 1.8, normal: 1, fast: 0.55 };
-  const dur = (k: number) => (c.fx[k]?.sends.length || c.fx[k]?.moved?.length || c.fx[k]?.dropped?.length ? 1500 : 850) * (c.fx[k]?.beats ?? 1) * (PACE[c.fx[k]?.pace && c.fx[k]?.pace !== "normal" ? c.fx[k]!.pace! : src.info.pace ?? "normal"] ?? 1);
+  const dur = (k: number) => (c.nest?.via[k] ? 1700 : c.fx[k]?.sends.length || c.fx[k]?.moved?.length || c.fx[k]?.dropped?.length ? 1500 : 850) * (c.fx[k]?.beats ?? 1) * (PACE[c.fx[k]?.pace && c.fx[k]?.pace !== "normal" ? c.fx[k]!.pace! : src.info.pace ?? "normal"] ?? 1);
 
   const go = (k: number, keepCam = false) => {
     const to = Math.max(0, Math.min(n - 1, k));
     if (to === i) return;
     cancelAnimationFrame(raf.current);
     setFrom(i); setI(to); setSel(null); setPickL(null);
-    if (!keepCam) { setUser(null); s3.current?.back(); }
+    if (!keepCam) { setUser(null); s3.current?.back(); fitAsked.current = false; }
     if (reducedMotion()) { setT(1); return; }
     setT(0);
     const start = performance.now(), d = dur(to);
@@ -147,6 +174,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
   // a press or a tap anywhere outside the part lets the stage go (a tap on a phone does not always move the focus)
   const root = useRef<HTMLDivElement>(null);
+  // format version 10: live once it knows its width (and so its phone layout); until then a phone shows no server 2D
+  // (the wide layout, words of about 6 px), see parts.css .js .scn:not([data-live])
+  useEffect(() => { if (px0 > 0) root.current?.setAttribute("data-live", "1"); }, [px0]);
   // the phone's edge-to-edge part (parts.css) moves left by where its column starts: --bleed-l, read from the parent
   // (a column need not be centred on the page)
   useEffect(() => {
@@ -177,10 +207,13 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   }, []);
 
   if (!n) return <div className="cw-error">This animation has no steps.</div>;
-  const A = c.frames[from], B = c.frames[i];
-  const forward = i === from + 1;
-  const te = ease(t);
-  const fx = c.fx[i];
+  // a step into or out of a scene inside the scene (format version 10): the stage shows one scene at a time, the one
+  // left in the first half and the next in the second; nothing tweens between two scenes, the camera zooms through
+  const mv = sceneMove(c, from, i, t);
+  const A = mv ? mv.frame : c.frames[from], B = mv ? mv.frame : c.frames[i];
+  const forward = !mv && i === from + 1;
+  const te = mv ? 1 : ease(t);
+  const fx = mv ? { highlights: [], says: [], sends: [], spawn: {}, merge: {}, enter: [], touched: [] } as typeof c.fx[number] : c.fx[i];
   // beats (format version 9): a change after a "then" line starts when the ones before it end: the stage moves from
   // the frame at the end of one beat to the frame at the end of the next; backwards, everything moves at once
   const NB = forward ? Math.max(1, fx.beats ?? 1) : 1;
@@ -219,13 +252,13 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       if (arc.has(b.id) && (Math.abs(b.x - p.x) > 4 || Math.abs(b.y - p.y) > 4)) r.y -= Math.sin(Math.PI * tb) * Math.max(40, Math.hypot(b.x - p.x, b.y - p.y) * 0.35);
       // items of an array, list, stack or queue that trade places pass each other on an arc, not through each other
       if (b.parentKind && ["array", "list", "stack", "queue", "bucket"].includes(b.parentKind) && Math.abs(b.x - p.x) > 4 && b.parentKind !== "stack") r.y += Math.sin(Math.PI * te) * b.h * 0.75 * (b.x > p.x ? -1 : 1);
-      shown.push({ box: b, r, o: fo(b, p) * dimOf(b), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), tb), L: lerp(p.layer, b.layer, tb), g: lerp(gOf(p), gOf(b), tb) });
+      shown.push({ box: b, r, o: fo(b, p) * dimOf(b) * lerp(visOf(p), visOf(b), tb), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), tb), L: lerp(p.layer, b.layer, tb), g: lerp(gOf(p), gOf(b), tb), lift: lerp(liftOf(p), liftOf(b), tb) });
       continue;
     }
     const src0 = forward ? prev.get(fx.spawn[b.key]) : undefined;
     const tb = teOf(b);
-    if (src0) { const r = lerpR(src0, b, tb); shown.push({ box: b, r, o: Math.min(1, tb * 2) * fo(b) * dimOf(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), tb), L: lerp(src0.layer, b.layer, tb), g: gOf(b) }); }
-    else { const s = lerp(0.85, 1, tb); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: tb * fo(b) * dimOf(b), enter: true, ly: r.y - bandOff(b), L: b.layer, g: gOf(b) }); }
+    if (src0) { const r = lerpR(src0, b, tb); shown.push({ box: b, r, o: Math.min(1, tb * 2) * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), tb), L: lerp(src0.layer, b.layer, tb), g: gOf(b) }); }
+    else { const s = lerp(0.85, 1, tb); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: tb * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - bandOff(b), L: b.layer, g: gOf(b), lift: liftOf(b) }); }
   }
   if (t < 1) for (const p of SA.boxes) {
     if (curSeg.has(p.key)) continue;
@@ -233,9 +266,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     const tp = teOf(p);
     // a dropped token (format version 9) travels to where it is lost, turns red, is crossed out and fades
     const dr = forward ? c.fx[i].dropped?.find((d) => d.key === p.key) : undefined;
-    if (dr) { const s = droppedAt(p, dr.at != null ? cur.get(dr.at) ?? prev.get(dr.at) : undefined, tp); shown.push({ ...s, ly: s.r.y - bandOff(p), L: p.layer, g: gOf(p), o: s.o * fo(p) }); continue; }
+    if (dr) { const s = droppedAt(p, dr.at != null ? cur.get(dr.at) ?? prev.get(dr.at) : undefined, tp); shown.push({ ...s, ly: s.r.y - bandOff(p), L: p.layer, g: gOf(p), o: s.o * fo(p) * visOf(p) }); continue; }
     const r = into ? lerpR(p, into, tp) : p;
-    shown.push({ box: p, r, o: (1 - tp) * fo(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer, g: gOf(p) });
+    shown.push({ box: p, r, o: (1 - tp) * fo(p) * visOf(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer, g: gOf(p) });
   }
   for (const s of shown) if (s.box.kind === "pointer") s.anchorY = B.boxes.find((x) => x.id === s.box.ent.anchor)?.y;
   for (const s of shown) if (s.box.ent.level != null) { const p = prev.get(s.box.key)?.ent.level; s.lv = lerp(p ?? s.box.ent.level, s.box.ent.level, te); }
@@ -245,14 +278,17 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const curEdges = new Set(SB.edges.map((e) => e.key));
   const teEdge = (_e: Edge) => tSeg;
   const litEdge = (e: Edge) => { if (!spot.size) return 1; const a = at.get(e.from), b = at.get(e.to); return a && b && lit(a.box) && lit(b.box) ? 1 : dimOf(a?.box ?? b!.box); };
-  for (const e of SB.edges) edgesNow.push({ e, o: (prevEdges.has(e.key) ? 1 : teEdge(e)) * litEdge(e) });
+  // a connector that stays keeps sliding its ends to their new places along the step (format version 10)
+  const prevEdge = new Map(SA.edges.map((e) => [e.key, e]));
+  for (const e of SB.edges) { const ea = t < 1 ? prevEdge.get(e.key) : undefined; edgesNow.push({ e: ea && ea.rt && e.rt ? { ...e, rt: lerpRoute(ea.rt, e.rt, te) } : e, o: (prevEdges.has(e.key) ? 1 : teEdge(e)) * litEdge(e) }); }
   if (t < 1) for (const e of SA.edges) if (!curEdges.has(e.key)) edgesNow.push({ e, o: 1 - teEdge(e) });
 
   // ---- the camera: the story's, unless the reader moved it
   // the story's camera (tools/scene.ts storyView): what the author framed plus everything this step touches, in frame
-  const vB = storyView(B, ar, px), story = user ? vB : lerpR(storyView(A, ar, px), vB, te);
-  const cam = user ? fitAspect(user, ar) : story;
-  const all = fitAspect(pad(union(c.frames.map((f) => f.bounds)), 24), ar);
+  const vB = storyView(B, ar, px), story = mv ? moveCam(mv, vB, ar) : user ? vB : lerpR(storyView(A, ar, px), vB, te);
+  const cam = user && !mv ? fitAspect(user, ar) : story;
+  const all = fitAspect(pad(union(sceneFrames(c, i).map((f) => f.bounds)), 24), ar);
+  const stageO = moveO(mv);
   const toWorld = (dx: number, dy: number) => { const r = svg.current!.getBoundingClientRect(); return { x: (dx / r.width) * cam.w, y: (dy / r.height) * cam.h }; };
   // move the view by screen pixels (the wheel, the arrow keys): the scene moves the other way, as a page does
   const panBy = (dx: number, dy: number) => { if (!svg.current) return; const wv = toWorld(dx, dy); setUser({ ...cam, x: cam.x + wv.x, y: cam.y + wv.y }); };
@@ -331,8 +367,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const selBox = sel != null ? cur.get(sel) : null;
   const zoomIn = () => (mode === "3d" ? s3.current?.zoom(0.8) : zoomBy(0.8));
   const zoomOut = () => (mode === "3d" ? s3.current?.zoom(1.25) : zoomBy(1.25));
-  const fitAll = () => (mode === "3d" ? s3.current?.fit() : setUser(all));
-  function backToStory() { setUser(null); setSel(null); setPickL(null); s3.current?.back(); setUser3(false); }
+  const fitAll = () => { if (s3.current && mode === "3d") s3.current.fit(); else { fitAsked.current = true; setUser(all); } };
+  function backToStory() { setUser(null); setSel(null); setPickL(null); s3.current?.back(); setUser3(false); fitAsked.current = false; }
   const moved = !!(user || user3 || pickL != null);
   // the stage's own keys, when it has focus: arrows move, + and - zoom, 0 or Esc go back to the story; in 3D, W A S D
   // walk over the ground as well. (The steps keep their keys on the rest of the part: arrows there, PageUp/PageDown here)
@@ -352,7 +388,11 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     else done = false;
     if (done) { e.preventDefault(); e.stopPropagation(); }
   };
-  const toggle = () => { backToStory(); setMode(mode === "3d" ? "2d" : "3d"); };
+  const toggle = () => { if (only3d) return; backToStory(); setMode(mode === "3d" ? "2d" : "3d"); };
+  // in 3D, while a step plays (and until the reader pauses at its end), only who takes part shows a label
+  // a 3D-only scene without 3D: its steps as a list stand in for the stage (no camera buttons, no "how to move")
+  const listOnly = only3d && mode !== "3d";
+  const quiet = mode === "3d" && !labelsAll && !user3 && (t < 1 || playing || !rest);
   const layerName = (L: number) => B.layers[L]?.label ?? `${ui.layer ?? "layer"} ${L + 1}`;
   // ---- the same moment, for the 3D stage
   const sendP = forward ? Math.max(0, Math.min(1, (t - 0.12) / 0.88)) : 1;
@@ -370,24 +410,30 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const endingStreams = t < 1 && A !== B ? A.sends.filter((g) => isStream(g) && !curStreams.has(streamKey(g))) : [];
   if (mode === "3d") {
     const keyOf = new Map<string, number>([...A.boxes, ...B.boxes].map((b) => [b.id, b.key]));
-    const items: Item3[] = shown.map((s) => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, ...(s.g != null && s.g < 1 ? { faint: s.g } : {}), size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth }));
+    const items: Item3[] = shown.map((s) => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, ...(s.g != null && s.g < 1 ? { faint: s.g } : {}), size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth, ...(s.lift ? { lift: s.lift } : {}), ...(s.lv != null ? { lv: s.lv } : {}) }));
+    if (mv) for (const it of items) it.o *= stageO;
+    // going in, the first half looks at the thing entered from, close
+    const into = mv && mv.half === 0 && mv.dir === "in" && mv.viaKey != null ? mv : null;
     view3.current = {
-      items, edges: edgesNow.map(({ e, o }) => ({ ...e, o })),
-      sends: B.sends.map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k) })),
+      items, edges: edgesNow.map(({ e, o }) => ({ ...e, o: o * stageO })),
+      sends: (mv ? [] : B.sends).map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k), offs: g.offs, bends: g.bends, rts: g.rts })),
       says: fx.says.map((sy, k) => ({ key: sy.key, text: sy.text, o: sayO(k) })),
       hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), sel,
-      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: B.look, touched: B.touched, foot, stepKey: String(i), cam: B.view ?? null,
+      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
+      cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
+      part: quiet && B.part ? B.part : null,
+      least: MIN_PX / minFont(B),
+      // format version 10: the scene shown; going in, the first half flies into the thing entered from; the second
+      // half starts far (going in) or at that thing (going out)
+      scene: mv ? mv.scene : sceneNow, sceneDir: mv?.dir, ...(mv ? { fade: stageO } : {}), sceneVia: mv && mv.half === 1 && mv.dir === "out" ? mv.viaKey : null,
     };
   }
   const legend = families.length > 0 ? <ul className="scn-legend" aria-label={(ui as any).legend ?? "Colours"}>{families.map((k, n) => <li key={k.id} className={`scn-key cc cc-${n + 1}`}>{k.label}</li>)}</ul> : <span className="scn-legend" />;
-  // on a phone the story camera keeps words readable, so a big scene can run past the stage: each edge with more of
-  // it beyond is shaded, with a small arrow (format version 8), and the line under the stage says so
-  const more: ("l" | "r" | "t" | "b")[] = phone && mode === "2d" ? (() => {
-    const b = B.bounds, m = 6, out: ("l" | "r" | "t" | "b")[] = [];
-    if (b.x < cam.x - m) out.push("l"); if (b.x + b.w > cam.x + cam.w + m) out.push("r");
-    if (b.y < cam.y - m) out.push("t"); if (b.y + b.h > cam.y + cam.h + m) out.push("b");
-    return out;
-  })() : [];
+  // the story camera keeps words readable, so a big scene can run past the stage: each edge with more of it beyond is
+  // shaded, with a small arrow (format version 8 on a phone; format version 10 on every screen, tools/readable.ts), and
+  // on a phone the line under the stage says so
+  // (format version 10, tools/edge10.ts: a side where the view cuts a thing is shaded too)
+  const more: ("l" | "r" | "t" | "b")[] = mode === "2d" ? moreSides(B, cam) : [];
   const U = ui as any;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
@@ -401,7 +447,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     <div className="scn-tools" role="group" aria-label={ui.camera ?? "Camera"}>
       {moved && <button type="button" className="scn-back" onClick={backToStory}>{ui.backToStory ?? "Back to the story"}</button>}
       <button type="button" className="scn-reset" onClick={backToStory} disabled={!moved} aria-label={(ui as any).resetView ?? "Reset the view"} title={(ui as any).resetView ?? "Reset the view"}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8a4.5 4.5 0 1 0 1.4-3.3M3.2 2.6v2.6h2.6" /></svg></button>
-      {ok3d && <button type="button" className="scn-mode" onClick={toggle} aria-pressed={mode === "3d"} aria-label={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"} title={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"}>{mode === "3d" ? "2D" : "3D"}</button>}
+      {ok3d && !only3d && <button type="button" className="scn-mode" onClick={toggle} aria-pressed={mode === "3d"} aria-label={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"} title={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"}>{mode === "3d" ? "2D" : "3D"}</button>}
       <button type="button" onClick={zoomOut} aria-label={ui.zoomOut ?? "Zoom out"} title={ui.zoomOut ?? "Zoom out"}>−</button>
       <button type="button" onClick={zoomIn} aria-label={ui.zoomIn ?? "Zoom in"} title={ui.zoomIn ?? "Zoom in"}>+</button>
       <button type="button" onClick={fitAll} aria-label={ui.fitAll ?? "Show everything"} title={ui.fitAll ?? "Show everything"} className="scn-fit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
@@ -413,25 +459,28 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       {/* the controls sit in a bar above the stage, so they never cover what the story shows */}
       <div className="scn-bar">
         {legend}
-        {tools}
+        {!listOnly && tools}
       </div>
       <div className="scn-stage" ref={stage} style={{ ["--ar" as any]: c.aspect.toFixed(3) }} tabIndex={0} aria-label={(ui as any).stageLabel ?? "The stage: drag, scroll or use the arrow keys to move"}
         onKeyDown={onStageKey} onPointerDownCapture={() => setActive(true)} onFocus={() => setActive(true)}
         onBlur={(e) => { if (!e.currentTarget.closest(".scn")?.contains(e.relatedTarget as Node | null)) setActive(false); }}>
-        {mode === "3d" ? <div ref={host3} className="scn3" aria-label={src.steps[i]?.title} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div> : <svg ref={svg} className="scn-svg" viewBox={`${cam.x.toFixed(1)} ${cam.y.toFixed(1)} ${cam.w.toFixed(1)} ${cam.h.toFixed(1)}`} preserveAspectRatio="xMidYMid meet"
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); drag.current = null; }} role="img" aria-label={src.steps[i]?.title}>
+        {mode === "3d" ? <div ref={host3} className="scn3" aria-label={src.steps[i]?.title} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div>
+        : only3d ? <div className="scn-only3d" role="note"><p>{U.only3d ?? "This scene is drawn in 3D only. Without 3D (WebGL), here are its steps:"}</p><ol>{src.steps.map((s, k) => <li key={k} className={cx(k === i && "is-cur")} aria-current={k === i ? "step" : undefined}>{s.title}</li>)}</ol></div>
+        : <svg ref={svg} className="scn-svg" viewBox={`${cam.x.toFixed(1)} ${cam.y.toFixed(1)} ${cam.w.toFixed(1)} ${cam.h.toFixed(1)}`} preserveAspectRatio="xMidYMid meet"
+          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); drag.current = null; }} role="img" aria-label={src.steps[i]?.title} style={stageO < 1 ? { opacity: stageO } : undefined}>
           <defs>
             <marker id={mk} className="scn-mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>
             {families.map((_, k) => <marker key={k} id={`${mk}-c${k + 1}`} className={`scn-mk cc cc-${k + 1}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>)}
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
           {conts.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={a.r} b={b.r} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
+          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
           {leaves.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {B.sends.map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} />)}
+          {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} />)}
+          {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
           {overlays.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {B.marks.filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
+          {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
         {more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}</div>}
         {selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{selBox.kind}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
@@ -439,15 +488,15 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       </div>
       {/* how to move: always shown, under the stage, so it never covers the scene */}
       {/* format version 9: one line; on a phone a short one; the ? button shows the whole of it */}
-      <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>
-      {howOpen && <p className="scn-how-full" role="note">{hint}</p>}
+      {!listOnly && <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>}
+      {howOpen && !listOnly && <p className="scn-how-full" role="note">{hint}</p>}
       <div className="scn-caps" aria-live="polite">
-        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span>{s.title}</span></div>)}
+        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} />{s.title}</span></div>)}
       </div>
-      <Controls ui={ui} i={i} n={n} onGo={(k) => go(k)} playing={playing} onPlay={() => { if (!playing && i === n - 1) go(0); setPlaying(!playing); }} />
+      <Controls ui={ui} i={i} n={n} bands={sceneBands(c)} onGo={(k) => go(k)} playing={playing} onPlay={() => { if (!playing) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }} />
       <details className="scn-steps">
         <summary>{ui.allSteps ?? "All steps"} ({n})</summary>
-        <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}>{s.title}</button></li>)}</ol>
+        {c.nest ? <StepList c={c} titles={src.steps.map((s) => s.title)} i={i} go={(k) => go(k)} /> : <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}>{s.title}</button></li>)}</ol>}
       </details>
     </div>
   );
@@ -473,8 +522,9 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   const cls = cx("scn-ent", `k-${b.kind}`, `sz-${b.size}`, tone, cc, e.dim && "is-dim", e.down && "is-down", hl && `is-hl hl-${hl}`, sel && "is-sel");
   const tx = r.x + r.w / 2, ty = r.y + r.h / 2;
   const lb = labelBox(b.kind, r, b.lines, z, e.level != null);
-  // a meter (level=): a thin bar along the bottom, filled to the level
-  const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 : 9); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={4} rx={2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={4} rx={2} /></g>; })() : null;
+  // a meter (level=): a bar along the bottom in an outlined track, filled to the level (format version 10 fix: taller,
+  // with an outline, so a full one still reads as a gauge, not a line)
+  const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 + METER_H - 4 : METER_H + 5); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={METER_H} rx={METER_H / 2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={METER_H} rx={METER_H / 2} /></g>; })() : null;
   // inside a closed thing the words are hidden; they fade in as it opens
   const words = lb && wo > 0.02 ? <g style={wo < 1 ? { opacity: wo } : undefined}><Words lines={b.lines} x={tx} y={lb.y + lb.h / 2} z={z} /></g> : null;
   const title = <title>{[b.label || b.id, e.note].filter(Boolean).join(" · ")}</title>;
@@ -529,24 +579,31 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   return <g className={cls} data-key={b.key} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;
 }
 
-function Connector({ e, a, b, ak, bk, o, mk }: { e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string }) {
-  const g = connGeom(a, b, ak, bk, e.implicit, 0, e.bend);
+// labelOnly (format version 10): just the label, drawn again over a send that runs on this connector
+function Connector({ e, a, b, ak, bk, o, mk, labelOnly }: { e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string; labelOnly?: boolean }) {
+  const g = connGeom(a, b, ak, bk, e.implicit, 0, e.bend, e.rt ?? null);
   const head = e.style === "->" || e.style === "-->" || e.style === "<->";
   // the label sits where the engine placed it (t along the curve, o beside it), so it covers no label or shape
   const m = e.label ? bezOff(g, e.lt, e.lo) : null;
   return (
     <g className={cx("scn-conn", e.implicit && "is-implicit", e.style === "-->" && "is-dashed", e.cc && `cc cc-${e.cc}`)} style={{ opacity: o }}>
-      <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />
+      {!labelOnly && <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />}
       {m && <g className="scn-conn-l"><rect x={m.x - e.lw / 2} y={m.y - e.lh / 2} width={e.lw} height={e.lh} rx={Math.min(9, e.lh / 2)} /><Words lines={e.lines} x={m.x} y={m.y} z={DESIGN.s} cls="scn-conn-t" font={CHIP.font} /></g>}
     </g>
   );
+}
+// the point d units back along a curve from t (its length measured in 24 pieces); at most to its start
+const DOT_BACK = 14;
+function behind(g: Geom, t: number, d: number) {
+  let len = 0; for (let k = 0, p = bezAt(g, 0); k < 24; k++) { const q = bezAt(g, (k + 1) / 24); len += Math.hypot(q.x - p.x, q.y - p.y); p = q; }
+  return bezAt(g, Math.max(0, t - (len > 0 ? d / len : 0)));
 }
 // a send: an arrow that draws itself from source to target, a small token that travels the same way, or both. The
 // curves are the connectors' own (beside a connector when there is one); the label sits where the engine placed it
 function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Shown>; fin: Map<number, Box>; marks: Mark[]; p: number; o?: number }) {
   const rs = g.path.map((k) => at.get(k));
   if (rs.some((x) => !x) || rs.length < 2) return null;
-  const geo: Geom[] = rs.slice(1).map((b, k) => connGeom(rs[k]!.r, b!.r, rs[k]!.box.kind, b!.box.kind, false, g.offs[k], g.bends[k] ?? 0));
+  const geo: Geom[] = rs.slice(1).map((b, k) => connGeom(endRect(rs[k]!), endRect(b!), rs[k]!.box.kind, b!.box.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null));
   const n = geo.length, ep = ease(p);
   const seg = Math.min(n - 1, Math.floor(ep * n)), f = ep >= 1 ? 1 : ep * n - seg;
   const tip = bezAt(geo[seg], f), tan = bezTan(geo[seg], Math.max(0.02, f));
@@ -554,15 +611,18 @@ function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Sh
     // the dots' count and speed come from where the path ends up, not from this moment of a move, so a stream whose
     // ends slide keeps its pace (a change of pace would make the browser jump every dot)
     const fb = g.path.map((k) => fin.get(k));
-    const lenGeo = fb.every(Boolean) ? fb.slice(1).map((b, k) => connGeom(fb[k]!, b!, fb[k]!.kind, b!.kind, false, g.offs[k], g.bends[k] ?? 0)) : geo;
+    const lenGeo = fb.every(Boolean) ? fb.slice(1).map((b, k) => connGeom(fb[k]!, b!, fb[k]!.kind, b!.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null)) : geo;
     return <Stream g={g} geo={geo} lenGeo={lenGeo} marks={marks} p={p} o={o} />;
   }
   const arrow = g.show !== "token", token = g.show !== "arrow";
+  // format version 10: shown both ways, the dot rides a little behind the arrow's head, so it never covers a head (its
+  // own, or the connector's when the arrow runs on it)
+  const dot = arrow && token ? behind(geo[seg], f, DOT_BACK) : tip;
   // a token's chip keeps the place the engine gave it next to where the token rests
   const chip = g.chip != null ? marks[g.chip] : null;
   let chipR: Rect | null = null;
   if (chip) {
-    const fb = g.path.map((k) => fin.get(k)!), last = connGeom(fb[n - 1], fb[n], fb[n - 1].kind, fb[n].kind, false, g.offs[n - 1], g.bends[n - 1] ?? 0).Q;
+    const fb = g.path.map((k) => fin.get(k)!), last = connGeom(fb[n - 1], fb[n], fb[n - 1].kind, fb[n].kind, false, g.offs[n - 1], g.bends[n - 1] ?? 0, g.rts?.[n - 1] ?? null).Q;
     chipR = { ...chip.r, x: tip.x + chip.r.x - last.x, y: tip.y + chip.r.y - last.y };
   }
   const al = g.alabel != null ? marks[g.alabel] : null;
@@ -572,7 +632,7 @@ function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Sh
     <g className={cx("scn-send", arrow && "is-arrow", g.cc && `cc cc-${g.cc}`)} style={{ opacity: p === 0 ? 0 : 1 }}>
       {arrow && geo.map((gg, k) => (k < seg || k === seg) && <path key={k} className="scn-arrow" d={bezPath(gg)} pathLength={1} strokeDasharray="1 1" strokeDashoffset={k < seg ? 0 : 1 - f} />)}
       {arrow && <path className="scn-arrow-head" d={`M${tip.x} ${tip.y}l${-tan.x * 9 - tan.y * 4.5} ${-tan.y * 9 + tan.x * 4.5}l${tan.y * 9} ${-tan.x * 9}z`} />}
-      {token && <><circle className="scn-send-halo" cx={tip.x} cy={tip.y} r={CHIP.dot + 4} /><circle className="scn-send-dot" cx={tip.x} cy={tip.y} r={CHIP.dot + 1} /></>}
+      {token && <><circle className="scn-send-halo" cx={dot.x} cy={dot.y} r={CHIP.dot + 4} /><circle className="scn-send-dot" cx={dot.x} cy={dot.y} r={CHIP.dot + 1} /></>}
       {chipR && <g className="scn-send-chip"><rect x={chipR.x} y={chipR.y} width={chipR.w} height={chipR.h} rx={chipR.h / 2} /><text x={chipR.x + chipR.w / 2} y={chipR.y + chipR.h / 2} textAnchor="middle" dominantBaseline="central">{chip!.lines[0]}</text></g>}
       {al && alp && <g className="scn-arrow-l" style={{ opacity: alo }}><rect x={alp.x - al.r.w / 2} y={alp.y - al.r.h / 2} width={al.r.w} height={al.r.h} rx={Math.min(9, al.r.h / 2)} /><Words lines={al.lines} x={alp.x} y={alp.y} z={DESIGN.s} cls="scn-arrow-t" font={CHIP.font} /></g>}
     </g>

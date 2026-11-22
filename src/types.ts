@@ -26,10 +26,12 @@ export interface MarkdownBlock { type: "markdown"; line: number; md: MdBlock[] }
 export interface TocBlock { type: "toc"; line: number; depth: number; scope: "page" | "section"; items: { depth: number; text: string; id: string }[] }
 
 export interface TermLine { k: "cmd" | "out"; text: string; prompt?: string; /** highlighted command tokens [text, colour] (highlight()) */ hl?: [string, string | null][] }
-export interface TerminalBlock extends PartBase { type: "terminal"; title: string | null; prompt: string; steps: { title: string; lines: TermLine[] }[] }
+/** an own mark or prompt prefix (front matter `marks:` / `prefixes:`, or the parse() options of the same names): a label, a theme colour name and what it means */
+export interface MarkDef { label: string; colour: string; means: string }
+export interface TerminalBlock extends PartBase { type: "terminal"; title: string | null; prompt: string; /** the own prompts this terminal uses */ prefixes: Record<string, MarkDef>; steps: { title: string; lines: TermLine[] }[] }
 
 export interface TreeRow { depth: number; name: string; folder: boolean; badges: string[]; closed: boolean; note: string; gap: boolean; path: string; line?: number }
-export interface FileTreeBlock extends PartBase { type: "filetree"; trees: { title: string | null; rows: TreeRow[] }[] }
+export interface FileTreeBlock extends PartBase { type: "filetree"; /** the own marks this tree uses */ marks: Record<string, MarkDef>; trees: { title: string | null; rows: TreeRow[] }[] }
 
 export interface EditorFile { path: string; repo: string; made: boolean; commit: string | null; lang: string; code: string | null; open: boolean; error: string | null; hl?: unknown }
 export interface EditorStep { title: string; file: string; before: string; after: string; added: number[]; removed: number[]; error: string | null; beforeHl?: unknown; afterHl?: unknown }
@@ -69,7 +71,6 @@ export type Block =
 export type BlockType = Block["type"];
 
 export interface Problem { line: number; level: "error" | "warn"; message: string }
-export interface Banner { kind: string; text: MdInline[] }
 
 export interface Document {
   /** the version of this tree's shape (bumped on a breaking change to these types) */
@@ -82,7 +83,6 @@ export interface Document {
   path: string;
   frontMatter: Record<string, unknown>;
   title: string | null;
-  banner: Banner | null;
   blocks: Block[];
   /** every heading, for a table of contents */
   headings: { depth: number; text: string; id: string }[];

@@ -5,6 +5,6 @@ import { useDh } from "./context";
 import type { TerminalBlock } from "../types";
 export function TerminalPart({ block }: { block: TerminalBlock }) {
   const { ui } = useDh();
-  return <Terminal steps={block.steps as any} title={block.title} ui={ui} />;
+  return <Terminal steps={block.steps as any} title={block.title} ui={ui} prefixes={block.prefixes} />;
 }
 export default TerminalPart;

@@ -9,7 +9,7 @@ export type Ui = {
   marks: Record<string, string>;
   files: string; close: string; original: string; before: string; after2: string; beforeAfter: string; explorer: string; more: string;
   terminal: string; replay: string; reset: string; chart: string; pick: string; asIs: string; textInstead: string; nothing: string; source: string; rendered: string;
-  asData: string; asSteps: string; unwrapped: string; bannerKind: Record<string, string>;
+  asData: string; asSteps: string; unwrapped: string;
   // the animation stage (format version 4)
   camera: string; zoomIn: string; zoomOut: string; fitAll: string; backToStory: string; inside: string; noNote: string; exploreHint: string; allSteps: string;
   // format version 5: the 2D/3D toggle and layers
@@ -19,9 +19,13 @@ export type Ui = {
   // format version 7: moving through the stage, a line under it; the reset button
   hintOff: string; hintOn: string; hintOff3d: string; hintOn3d: string; resetView: string; stageLabel: string;
   // format version 8: the line under the stage on a phone (touch), and its note about shaded edges
-  hintDiagram?: string; hintTouch?: string; hintTouchOn?: string; hintTouch3d?: string; hintTouchOn3d?: string; hintMore?: string;
+  hintDiagram?: string; hintGrid?: string; hintTable?: string; hintTouch?: string; hintTouchOn?: string; hintTouch3d?: string; hintTouchOn3d?: string; hintMore?: string;
   // format version 9: the phone's line under the stage is one short line; the ? button beside it shows the whole of it
+  // format version 10: candlestick key and table words
+  marksKey?: string; candleUp?: string; candleDown?: string; candlePeriod?: string; candleWords?: Record<string, string>;
   hintShort?: string; hintShortOn?: string; hintShort3d?: string; hintShortOn3d?: string; howTo?: string;
+  // format version 10: the chip on a caption inside a scene of its own
+  inScene?: string;
 };
 
 export const LANGS: { code: string; name: string; font?: string; dir?: "rtl"; html?: string }[] = [
@@ -36,6 +40,7 @@ export const LANGS: { code: string; name: string; font?: string; dir?: "rtl"; ht
 const en: Ui = {
   tapNote: "Tap or hover an item with a dot to read its note.", asLines: "its tiers, one line each",
   foldLines: "… {n} lines",
+  candleUp: "Up: the close is at or above the open", candleDown: "Down: the close is below the open", candlePeriod: "period", candleWords: { open: "Open", high: "High", low: "Low", close: "Close" },
   hintOff: "Drag to move · click the stage to use the wheel and the arrow keys", hintOn: "Drag, scroll or arrow keys: move · Ctrl + scroll, pinch or + −: zoom · Esc: back to the story", hintOff3d: "Drag to turn, right-drag or Shift + drag to move · click the stage to use the wheel and the keys", hintOn3d: "Drag: turn · right-drag, Shift + drag or two fingers: move · wheel or pinch: zoom · arrows, W A S D: move · + −: zoom · Esc: back", resetView: "Reset the view", stageLabel: "The stage: drag, scroll or use the arrow keys to move",
   back: "← Back", next: "Next →", play: "▶ Play", pause: "❚❚ Pause", step: "Step", changed: "changed", line: "line", lines: "lines", pinned: "pinned at",
   theFile: "The file", swipe: "↔ Swipe the stage to see all of it", theChange: "the change", after: "the file after it", table: "Show the numbers as a table",
@@ -47,7 +52,7 @@ const en: Ui = {
   nav: { overview: "Overview", article: "Article", llmView: "LLM view", format: "Format", tokens: "Tokens" },
   marks: { added: "added", changed: "changed", removed: "removed", kept: "kept", conflict: "conflict", new: "new", generated: "generated", edited: "edited" },
   files: "Files", close: "Close", original: "The files as they are", before: "Before", after2: "After", beforeAfter: "Before or after the edit", explorer: "Explorer", more: "more files, not shown", terminal: "Terminal", replay: "↻ Replay", reset: "Reset", chart: "Chart", pick: "Pick one:", asIs: "as it is", textInstead: "the :::llm text in its place", nothing: "nothing: for people only", source: "Source", rendered: "Rendered",
-  asData: "its data, as a table", asSteps: "what it starts with, then its step captions as a numbered list", unwrapped: "the headings and their text", bannerKind: { info: "Note:", new: "New:", draft: "Draft:", deprecated: "Deprecated:" },
+  asData: "its data, as a table", asSteps: "what it starts with, then its step captions as a numbered list", unwrapped: "the headings and their text",
   camera: "Camera", zoomIn: "Zoom in", zoomOut: "Zoom out", fitAll: "Show everything", backToStory: "Back to the story", inside: "in", noNote: "No note.", exploreHint: "Drag to move · pinch or Ctrl + wheel to zoom · click a thing", allSteps: "All steps",
   show3d: "Show in 3D", show2d: "Show flat (2D)", hint3d: "Drag to turn · Shift + drag or two fingers to move · pinch or Ctrl + wheel to zoom · click a thing or a layer", layer: "layer",
 };
@@ -240,3 +245,12 @@ const V8_TOUCH: Record<string, Partial<Ui>> = {
 const V8_DIAGRAM: Record<string, string> = { en: "↔ Swipe to see the whole diagram", "zh-Hans": "↔ 左右滑动查看完整图表", es: "↔ Desliza para ver el diagrama entero", hi: "↔ पूरा चित्र देखने के लिए स्वाइप करें", pt: "↔ Deslize para ver o diagrama inteiro", bn: "↔ পুরো চিত্র দেখতে সোয়াইপ করুন" };
 for (const [l, w] of Object.entries(V8_TOUCH)) if (UI[l]) Object.assign(UI[l], w);
 for (const [l, w] of Object.entries(V8_DIAGRAM)) if (UI[l]) UI[l].hintDiagram = w;
+// format version 10: an animation's scene inside a scene: the chip on its captions says the reader is inside it
+// (machine translated; not yet read by a native speaker)
+const V10_SCENES: Record<string, string> = { en: "Inside", "zh-Hans": "内部", es: "Dentro", hi: "अंदर", pt: "Dentro", bn: "ভেতরে" };
+// format version 10: the line under an alignment grid that is wider than a phone (machine translated; not yet read by a native speaker)
+const V10_GRID: Record<string, string> = { en: "↔ Swipe the grid to see all of it", "zh-Hans": "↔ 左右滑动查看完整网格", es: "↔ Desliza la cuadrícula para verla entera", hi: "↔ पूरा ग्रिड देखने के लिए स्वाइप करें", pt: "↔ Deslize a grade para ver tudo", bn: "↔ পুরো গ্রিড দেখতে সোয়াইপ করুন" };
+for (const [l, w] of Object.entries(V10_GRID)) if (UI[l]) UI[l].hintGrid = w;
+const V10_TABLE: Record<string, string> = { en: "↔ Swipe the table to see all of it", "zh-Hans": "↔ 左右滑动查看完整表格", es: "↔ Desliza la tabla para verla entera", hi: "↔ पूरी तालिका देखने के लिए स्वाइप करें", pt: "↔ Deslize a tabela para ver tudo", bn: "↔ পুরো টেবিল দেখতে সোয়াইপ করুন" };
+for (const [l, w] of Object.entries(V10_TABLE)) if (UI[l]) UI[l].hintTable = w;
+for (const [l, w] of Object.entries(V10_SCENES)) if (UI[l]) (UI[l] as any).inScene = w;

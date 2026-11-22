@@ -2,7 +2,7 @@
 // The format's own parser (core/dh-lib.ts, shared with the site and doccheck) reads the parts; this file adds the caps,
 // the URL policy, the safe Markdown tree, host blocks, and turns every part into plain typed data.
 import {
-  PARTS, BANNER_KINDS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf,
+  PARTS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf,
   type Doc as DhDoc, type Node as DhNode, type PartNode, type MdNode as DhMd,
 } from "./core/dh-lib";
 import { checkDoc } from "./core/doccheck";
@@ -13,7 +13,7 @@ import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
-export const FORMAT_VERSION = 9;
+export const FORMAT_VERSION = 10;
 
 /**
  * The texts a reader sees in an animation block, in story order: the quoted labels, the captions (step titles), the
@@ -43,6 +43,10 @@ export interface ParseOptions {
   publicView?: boolean;
   /** false: a leading "---" block is Markdown (a rule and text the reader sees), not front matter (default true) */
   frontMatter?: boolean;
+  /** marks every page may use in a file tree, as the front matter `marks:` writes them: { deprecated: { label: "deprecated", colour: "warn", means: "..." } }. A page's own entry of the same name wins (SPEC.md section 3.1) */
+  marks?: Record<string, { label?: string; colour: string; means?: string }>;
+  /** prompts every page may use in a terminal, as the front matter `prefixes:` writes them: { ">>>": { label: "Python", colour: "c4" } } */
+  prefixes?: Record<string, { label?: string; colour: string; means?: string }>;
 }
 
 // what parse() keeps for llmView() and check() of the same Document in this process
@@ -68,7 +72,7 @@ function textAsLlm(p: PartNode, text: string): void {
 }
 
 function emptyDoc(source: string, path: string, problems: Problem[], blocks: Block[]): Document {
-  return { ast: 1, format: FORMAT_VERSION, source, path, frontMatter: {}, title: null, banner: null, blocks, headings: [], problems, highlighted: false, llm: "" } as Document;
+  return { ast: 1, format: FORMAT_VERSION, source, path, frontMatter: {}, title: null, blocks, headings: [], problems, highlighted: false, llm: "" } as Document;
 }
 
 export function parse(text: string, opts: ParseOptions = {}): Document {
@@ -81,6 +85,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
     problems.push({ line: 1, level: "error", message: msg });
     return emptyDoc(source, opts.path ?? "page.dh.md", problems, [{ type: "error", line: 1, part: null, message: msg }]);
   }
+  const site = opts.marks || opts.prefixes ? { marks: opts.marks, prefixes: opts.prefixes } : undefined;
   const clean = source.replace(/\r\n?/g, "\n").replace(/\u{0}/gu, "\u{fffd}");
   const defs = registeredBlocks(opts.blocks ?? []);
   const refused = new Set<PartNode>();
@@ -101,14 +106,14 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
     function parseSafe(t: string): DhDoc | null {
       const path = opts.path ?? "page.dh.md";
-      try { return parseDoc(path, t, { frontMatter: fmOn }); }
+      try { return parseDoc(path, t, { frontMatter: fmOn, site }); }
       catch (e) {
         if (e instanceof ParseError) { problems.push({ line: e.line, level: "error", message: e.message }); return null; }
         // most often the front matter is not valid YAML: read the page without it
         const m = fmOn ? t.match(/^---\n[\s\S]*?\n---\n/) : null;
         if (m) {
           problems.push({ line: 1, level: "error", message: `the front matter could not be read (${(e as Error).message}); it is ignored` });
-          try { return parseDoc(path, "\n".repeat(m[0].split("\n").length - 1) + t.slice(m[0].length)); } catch (e2) { if (e2 instanceof ParseError) problems.push({ line: e2.line, level: "error", message: e2.message }); return null; }
+          try { return parseDoc(path, "\n".repeat(m[0].split("\n").length - 1) + t.slice(m[0].length), { site }); } catch (e2) { if (e2 instanceof ParseError) problems.push({ line: e2.line, level: "error", message: e2.message }); return null; }
         }
         problems.push({ line: 1, level: "error", message: (e as Error).message });
         return null;
@@ -127,8 +132,6 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       dh = d;
       const blocks = walk(dh.body);
       const fm = (dh.fm && typeof dh.fm === "object" && !Array.isArray(dh.fm) ? dh.fm : {}) as Record<string, any>;
-      const b = fm.banner;
-      const banner = b && typeof b === "object" && b.text != null ? { kind: BANNER_KINDS.includes(b.kind) ? String(b.kind) : "info", text: mdInline(String(b.text).slice(0, 2000), { ...ctx, line: 1 }) } : null;
       // a heading id and a part id (or a tab or accordion item id) share one namespace on the page: name a clash
       const partIds = new Map<string, number>();
       const collect = (bs: any[]) => { for (const x of bs) { if (x.id) partIds.set(x.id, x.line); for (const it of x.items ?? []) { if (it.id) for (const k of x.type === "tabs" ? [it.id + "-t", it.id + "-p"] : [it.id]) partIds.set(k, x.line); collect(it.body ?? []); } collect(x.type === "human" ? x.body : []); } };
@@ -142,7 +145,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       dh.path = path;
       let llm = "";
       try { llm = dhLlmView(dh, path, !!opts.publicView); } catch (e) { problems.push({ line: 1, level: "error", message: `the LLM view could not be made: ${(e as Error).message}` }); }
-      const doc: Document = { ast: 1, format: FORMAT_VERSION, source: clean, path, frontMatter: fm, title: typeof fm.title === "string" ? fm.title : null, banner, blocks, headings: ctx.heads, problems, highlighted: false, llm } as Document;
+      const doc: Document = { ast: 1, format: FORMAT_VERSION, source: clean, path, frontMatter: fm, title: typeof fm.title === "string" ? fm.title : null, blocks, headings: ctx.heads, problems, highlighted: false, llm } as Document;
       kept.set(doc, { dh, refused, hosts, opts });
       return doc;
     }

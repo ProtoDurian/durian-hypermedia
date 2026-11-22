@@ -11,8 +11,11 @@ export const HEIGHT: Record<string, number> = { box: 16, pill: 14, diamond: 14, 
 export type Rest = { key: number; kind: string; container: boolean; bare: boolean; parent: number | null; L: number };
 type Foot = { w: number; h: number };
 
-// the distance between two layers; split layers pull them further apart
-export const gapOf = (foot: Foot, spread: number) => { const span = Math.max(foot.w, foot.h); return 46 + spread * Math.max(90, Math.min(220, span * 0.32)); };
+// the distance between two layers; split layers pull them further apart. Format version 10: on a narrow stage (a
+// phone) the whole scene is drawn at about half size, so a line between two stacked layers was some 15 px long; there
+// the gap grows with the scene's span (NARROW_GAP of it, up to 110), so it reads as a line, not a tick
+export const NARROW_GAP = 0.1;
+export const gapOf = (foot: Foot, spread: number, narrow = false) => { const span = Math.max(foot.w, foot.h); return (narrow ? Math.max(46, Math.min(110, span * NARROW_GAP + 20)) : 46) + spread * Math.max(90, Math.min(220, span * 0.32)); };
 export const floorY = (L: number, gap: number) => -L * gap;
 export const planeTop = (L: number, gap: number) => floorY(L, gap) - PLANE_GAP;
 export const planeY = (L: number, gap: number) => planeTop(L, gap) - PLANE_H; // the plane's bottom (its mesh's origin)

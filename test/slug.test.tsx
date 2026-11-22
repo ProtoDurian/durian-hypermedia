@@ -153,8 +153,8 @@ describe("the text GitHub reads (the rendered text content)", () => {
     expect(one("x <?example?> y")).toBe("x--y");
     expect(one("<style>example</style>")).toBe("styleexamplestyle");
   });
-  test("a heading inside a code walk step note or a banner takes no id and no number from the page", () => {
-    const md = "---\nbanner: {kind: info, text: \"## x\"}\n---\n\n```codewalk\nfile: a.ts\n```\n\n## x\n";
+  test("a heading inside a code walk step note takes no id and no number from the page", () => {
+    const md = "```codewalk\n@step one\n## y\n```\n\n## x\n";
     expect(parse(md, { idPrefix: "" }).headings.map((h) => h.id)).toEqual(["x"]);
     const w = parse("```codewalk\n@step one\n## x\n```\n\n## x\n", { idPrefix: "" });
     expect(w.headings.map((h) => h.id)).toEqual(["x"]);

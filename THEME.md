@@ -16,7 +16,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 - The 3D stage and the charts read the tokens from their own element when they draw and again when `data-theme` changes on
   `<html>`; after changing tokens any other way, toggle `data-theme` or re-mount.
 
-## Colours (86 tokens)
+## Colours (88 tokens)
 
 | Token | What it is for | Light default | Dark default |
 | --- | --- | --- | --- |
@@ -24,7 +24,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--acc-2` | accents; read by .coderef | `#7F87FF` | `#6C74FF` |
 | `--acc-ink` | accent as text (>= 7:1 on surface); read by .btn:hover:not(:disabled), .btn-choice, .seg button[aria-pressed="true"] | `#3039C8` | `#B9BEFF` |
 | `--acc-soft` | accents; read by .btn-choice, .seg button[aria-pressed="true"], .tone-acc .scn-shape | `#DEE0FF` | `#272D5C` |
-| `--acc-softer` | accents; read by .callout-important, .scn-arrow-l rect, .scn-tools .scn-mode | `#EEEFFF` | `#1A1F42` |
+| `--acc-softer` | accents; read by .callout-important, .scn-arrow-l rect, .scn-where | `#EEEFFF` | `#1A1F42` |
 | `--axis` | terminal / code; read by .chart .axis | `#B6BFD3` | `#36415F` |
 | `--bad` | status; read by .tone-bad, .callout-security, .callout-security .callout-icon | `#F91974` | `#FF4F96` |
 | `--bad-ink` | status; read by .tone-bad, .b-removed, .cw-error | `#A80C4D` | `#FF8DBA` |
@@ -64,13 +64,13 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--ch-17` | code colours (Code Hike theme github-from-css): line highlight; read by .ch-focus | `rgba(85, 95, 255, .20)` | `rgba(85, 95, 255, .20)` |
 | `--ch-22` | code colours (Code Hike theme github-from-css): tab strip; read by .cw-file, .ide-chrome, .ide-tabs | `#0A0E1B` | `#03050D` |
 | `--ch-24` | code colours (Code Hike theme github-from-css): line numbers; read by .ch-ln | `#56627C` | `#56627C` |
-| `--faint` | meta text, only at weight >= 400 (>= 4.5:1); read by .fx-gap, .dh-plus, .llm-note | `#56627C` | `#98A3BC` |
+| `--faint` | meta text, only at weight >= 400 (>= 4.5:1); read by .al-ax-x::before, .al-ax-x::after, .al-ax-y | `#56627C` | `#98A3BC` |
 | `--good` | status; read by .tone-good, .ch-add, .tone-good .scn-shape | `#1CAA53` | `#34C76E` |
 | `--good-ink` | status; read by .tone-good, .b-new, .chg | `#0B6B33` | `#7BE3A4` |
 | `--good-soft` | status; read by .tone-good, .b-new, .fx-row.is-new | `#DCF1E3` | `#11301F` |
 | `--grid` | terminal / code; read by .chart .grid, chart-config (code) | `#E3E7F0` | `#1D2439` |
 | `--hot` | second accent: the problem, "not this"; read by .ch-del, .cw-error, .b-conflict | `#F91974` | `#FF4F96` |
-| `--hot-ink` | accents; read by .scn-ptr-t, .scn-send-chip text, .scn3-l.k-pointer | `#A80C4D` | `#FF8DBA` |
+| `--hot-ink` | accents; read by .scn-ptr-t, .scn-send-chip text, .scn-ent.k-token.tone-hot .scn-chip-t | `#A80C4D` | `#FF8DBA` |
 | `--hot-soft` | accents; read by .b-conflict, .tone-hot .scn-shape, .tone-hot .scn-person .scn-shape | `#FDD9E8` | `#3B1529` |
 | `--info` | status; read by .callout-icon | `#555FFF` | `#8D94FF` |
 | `--info-ink` | status; read by .b-generated, .mk-info | `#3039C8` | `#B9BEFF` |
@@ -87,6 +87,8 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--meter` | status; read by .scn-meter-fill | `#1B2540` | `#EEF1F8` |
 | `--meter-track` | status; read by .scn-meter-track | `#D5DAE6` | `#36415F` |
 | `--muted` | secondary text, captions (>= 7:1 on surface and page); read by .dh-note-hint, .al-cell-label, .part-intro | `#3A4560` | `#B4BDD1` |
+| `--nx` | read by .al-grid, .al-arrows .al-grid, align (code) | `-` | `-` |
+| `--ny` | read by .al-has-points .al-cell, align (code) | `-` | `-` |
 | `--on-acc` | text on a solid accent / status fill; read by .btn-go, .btn-go:hover:not(:disabled), .cw-num | `#FFFFFF` | `#070B16` |
 | `--series-1` | chart series 1; read by .chart .bar.s1, .chart .line.s1, .legend .sw.s1 | `#555FFF` | `#6C74FF` |
 | `--series-2` | chart series 2; read by .chart .bar.s2, .chart .line.s2, .legend .sw.s2 | `#F91974` | `#F0307E` |
@@ -97,7 +99,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--surface-2` | inset rows, zebra, inactive tabs; read by .dh-note, .al-cell, .fx-head | `#F2F4F9` | `#151B2E` |
 | `--surface-3` | pressed / track; read by .scn-idx-cell, .tone-muted .scn-shape, .scn-band | `#E3E7F0` | `#1D2439` |
 | `--term` | terminal / code; read by .ch-pre, .cw-error, .ide | `#0F1424` | `#060914` |
-| `--term-2` | terminal / code; read by .ide-side | `#171D30` | `#0D1120` |
+| `--term-2` | terminal / code; read by .ide-side, .ide-drawer | `#171D30` | `#0D1120` |
 | `--term-faint` | terminal / code; read by .code-lang, .cw-file, .cw-repo | `#95A2BC` | `#95A2BC` |
 | `--term-ink` | terminal / code; read by .ch-pre, .cw-path, .ide | `#D3D9E6` | `#D3D9E6` |
 | `--term-line` | terminal / code; read by .code-block, .cw, .ide | `#232B44` | `#232B44` |
@@ -117,7 +119,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--ease` | motion; read by .fx-row.is-new, .st-panel.is-active.is-fresh, .card | `cubic-bezier(.2, .75, .25, 1)` | `cubic-bezier(.2, .75, .25, 1)` |
 | `--font-display` | type; read by h1.title, h2, .part-name | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` |
 | `--font-mono` | type; read by .ctl-count, .cw-num, .ch-pre | `"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace` | `"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace` |
-| `--font-sans` | type; read by .dh-chip, .al-cell-label, .btn | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` |
+| `--font-sans` | type; read by .dh-chip, .al-cell-label, .al-region-label | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` | `"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif` |
 | `--fs-2xl` | h2 band title; read by h2 | `clamp(1.75rem, 5.4vw, 2.75rem)` | `clamp(1.75rem, 5.4vw, 2.75rem)` |
 | `--fs-3xl` | h1 page title; read by h1.title | `clamp(2.25rem, 8vw, 4.25rem)` | `clamp(2.25rem, 8vw, 4.25rem)` |
 | `--fs-l` | 20px: lead; read by .lead, .part-name, .card-t | `1.25rem` | `1.25rem` |
@@ -132,7 +134,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--ls-kicker` | type; read by .kicker | `.18em` | `.18em` |
 | `--r-l` | shape; read by .cw, .ide, .fx | `20px` | `20px` |
 | `--r-m` | shape; read by .tl, .code-block, .toc-block | `14px` | `14px` |
-| `--r-pill` | shape; read by .btn, .seg, .fx-badge | `999px` | `999px` |
+| `--r-pill` | shape; read by .btn, .seg, .ide-drawer | `999px` | `999px` |
 | `--r-s` | shape; read by .dh-note, .tl-row, .al-cell | `8px` | `8px` |
 | `--s-2` | space; read by .dh-doc .dh-spinner | `8px` | `8px` |
 | `--s-3` | space; read by .dh-doc .dh-error, .dh-doc .dh-raw | `12px` | `12px` |
@@ -150,9 +152,9 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--page-w` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn, anim (code) | `the page's width without a scrollbar (100vw would count the scrollbar)` | `the page's width without a scrollbar (100vw would count the scrollbar)` |
 
 
-Tokens read with no default in the package (a host may set them): `--bleed-l`.
+Tokens read with no default in the package (a host may set them): `--bleed-l`, `--nx`, `--ny`.
 
-Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--n`, `--pct`, `--rows`, `--t`, `--t-ink`, `--t-soft` are set by the components on their own elements (sizes, positions, a tier's colour).
+Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--pct`, `--rows`, `--t`, `--t-ink`, `--t-soft` are set by the components on their own elements (sizes, positions, a tier's colour).
 
 ## Classes and attributes a host may style
 
@@ -166,7 +168,8 @@ Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--n`, `--pct`, `--rows`, `--t`,
 | `.term`, `.fx`, `.ide`, `.cw`, `.chart`, `.dg`, `.scn`, `.tl`, `.al` | the terminal, file tree, editor, code walk, chart, diagram, animation stage, tier list, alignment grid |
 | `.tabs`, `.tab-bar`, `.tab-panel`, `.accordion`, `.acc-item`, `.human` | the containers |
 | `.ctl`, `.btn`, `.btn-go`, `.ctl-range` | the step controls (Back, Play, the slider, Next) |
-| `.callout.callout-<kind>`, `.banner.banner-<kind>` | callouts (`note`, `tip`, `important`, `warn`, `security`) and the page banner |
+| `.callout.callout-<kind>` | callouts (`note`, `tip`, `important`, `warn`, `security`); a note about the whole page is a callout under the title |
+| `.dh-turn` | a block with no height at the top of a part: where the hydration queue finds the part on the page |
 | `.code-block`, `.ch-pre`, `.ch-focus`, `.ch-mark`, `.ch-add`, `.ch-del` | code, and its focused, marked, added and removed lines |
 | `.dh-error` | a part parse() refused (over a cap, unsafe, unreadable) |
 | `.dh-spinner`, `.dh-spin` | the loading spinner (mermaid) |
@@ -188,7 +191,7 @@ A host style writes its own the same way: override the shape and motion tokens u
 .dh-doc[data-dh-variant="paper"] .term { border: 1px dashed var(--line-2); }
 ```
 
-For changes CSS cannot make, `slots` swap the chrome components: `Frame` (the box around each part), `Callout`, `Banner`,
+For changes CSS cannot make, `slots` swap the chrome components: `Frame` (the box around each part), `Callout`,
 `Error` and `Spinner`; they also draw Markdown elements your own way (`Code`, `InlineCode`, `Link`, `Table`, `Heading`) and mermaid diagrams (`Mermaid`): see ADOPT.md.
 
 ## Motion

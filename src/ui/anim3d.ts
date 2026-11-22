@@ -11,23 +11,39 @@ import { DESIGN, CHIP, cut, type Layer, type Rect } from "../core/scene";
 import { FAINT } from "../core/story";
 import { clampCam, outOfBlocks, peelFor, angleOf, nearTurn, FAR, CLOSE_FILL, type PlaneRect, type Block } from "./cam3d";
 import type { CamView } from "../core/camera";
+import { LIFT_UP, labelOn, wireLabelOn } from "../core/depth";
+import type { Route } from "../core/route";
+import { floorCurve, footY, curveSig, tubeSegs, type Slab } from "./route3d";
+import { mkMeter, placeMeter, dropMeter, type Meter } from "./meter3d";
+import { leastGoal, edgeRows, planeAnchor, orderRows, lineHitsRect, type P2 } from "./least3d";
+import { keepInScene } from "./fit3d";
+import { hasWebGL, NEAR_MARGIN, RESTORE_AFTER } from "./gl";
 
 export interface Item3 {
   key: number; id: string; kind: string; label: string; size: string; cc: number; fill: string; pcc: number; container: boolean; bare: boolean; parent: number | null;
   tone: string; dim: boolean; down: boolean; x: number; y: number; w: number; h: number; L: number; o: number; depth: number;
   nest?: number; // format version 9: in a scene with no declared layers, its nesting level (it stands on one floor)
   faint?: number; // format version 9: inside a closed thing, drawn this strongly (FAINT to 1), its words hidden until it opens
+  lift?: number; // format version 10 (tools/depth.ts): lifted out of its box, 0 to 1: it rises LIFT_UP, with what it holds
+  lv?: number; // format version 10: its meter (level=), 0 to 100, tweened (site/src/meter3d.ts)
 }
 export interface View3 {
   items: Item3[];
-  edges: { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; o: number }[];
-  sends: { label: string; path: number[]; show: string; cc: number; p: number }[];
+  // bend, rt (format version 10): the 2D line's bow and route; a line between two things on one layer follows it
+  edges: { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; o: number; bend?: number; rt?: Route | null; part?: boolean }[];
+  sends: { label: string; path: number[]; show: string; cc: number; p: number; offs?: number[]; bends?: number[]; rts?: (Route | null)[] }[];
   says: { key: number; text: string; o: number }[];
   hl: Map<number, string>; sel: number | null;
   layers: Layer[]; levels: number; spread: number; focus: number | null; look: number[] | null; touched: number[];
   foot: Rect; // the floor plan of the whole story, so layer planes and the centre never move
   stepKey: string; // changes when the step changes: the story camera moves again
   cam?: CamView | null; // the author's camera words for this step (format version 9): close, far, turn=, tilt=
+  part?: number[] | null; // format version 10: while a step plays, only these things' labels show (null: every label)
+  // format version 10: the scene inside the scene that is shown; when it changes the camera starts far from the new one
+  // (going in) or close to the thing it was entered from (going out, sceneVia), and glides to the story's view
+  scene?: string; sceneDir?: "in" | "out"; sceneVia?: number | null;
+  fade?: number; // format version 10: during a move between scenes, how strongly the layer planes show (with the things)
+  least?: number; // format version 10: the least scale (scene units to pixels) at which the frame's smallest words are 11 pixels (site/src/least3d.ts)
 }
 export type Pick = { kind: "ent"; key: number } | { kind: "layer"; L: number } | null;
 export interface Stage3 { update(v: View3): void; zoom(f: number): void; pan(dx: number, dy: number): void; walk(fwd: number, side: number): void; fit(): void; back(): void; dispose(): void }
@@ -42,21 +58,47 @@ const UNIT_CONE = new THREE.ConeGeometry(0.5, 1, 20);
 const EDGE_BOX = new THREE.EdgesGeometry(UNIT_BOX);
 const EDGE_CYL = new THREE.EdgesGeometry(UNIT_CYL, 30);
 const FOCUS_OFF = 0.12;
+// how far a line to a text stops short of it (item 8, fix): about one line of words
+const TEXT_CLEAR = 20;
 
-export function canWebGL(): boolean {
-  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
-}
+// asked once per page, and the test context is given back at once (site/src/gl.ts)
+export function canWebGL(): boolean { return hasWebGL(); }
 
-export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: (active: boolean) => void }): Stage3 {
+// still (format version 10): reduced motion in a 3D-only scene: each step is a still frame, the camera jumps
+export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: (active: boolean) => void }, opts: { still?: boolean } = {}): Stage3 {
   if (!canWebGL()) throw new Error("no WebGL");
   const canvas = document.createElement("canvas");
   canvas.className = "scn3-canvas";
   const labels = document.createElement("div");
   labels.className = "scn3-labels";
   host.append(canvas, labels);
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setClearAlpha(0); // the stage shows through: the page token behind it is the background
-  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  // format version 10 (site/src/gl.ts): the WebGL context is made when the stage first comes near the screen, given
+  // back when it is far (parked), and taken again when it comes back; a context the browser takes away is asked for
+  // again while the stage is on screen. While there is none, nothing is drawn, not even the words
+  let renderer: THREE.WebGLRenderer | null = null;
+  let near = false, parked = false, glLost = false, lostAt = 0;
+  const mkRenderer = () => {
+    const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    r.setClearAlpha(0); // the stage shows through: the page token behind it is the background
+    r.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    return r;
+  };
+  // the context's state, readable from outside (tests): none, live, parked, lost
+  const say = () => { host.dataset.gl = !renderer ? "none" : parked ? "parked" : glLost ? "lost" : "live"; };
+  const onLost = () => { glLost = true; lostAt = performance.now(); labels.style.opacity = "0"; say(); };
+  const onRestored = () => { glLost = false; labels.style.opacity = ""; say(); resize(); if (view) update(view); dirty = true; };
+  canvas.addEventListener("webglcontextlost", onLost);
+  canvas.addEventListener("webglcontextrestored", onRestored);
+  // a live context to draw with, or null: made on first use near the screen; asked for again when lost on screen
+  const gl = (): THREE.WebGLRenderer | null => {
+    if (!near) return null;
+    if (!renderer) { renderer = mkRenderer(); glLost = false; say(); resize(); }
+    if (parked) { parked = false; say(); renderer.forceContextRestore(); return null; }
+    if (glLost) { if (performance.now() - lostAt > RESTORE_AFTER) { lostAt = performance.now(); renderer.forceContextRestore(); } return null; }
+    return renderer;
+  };
+  const park = () => { if (renderer && !parked && !glLost) { parked = true; renderer.forceContextLoss(); say(); } };
+  say();
   const scene = new THREE.Scene();
   const cam = new THREE.PerspectiveCamera(38, 1.6, 1, 20000);
   const root = new THREE.Group();
@@ -71,7 +113,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   };
   let C: Record<string, THREE.Color> = {};
   const readColours = () => {
-    const names = ["surface", "surface-2", "surface-3", "line", "line-2", "ink", "muted", "faint", "acc", "acc-soft", "acc-softer", "good", "good-soft", "warn", "warn-soft", "hot", "hot-soft", "bad", ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [`c${k}`, `c${k}-soft`])];
+    const names = ["surface", "surface-2", "surface-3", "line", "line-2", "ink", "muted", "faint", "acc", "acc-soft", "acc-softer", "good", "good-soft", "warn", "warn-soft", "hot", "hot-soft", "bad", "meter", "meter-track", ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [`c${k}`, `c${k}-soft`])];
     C = Object.fromEntries(names.map((n) => [n, css(`--${n}`)]));
     // paint again with the new tokens (a theme or palette switch while the stage is open)
     if (view) update(view);
@@ -88,7 +130,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   };
 
   // ---------------------------------------------------------------- one object per entity, reused between steps
-  type Obj = { g: THREE.Group; body: THREE.Mesh | null; extra: THREE.Mesh[]; edge: THREE.LineSegments | null; ring: THREE.LineLoop; x: THREE.LineSegments; mats: THREE.Material[]; label: HTMLDivElement; kind: string; seen: boolean };
+  // sock (format version 10): a lifted thing's old place, a thin outline on the floor it rose from
+  type Obj = { g: THREE.Group; body: THREE.Mesh | null; extra: THREE.Mesh[]; edge: THREE.LineSegments | null; ring: THREE.LineLoop; x: THREE.LineSegments; sock: THREE.LineLoop; mats: THREE.Material[]; label: HTMLDivElement; kind: string; seen: boolean; meter?: Meter };
   const objs = new Map<number, Obj>();
   const basic = (opts: THREE.MeshBasicMaterialParameters = {}) => new THREE.MeshBasicMaterial({ transparent: true, ...opts });
   const lineMat = () => new THREE.LineBasicMaterial({ transparent: true });
@@ -121,14 +164,16 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     ring.computeLineDistances();
     const xg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.42, 0, -0.42), new THREE.Vector3(0.42, 0, 0.42), new THREE.Vector3(0.42, 0, -0.42), new THREE.Vector3(-0.42, 0, 0.42)]);
     const x = new THREE.LineSegments(xg, lineMat());
-    mats.push(ring.material as THREE.Material, x.material as THREE.Material);
-    g.add(ring, x);
+    const sock = new THREE.LineLoop(ring.geometry.clone(), lineMat());
+    sock.visible = false;
+    mats.push(ring.material as THREE.Material, x.material as THREE.Material, sock.material as THREE.Material);
+    g.add(ring, x, sock);
     root.add(g);
     const label = document.createElement("div");
     labels.append(label);
-    return { g, body, extra, edge, ring, x, mats, label, kind: k, seen: true };
+    return { g, body, extra, edge, ring, x, sock, mats, label, kind: k, seen: true };
   };
-  const dropObj = (k: number, o: Obj) => { root.remove(o.g); o.mats.forEach((m) => m.dispose()); o.ring.geometry.dispose(); o.x.geometry.dispose(); o.label.remove(); objs.delete(k); };
+  const dropObj = (k: number, o: Obj) => { if (o.meter) dropMeter(o.meter); root.remove(o.g); o.mats.forEach((m) => m.dispose()); o.ring.geometry.dispose(); o.x.geometry.dispose(); o.sock.geometry.dispose(); o.label.remove(); objs.delete(k); };
 
   // ---------------------------------------------------------------- layer planes (declared layers only)
   type Plane = { mesh: THREE.Mesh; edge: THREE.LineSegments; label: HTMLDivElement };
@@ -149,7 +194,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   };
 
   // ---------------------------------------------------------------- connectors: a tube along a curve, with a cone for the head
-  type Wire = { mesh: THREE.Mesh; heads: THREE.Mesh[]; mat: THREE.MeshBasicMaterial; sig: string; label: HTMLDivElement | null; mid: THREE.Vector3 };
+  // pts, ends, on (item 8, fix): points along the line, the keys it joins and how strongly it shows, so a name at rest can keep off it
+  type Wire = { mesh: THREE.Mesh; heads: THREE.Mesh[]; mat: THREE.MeshBasicMaterial; sig: string; label: HTMLDivElement | null; mid: THREE.Vector3; pts?: THREE.Vector3[]; ends?: [number, number]; on?: number };
   const wires = new Map<string, Wire>();
   // drops: a stream's dots, moved each frame along curves
   const tokens: { mesh: THREE.Mesh; label: HTMLDivElement; arrow: THREE.Group; head: THREE.Mesh; arrowMat: THREE.MeshBasicMaterial; sig: string; drops: THREE.Mesh[]; curves: THREE.Curve<THREE.Vector3>[] }[] = [];
@@ -158,7 +204,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   // ---------------------------------------------------------------- the camera: the story's, unless the reader moved it
   const camNow = { tx: 0, ty: 0, tz: 0, az: -0.5, el: 0.62, dist: 900 };
   let goal = { ...camNow };
-  let user = false, userFocus: number | null = null, lastStep = "", first = true;
+  let user = false, userFocus: number | null = null, lastStep = "", first = true, lastScene: string | null = null;
   let view: View3 | null = null;
   let dirty = true;
   const W = { w: 1, h: 1 };
@@ -192,6 +238,10 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   const place = () => {
     repeel();
     clampEl(goal); clampEl(camNow);
+    // (rfit) the clamp can raise the camera: which layers fade is worked out again for where it really is (the story sets
+    // its goal afresh on every draw, so the fade was always reckoned from the unraised camera, and a plane could stand in
+    // the line of sight)
+    repeel();
     const { tx, ty, tz, az, el, dist } = camNow;
     cam.position.set(tx + dist * Math.cos(el) * Math.sin(az), ty + dist * Math.sin(el), tz + dist * Math.cos(el) * Math.cos(az));
     cam.lookAt(tx, ty, tz);
@@ -202,7 +252,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     const r = host.getBoundingClientRect();
     if (!r.width || !r.height) return;
     W.w = r.width; W.h = r.height;
-    renderer.setSize(r.width, r.height, false);
+    renderer?.setSize(r.width, r.height, false);
     cam.aspect = r.width / r.height;
     cam.updateProjectionMatrix();
     dirty = true;
@@ -212,7 +262,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   resize();
 
   // world position of an item (centre of its floor plan, its base height)
-  const gap = (v: View3) => gapOf(v.foot, v.spread);
+  const gap = (v: View3) => gapOf(v.foot, v.spread, W.w < 480);
   const cx = () => view!.foot.x + view!.foot.w / 2, cz = () => view!.foot.y + view!.foot.h / 2;
   const lift = new Map<number, number>();
   // a thing stands on its layer's plane; a thing inside a container on the same layer stands on the container's slab (geo3d.ts)
@@ -226,15 +276,25 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const p of pts) { b.expandByPoint(p.c.clone().sub(p.half)); b.expandByPoint(p.c.clone().add(p.half)); }
     if (b.isEmpty()) b.set(new THREE.Vector3(-100, -20, -100), new THREE.Vector3(100, 20, 100));
     const c = b.getCenter(new THREE.Vector3());
-    // the nearest distance at which all 8 corners fit the view, with a margin for labels (exact for a perspective camera)
     const tv = Math.tan((cam.fov * Math.PI) / 360), th = tv * (Math.max(120, W.w) / W.h);
     const back = new THREE.Vector3(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
     const right = new THREE.Vector3(Math.cos(az), 0, -Math.sin(az)), up = new THREE.Vector3().crossVectors(back, right);
-    let dist = 120;
-    for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) {
-      const p = new THREE.Vector3(x, y, z).sub(c);
-      const k = p.dot(back);
-      dist = Math.max(dist, k + Math.abs(p.dot(right)) / (M * th), k + Math.abs(p.dot(up)) / (M * tv));
+    // format version 10 (fix): the corners of each thing, not of the box around them all (turned, that box's corners
+    // stand far outside the things, and a scene filled a third of the stage); the view is centred on them across and
+    // up, then backed off to the nearest distance at which every corner fits, with a margin for labels
+    const corners: THREE.Vector3[] = [];
+    for (const p of pts.length ? pts : [{ c, half: b.getSize(new THREE.Vector3()).multiplyScalar(0.5) }]) for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) corners.push(new THREE.Vector3(p.c.x + sx * p.half.x, p.c.y + sy * p.half.y, p.c.z + sz * p.half.z));
+    let r0 = Infinity, r1 = -Infinity, u0 = Infinity, u1 = -Infinity;
+    for (const q of corners) { const p = q.clone().sub(c); const r = p.dot(right), u = p.dot(up); r0 = Math.min(r0, r); r1 = Math.max(r1, r); u0 = Math.min(u0, u); u1 = Math.max(u1, u); }
+    c.addScaledVector(right, (r0 + r1) / 2).addScaledVector(up, (u0 + u1) / 2);
+    const need = () => { let d = 120; for (const q of corners) { const p = q.clone().sub(c); const k = p.dot(back); d = Math.max(d, k + Math.abs(p.dot(right)) / (M * th), k + Math.abs(p.dot(up)) / (M * tv)); } return d; };
+    let dist = need();
+    // close up, the near side draws bigger: centre again on what the camera sees from there (perspective), twice
+    for (let n = 0; n < 2; n++) {
+      let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+      for (const q of corners) { const p = q.clone().sub(c); const z = Math.max(1, dist - p.dot(back)); const sx = p.dot(right) / z, sy = p.dot(up) / z; a0 = Math.min(a0, sx); a1 = Math.max(a1, sx); b0 = Math.min(b0, sy); b1 = Math.max(b1, sy); }
+      c.addScaledVector(right, ((a0 + a1) / 2) * dist).addScaledVector(up, ((b0 + b1) / 2) * dist);
+      dist = need();
     }
     return { tx: c.x, ty: c.y, tz: c.z, az, el, dist };
   };
@@ -242,30 +302,51 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     if (!view) return goal;
     const v = view;
     const all = [...pos.entries()];
-    const visible = all.filter(([k]) => (v.items.find((i) => i.key === k)?.o ?? 0) > 0.3).map(([, p]) => p);
+    // (format version 10, fix-edge) a thing dimmed by a highlight is still on the stage: it counts (before, under 0.3 it
+    // was left out, the whole view slid to what the step lights and cut the rest, and the scene jumped between steps)
+    const visible = all.filter(([k]) => (v.items.find((i) => i.key === k)?.o ?? 0) > 0.05).map(([, p]) => p);
     // what the step touches, with room above it for its words (its label, a chip, speech): 34 units up
-    const up = new THREE.Vector3(0, 34, 0);
+    // (fix) the box moves up half of it and grows half of it: 34 more on top, not 68 (a close-up of one thing sat low,
+    // under an empty half stage)
+    const up = new THREE.Vector3(0, 17, 0);
     const touched = (v.touched.map((k) => pos.get(k)).filter(Boolean) as { c: THREE.Vector3; half: THREE.Vector3 }[]).map((p) => ({ c: p.c.clone().add(up), half: p.half.clone().add(up) }));
     // format version 9: turn= and tilt= set the angle, close fills the stage with what it frames, far pulls back; the
     // layer the story looks into (a focus, or the highest layer of what it frames) lets the layers above it fade
     const cw = v.cam ?? null, far = (g: ReturnType<typeof fitBox>) => (cw?.far ? { ...g, dist: g.dist * FAR } : g);
     storyL = null;
+    // (rfit) a view cut to what the step touches slides to keep within the scene: no empty band on one side while the
+    // other is cut (site/src/fit3d.ts)
+    const sceneBoxes = [...(visible.length ? visible : all.map(([, p]) => p)), ...v.layers.flatMap((_, L) => layerPts(L))];
+    const inScene = (lg: { goal: ReturnType<typeof fitBox>; cut: boolean }) => (lg.cut ? keepInScene(lg.goal, cam.fov, W.w, W.h, sceneBoxes, touched) : lg.goal);
     if (v.look?.length) {
-      const s = v.look.map((k) => pos.get(k)).filter(Boolean) as any[];
+      // format version 10: what a framed thing holds and shows comes too (on a declared layer it stands on a lower plane,
+      // outside the thing's own box): a zoom into a pod frames its containers below it
+      const lk = new Set(v.look), byK = new Map(v.items.map((i) => [i.key, i]));
+      const under = (it: Item3) => { for (let x = it.parent != null ? byK.get(it.parent) : undefined, n = 0; x && n < 64; x = x.parent != null ? byK.get(x.parent) : undefined, n++) if (lk.has(x.key)) return true; return false; };
+      const s = [...v.look.map((k) => pos.get(k)), ...v.items.filter((it) => it.o > 0.3 && !it.container && under(it)).map((it) => pos.get(it.key))].filter(Boolean) as any[];
       if (s.length) {
         const Ls = v.look.map((k) => posL.get(k)).filter((x): x is number => x != null);
         storyL = Ls.length ? Math.round(Math.min(...Ls)) : null;
-        const a = angleOf(cw, -0.35, 0.7);
-        return far(fitBox([...s, ...touched], a.el, a.az, cw?.close ? CLOSE_FILL : 0.84));
+        // (format version 10, fix-edge) a scene with no layers keeps its flat angle when the author frames part of it, so it
+        // does not swing between steps (it took -0.35, 0.7 here and -0.15, flat in the whole view)
+        const a = !v.layers.length ? angleOf(cw, -0.15, FLAT_TILT) : angleOf(cw, -0.35, 0.7);
+        const M = cw?.close ? CLOSE_FILL : 0.84;
+        // on a phone, under the least scale: what the step touches (site/src/least3d.ts)
+        return inScene(leastGoal(far(fitBox([...s, ...touched], a.el, a.az, M)), touched.length ? far(fitBox(touched, a.el, a.az, M)) : null, W.w, W.h, cam.fov, v.least ?? 0));
       }
     }
     // a focused layer is seen from nearly in front (a long plane seen from a slant looks tipped over)
-    if (v.focus != null) { storyL = v.focus; const a = angleOf(cw, -0.15, 0.85); return far(fitBox([...layerPts(v.focus), ...touched], a.el, a.az)); }
+    if (v.focus != null) { storyL = v.focus; const a = angleOf(cw, -0.15, 0.85); return inScene(leastGoal(far(fitBox([...layerPts(v.focus), ...touched], a.el, a.az)), touched.length ? far(fitBox(touched, a.el, a.az)) : null, W.w, W.h, cam.fov, v.least ?? 0)); }
     // everything on the stage, and the layer planes (they are wider than what stands on them)
     const planesPts = v.layers.flatMap((_, L) => layerPts(L));
     // a scene with no layers (a 2D scene opened in 3D) is seen from nearly in front, as in 2D, so it fills the stage
     const a = angleOf(cw, !v.layers.length ? -0.15 : -0.5, !v.layers.length ? FLAT_TILT : v.spread > 0.5 ? 0.5 : 0.62);
-    return far(fitBox([...(visible.length ? visible : all.map(([, p]) => p)), ...planesPts, ...touched], a.el, a.az));
+    const whole = far(fitBox([...(visible.length ? visible : all.map(([, p]) => p)), ...planesPts, ...touched], a.el, a.az));
+    // format version 10 (site/src/least3d.ts): on a phone, a whole view under the least scale frames what the step
+    // touches instead, at that size, looking into its highest layer (the layers above it fade)
+    const lg = leastGoal(whole, touched.length ? far(fitBox(touched, a.el, a.az)) : null, W.w, W.h, cam.fov, v.least ?? 0);
+    if (lg.cut) { const Ls = v.touched.map((k) => posL.get(k)).filter((x): x is number => x != null); storyL = Ls.length ? Math.round(Math.min(...Ls)) : null; }
+    return inScene(lg);
   };
   const layerPts = (L: number) => {
     const v = view!, y = -L * gap(v);
@@ -275,14 +356,22 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   // ---------------------------------------------------------------- update: lay out this moment of the story
   const update = (v: View3) => {
     v = flatNest(v);
+    // format version 10: another scene inside the scene: the layers it peeled away belong to the scene it left
+    const newScene = (v.scene ?? "") !== (lastScene ?? "");
+    if (newScene) { peelO.length = 0; peelK = 0; }
     view = v;
     touchedKeys = new Set([...v.touched, ...v.hl.keys()]);
+    partSet = v.part ? new Set(v.part) : null;
+    host.dataset.part = v.part ? v.part.join(",") : "all";
     syncPlanes(v.layers.length);
     const byKey = new Map(v.items.map((i) => [i.key, i]));
     for (const o of objs.values()) o.seen = false;
     pos.clear(); posL.clear();
     const X0 = cx(), Z0 = cz();
     const focusOn = userFocus ?? null;
+    // format version 10: how far each thing is raised: its own lift, plus that of what holds it (it rises with it;
+    // lifts nest, so a pod lifted out of a lifted node rises above it)
+    const raised = (it: Item3) => { let m = 0; for (let x: Item3 | undefined = it, n = 0; x && n < 64; x = x.parent != null ? byKey.get(x.parent) : undefined, n++) m += x.lift ?? 0; return m; };
     for (const it of v.items) {
       if (it.kind === "layer") continue;
       let o = objs.get(it.key);
@@ -291,7 +380,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       o.seen = true;
       const hgt = heightOf(it);
       // nested scenes with no declared layers: split layers lifts each nesting level above its container
-      const by = baseY(it, byKey) + (it.nest ?? 0) * NEST_LIFT * v.spread;
+      const up = raised(it) * LIFT_UP;
+      const by = baseY(it, byKey) + (it.nest ?? 0) * NEST_LIFT * v.spread + up;
       const x = it.x + it.w / 2 - X0, z = it.y + it.h / 2 - Z0;
       const hlt = v.hl.get(it.key), sel = v.sel === it.key;
       // a highlight lifts a thing a little; a lit container lifts what stands on it too (format version 9: before, its
@@ -326,6 +416,15 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       const rm = o.ring.material as THREE.LineDashedMaterial;
       o.ring.visible = !!(hlt || sel);
       if (o.ring.visible) { const fw = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.x : it.w, fd = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.z : k === "pill" ? Math.min(it.h, 26) : it.h; o.ring.scale.set(fw + 8, 1, fd + 8); o.ring.position.y = 1; rm.color.copy(hlt ? toneLine(hlt) : C.acc); rm.opacity = op; rm.dashSize = sel && !hlt ? 0.04 : 10; rm.gapSize = sel && !hlt ? 0.03 : 0; }
+      // a lifted thing's old place: a thin outline on the floor it rose from, so the reader sees where it goes back
+      o.sock.visible = (it.lift ?? 0) > 0.02;
+      if (o.sock.visible) { o.sock.scale.set(it.w + 4, 1, (k === "pill" ? Math.min(it.h, 26) : it.h) + 4); o.sock.position.y = -(it.lift ?? 0) * LIFT_UP - pop + 1; const sm = o.sock.material as THREE.LineBasicMaterial; sm.color.copy(C["line-2"]); sm.opacity = it.o * (it.lift ?? 0); }
+      // format version 10: a meter (level=) lies on the top face along the front edge (site/src/meter3d.ts)
+      if (it.lv != null && k !== "layer") {
+        if (!o.meter) { o.meter = mkMeter(); o.g.add(o.meter.g); }
+        const fd = k === "pill" ? Math.min(it.h, 26) : it.h, zt = (DESIGN as any)[it.size] ?? DESIGN.m;
+        placeMeter(o.meter, { w: it.w, d: fd, top: hgt, inX: it.container ? zt.pad : Math.max(8, zt.px - 4), lv: it.lv, op, order, track: C["meter-track"], fill: C.meter });
+      } else if (o.meter) { dropMeter(o.meter); o.meter = undefined; }
       o.x.visible = it.down;
       if (it.down) { o.x.scale.set(it.w, 1, it.h); o.x.position.y = hgt + 0.6; const xm = o.x.material as THREE.LineBasicMaterial; xm.color.copy(C.bad); xm.opacity = it.o * off; }
       const half = new THREE.Vector3(it.w / 2, Math.max(hgt, 8) / 2, (k === "pill" ? Math.min(it.h, 26) : it.h) / 2);
@@ -346,7 +445,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     planes.forEach((p, L) => {
       const l = v.layers[L];
       const off = (focusOn != null && L !== focusOn ? FOCUS_OFF : 1) * (peelO[L] ?? 1);
-      const story = v.focus != null && L !== v.focus ? FOCUS_OFF : 1;
+      const story = (v.focus != null && L !== v.focus ? FOCUS_OFF : 1) * (v.fade ?? 1);
       p.mesh.scale.set(v.foot.w + 40, PLANE_H, v.foot.h + 40);
       p.mesh.position.set(v.foot.x + v.foot.w / 2 - X0, planeY(L, g), v.foot.y + v.foot.h / 2 - Z0);
       p.mesh.renderOrder = p.edge.renderOrder = (v.layers.length + 1 - L) * 100;
@@ -367,13 +466,13 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       // a wire to a faded thing fades further (format version 9): up close it read as a stray bar across the stage
       const opac = e.o * Math.pow(Math.min(lift.get(e.from) ?? 1, lift.get(e.to) ?? 1), 1.6);
       seen.add(e.key);
-      const { P, Q, mid } = curvePts(a, b, 0);
-      const sig = `${P.toArray().map((n) => n.toFixed(1))}|${Q.toArray().map((n) => n.toFixed(1))}|${e.style}`;
+      const curve = wireCurve(e.from, e.to, a, b, { implicit: e.implicit, off: 0, bend: e.bend ?? 0, rt: e.rt ?? null }, 0, byKey, X0, Z0);
+      const mid = curve.getPoint(0.5);
+      const sig = `${curveSig(curve)}|${e.style}`;
       let wv = wires.get(e.key);
       if (!wv) { const mat = basic(); wv = { mesh: new THREE.Mesh(new THREE.BufferGeometry(), mat), heads: [], mat, sig: "", label: null, mid }; root.add(wv.mesh); wires.set(e.key, wv); }
       if (wv.sig !== sig) {
         wv.sig = sig;
-        const curve = new THREE.QuadraticBezierCurve3(P, mid, Q);
         wv.mesh.geometry.dispose();
         wv.mesh.geometry = tube(curve, e.style === "-->", e.implicit ? 0.9 : 1.3);
         for (const h of wv.heads) root.remove(h);
@@ -388,7 +487,9 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
         if (["->", "-->", "<->"].includes(e.style)) head(1, 1);
         if (e.style === "<->") head(0, -1);
         wv.mid = curve.getPointAt(0.5);
+        wv.pts = curve.getSpacedPoints(16);
       }
+      wv.ends = [e.from, e.to]; wv.on = opac;
       wv.mat.color.copy(e.cc ? C[`c${e.cc}`] : e.implicit ? C["line-2"] : C.muted); wv.mat.opacity = opac;
       if (e.label) {
         if (!wv.label) { wv.label = document.createElement("div"); wv.label.className = "scn3-wire"; labels.append(wv.label); }
@@ -411,7 +512,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       if (ps.length < 2) { t.mesh.visible = false; t.arrow.visible = false; t.head.visible = false; t.label.dataset.o = "0"; return; }
       const stream = s.show === "stream";
       const arrowOn = s.show === "arrow" || s.show === "both", tokenOn = s.show === "token" || s.show === "both";
-      const curves = ps.slice(1).map((b, k) => { const off = arrowOn && (conns.has(`${s.path[k]}>${s.path[k + 1]}`) || conns.has(`${s.path[k + 1]}>${s.path[k]}`)) ? 7 : 0; const { P, Q, mid } = curvePts(ps[k], b, off); return new THREE.QuadraticBezierCurve3(P, mid, Q); });
+      // each hop: on one layer, the 2D line (beside its connector when it runs along one); else the curve between layers
+      const curves = ps.slice(1).map((b, k) => { const off = arrowOn && (conns.has(`${s.path[k]}>${s.path[k + 1]}`) || conns.has(`${s.path[k + 1]}>${s.path[k]}`)) ? 7 : 0; return wireCurve(s.path[k], s.path[k + 1], ps[k], b, { implicit: false, off: s.offs?.[k] ?? 0, bend: s.bends?.[k] ?? 0, rt: s.rts?.[k] ?? null }, off, byKey, X0, Z0); });
       t.curves = stream ? curves : [];
       const want = stream ? 6 * curves.length : 0;
       while (t.drops.length > want) { const d = t.drops.pop()!; root.remove(d); (d.material as THREE.Material).dispose(); }
@@ -423,10 +525,11 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       t.mesh.visible = tokenOn && s.p > 0; t.mesh.position.copy(at).y -= 4.5;
       (t.mesh.material as THREE.MeshBasicMaterial).color.copy(s.cc ? C[`c${s.cc}`] : C.hot);
       // the arrow: one tube per piece, revealed along its length
-      const sig = curves.map((c) => [c.v0, c.v1, c.v2].map((p) => p.toArray().map((x) => x.toFixed(1)).join(",")).join(";")).join("|");
-      if (t.sig !== sig) { t.sig = sig; t.arrow.children.slice().forEach((c) => { t.arrow.remove(c); (c as THREE.Mesh).geometry.dispose(); }); for (const c of curves) t.arrow.add(new THREE.Mesh(new THREE.TubeGeometry(c, 40, 1.7, 6, false), t.arrowMat)); }
+      const sig = curves.map(curveSig).join("|");
+      const segs = curves.map((c) => tubeSegs(c, 40));
+      if (t.sig !== sig) { t.sig = sig; t.arrow.children.slice().forEach((c) => { t.arrow.remove(c); (c as THREE.Mesh).geometry.dispose(); }); curves.forEach((c, k) => t.arrow.add(new THREE.Mesh(new THREE.TubeGeometry(c, segs[k], 1.7, 6, false), t.arrowMat))); }
       t.arrow.visible = arrowOn && s.p > 0; t.head.visible = arrowOn && s.p > 0;
-      t.arrow.children.forEach((c, k) => { const g = (c as THREE.Mesh).geometry as THREE.BufferGeometry; const full = g.index!.count; g.setDrawRange(0, k < seg ? full : k === seg ? Math.floor(Math.min(1, fr) * 40) * 6 * 6 : 0); });
+      t.arrow.children.forEach((c, k) => { const g = (c as THREE.Mesh).geometry as THREE.BufferGeometry; const full = g.index!.count; g.setDrawRange(0, k < seg ? full : k === seg ? Math.floor(Math.min(1, fr) * segs[k]) * 6 * 6 : 0); });
       t.arrowMat.color.copy(s.cc ? C[`c${s.cc}`] : C.acc); t.arrowMat.opacity = 1;
       t.head.position.copy(at).addScaledVector(tan, -4); t.head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan.clone().normalize());
       // the words: an arrow's by the middle of its path, a token's next to the token
@@ -446,6 +549,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; if (b.dataset.sk !== `${s.key} ${s.text}`) { b.dataset.fresh = "1"; b.dataset.sk = `${s.key} ${s.text}`; } b.textContent = s.text; b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
     // the story camera moves when the step changes (or on the first draw)
     if (!user) { goal = storyGoal(); if (first) { Object.assign(camNow, goal); first = false; } }
+    // format version 10: into or out of a scene inside the scene (site/src/anim-scenes.tsx)
+    if (newScene) { if (lastScene != null || v.sceneDir) sceneJump(v); lastScene = v.scene ?? ""; }
     if (v.stepKey !== lastStep) { lastStep = v.stepKey; }
     dirty = true;
   };
@@ -460,16 +565,38 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     if (off) { const dir = Q.clone().sub(P); const side = new THREE.Vector3(-dir.z, 0, dir.x).normalize().multiplyScalar(off); P.add(side); Q.add(side); mid.add(side); }
     return { P, Q, mid };
   };
+  // a line between two things (format version 10): on one layer it runs on the floor along the 2D line (the router's
+  // route, or the old bow for a circle's or a list's line), from the foot of one to the foot of the other; between
+  // layers it keeps the curve above (off: beside a connector)
+  const wireCurve = (ka: number, kb: number, a: { c: THREE.Vector3; half: THREE.Vector3 }, b: { c: THREE.Vector3; half: THREE.Vector3 }, way: { implicit: boolean; off: number; bend: number; rt: Route | null }, off: number, byKey: Map<number, Item3>, X0: number, Z0: number): THREE.Curve<THREE.Vector3> => {
+    const ia = byKey.get(ka), ib = byKey.get(kb);
+    if (ia && ib && Math.abs((posL.get(ka) ?? 0) - (posL.get(kb) ?? 0)) < 0.5) return floorCurve(ia, ib, way, footY(a), footY(b), X0, Z0, slabsOn(posL.get(ka) ?? 0, byKey));
+    const { P, Q, mid } = curvePts(a, b, off);
+    // (item 8, fix) a line to or from a text stops short of it: its words are the thing, and the line ran under them
+    const short = (E: THREE.Vector3, it: Item3 | undefined) => { if (it?.kind === "text") E.add(mid.clone().sub(E).setLength(Math.min(TEXT_CLEAR, mid.distanceTo(E) * 0.4))); };
+    short(P, ia); short(Q, ib);
+    return new THREE.QuadraticBezierCurve3(P, mid, Q);
+  };
+  // format version 10: the slabs (drawn containers) on a layer, which a floor line climbs over (site/src/route3d.ts)
+  const slabsOn = (L: number, byKey: Map<number, Item3>): Slab[] => {
+    const out: Slab[] = [];
+    for (const it of byKey.values()) { if (!it.container || it.bare || Math.abs(it.L - L) > 0.5 || it.o < 0.05) continue; const p = pos.get(it.key); if (p) out.push({ x0: p.c.x - p.half.x, x1: p.c.x + p.half.x, z0: p.c.z - p.half.z, z1: p.c.z + p.half.z, top: p.top }); }
+    return out;
+  };
   const toneLine = (t: string) => (t === "good" ? C.good : t === "warn" ? C.warn : t === "hot" ? C.hot : t === "muted" ? C["line-2"] : C.acc);
 
   // ---------------------------------------------------------------- draw: move the camera towards its goal, project the labels
   const v3 = new THREE.Vector3();
   // keepIn: a layer's name chip stays inside the stage (it hangs to the left of its anchor)
-  const project = (el: HTMLElement, x: number, y: number, z: number, o: number, keepIn = false) => {
+  // rowY (format version 10, fix): the y a layer's name takes when its plane is past the stage's top or bottom
+  // at (fix): a layer name's spot on the screen, on the part of its plane that shows (least3d.ts planeAnchor)
+  const project = (el: HTMLElement, x: number, y: number, z: number, o: number, keepIn = false, rowY?: number, at?: P2 | null) => {
     v3.set(x, y, z).project(cam);
-    const behind = v3.z > 1;
+    const behind = !at && v3.z > 1;
     let sx = (v3.x * 0.5 + 0.5) * W.w, sy = (-v3.y * 0.5 + 0.5) * W.h;
-    if (keepIn) { sx = Math.min(W.w - 60, Math.max(sx, el.offsetWidth + 6)); sy = Math.min(W.h - 34, Math.max(16, sy)); }
+    if (at) { sx = at.x; sy = at.y; }
+    if (keepIn) { sx = Math.min(W.w - 60, Math.max(sx, el.offsetWidth + 6)); sy = rowY ?? Math.min(W.h - 34, Math.max(16, sy)); }
+    else if (sx >= 0 && sx <= W.w) sx = inX(el, sx); // (rfit) a word whose spot is on the stage is not cut at its side
     const show = !behind && o > 0.04 && sx > -60 && sx < W.w + 60 && sy > -30 && sy < W.h + 30;
     el.style.opacity = show ? String(Math.min(1, o)) : "0";
     el.style.visibility = show ? "visible" : "hidden";
@@ -491,6 +618,10 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     if (c.contains("k-token")) return [-0.5, -1.3];
     return [-0.5, -0.5];
   };
+  // (rfit) the x that keeps a word wholly across the stage (2 px in), its anchor as anchorOf; a word wider than the stage keeps its x
+  const inX = (el: HTMLElement, sx: number) => { const w = el.offsetWidth, x0 = sx + anchorOf(el)[0] * w; return w > W.w - 4 ? sx : x0 < 2 ? sx + 2 - x0 : x0 + w > W.w - 2 ? sx - (x0 + w - W.w + 2) : sx; };
+  const acrossOk = (r: { x: number; w: number }) => r.x >= 2 && r.x + r.w <= W.w - 2;
+  let lineSegs: { ends: [number, number]; p: P2[] }[] = [];
   const unclutter = () => {
     const rect = (p: { el: HTMLElement; sx: number; sy: number }, dy = 0, dx = 0) => { const [ax, ay] = anchorOf(p.el), w = p.el.offsetWidth, h = p.el.offsetHeight; return { x: p.sx + dx + ax * w, y: p.sy + dy + ay * h, w, h }; };
     const small = (el: HTMLElement) => el.classList.contains("scn3-wire") || el.classList.contains("scn3-arrow") || el.classList.contains("scn3-send") || el.classList.contains("scn3-say") || el.classList.contains("k-token");
@@ -508,7 +639,12 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const p of big) {
       const w = p.el.offsetWidth, h = p.el.offsetHeight;
       const tries: [number, number][] = [[0, 0], [0, -0.6 * h], [0, 0.6 * h], [-0.3 * w, 0], [0.3 * w, 0], [0, -h], [0, h]];
+      // (item 8, fix) a name keeps off the lines that do not end at its own thing, when a spot like that is free
+      const own = +(p.el.dataset.k ?? NaN);
+      const offLines = (r: { x: number; y: number; w: number; h: number }) => !lineSegs.some((s) => !s.ends.includes(own) && lineHitsRect(s.p, r));
       const st = held(p, () => {
+        // (a line through a name's middle needs a wider step aside than a word does)
+        for (const [dx, dy] of [...tries, [-0.62 * w, 0], [0.62 * w, 0], [0, -1.6 * h], [0, 1.6 * h]] as [number, number][]) { const r = rect(p, dy, dx); if (!fixed.some((f) => hits(r, f)) && offLines(r) && acrossOk(r)) return [dx, dy, 1]; }
         for (const [dx, dy] of tries) if (!fixed.some((r) => hits(rect(p, dy, dx), r))) return [dx, dy, 1];
         return [0, 0, pri(p.el) <= 1 ? 1 : GHOST];
       });
@@ -523,7 +659,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       const h = p.el.offsetHeight + 2;
       // a clear gap if there is one within two lines; else simply off every word; else a ghost (format version 9)
       const st = held(p, () => {
-        for (const [m, dys] of [[10, [0, -h, -2 * h]], [1, [0, -h, -2 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, -16, -32, -48]) { const r = rect(p, dy, dx); if (!fixed.some((f) => near(r, f, m))) return [dx, dy, 1]; }
+        for (const across of [true, false]) for (const [m, dys] of [[10, [0, -h, -2 * h]], [1, [0, -h, -2 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, -16, -32, -48]) { const r = rect(p, dy, dx); if (!fixed.some((f) => near(r, f, m)) && (!across || acrossOk(r))) return [dx, dy, 1]; }
         return [0, 0, GHOST];
       });
       if (st.dx || st.dy) p.el.style.transform = `translate(${(p.sx + st.dx).toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
@@ -536,7 +672,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // so a chip passing by does not push them about either
     const sm = placed.filter((q) => small(q.el)).map((p) => {
       // a reused speech bubble with a new text is placed afresh, at once (it kept the last text's spot, then slid)
-      const st = (p.el.dataset.fresh ? undefined : slot.get(p.el)) ?? { dy: 0, sx: p.sx, sy: p.sy, fresh: true, still: 0 };
+      const st = (p.el.dataset.fresh ? undefined : slot.get(p.el)) ?? { dy: 0, dx: 0, sx: p.sx, sy: p.sy, fresh: true, still: 0 };
       delete p.el.dataset.fresh;
       // it counts as moving until it has stood still for STILL frames (a move can pause for a frame between ticks)
       st.still = !st.fresh && Math.hypot(p.sx - st.sx, p.sy - st.sy) > 0.3 ? 0 : st.still + 1;
@@ -552,23 +688,37 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     const sayFirst = (q: { p: { el: HTMLElement } }) => (q.p.el.classList.contains("scn3-say") ? 0 : 1);
     for (const { p, st, moving } of [...sm.filter((q) => !q.moving).sort((x, y) => sayFirst(x) - sayFirst(y)), ...sm.filter((q) => q.moving)]) {
       const h = p.el.offsetHeight + 3;
+      // (fix) a chip at rest keeps 3 px from every word; one on its way only must not cover one
+      const gapR = (r: { x: number; y: number; w: number; h: number }, m: number) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
+      const free = (dy: number, dx = st.dx) => !fixed.some((f) => hits(gapR(rect(p, dy, dx), moving ? 0 : 3), f));
       if (!moving) {
-        let best = 0;
-        for (const dy of [0, -h, h, -2 * h, 2 * h, -3 * h, 3 * h]) { const r = rect(p, dy); if (!fixed.some((f) => hits(r, f))) { best = dy; break; } }
+        // above or below first; format version 10: when every one of those is taken (three chips and a name at one
+        // thing), beside, half its width and a little more to the right or the left
+        const sw = p.el.offsetWidth * 0.6 + 4;
+        let best: [number, number] = [0, 0];
+        const tries: [number, number][] = [...[0, -h, h, -2 * h, 2 * h, -3 * h, 3 * h].map((dy): [number, number] => [dy, 0]), ...[0, -h, h, -2 * h, 2 * h].flatMap((dy): [number, number][] => [[dy, sw], [dy, -sw]])];
+        for (const [dy, dx] of tries) if (free(dy, dx)) { best = [dy, dx]; break; }
         // the first placing is at once; a later one eases there (a third of the way each frame)
-        st.dy = st.fresh || Math.abs(best - st.dy) < 0.5 ? best : st.dy + (best - st.dy) / 3;
-        if (Math.abs(best - st.dy) >= 0.5) dirty = true;
+        const ez = (a: number, b: number) => (st.fresh || Math.abs(b - a) < 0.5 ? b : a + (b - a) / 3);
+        st.dy = ez(st.dy, best[0]); st.dx = ez(st.dx, best[1]);
+        if (Math.abs(best[0] - st.dy) >= 0.5 || Math.abs(best[1] - st.dx) >= 0.5) dirty = true;
+      } else if (!free(st.dy)) {
+        // format version 10: a moving chip keeps its step aside while it is clear; when it would cover a word or another
+        // chip (three pieces of a split leave one spot together), it eases to the nearest clear spot, a third of the way
+        // each frame, so it never jumps
+        const best = [st.dy, st.dy - h, st.dy + h, st.dy - 2 * h, st.dy + 2 * h].find(free);
+        if (best != null) { st.dy = Math.abs(best - st.dy) < 0.5 ? best : st.dy + (best - st.dy) / 3; dirty = true; }
       }
       st.fresh = false;
-      if (st.dy) p.el.style.transform = `translate(${p.sx.toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
+      if (st.dy || st.dx) p.el.style.transform = `translate(${(p.sx + st.dx).toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
       // small labels stay above the names of things, in a fixed order, so two never swap in front of each other
       p.el.style.zIndex = String(2e5 + (moving ? 1 : 0));
-      if (!moving) fixed.push(rect(p, st.dy));
+      fixed.push(rect(p, st.dy, st.dx));
     }
     placed = [];
   };
   // each small label's step aside (dy) and where its anchor was last frame
-  const slot = new WeakMap<HTMLElement, { dy: number; sx: number; sy: number; fresh: boolean; still: number }>();
+  const slot = new WeakMap<HTMLElement, { dy: number; dx: number; sx: number; sy: number; fresh: boolean; still: number }>();
   const STILL = 10;
   // a name's spot and fade (format version 9): worked out at once the first time, held while its anchor moves, eased
   // to a new one when it has stood still for STILL frames
@@ -588,22 +738,64 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     return st;
   };
   let touchedKeys = new Set<number>();
+  // the 3D labels rule (format version 10): while a step plays, only who takes part shows a label; each label eases
+  // to hidden (about 0.1 s) or shown (about 0.2 s), by the clock, not per frame, so it is quick on a slow device and
+  // never blinks
+  let partSet: Set<number> | null = null;
+  const showK = new WeakMap<HTMLElement, { v: number; t: number }>();
+  const ease = (el: HTMLElement, on: boolean) => {
+    const want = on ? 1 : 0, now = performance.now(), st = showK.get(el) ?? { v: want, t: now };
+    const k = 1 - Math.exp(-Math.min(200, now - st.t) / (on ? 70 : 35));
+    const v = Math.abs(want - st.v) < 0.02 || opts.still ? want : st.v + (want - st.v) * k;
+    if (v !== want) dirty = true;
+    showK.set(el, { v, t: now });
+    return v;
+  };
+  // fault 3 (format version 10 fix): while the camera flies into or out of a scene inside the scene, the scene is
+  // drawn small and its words would pile on each other; they stay hidden until the camera has arrived (then ease in)
+  let flying = false;
   const drawLabels = () => {
     placed = [];
     if (!view) return;
     const X0 = cx(), Z0 = cz();
+    // (a move between scenes keeps its data at rest, at full fade: only a move under way counts)
+    const still = !flying && !(view.sceneDir && (view.fade ?? 1) < 0.98);
     for (const it of view.items) {
       const o = objs.get(it.key), p = pos.get(it.key);
       if (!o || !p) continue;
-      const op = +(o.label.dataset.o ?? 1);
+      const op = +(o.label.dataset.o ?? 1) * ease(o.label, still && labelOn([it.key], partSet));
+      o.label.dataset.on = partSet && !labelOn([it.key], partSet) ? "0" : "1";
       if (it.container) project(o.label, p.c.x - it.w / 2 + 8, p.top + 1, p.c.z - it.h / 2 + 2, it.label ? op : 0);
       else project(o.label, p.c.x, p.top + 2, p.c.z, op);
     }
     const g = gap(view);
-    planes.forEach((pl, L) => project(pl.label, view!.foot.x - 20 - X0, floorY(L, g), view!.foot.y + view!.foot.h / 2 - Z0, +(pl.label.dataset.o ?? 1), true));
-    for (const wv of wires.values()) if (wv.label) project(wv.label, wv.mid.x, wv.mid.y, wv.mid.z, +(wv.label.dataset.o ?? 1));
-    for (const t of tokens) project(t.label, +(t.label.dataset.x ?? 0), +(t.label.dataset.y ?? 0), +(t.label.dataset.z ?? 0), +(t.label.dataset.o ?? 0));
-    for (const b of bubbles) project(b, +(b.dataset.x ?? 0), +(b.dataset.y ?? 0), +(b.dataset.z ?? 0), +(b.dataset.o ?? 0));
+    const lx = view.foot.x - 20 - X0, lz = view.foot.y + view.foot.h / 2 - Z0;
+    // a layer's name sits at the left end of the part of its plane that shows; a plane past the top or bottom of the
+    // stage keeps its name at that edge, one row each, in layer order (least3d.ts)
+    const fx0 = view.foot.x - 20 - X0, fx1 = view.foot.x + view.foot.w + 20 - X0, fz0 = view.foot.y - 20 - Z0, fz1 = view.foot.y + view.foot.h + 20 - Z0;
+    const scr = (x: number, y: number, z: number): P2 & { z: number } => { v3.set(x, y, z).project(cam); return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h, z: v3.z }; };
+    const lo = 16, hi = W.h - 34;
+    const quads = planes.map((_, L) => { const y = floorY(L, g); return [scr(fx0, y, fz0), scr(fx1, y, fz0), scr(fx1, y, fz1), scr(fx0, y, fz1)]; });
+    // the middle of the plane's left edge when it shows (as before), else the left end of what shows
+    const ats = quads.map((q, L) => { if (q.some((p) => p.z > 1)) return null; const m = scr(lx, floorY(L, g), lz); return m.x >= 0 && m.x <= W.w && m.y >= lo && m.y <= hi ? m : planeAnchor(q, W.w, lo, hi); });
+    const row = (planes[0]?.label.offsetHeight || 22) + 4;
+    const edge = edgeRows(quads.map((q) => q.reduce((s, p) => s + p.y, 0) / q.length), lo, hi, row);
+    // then in layer order, a row apart (a name moved up or down keeps its place across); a plane off the stage: its
+    // name hangs at the stage's left
+    // (rfit) a plane wholly past the stage's top or bottom: only the nearest one on each side keeps its name, at that
+    // edge, with an arrow that points off the stage (data-off, parts.css); the names of the others are left out
+    const midY = quads.map((q) => q.reduce((s, p) => s + p.y, 0) / q.length), offOf = (L: number) => (ats[L] ? "" : midY[L] > hi ? "b" : midY[L] < lo ? "t" : "");
+    const offB = planes.map((_, L) => L).filter((L) => offOf(L) === "b"), offT = planes.map((_, L) => L).filter((L) => offOf(L) === "t");
+    const keepName = (L: number) => (offOf(L) === "b" ? L === Math.min(...offB) : offOf(L) === "t" ? L === Math.max(...offT) : true);
+    const kept = planes.map((_, L) => L).filter(keepName), keptY = orderRows(kept.map((L) => ats[L]?.y ?? (offOf(L) === "b" ? hi : offOf(L) === "t" ? lo : edge[L])), lo, hi, row);
+    const ys = planes.map((_, L) => (kept.includes(L) ? keptY[kept.indexOf(L)] : edge[L]));
+    const x0 = Math.min(W.w, ...ats.map((a) => a?.x ?? W.w)); // a name with no plane on the stage lines up with the others
+    planes.forEach((pl, L) => { const a = ats[L], at = { x: a ? a.x : x0 < W.w ? x0 : 0, y: ys[L] }; pl.label.dataset.off = offOf(L); project(pl.label, lx, floorY(L, g), lz, keepName(L) ? +(pl.label.dataset.o ?? 1) : 0, true, undefined, at); });
+    for (const [key, wv] of wires) if (wv.label) { const e = view.edges.find((x) => x.key === key); const on = wireLabelOn(e, partSet); wv.label.dataset.on = on ? "1" : "0"; project(wv.label, wv.mid.x, wv.mid.y, wv.mid.z, +(wv.label.dataset.o ?? 1) * ease(wv.label, still && on)); }
+    for (const t of tokens) project(t.label, +(t.label.dataset.x ?? 0), +(t.label.dataset.y ?? 0), +(t.label.dataset.z ?? 0), +(t.label.dataset.o ?? 0) * ease(t.label, still));
+    for (const b of bubbles) project(b, +(b.dataset.x ?? 0), +(b.dataset.y ?? 0), +(b.dataset.z ?? 0), +(b.dataset.o ?? 0) * ease(b, still));
+    // the lines on the screen, for names at rest to keep off (item 8, fix)
+    lineSegs = [...wires.values()].filter((w) => (w.on ?? 0) > 0.3 && w.pts && w.ends).map((w) => ({ ends: w.ends!, p: w.pts!.map((q) => { v3.copy(q).project(cam); return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }; }) }));
     unclutter();
   };
   let raf = 0, visible = true;
@@ -611,17 +803,19 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     raf = requestAnimationFrame(frame);
     if (!visible) return;
     let moving = false;
+    // the camera has arrived after a fly into or out of a scene: within 4 % of its distance and its target
+    if (flying && Math.abs(camNow.dist - goal.dist) < goal.dist * 0.04 && Math.hypot(camNow.tx - goal.tx, camNow.ty - goal.ty, camNow.tz - goal.tz) < goal.dist * 0.04) { flying = false; dirty = true; }
     camNow.az = nearTurn(goal.az, camNow.az);
     let fading = false;
     if (view) for (let L = 0; L < view.layers.length; L++) {
       const want = L < peelK ? FOCUS_OFF : 1, now = peelO[L] ?? 1;
-      if (Math.abs(want - now) > 0.004) { peelO[L] = now + (want - now) * 0.18; fading = true; } else peelO[L] = want;
+      if (Math.abs(want - now) > 0.004 && !opts.still) { peelO[L] = now + (want - now) * 0.18; fading = true; } else peelO[L] = want;
     }
     if (fading) { update(view!); moving = true; }
     for (const k of Object.keys(camNow) as (keyof typeof camNow)[]) {
       const d = goal[k] - camNow[k];
       const eps = k === "dist" || k.startsWith("t") ? 0.05 : 0.0005;
-      if (Math.abs(d) > eps) { camNow[k] += d * 0.14; moving = true; } else camNow[k] = goal[k];
+      if (Math.abs(d) > eps && !opts.still) { camNow[k] += d * 0.14; moving = true; } else { if (camNow[k] !== goal[k]) moving = true; camNow[k] = goal[k]; }
     }
     // a stream's dots flow for as long as the step shows it
     const now = performance.now() / 1000;
@@ -631,14 +825,19 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       moving = true;
     }
     if (!moving && !dirty) return;
+    const r3 = gl();
+    if (!r3) { dirty = true; return; }
     dirty = false;
     place();
-    renderer.render(scene, cam);
+    r3.render(scene, cam);
     drawLabels();
   };
   raf = requestAnimationFrame(frame);
   const io = new IntersectionObserver((es) => { visible = es.some((e) => e.isIntersecting); if (visible) dirty = true; });
   io.observe(host);
+  // near the screen (one screen height above or below) the stage holds a context; far, it gives it back
+  const nio = new IntersectionObserver((es) => { near = es.some((e) => e.isIntersecting); if (near) dirty = true; else park(); }, { rootMargin: NEAR_MARGIN });
+  nio.observe(host);
   readColours();
   const mo = new MutationObserver(readColours);
   mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "class", "style"] });
@@ -712,6 +911,15 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     }
   };
   const clampDist = (d: number) => Math.max(80, Math.min(9000, d));
+  // a new scene is shown: going in, the camera starts far back and flies in; going out, it starts at the thing the
+  // scene was entered from and flies back out to the story's view
+  function sceneJump(v: View3) {
+    flying = !opts.still;
+    const via = v.sceneVia != null ? pos.get(v.sceneVia) : undefined;
+    if (via) Object.assign(camNow, goal, { tx: via.c.x, ty: via.c.y, tz: via.c.z, dist: clampDist(Math.max(160, Math.max(via.half.x, via.half.z) * 5)) });
+    else Object.assign(camNow, goal, { dist: clampDist(goal.dist * (v.sceneDir === "out" ? 0.4 : 2.6)) });
+    dirty = true;
+  }
   // the wheel (and a trackpad's two-finger scroll) zooms once the reader has taken the stage (clicked or focused it);
   // Ctrl or Cmd + wheel (a pinch) always zooms. Before that, a plain wheel scrolls the page past the stage
   const wheel = (e: WheelEvent) => {
@@ -794,6 +1002,25 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const it of view.items) { const p = pos.get(it.key); if (!p || (lift.get(it.key) ?? 0) < 0.3) continue; const q = p.c.clone().project(cam); if (q.z < 1 && Math.abs(q.x) < 0.95 && Math.abs(q.y) < 0.95) pts.push({ key: it.key, L: it.L, x: (q.x * 0.5 + 0.5) * W.w, y: (-q.y * 0.5 + 0.5) * W.h, container: it.container }); }
     return { bad, n, cam: [P.x, P.y, P.z].map((v) => +v.toFixed(1)), peel: peelK, tL, pts };
   };
+  // (rfit) the frame check (p10/rfit/fit3d.ts): each shown thing's and each shown plane's drawn box, its eight corners
+  // projected to the stage (pixels from the stage's top left); w, h: the stage; still: the camera is at its goal
+  (host as any).dh3corners = () => {
+    if (!view) return null;
+    root.updateMatrixWorld(true);
+    const op = (m: THREE.Material | THREE.Material[]) => Math.max(...(Array.isArray(m) ? m : [m]).map((x) => (x as THREE.MeshBasicMaterial).opacity));
+    const box = (b: THREE.Box3) => { const out: P2[] = []; for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { v3.set(x, y, z).project(cam); out.push({ x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }); } return out; };
+    const things: { key: number; name: string; L: number; touched: boolean; c: P2[] }[] = [];
+    for (const it of view.items) {
+      const o = objs.get(it.key); if (!o || it.kind === "layer") continue;
+      const ms = [o.body, ...o.extra].filter(Boolean) as THREE.Mesh[];
+      if (!ms.length || Math.max(...ms.map((m) => op(m.material as any))) < 0.3) continue;
+      const b = new THREE.Box3(); ms.forEach((m) => b.expandByObject(m));
+      things.push({ key: it.key, name: it.label || it.id, L: it.L, touched: view.touched.includes(it.key), c: box(b) });
+    }
+    const pl = planes.map((p, L) => ({ L, name: p.label.textContent ?? "", shown: op(p.mesh.material as THREE.Material) > 0.2, c: box(new THREE.Box3().setFromObject(p.mesh)) })).filter((p) => p.shown);
+    const still = (Object.keys(camNow) as (keyof typeof camNow)[]).every((k) => Math.abs(goal[k] - camNow[k]) < (k === "dist" || k.startsWith("t") ? 0.5 : 0.002));
+    return { w: W.w, h: W.h, user, still, things, planes: pl };
+  };
   return {
     update,
     zoom: (f) => { goal.dist = clampDist(goal.dist * f); setUser(true); },
@@ -802,10 +1029,10 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     fit: () => { userFocus = null; userL = -1; const all = [...pos.values(), ...(view ? view.layers.flatMap((_, L) => layerPts(L)) : [])]; goal = fitBox(all, 0.62, -0.5); setUser(true); if (view) update(view); },
     back: () => { userFocus = null; userL = null; setUser(false); if (view) update(view); goal = storyGoal(); },
     dispose: () => {
-      cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); mo.disconnect(); mq.removeEventListener?.("change", onMq); document.removeEventListener("dh-theme", onTheme);
+      cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); nio.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); canvas.removeEventListener("webglcontextrestored", onRestored); mo.disconnect(); mq.removeEventListener?.("change", onMq); document.removeEventListener("dh-theme", onTheme);
       for (const [k, o] of objs) dropObj(k, o);
       for (const w of wires.values()) { w.mesh.geometry.dispose(); w.mat.dispose(); }
-      renderer.dispose(); canvas.remove(); labels.remove();
+      if (renderer) { renderer.forceContextLoss(); renderer.dispose(); } canvas.remove(); labels.remove();
     },
   };
 }
@@ -829,7 +1056,7 @@ function clip(a: { c: THREE.Vector3; half: THREE.Vector3 }, p: THREE.Vector3): T
 }
 // a tube along a curve; a dashed connector is every other piece of it
 function tube(curve: THREE.Curve<THREE.Vector3>, dashed: boolean, r: number): THREE.BufferGeometry {
-  if (!dashed) return new THREE.TubeGeometry(curve, 24, r, 6, false);
+  if (!dashed) return new THREE.TubeGeometry(curve, tubeSegs(curve), r, 6, false);
   const len = curve.getLength(), n = Math.max(2, Math.round(len / 9));
   const parts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < n; i += 2) {

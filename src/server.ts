@@ -75,7 +75,7 @@ export async function highlight(doc: Document, opts: HighlightOptions = {}): Pro
           for (const s of b.steps) {
             const lines = [];
             for (const l of s.lines) {
-              if (l.k !== "cmd" || !l.text) { lines.push(l); continue; }
+              if (l.k !== "cmd" || !l.text || b.prefixes?.[l.prompt ?? ""]) { lines.push(l); continue; }
               const h = await hl(l.text, "bash");
               lines.push(h ? { ...l, hl: h.tokens.map((x: any) => (typeof x === "string" ? [x, null] : [x[0], x[1] ?? null])) as [string, string | null][] } : l);
             }

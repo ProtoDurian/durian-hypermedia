@@ -13,8 +13,6 @@ export interface Slots {
   Frame: React.ComponentType<{ block: Block; children: React.ReactNode }>;
   /** a "> **Note:**" callout */
   Callout: React.ComponentType<{ kind: string; label: string; children: React.ReactNode }>;
-  /** the front matter banner */
-  Banner: React.ComponentType<{ kind: string; children: React.ReactNode }>;
   /** a part that went over a cap or could not be read */
   Error: React.ComponentType<{ block: ErrorBlock }>;
   /** shown while a part loads (mermaid, the 3D stage's library) */
@@ -104,11 +102,9 @@ const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).jo
 export const DEFAULT_SLOTS: Slots = {
   Frame: ({ block, children }) => <figure className={cx("part", `part-${block.type === "host" ? `host part-${(block as HostBlock).name}` : block.type}`)} id={"id" in block && block.id ? block.id : undefined} data-dh-part={block.type === "host" ? (block as HostBlock).name : block.type}>{children}</figure>,
   Callout: ({ kind, children }) => <aside className={`callout callout-${kind}`}><span className="callout-icon">{CALLOUT_ICON[kind] ?? CALLOUT_ICON.note}</span><div className="callout-body">{children}</div></aside>,
-  Banner: ({ kind, children }) => <div className={`banner banner-${kind}`} role="note"><span className="banner-icon">{CALLOUT_ICON[BANNER_ICON[kind] ?? "note"]}</span><div><p>{children}</p></div></div>,
   Error: ({ block }) => <div className="dh-error" role="alert"><b>{block.part ? `${block.part}: ` : ""}not shown</b> <span>{block.message}</span>{block.line ? <span className="dh-error-line"> (line {block.line})</span> : null}</div>,
   Spinner: ({ label }) => <div className="dh-spinner" role="status"><span className="dh-spin" aria-hidden="true" /><span>{label}</span></div>,
 };
-const BANNER_ICON: Record<string, string> = { info: "note", new: "tip", draft: "important", deprecated: "warn" };
 export const CALLOUT_ICON: Record<string, React.ReactNode> = {
   note: <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4" r="1.4" fill="currentColor" /><rect x="6.9" y="6.6" width="2.2" height="6.8" rx="1" fill="currentColor" /></svg>,
   tip: <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5a4.6 4.6 0 0 0-2.7 8.3c.5.4.8.9.8 1.5v.4h3.8v-.4c0-.6.3-1.1.8-1.5A4.6 4.6 0 0 0 8 1.5z" fill="currentColor" /><rect x="6.1" y="12.6" width="3.8" height="1.9" rx=".9" fill="currentColor" /></svg>,

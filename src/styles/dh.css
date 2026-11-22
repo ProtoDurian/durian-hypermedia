@@ -50,6 +50,8 @@
 /* ---- phones: nothing pushes the page sideways ---- */
 .dh-doc .table-wrap, .dh-doc .code-block, .dh-doc .ch-pre { max-width: 100%; overflow-x: auto; }
 .dh-doc figure.part { min-width: 0; max-width: 100%; }
+/* the hydration queue's marker: no height, at the top of a part (hydrateDocument) */
+.dh-doc .dh-turn { display: block; height: 0; overflow: hidden; }
 @media (max-width: 520px) {
   .dh-doc { font-size: max(15px, var(--fs-s)); }
 }
@@ -65,7 +67,7 @@
   --shadow-sm: none; --shadow-md: none; --shadow-lg: none;
   --dur-fast: 100ms; --dur: 160ms; --dur-slow: 240ms;
 }
-.dh-doc[data-dh-variant="flat"] :is(.term, .cw, .ide, .fx, .chart, .scn, .dg, .tl, .al, .code-block, .callout, .banner, .acc-item, .tabs) { box-shadow: none; }
+.dh-doc[data-dh-variant="flat"] :is(.term, .cw, .ide, .fx, .chart, .scn, .dg, .tl, .al, .code-block, .callout, .acc-item, .tabs) { box-shadow: none; }
 
 /* bold: square corners, thick ink borders, hard offset shadows, monospace headings and buttons, no motion */
 .dh-doc[data-dh-variant="bold"] {
@@ -75,7 +77,7 @@
   --dur-fast: 0ms; --dur: 0ms; --dur-slow: 0ms; --stagger: 0ms;
 }
 .dh-doc[data-dh-variant="bold"] :is(.term, .cw, .ide, .fx, .chart, .scn, .dg, .tl, .al, .code-block, .table-wrap) { border: 2px solid var(--ink); box-shadow: var(--shadow-md); }
-.dh-doc[data-dh-variant="bold"] :is(.callout, .banner) { border: 2px solid var(--ink); box-shadow: var(--shadow-sm); }
+.dh-doc[data-dh-variant="bold"] :is(.callout) { border: 2px solid var(--ink); box-shadow: var(--shadow-sm); }
 .dh-doc[data-dh-variant="bold"] :is(h1, h2, h3, h4) { font-family: var(--font-mono); letter-spacing: 0; text-transform: uppercase; }
 .dh-doc[data-dh-variant="bold"] .btn { border: 2px solid var(--ink); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: .04em; box-shadow: var(--shadow-sm); }
 .dh-doc[data-dh-variant="bold"] .btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }

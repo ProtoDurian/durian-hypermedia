@@ -1,17 +1,49 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // chart: The chart shape (kind, x, y, series with name and data) plus controls and let.
 // Pure: no node modules, so the browser evaluates a chart with the same code doccheck checks it with.
-import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, sizeOf, type Val } from "./expr";
+import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, sizeOf, spelledOf, type Val } from "./expr";
 import { type Budget, BudgetError, partBudget } from "./budget";
+export const CHART_CAPS = { controls: 100, options: 1000, message: 2000 };
+/** JSON of a value from the author's text, stopping after max characters (never the whole of a long or shared value). */
+export function briefJson(v: any, max = 60): string {
+  let out = "";
+  const put = (s: string) => { out += s; return out.length < max; };
+  const walk = (x: any, depth: number): boolean => {
+    if (typeof x === "string") return put(JSON.stringify(x.length > max ? x.slice(0, max) : x));
+    if (x === null || typeof x !== "object") return put(String(JSON.stringify(x) ?? x));
+    if (depth > 8) return put("…");
+    if (Array.isArray(x)) { if (!put("[")) return false; for (let i = 0; i < x.length; i++) { if ((i && !put(",")) || !walk(x[i], depth + 1)) return false; } return put("]"); }
+    if (!put("{")) return false;
+    let first = true;
+    for (const k of Object.keys(x)) { if ((!first && !put(",")) || !put(JSON.stringify(k.length > max ? k.slice(0, max) : k) + ":") || !walk(x[k], depth + 1)) return false; first = false; }
+    return put("}");
+  };
+  walk(v, 0);
+  return out.length > max ? out.slice(0, max - 1) + "…" : out;
+}
+/** A value from the author's text as a short label: text and numbers as they are, anything else as short JSON. */
+export const label = (v: any, max = 200): string => { const t = v === null || typeof v !== "object" ? String(v) : briefJson(v, max); return t.length > max ? t.slice(0, max - 1) + "…" : t; };
 // a value from the author's text in an error message: short, and never a long list printed out
-const brief = (v: any, json = false): string => { const t = Array.isArray(v) ? `a list of ${v.length}` : json || (v !== null && typeof v === "object") ? String(JSON.stringify(v)) : String(v); return t.length > 60 ? t.slice(0, 59) + "…" : t; };
+const brief = (v: any, json = false): string => (Array.isArray(v) ? `a list of ${v.length}` : json || (v !== null && typeof v === "object") ? briefJson(v) : label(v, 60));
+const fmt = (n: number) => n.toLocaleString("en-US");
+/** YAML anchors and aliases may repeat data: what a chart holds may pass what its source spells out by at most one
+ *  part's caps. Returns the room the chart's results have (what the source spells out plus one part's caps). */
+export function chartRoom(d: any, b: Budget): { n: number; c: number } {
+  const spelled = spelledOf(d, b), whole = sizeOf(d, b);
+  const room = { n: spelled.n + b.limits.values, c: spelled.c + b.limits.chars };
+  if (whole.n > room.n || whole.c > room.c) throw new BudgetError(`the chart's YAML anchors and aliases repeat too much (${whole.n > room.n ? `${fmt(whole.n)} values where the source spells out ${fmt(spelled.n)}` : `${fmt(whole.c)} characters where the source spells out ${fmt(spelled.c)}`}; the limit for one part is ${fmt(b.limits.values)} values and ${fmt(b.limits.chars)} characters more)`);
+  return room;
+}
 export interface ChartControl { kind: "slider" | "select" | "toggle" | "button"; name: string; label?: string; min?: number; max?: number; step?: number; value?: Val; options?: Val[]; set?: Record<string, Val> }
 export function chartControls(d: any): { controls: ChartControl[]; errors: string[] } {
   const errors: string[] = [], controls: ChartControl[] = [];
-  for (const c of d?.controls ?? []) {
-    const kind = (["slider", "select", "toggle", "button"] as const).find((k) => k in c);
+  const all: any[] = Array.isArray(d?.controls) ? d.controls : [];
+  if (all.length > CHART_CAPS.controls) errors.push(`a chart has at most ${CHART_CAPS.controls} controls (it has ${all.length}); the rest are left out`);
+  for (const c of all.slice(0, CHART_CAPS.controls)) {
+    const kind = isObj(c) ? (["slider", "select", "toggle", "button"] as const).find((k) => k in c) : undefined;
     if (!kind) { errors.push(`a control needs one of slider, select, toggle or button: ${brief(c, true)}`); continue; }
-    const name = String(c[kind]);
+    const name = label(c[kind], 64);
+    if (kind === "select" && Array.isArray(c.options) && c.options.length > CHART_CAPS.options) { errors.push(`select ${name} has ${c.options.length} options; the limit is ${CHART_CAPS.options}`); continue; }
     if (kind === "slider") { if (typeof c.min !== "number" || typeof c.max !== "number" || c.min >= c.max) errors.push(`slider ${name} needs min < max`); controls.push({ kind, name, label: c.label, min: c.min, max: c.max, step: c.step ?? 1, value: c.value ?? c.min }); }
     else if (kind === "select") { if (!Array.isArray(c.options) || c.options.length < 2) errors.push(`select ${name} needs at least 2 options`); controls.push({ kind, name, label: c.label, options: c.options ?? [], value: c.value ?? c.options?.[0] }); }
     else if (kind === "toggle") controls.push({ kind, name, label: c.label, value: Boolean(c.value) });
@@ -40,9 +72,9 @@ export interface ChartMeta {
 }
 // what the renderer and the LLM view need to know about a chart, from its source alone
 export function chartMeta(d: any): ChartMeta {
-  const kind = String(d?.kind ?? "bar");
+  const kind = label(d?.kind ?? "bar", 20);
   const series: any[] = Array.isArray(d?.series) ? d.series : [];
-  const types = new Set(series.map((s) => typeOf(String(s?.kind ?? kind))));
+  const types = new Set(series.map((s) => typeOf(label(s?.kind ?? kind, 20))));
   const sc = (a: any) => (isObj(a) && a.scale === "log" ? "log" : "linear");
   return {
     kind, horizontal: d?.horizontal === true, stacked: d?.stacked === "percent" ? "percent" : d?.stacked === true,
@@ -60,7 +92,7 @@ export function chartCheck(d: any): string[] {
   if (!CHART_KINDS.includes(kind)) return out; // doccheck reports the kind itself
   const m = chartMeta(d);
   const series: any[] = Array.isArray(d.series) ? d.series : [];
-  if (d.stacked !== undefined && d.stacked !== true && d.stacked !== false && d.stacked !== "percent") out.push(`stacked must be true, false or percent (not ${JSON.stringify(d.stacked)})`);
+  if (d.stacked !== undefined && d.stacked !== true && d.stacked !== false && d.stacked !== "percent") out.push(`stacked must be true, false or percent (not ${briefJson(d.stacked)})`);
   if (m.stacked && !m.category) out.push(m.candle ? `a candlestick chart cannot be stacked (a candle is one period's open, high, low and close); remove stacked` : `stacked works with kind bar, line or area (this chart is ${kind}); remove stacked`);
   if (d.horizontal !== undefined && typeof d.horizontal !== "boolean") out.push(`horizontal must be true or false`);
   if (d.horizontal === true && kind !== "bar") out.push(m.candle ? `a candlestick chart has its periods along the bottom and cannot be horizontal; remove horizontal` : `horizontal works with kind: bar (this chart is ${kind}); remove horizontal`);
@@ -72,7 +104,7 @@ export function chartCheck(d: any): string[] {
     if (a === undefined || Array.isArray(a) || (name === "x" && typeof a === "string")) continue;
     if (!isObj(a)) { out.push(`${name} must be a list or an object with label, min, max and scale`); continue; }
     const keys = name === "x" ? ["label", "values", "min", "max", "scale"] : ["label", "min", "max", "scale"];
-    for (const k of Object.keys(a)) if (!keys.includes(k)) out.push(`${name}: unknown key "${k}" (keys: ${keys.join(", ")})`);
+    for (const k of Object.keys(a)) if (!keys.includes(k)) out.push(`${name}: unknown key "${label(k, 60)}" (keys: ${keys.join(", ")})`);
     for (const k of ["min", "max"]) if (a[k] !== undefined && !num(a[k])) out.push(`${name}.${k} must be a number`);
     if (num(a.min) && num(a.max) && a.min >= a.max) out.push(`${name}: min must be below max`);
     if (a.scale !== undefined) {
@@ -88,11 +120,11 @@ export function chartCheck(d: any): string[] {
   // series: keys, kind, axis, tone
   const onY2 = series.filter((s) => isObj(s) && s.axis === "y2").length;
   series.forEach((s, i) => {
-    const nm = isObj(s) ? String(s.name ?? s.label ?? `#${i + 1}`) : `#${i + 1}`;
+    const nm = isObj(s) ? label(s.name ?? s.label ?? `#${i + 1}`, 60) : `#${i + 1}`;
     if (!isObj(s)) { out.push(`series ${nm} must be an object with name and data`); return; }
-    for (const k of Object.keys(s)) if (!SERIES_KEYS.includes(k)) out.push(`series "${nm}": unknown key "${k}" (keys: ${SERIES_KEYS.join(", ")})`);
+    for (const k of Object.keys(s)) if (!SERIES_KEYS.includes(k)) out.push(`series "${nm}": unknown key "${label(k, 60)}" (keys: ${SERIES_KEYS.join(", ")})`);
     if (s.kind !== undefined) {
-      if (m.candle) { if (!CANDLE_SERIES_KINDS.includes(s.kind)) out.push(`series "${nm}": in a candlestick chart a series is the candles (no kind) or a line on top (kind: line); ${JSON.stringify(s.kind)} is not drawn there`); }
+      if (m.candle) { if (!CANDLE_SERIES_KINDS.includes(s.kind)) out.push(`series "${nm}": in a candlestick chart a series is the candles (no kind) or a line on top (kind: line); ${briefJson(s.kind)} is not drawn there`); }
       else if (!m.category) out.push(`series "${nm}": its own kind works in a bar, line or area chart (this chart is ${kind}); remove it`);
       else if (!SERIES_KINDS.includes(s.kind)) out.push(`series "${nm}": kind must be bar, line or area`);
     }
@@ -102,15 +134,15 @@ export function chartCheck(d: any): string[] {
       else if (m.candle && !isLine(s, m)) out.push(`series "${nm}": the candles sit on the main axis; remove axis (only a line on top can use y2)`);
       else if (s.axis === "y2" && !m.y2) out.push(`series "${nm}": axis: y2 needs a second axis; add y2: { label: ... } to the chart`);
     }
-    if (s.tone !== undefined && !CHART_TONES.includes(String(s.tone))) out.push(`series "${nm}": tone must be 1 to 8, accent, good, warn, bad or muted (got ${JSON.stringify(s.tone)})`);
+    if (s.tone !== undefined && !CHART_TONES.includes(label(s.tone, 20))) out.push(`series "${nm}": tone must be 1 to 8, accent, good, warn, bad or muted (got ${briefJson(s.tone)})`);
   });
   if (m.candle) {
     const candles = series.filter((s) => isObj(s) && !isLine(s, m));
     if (candles.length !== 1) out.push(candles.length === 0 ? `a candlestick chart needs one series without a kind (the candles: data is [open, high, low, close] per period); add it, or use kind: line` : `a candlestick chart draws one set of candles; make the other ${candles.length - 1} series lines (kind: line) or remove them`);
-    for (const s of candles) if (s.tone !== undefined) out.push(`series "${String(s.name ?? s.label ?? "candles")}": the candles take good (up) and bad (down) from the theme; remove tone (a line on top may have one)`);
+    for (const s of candles) if (s.tone !== undefined) out.push(`series "${label(s.name ?? s.label ?? "candles", 60)}": the candles take good (up) and bad (down) from the theme; remove tone (a line on top may have one)`);
   }
   if (m.y2 && (m.category || m.candle) && onY2 === 0) out.push(`y2 is declared but no series uses it; add axis: y2 to a series, or remove y2`);
-  if (m.stacked === "percent" && series.some((s) => isObj(s) && typeOf(String(s.kind ?? kind)) !== typeOf(kind) && s.axis !== "y2")) out.push(`with stacked: percent, a series of another kind must use axis: y2 (it cannot sit on the 0 to 100 percent axis)`);
+  if (m.stacked === "percent" && series.some((s) => isObj(s) && typeOf(label(s.kind ?? kind, 20)) !== typeOf(kind) && s.axis !== "y2")) out.push(`with stacked: percent, a series of another kind must use axis: y2 (it cannot sit on the 0 to 100 percent axis)`);
   return out;
 }
 
@@ -121,9 +153,10 @@ export interface ChartSeries { name: string; data: any[]; kind?: string; tone?: 
 // scatter and bubble: data is a list of points, written [x, y] (bubble: [x, y, size]) or {x, y, size}; they come back as {x, y, r?}.
 // The work is paid for from budget: by default one part of the running parse() call's page budget, or a fresh one (a
 // reader moving a control). Over it, the result has error and limit: true (parse() then refuses the part).
-export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget): { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: true } {
+export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget): { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: "part" | "page" } {
   try {
     const b = budget ?? partBudget();
+    const room = chartRoom(d, b);
     const { controls } = chartControls(d);
     const start: Record<string, Val> = {};
     for (const c of controls) if (c.kind !== "button") start[c.name] = c.value as Val;
@@ -135,11 +168,15 @@ export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget)
     const xs = Array.isArray(d.x) || typeof d.x === "string" ? d.x : d.x?.values;
     const x = (xs == null && m.points ? [] : ev(xs)) as Val[];
     if (!Array.isArray(x)) throw new Error("x must be a list or an expression that makes one");
-    const series: ChartSeries[] = (d.series ?? []).map((s: any) => ({ name: String(s.name ?? s.label ?? ""), data: ev(s.data ?? s.values) as any[], kind: s.kind, tone: s.tone == null ? undefined : String(s.tone), axis: s.axis }));
-    // what the chart draws (and the LLM view prints) holds no more than one part may make, however its lists are shared
+    const series: ChartSeries[] = (Array.isArray(d.series) ? d.series : []).map((s: any) => ({ name: label(s?.name ?? s?.label ?? ""), data: ev(s?.data ?? s?.values) as any[], kind: s?.kind, tone: s?.tone == null ? undefined : label(s.tone), axis: s?.axis }));
+    // everything the result holds (vars, x, every series and its name), counted as it will be written out (a shared list
+    // each time), is no more than the source spells out plus one part's caps
     let held = 0, text = 0;
-    for (const v of [x, ...series.map((s) => s.data)]) { const z = sizeOf(v, b); held += z.n; text += z.c; }
-    if (held > b.limits.values || text > b.limits.chars) throw new BudgetError(`the chart's data is too big (${held > b.limits.values ? `${held.toLocaleString("en-US")} values; the limit for one part is ${b.limits.values.toLocaleString("en-US")}` : `${text.toLocaleString("en-US")} characters; the limit for one part is ${b.limits.chars.toLocaleString("en-US")}`})`);
+    const add = (v: unknown) => { const z = sizeOf(v, b); held += 1 + z.n; text += z.c; };
+    for (const k of Object.keys(vars)) { text += k.length; add(vars[k]); }
+    add(x);
+    for (const s of series) { add(s.name); add(s.data); add(s.tone); add(s.kind); add(s.axis); }
+    if (held > room.n || text > room.c) throw new BudgetError(`the chart's data is too big (${held > room.n ? `${fmt(held)} values where the source spells out ${fmt(room.n - b.limits.values)}` : `${fmt(text)} characters where the source spells out ${fmt(room.c - b.limits.chars)}`}; the limit for one part is ${fmt(b.limits.values)} values and ${fmt(b.limits.chars)} characters more)`);
     if (m.radial && d.kind === "radar" && x.length < 3) throw new Error(`a radar chart needs at least 3 axes in x (it has ${x.length}); add axes, or use kind: bar`);
     const log = (s: ChartSeries, name: string, v: any) => { if (v !== null && v <= 0) throw new Error(`log scale needs values above 0 (series "${s.name}" has ${v}); use scale: linear or change the value`); void name; };
     for (const s of series) {
@@ -178,7 +215,7 @@ export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget)
       });
     }
     return { x, series, vars };
-  } catch (e) { return { x: [], series: [], vars: {}, error: (e as Error).message, ...(e instanceof BudgetError ? { limit: true as const } : {}) }; }
+  } catch (e) { const m = String((e as Error).message); return { x: [], series: [], vars: {}, error: m.length > CHART_CAPS.message ? m.slice(0, CHART_CAPS.message - 1) + "…" : m, ...(e instanceof BudgetError ? { limit: e.page ? "page" as const : "part" as const } : {}) }; }
 }
 // a candle is [open, high, low, close]: high is the top of the wick, low the bottom, so neither may be crossed by the open or close
 export const CANDLE_PARTS = ["open", "high", "low", "close"];

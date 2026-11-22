@@ -78,19 +78,21 @@ describe("one budget per parse() call", () => {
   test("the LLM view of a chart reuses the page's evaluation (it never pays twice)", () => {
     const x = `"${Array(10).fill("range(1, 1000)").join(" + ")}"`;
     const one = [`${F}chart`, "kind: line", `x: ${x}`, "series:", "  - name: y", `    data: ${x}`, F].join("\n");
-    // three charts take most of the page budget; paying again for their LLM tables would go over it
-    const d = parse(Array(3).fill(one).join("\n\n"));
+    // these charts take more than half of the page budget; paying again for their LLM tables would go over it
+    const n = Math.ceil((PAGE.values / 2) / 38000) + 1;
+    const d = parse(Array(n).fill(one).join("\n\n"));
     expect(errors(d)).toHaveLength(0);
     expect(made[0].values).toBeGreaterThan(PAGE.values / 2);
     expect(made[0].values).toBeLessThan(PAGE.values);
-    expect((d.llm.match(/\| x \| y \|/g) ?? []).length).toBe(3);
+    expect((d.llm.match(/\| x \| y \|/g) ?? []).length).toBe(n);
     expect(llmView(d)).toBe(d.llm);
   });
   test("YAML aliases in a chart's data count as what they stand for", () => {
     const row = Array.from({ length: 4000 }, (_, i) => i).join(", ");
     const y = ["kind: line", `a0: &a0 [${row}]`, "a1: &a1 [*a0, *a0, *a0, *a0]", "a2: &a2 [*a1, *a1, *a1, *a1]", "x: *a2", "series:", "  - name: y", "    data: [1, 2, 3, 4]"];
     const d = parse(`${F}chart\n${y.join("\n")}\n${F}\n`);
-    expect(errors(d)[0]?.message).toMatch(/too big/);
+    expect(errors(d)[0]?.message).toMatch(/anchors and aliases repeat too much/);
+    expect(d.problems.some((p) => /^chart: the YAML/.test(p.message))).toBe(true);
   });
   test("a host can lower the caps through parse options; LIMITS stays as it is", () => {
     const text = chart({ a: "range(1, 100)" });
@@ -99,16 +101,17 @@ describe("one budget per parse() call", () => {
     expect(errors(parse(text + "\n\n" + text, { limits: { maxPageEvalValues: 150 } })).some((e) => /whole page is 150 values/.test(e.message))).toBe(true);
     expect(LIMITS.maxEvalValues).toBe(50_000);
   });
-  test("check() evaluates every control case from one budget of its own", () => {
-    const opts = Array.from({ length: 300 }, (_, i) => i + 1).join(", ");
+  test("check() evaluates every control case from one budget of its own; a spent one is a warning", () => {
+    const opts = Array.from({ length: 1000 }, (_, i) => i + 1).join(", ");
     const text = [`${F}chart`, "kind: line", "controls:", `  - select: n`, `    options: [${opts}]`, "let:", '  a: "range(1, 1000) * n"', '  b: "a + a + a + a + a"', "x: [1]", "series:", "  - name: y", "    data: [1]", F].join("\n");
     const d = parse(text);
     expect(errors(d)).toHaveLength(0);
     made.length = 0;
     const probs = check(d);
-    expect(probs.some((p) => /whole page/.test(p.message))).toBe(true);
+    expect(probs.some((p) => p.level === "warn" && /not every control value was checked/.test(p.message))).toBe(true);
+    expect(probs.filter((p) => p.level === "error" && /control value|expressions/.test(p.message))).toEqual([]);
     expect(made).toHaveLength(1);
-    expect(made[0].values).toBeLessThanOrEqual(PAGE.values + PART.values);
+    expect(made[0].values).toBeLessThanOrEqual(8 * PAGE.values + PART.values);
   });
   test("a reader's control move gets a fresh budget of its own, never the page's", () => {
     const text = chart({ a: "range(1, n)", b: "a * 2" }, "a", "b", ["controls:", "  - slider: n", "    min: 2", "    max: 4000", "    value: 3"]);
@@ -120,7 +123,7 @@ describe("one budget per parse() call", () => {
     expect(r.x).toHaveLength(4000);
     // and a reader's move is capped too
     const heavy = evalChart({ ...spec, let: { a: "range(1, n)", b: "fill(a, 5000)" } }, { n: 4000 });
-    expect(heavy.limit).toBe(true);
+    expect(heavy.limit).toBe("part");
   });
   test("the page budget is per call: parse() inside withBudget keeps its own", () => {
     const outer = pageBudget();

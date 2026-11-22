@@ -14,7 +14,10 @@ import { LIMITS, type Limits } from "../safety";
 
 export interface BudgetLimits { steps: number; values: number; chars: number }
 
-export class BudgetError extends Error {}
+export class BudgetError extends Error {
+  /** true when the page's budget (not one part's) ran out */
+  constructor(message: string, readonly page = false) { super(message); }
+}
 
 const WORDS: Record<keyof BudgetLimits, [string, string]> = {
   steps: ["do too much work", "steps"],
@@ -29,6 +32,8 @@ export class Budget {
   chars = 0;
   /** the message of the first overrun; once set, every later charge fails with it */
   spent: string | null = null;
+  /** a page budget: it has part limits and no parent */
+  get isPage(): boolean { return !this.parent && !!this.partLimits; }
   constructor(
     readonly limits: BudgetLimits,
     /** what part() gives each part; a page budget sets it, a part budget has none */
@@ -39,7 +44,7 @@ export class Budget {
   /** Pay for work before doing it. Throws a BudgetError when this budget or one above it would go over. */
   charge(steps: number, values = 0, chars = 0): void {
     for (let x: Budget | null = this; x; x = x.parent) {
-      if (x.spent) throw new BudgetError(x.spent);
+      if (x.spent) throw new BudgetError(x.spent, x.isPage);
       x.steps += steps; x.values += values; x.chars += chars;
       const L = x.limits;
       if (x.steps > L.steps || x.values > L.values || x.chars > L.chars) x.fail();
@@ -49,16 +54,16 @@ export class Budget {
     const L = this.limits;
     const over: keyof BudgetLimits = this.steps > L.steps ? "steps" : this.values > L.values ? "values" : "chars";
     const [verb, unit] = WORDS[over];
-    this.spent = this.parent || !this.partLimits
+    this.spent = !this.isPage
       ? `the expressions ${verb} (the limit for one part is ${fmt(L[over])} ${unit})`
       : `the expressions on this page ${verb} (the limit for the whole page is ${fmt(L[over])} ${unit}); this part and the ones after it are not evaluated`;
-    throw new BudgetError(this.spent);
+    throw new BudgetError(this.spent, this.isPage);
   }
 
   /** A budget for one part that also draws from this one. Throws if this one is already spent. */
   part(): Budget {
-    if (this.spent) throw new BudgetError(this.spent);
-    for (let b = this.parent; b; b = b.parent) if (b.spent) throw new BudgetError(b.spent);
+    if (this.spent) throw new BudgetError(this.spent, this.isPage);
+    for (let b = this.parent; b; b = b.parent) if (b.spent) throw new BudgetError(b.spent, b.isPage);
     return new Budget(this.partLimits ?? this.limits, null, this);
   }
 }

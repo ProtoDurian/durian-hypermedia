@@ -51,9 +51,9 @@ export const LIMITS: Limits = {
   maxEvalSteps: 100_000,
   maxEvalValues: 50_000,
   maxEvalChars: 50_000,
-  maxPageEvalSteps: 200_000,
-  maxPageEvalValues: 150_000,
-  maxPageEvalChars: 150_000,
+  maxPageEvalSteps: 300_000,
+  maxPageEvalValues: 400_000,
+  maxPageEvalChars: 400_000,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

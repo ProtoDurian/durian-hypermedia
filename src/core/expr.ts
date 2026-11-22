@@ -36,6 +36,15 @@ export const EXPR_CAPS = {
   calls: 50,
   /** nested evaluation in all (function calls times their bodies' depth) */
   evalDepth: 1000,
+  /** characters of one name (so a name lookup, a set of names and a message naming it stay small) */
+  name: 64,
+  /** characters of one definition key, name(params) included */
+  key: 256,
+  /** parameters of one user function (a parameter lookup scans at most these) */
+  params: 16,
+  /** error messages one block of definitions reports (the rest are counted), and characters of one */
+  errors: 10,
+  errorChars: 150,
 };
 const MAX_LEN = EXPR_CAPS.list;
 const own = (o: object | undefined, k: string) => o !== undefined && Object.prototype.hasOwnProperty.call(o, k);
@@ -49,15 +58,40 @@ export interface Size { n: number; c: number; d: number } // value slots, charac
 const NONE: Size = { n: 0, c: 0, d: 0 };
 const sizes = new WeakMap<object, Size>();
 const tooDeep = () => new ExprError(`lists are nested too deeply (the limit is ${EXPR_CAPS.nest} levels)`);
-/** The size of a value. Lists made here are known; any other list (from YAML) is walked once, paying a step a slot. */
+/** The size of a value. Lists made here are known; any other list or object (from YAML) is walked once, paying a
+ *  step a slot. An object counts a slot and its key's characters for each key, and what each key holds. */
 export function sizeOf(v: unknown, b: Budget, depth = 0): Size {
   if (typeof v === "string") return { n: 0, c: v.length, d: 0 };
-  if (!Array.isArray(v)) return NONE;
+  if (v === null || typeof v !== "object") return NONE;
   const m = sizes.get(v);
   if (m) return m;
   if (depth >= EXPR_CAPS.nest) throw tooDeep();
-  b.charge(v.length);
-  return keep(v, b, depth);
+  if (Array.isArray(v)) { b.charge(1 + (v.length >> 3)); return keep(v, b, depth); }
+  const keys = Object.keys(v);
+  b.charge(1 + (keys.length >> 3));
+  let n = keys.length, c = 0, d = 0;
+  for (const k of keys) { const z = sizeOf((v as any)[k], b, depth + 1); n += z.n; c += k.length + z.c; if (z.d > d) d = z.d; }
+  const r = { n, c, d: d + 1 };
+  if (r.d > EXPR_CAPS.nest) throw tooDeep();
+  sizes.set(v, r);
+  return r;
+}
+/** The size of a value with every shared list or object counted once: what the source itself spells out. */
+export function spelledOf(v: unknown, b: Budget): { n: number; c: number } {
+  const seen = new Set<object>();
+  let n = 0, c = 0;
+  const walk = (x: unknown, depth: number) => {
+    if (typeof x === "string") { c += x.length; return; }
+    if (x === null || typeof x !== "object" || seen.has(x)) return;
+    if (depth >= EXPR_CAPS.nest) throw tooDeep();
+    seen.add(x);
+    if (Array.isArray(x)) { b.charge(1 + (x.length >> 3)); n += x.length; for (const y of x) walk(y, depth + 1); return; }
+    const keys = Object.keys(x);
+    b.charge(1 + (keys.length >> 3)); n += keys.length;
+    for (const k of keys) { c += k.length; walk((x as any)[k], depth + 1); }
+  };
+  walk(v, 0);
+  return { n, c };
 }
 // record the size of a list whose own slots are paid for (its items may still be walked)
 function keep(v: unknown[], b: Budget, depth = 0): Size {
@@ -104,7 +138,11 @@ function lex(s: string, b: Budget): Tok[] {
       if (s[j] === "e" || s[j] === "E") { let k = j + 1; if (s[k] === "+" || s[k] === "-") k++; if (digit(s.charCodeAt(k))) { while (digit(s.charCodeAt(k))) k++; j = k; } }
       out.push({ k: "num", v: s.slice(i, j), at: i }); i = j; continue;
     }
-    if (idStart(cc)) { let j = i + 1; while (idPart(s.charCodeAt(j))) j++; out.push({ k: "id", v: s.slice(i, j), at: i }); i = j; continue; }
+    if (idStart(cc)) {
+      let j = i + 1; while (idPart(s.charCodeAt(j))) j++;
+      if (j - i > EXPR_CAPS.name) throw new ExprError(`a name at column ${i + 1} is longer than ${EXPR_CAPS.name} characters`);
+      out.push({ k: "id", v: s.slice(i, j), at: i }); i = j; continue;
+    }
     if (c === '"' || c === "'") {
       const j = s.indexOf(c, i + 1);
       if (j < 0) throw new ExprError(`a string opened at column ${i + 1} is never closed`);
@@ -187,7 +225,7 @@ export function parse(src: string, budget?: Budget): Ast {
       eat("]");
       return mk({ t: "list", items }, items);
     }
-    throw new ExprError(`unexpected "${k.v}" at column ${k.at + 1}`);
+    throw new ExprError(`unexpected "${clip(k.v, 20)}" at column ${k.at + 1}`);
   };
   const mul = left(unary, ["*", "/", "%"]);
   const add = left(mul, ["+", "-"]);
@@ -195,7 +233,7 @@ export function parse(src: string, budget?: Budget): Ast {
   const and = left(cmp, ["&&"]);
   const or = left(and, ["||"]);
   const e = expr();
-  if (p < t.length) throw new ExprError(`unexpected "${t[p].v}" at column ${t[p].at + 1}`);
+  if (p < t.length) throw new ExprError(`unexpected "${clip(t[p].v, 20)}" at column ${t[p].at + 1}`);
   return e;
 }
 
@@ -325,8 +363,8 @@ function scalar(op: string, a: Val, b: Val): Val {
     case "/": return num(a, "/") / num(b, "/");
     case "%": return num(a, "%") % num(b, "%");
     case "^": return num(a, "^") ** num(b, "^");
-    case "==": return a === b;
-    case "!=": return a !== b;
+    case "==": if (typeof a === "string" && typeof b === "string") bud().charge(Math.min(a.length, b.length) >> 5); return a === b;
+    case "!=": if (typeof a === "string" && typeof b === "string") bud().charge(Math.min(a.length, b.length) >> 5); return a !== b;
     case "<": return num(a, "<") < num(b, "<");
     case "<=": return num(a, "<=") <= num(b, "<=");
     case ">": return num(a, ">") > num(b, ">");
@@ -393,7 +431,8 @@ export function evaluate(ast: Ast, env: Env, budget?: Budget): Val {
           const u = own(fns, n.f) ? fns![n.f] : undefined;
           if (u) {
             if (args.length !== u.params.length) throw new ExprError(`${n.f}() takes ${u.params.length} values, got ${args.length}`);
-            // the function sees the definitions and its own parameters
+            // the function sees the definitions and its own parameters; a call (a frame, its arguments, a scope) costs 4 steps
+            b.charge(3);
             return ev(u.body, { names: u.params, vals: args }, calls + 1, l);
           }
           if (!own(BUILTINS, n.f)) throw new ExprError(`unknown function "${n.f}"`);
@@ -431,28 +470,46 @@ export function namesOf(ast: Ast, out = { vars: new Set<string>(), fns: new Set<
 // ---------- a block of definitions: `name: expr` and `name(a, b): expr` ----------
 export interface Defs { order: string[]; vars: Record<string, Ast>; fns: Record<string, { params: string[]; body: Ast }> }
 
-const DEF_KEY = /^([A-Za-z_]\w*)(?:\(\s*([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)?\s*\))?$/;
+// a definition key: `name` or `name(a, b)` (spaces allowed around the parameters), read in one pass; null if it is not one
+const isName = (s: string) => s.length > 0 && idStart(s.charCodeAt(0)) && [...s].every((ch) => idPart(ch.charCodeAt(0)));
+function readKey(k: string): { name: string; params: string[] | null } | null {
+  let j = 0;
+  if (!idStart(k.charCodeAt(0))) return null;
+  while (idPart(k.charCodeAt(j))) j++;
+  const name = k.slice(0, j);
+  if (j === k.length) return { name, params: null };
+  if (k[j] !== "(" || k[k.length - 1] !== ")") return null;
+  const inner = k.slice(j + 1, -1);
+  if (!inner.trim()) return { name, params: [] };
+  const params = inner.split(",").map((x) => x.trim());
+  return params.every(isName) ? { name, params } : null;
+}
 // a definition's source as text; a YAML list (written by mistake) is paid for before it is turned into text
 function sourceOf(v: unknown, b: Budget): string {
   if (Array.isArray(v)) { const s = sizeOf(v, b); b.charge(s.n, 0, s.c + s.n * 24); }
   return String(v);
 }
 // a cycle's path, shortened in the middle when it is long
-const pathText = (names: string[]) => (names.length > 12 ? [...names.slice(0, 5), "…", ...names.slice(-6)] : names).join(" → ");
+const pathText = (names: string[]) => (names.length > 12 ? [...names.slice(0, 5), "…", ...names.slice(-6)] : names).map((x) => clip(x, EXPR_CAPS.name)).join(" → ");
 export function parseDefs(entries: Record<string, unknown>, known: string[], budget?: Budget): { defs: Defs; errors: string[] } {
   const b = budget ?? bud();
+  // at most EXPR_CAPS.errors messages of at most EXPR_CAPS.errorChars each; the rest are counted
   const errors: string[] = [];
+  let more = 0;
+  const fail = (m: string) => { if (errors.length < EXPR_CAPS.errors) errors.push(clip(m, EXPR_CAPS.errorChars)); else more++; };
   const defs: Defs = { order: [], vars: Object.create(null), fns: Object.create(null) };
   const knownSet = new Set(known);
   for (const [k, v] of Object.entries(entries ?? {})) {
-    b.charge(1);
-    const m = k.match(DEF_KEY);
-    if (!m) { errors.push(`"${clip(k)}" is not a name or a name(params)`); continue; }
-    if (own(BUILTINS, m[1]) || knownSet.has(m[1])) { errors.push(`"${m[1]}" is already a control or a built-in function`); continue; }
+    b.charge(1 + (k.length >> 3));
+    const m = k.length <= EXPR_CAPS.key ? readKey(k) : null;
+    if (!m) { fail(`"${clip(k)}" is not a name or a name(params)${k.length > EXPR_CAPS.key ? ` (a key has at most ${EXPR_CAPS.key} characters)` : ""}`); continue; }
+    if (m.name.length > EXPR_CAPS.name || (m.params ?? []).some((p) => p.length > EXPR_CAPS.name)) { fail(`"${clip(k)}": a name has at most ${EXPR_CAPS.name} characters`); continue; }
+    if ((m.params?.length ?? 0) > EXPR_CAPS.params) { fail(`${m.name}(): a function takes at most ${EXPR_CAPS.params} parameters`); continue; }
+    if (own(BUILTINS, m.name) || knownSet.has(m.name)) { fail(`"${m.name}" is already a control or a built-in function`); continue; }
     let ast: Ast;
-    try { ast = parse(sourceOf(v, b), b); } catch (e) { if (e instanceof BudgetError) throw e; errors.push(`${k}: ${(e as Error).message}`); continue; }
-    if (m[2] !== undefined || k.includes("(")) defs.fns[m[1]] = { params: (m[2] ?? "").split(",").map((s) => s.trim()).filter(Boolean), body: ast };
-    else { defs.vars[m[1]] = ast; defs.order.push(m[1]); }
+    try { ast = parse(sourceOf(v, b), b); } catch (e) { if (e instanceof BudgetError) throw e; fail(`${clip(k)}: ${(e as Error).message}`); continue; }
+    if (m.params) defs.fns[m.name] = { params: m.params, body: ast };
+    else { defs.vars[m.name] = ast; defs.order.push(m.name); }
   }
   // every name must resolve; no cycles among vars (walked with a stack of our own: a long chain is no deep recursion)
   const read = new WeakMap<Ast, ReturnType<typeof namesOf>>();
@@ -477,7 +534,7 @@ export function parseDefs(entries: Record<string, unknown>, known: string[], bud
         b.charge(1);
         const st = state.get(x);
         if (st === 2) continue;
-        if (st === 1) { errors.push(`"${pathText([...stack.map((f) => f.n), x])}" refers to itself`); continue; }
+        if (st === 1) { if (errors.length < EXPR_CAPS.errors) { const L = stack.length; const ns = L > 12 ? [...stack.slice(0, 5).map((f) => f.n), "", ...stack.slice(L - 5).map((f) => f.n)] : stack.map((f) => f.n); fail(`"${pathText([...ns, x]).replace(" →  →", " → … →")}" refers to itself`); } else more++; continue; }
         state.set(x, 1);
         stack.push({ n: x, d: deps(x), i: 0 });
       } else { stack.pop(); state.set(top.n, 2); order.push(top.n); }
@@ -487,11 +544,12 @@ export function parseDefs(entries: Record<string, unknown>, known: string[], bud
   const scope = new Set([...known, ...Object.keys(defs.vars)]);
   const checkNames = (ast: Ast, where: string, params: string[] = []) => {
     const { vars, fns } = names(ast);
-    for (const x of vars) { b.charge(1); if (!scope.has(x) && !params.includes(x)) errors.push(`${where}: unknown name "${x}"`); }
-    for (const f of fns) { b.charge(1); if (!own(BUILTINS, f) && !own(defs.fns, f)) errors.push(`${where}: unknown function "${f}"`); }
+    for (const x of vars) { b.charge(1); if (!scope.has(x) && !params.includes(x)) fail(`${where}: unknown name "${x}"`); }
+    for (const f of fns) { b.charge(1); if (!own(BUILTINS, f) && !own(defs.fns, f)) fail(`${where}: unknown function "${f}"`); }
   };
   for (const n of Object.keys(defs.vars)) checkNames(defs.vars[n], n);
   for (const [n, f] of Object.entries(defs.fns)) checkNames(f.body, `${n}()`, f.params);
+  if (more) errors.push(`and ${more} more`);
   return { defs, errors };
 }
 

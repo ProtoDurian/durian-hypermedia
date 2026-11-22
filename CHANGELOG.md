@@ -20,13 +20,25 @@ Format page parse, check and render exactly as in 0.6.0.
 - `check()` evaluates all control cases from one budget of its own; the LLM view reuses the page's evaluation; a reader
   moving a control gets a fresh budget of its own.
 - Deep expressions, long chains of definitions and deeply nested lists give an error, never a stack overflow.
-- Error messages that quote a value are short (text cut to 60 characters; a list is "a list of n").
-- A chart's data counts YAML anchors and aliases as what they stand for.
+- Error messages that quote a value are short (text cut to 60 characters; a list is "a list of n"); a chart reports at
+  most 10 definition errors (the rest are counted) in at most 2,000 characters.
+- **YAML anchors and aliases** are sized as a graph as the YAML is read (front matter and charts, Bun's parser or one
+  given to `setYamlParser`), whatever the anchors are named: a value that stands for much more than its text spells out
+  is refused before anything reads it (front matter ignored with a problem, a chart refused). The old count of anchor
+  names stays as a first check.
+- Everything a chart returns (`vars`, `x`, series and their names) is sized against what its source spells out plus
+  one part's caps.
+- Comparing two texts with `==` or `!=` pays for the characters compared; a definition key is read in one pass.
+- Two regular expressions that could backtrack on author text are replaced by one-pass code with the same results.
+- `check()` of a page over `maxInputBytes` returns its problems instead of throwing.
 
 ### Added
 
-- `LIMITS` (and `parse(text, { limits })`): `maxEvalSteps`, `maxEvalValues`, `maxEvalChars` for one part, and
-  `maxPageEvalSteps`, `maxPageEvalValues`, `maxPageEvalChars` for the whole page.
+- `LIMITS` (and `parse(text, { limits })`): `maxEvalSteps` (100,000), `maxEvalValues` (50,000), `maxEvalChars`
+  (50,000) for one part, and `maxPageEvalSteps` (300,000), `maxPageEvalValues` (400,000), `maxPageEvalChars` (400,000)
+  for the whole page.
+- `check()` has a budget of its own, eight times the page's; when it is spent the rest is a warning ("not every control
+  value was checked"), not an error.
 
 ### Changed (the expression language, for input that was already broken)
 
@@ -34,7 +46,9 @@ Format page parse, check and render exactly as in 0.6.0.
   `text()` digits must be a whole number from 0 to 100 (an engine error before); `round()` digits must be finite.
 - `constructor`, `toString`, `__proto__` and other names an object inherits are unknown names and unknown functions
   (they reached the engine's own objects before); `__proto__` may be an author's own definition.
-- A chart result over a budget carries `limit: true` next to `error`.
+- A chart result over a budget carries `limit: "part"` or `limit: "page"` next to `error`.
+- A name has at most 64 characters, a definition key at most 256, a user function at most 16 parameters; a chart has at
+  most 100 controls and a select at most 1,000 options.
 
 ## 0.6.0
 

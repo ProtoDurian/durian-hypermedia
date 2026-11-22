@@ -15,7 +15,7 @@ draws that data with React, so author text is always a text node or an escaped a
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | an animation with too many things, steps or characters | an error block naming the cap, before anything is compiled | `hostile/09`, `10` |
 | a chart with too many points; expressions that make huge lists, nest, recurse or loop | an error block and a problem for that chart; the rest of the page still draws. Every expression is paid for from one budget per page (see [The evaluation budget](#the-evaluation-budget)) | `hostile/11`, `test/budget.test.ts` |
-| YAML anchors and aliases (an alias bomb) | front matter ignored with a problem; the part refused | `hostile/12` |
+| YAML anchors and aliases (an alias bomb), whatever the anchors are named | sized as a graph as it is read (see [The evaluation budget](#the-evaluation-budget)): front matter ignored with a problem; the part refused | `hostile/12`, `test/budget-paths.test.ts` |
 | an unclosed fence or container | one error block, the page shown as text | `hostile/13` |
 | an unknown container | an error block | `hostile/14` |
 | ids that clobber page globals (`id="location"`) | every id the page makes is prefixed (`dh-`), and `#anchor` links follow | `hostile/15` |
@@ -35,8 +35,10 @@ A chart computes its data from the author's expressions (`let`, `x`, `series`). 
 same page gives the same result on every machine. Three counters, each charged **before** the work or the memory it
 pays for:
 
-- **steps**: one for each token read (and one per 8 characters of expression text), each parse-tree node built or
-  evaluated, each list element an operator, `-`, `!`, `if()` or a built-in visits, each definition and name checked;
+- **steps**: one for each token read (and one per 8 characters of expression text and of a definition's key), each
+  parse-tree node built or evaluated, each list element an operator, `-`, `!`, `if()` or a built-in visits, each
+  definition and name checked, four for each call of the author's own function, one per 32 characters two texts
+  compare with `==` or `!=`, and one per 8 slots of YAML data sized;
 - **values**: one for each slot of each list made. A list that holds another list counts what that list holds, every
   time it holds it, so `fill` of a list, or a list literal that names one list many times, pays for every copy it stands
   for. A value slot is about 8 to 16 bytes;
@@ -44,34 +46,42 @@ pays for:
 
 | Cap (`LIMITS` / `parse(text, { limits })`) | One part | The whole page |
 | --- | --- | --- |
-| steps | `maxEvalSteps`: 100,000 | `maxPageEvalSteps`: 200,000 |
-| values | `maxEvalValues`: 50,000 | `maxPageEvalValues`: 150,000 |
-| characters | `maxEvalChars`: 50,000 | `maxPageEvalChars`: 150,000 |
+| steps | `maxEvalSteps`: 100,000 | `maxPageEvalSteps`: 300,000 |
+| values | `maxEvalValues`: 50,000 | `maxPageEvalValues`: 400,000 |
+| characters | `maxEvalChars`: 50,000 | `maxPageEvalChars`: 400,000 |
 
 What holds:
 
 - **One budget per `parse()` call.** Every chart draws its own part budget from it, and its definitions, `x` and every
   series share that one part budget. A chart over its part cap, or a chart that finds the page budget spent, is an error
   block naming the cap and a problem; the rest of the page still draws. Once the page budget is spent no later chart is
-  evaluated at all, so no part can restart the spend.
+  evaluated at all, so no part can restart the spend. A page of 20 ordinary computed charts (about 1,000 points each)
+  fits with room.
 - **The LLM view** of a chart uses the evaluation the page already paid for; it never evaluates again.
-- **`check()`** evaluates each chart at its start values, every slider's ends and every select option, from one page
-  budget of its own per call (the same caps).
+- **`check()`** evaluates each chart at its start values, every slider's ends and every select option, from one budget
+  of its own per call, eight times the page's. When that budget is spent the rest is a warning ("not every control value
+  was checked"), not an error on the chart. A chart over its own part cap at one of those values is an error.
 - **A reader moving a control** evaluates the chart again with a fresh part budget of its own, from `LIMITS` (a host that
   lowers the caps for its readers lowers `LIMITS`); it never draws from or spends the page's budget.
-- **What a chart draws** (its `x` and all its series together) holds no more than one part's values and characters,
-  counted the same way, YAML anchors and aliases included as what they stand for. So the Document, its JSON and the LLM
-  table of a chart stay within those caps.
+- **Everything a chart returns** (its `vars`, `x`, every series with its name, tone and kind), counted as it is written
+  out (a shared list each time), holds no more than its source spells out plus one part's values and characters.
+- **YAML anchors and aliases** (front matter and charts, with Bun's parser or one given to `setYamlParser`): every parsed
+  value is sized as a graph as it is read, whatever the anchors are named, before anything reads, keeps or writes it.
+  A value that stands for more than its text spells out plus one part's caps (`maxEvalValues` slots,
+  `maxEvalChars` characters, from `LIMITS`), that nests more than 64 levels or that holds itself is refused: front matter
+  is ignored with a problem, a chart is an error block. Smaller aliases work as before.
+- **Names and messages**: a name has at most 64 characters, a definition key at most 256, a function at most 16
+  parameters; a chart reports at most 10 definition errors (the rest are counted) and a message of at most 2,000
+  characters; a chart has at most 100 controls and a select at most 1,000 options. An error message never prints a long
+  value (text is cut to 60 characters, a list is "a list of n"). Keys are read in one pass, with no regular expression.
 - **Shape limits**, each an error, never a stack overflow: a list itself holds at most 10,000 values; lists nest at most
   32 deep; one expression's parse tree is at most 200 levels deep; user functions call each other at most 50 deep;
   evaluation nests at most 1,000 levels in all. A chain of definitions of any length is read without recursion.
 - `range()` needs finite numbers and a step above 0; `fill()` needs a count that is a number; `text()` digits are a whole
-  number from 0 to 100. An error message never prints a long value (text is cut to 60 characters, a list is
-  "a list of n").
+  number from 0 to 100.
 - Names are only ever the author's own: `constructor`, `__proto__` and the like are unknown names, not the engine's.
 
-What it does not cover: work that grows with the size of the input but runs no expression (reading the YAML, the
-Markdown, the parts' own syntax). `maxInputBytes` bounds that. Animations have their own caps (`maxAnim*`).
+The budget covers chart expressions and the YAML of charts and front matter. It does not cover other parsing work.
 
 ## The URL policy
 

@@ -1,0 +1,67 @@
+/* compare: a comparison matrix. Its tokens read the base tokens, so light and dark follow; a host sets one to restyle it. */
+:root {
+  --compare-head-bg: var(--surface-2); --compare-best-bg: color-mix(in oklab, var(--good) 11%, var(--surface)); --compare-pick-bg: color-mix(in oklab, var(--acc) 7%, var(--surface));
+  --compare-pick-border: var(--acc); --compare-yes: var(--good-ink); --compare-no: var(--bad-ink); --compare-partial: var(--warn-ink); --compare-bar: var(--acc); --compare-col-min: 128px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --compare-best-bg: color-mix(in oklab, var(--good) 17%, var(--surface)); --compare-pick-bg: color-mix(in oklab, var(--acc) 12%, var(--surface)); }
+}
+:root[data-theme="dark"] { --compare-best-bg: color-mix(in oklab, var(--good) 17%, var(--surface)); --compare-pick-bg: color-mix(in oklab, var(--acc) 12%, var(--surface)); }
+
+.cmp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cmp { position: relative; container-type: inline-size; }
+.cmp-title { font: 600 var(--fs-m) var(--font-display); margin: 0 0 var(--s-3); }
+.cmp-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface); position: relative; }
+.cmp-scroll:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.cmp-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: var(--fs-s); }
+.cmp-table th, .cmp-table td { padding: 0; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); background: var(--surface); }
+.cmp-table tbody tr:last-child > * { border-bottom: 0; }
+.cmp-table thead th { background: var(--compare-head-bg); border-bottom: 1px solid var(--line-2); padding: 12px 14px 10px; vertical-align: bottom; min-width: var(--compare-col-min); max-width: 220px; border-top: 3px solid var(--compare-opt, var(--line-2)); position: relative; }
+.cmp-table thead th.cmp-corner { min-width: 0; border-top-color: transparent; }
+.cmp-opt-name { display: block; font: 600 var(--fs-s) var(--font-display); color: var(--ink); overflow-wrap: anywhere; }
+.cmp-wins { display: inline-flex; margin-top: 4px; font: 500 var(--fs-xs) var(--font-sans); color: var(--good-ink); background: var(--good-soft); border-radius: var(--r-pill); padding: 1px 8px; }
+.cmp-opt[data-most] .cmp-wins { background: var(--good); color: var(--on-acc); }
+.cmp-flag { display: inline-block; margin-bottom: 6px; font: 600 11px/1 var(--font-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--on-acc); background: var(--compare-pick-border); border-radius: var(--r-pill); padding: 4px 9px; }
+.cmp-table th.cmp-crit { font-weight: 500; color: var(--ink); padding: 12px 14px; min-width: 120px; position: sticky; left: 0; z-index: 2; background: var(--surface); box-shadow: 1px 0 0 var(--line); overflow-wrap: anywhere; }
+.cmp-corner { position: sticky; left: 0; z-index: 3; box-shadow: 1px 0 0 var(--line); }
+.cmp-lower { display: block; font: 400 var(--fs-xs) var(--font-sans); color: var(--muted); }
+.cmp-table td { min-width: var(--compare-col-min); }
+.cmp-table td[data-pick], .cmp-table th.cmp-opt[data-pick] { background: var(--compare-pick-bg); }
+.cmp-table thead th[data-pick] { border-top-color: var(--compare-pick-border); }
+.cmp-table td[data-best] { background: var(--compare-best-bg); }
+.cmp-cell, .cmp-note { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 14px; box-sizing: border-box; position: relative; }
+.cmp-note { all: unset; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 14px; box-sizing: border-box; cursor: pointer; position: relative; }
+.cmp-note:hover { background: color-mix(in oklab, var(--acc) 8%, transparent); }
+.cmp-note:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: -2px; }
+.cmp-note[aria-expanded="true"] { background: var(--acc-soft); }
+.cmp-i { margin-left: auto; flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font: italic 600 11px/1 var(--font-display); color: var(--muted); border: 1px solid var(--line-2); }
+.cmp-v { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow-wrap: anywhere; }
+.cmp-v:not(.cmp-word) { white-space: nowrap; }
+.cmp-word { max-width: 22ch; }
+.cmp-ico { width: 20px; height: 20px; flex: none; }
+.cmp-bool[data-v="yes"] .cmp-ico { color: var(--compare-yes); } .cmp-bool[data-v="no"] .cmp-ico { color: var(--compare-no); } .cmp-bool[data-v="partial"] .cmp-ico { color: var(--compare-partial); }
+.cmp-bool[data-v="no"] { color: var(--ink-2); }
+.cmp-chip { display: inline-flex; align-items: center; min-height: var(--chip-h, 24px); padding: 0 10px; border-radius: var(--chip-radius, var(--r-pill)); font: 500 var(--chip-fs, var(--fs-xs)) var(--font-sans); }
+.cmp-tone[data-v="good"] .cmp-chip { background: var(--good-soft); color: var(--good-ink); } .cmp-tone[data-v="warn"] .cmp-chip { background: var(--warn-soft); color: var(--warn-ink); } .cmp-tone[data-v="bad"] .cmp-chip { background: var(--bad-soft); color: var(--bad-ink); }
+.cmp-score { gap: 10px; flex: 1; }
+.cmp-num { font: 600 var(--fs-s) var(--font-mono); font-variant-numeric: tabular-nums; min-width: 2.2ch; }
+.cmp-bar { flex: 1; min-width: 36px; max-width: 120px; height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.cmp-bar i { display: block; height: 100%; border-radius: 4px; background: var(--compare-bar); }
+.cmp-none { color: var(--faint); }
+.cmp-star { flex: none; display: inline-flex; width: 16px; height: 16px; color: var(--good); }
+.cmp-star svg { width: 100%; height: 100%; }
+.cmp-switch, .cmp-tabs { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: 0 0 var(--s-3); }
+.cmp-switch button, .cmp-tabs button { min-height: 40px; padding: 0 16px; border-radius: var(--ctl-radius, var(--r-pill)); border: 1px solid var(--line-2); background: var(--ctl-bg, var(--surface-2)); color: var(--ctl-ink, var(--ink)); font: 500 var(--fs-s) var(--font-sans); cursor: pointer; }
+.cmp-switch button[aria-pressed="true"], .cmp-tabs button[aria-pressed="true"] { background: var(--acc); border-color: var(--acc); color: var(--on-acc); }
+.cmp-tabs button[aria-pressed="true"][data-c] { background: var(--compare-opt); border-color: var(--compare-opt); }
+.cmp-switch button:focus-visible, .cmp-tabs button:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.cmp-hint { margin-top: 8px; font: 400 var(--fs-xs) var(--font-sans); color: var(--muted); text-align: center; }
+/* a shaded edge says there is more to see inside the box */
+.cmp-wrap { position: relative; }
+.cmp-wrap::after { content: ""; position: absolute; top: 1px; bottom: 1px; right: 1px; width: 28px; border-radius: 0 var(--r-m) var(--r-m) 0; pointer-events: none; opacity: 0; transition: opacity var(--dur, .2s); background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--ink) 16%, transparent)); }
+.cmp[data-edge="start"] .cmp-wrap::after, .cmp[data-edge="mid"] .cmp-wrap::after { opacity: 1; }
+.cmp[data-narrow] .cmp-table thead th, .cmp[data-narrow] .cmp-table td { min-width: 112px; }
+.cmp[data-view="single"] .cmp-table thead th, .cmp[data-view="single"] .cmp-table td { min-width: 0; width: 60%; }
+@container (max-width: 560px) { .cmp-table th.cmp-crit { padding: 10px; } .cmp-cell, .cmp-note { padding: 8px 10px; } .cmp-table thead th { padding: 10px; } }
+@media (prefers-reduced-motion: reduce) { .cmp-wrap::after { transition: none; } }
+[data-dh-motion="off"] .cmp-wrap::after { transition: none; }

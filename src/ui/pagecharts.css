@@ -1,0 +1,101 @@
+/* the scale switch, the key of styled series and the calculator layout. Tokens only (theme.css); light and dark follow the theme. */
+
+.pc-scale { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: var(--fs-s); color: var(--muted); }
+.pc-seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-pill); overflow: hidden; background: var(--surface-2); }
+.pc-seg-b { min-height: var(--pc-seg-h); min-width: 64px; padding: 0 14px; border: 0; background: transparent; color: var(--ink); font: 500 var(--fs-s) var(--font-sans); cursor: pointer; }
+.pc-seg-b + .pc-seg-b { border-left: 1px solid var(--line-2); }
+.pc-seg-b[aria-pressed="true"] { background: var(--pc-seg-on); color: var(--pc-seg-on-ink); }
+.pc-seg-b:focus-visible, .pc-key-b:focus-visible, .pc-range:focus-visible, .pc-num:focus-visible, .pc-select:focus-visible, .pc-check input:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+
+/* the key of styled series */
+.pc-key { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: var(--fs-s); }
+.pc-key-b { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 6px; border: 0; border-radius: var(--r-s); background: transparent; color: var(--ink-2); font: 400 var(--fs-s) var(--font-sans); }
+button.pc-key-b { cursor: pointer; min-height: var(--pc-key-h); }
+button.pc-key-b[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+.pc-glyph { flex: none; overflow: visible; }
+
+/* the calculator */
+.chart[data-dh-layout="calculator"] { container-type: inline-size; }
+.pc-calc { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-4) var(--s-5); align-items: start; }
+@container (max-width: 640px) { .pc-calc { grid-template-columns: minmax(0, 1fr); } }
+.pc-h { margin: 0 0 10px; font: 600 var(--fs-xs) var(--font-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pc-in, .pc-out { min-width: 0; }
+.pc-fields { display: grid; gap: 14px; }
+.pc-field { display: grid; gap: 6px; }
+.pc-lab { font: 500 var(--fs-s) var(--font-sans); color: var(--ink); }
+.pc-ctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pc-range { flex: 1 1 140px; min-width: 120px; min-height: 28px; accent-color: var(--acc); }
+.pc-box { display: inline-flex; align-items: center; gap: 6px; }
+.pc-num { width: 8ch; min-width: 72px; min-height: var(--pc-input-h); padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--pc-input-bg); color: var(--ink); font: 500 var(--fs-s) var(--font-mono); text-align: right; }
+.pc-select { min-height: var(--pc-input-h); padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-s); background: var(--pc-input-bg); color: var(--ink); font: 500 var(--fs-s) var(--font-sans); }
+.pc-unit { font-size: var(--fs-s); color: var(--muted); white-space: nowrap; }
+.pc-check { display: inline-flex; align-items: center; gap: 8px; min-height: var(--pc-input-h); font: 500 var(--fs-s) var(--font-sans); cursor: pointer; }
+.pc-check input { width: 20px; height: 20px; accent-color: var(--acc); }
+.pc-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pc-in-static { margin: 0; display: grid; gap: 8px; }
+.pc-in-row { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
+.pc-in-row dt { color: var(--ink-2); font-size: var(--fs-s); } .pc-in-row dd { margin: 0; font: 600 var(--fs-s) var(--font-mono); color: var(--ink); text-align: right; }
+.pc-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.pc-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l v" "f f"; gap: 2px 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.pc-row-label { grid-area: l; font: 500 var(--fs-s) var(--font-sans); color: var(--ink); }
+.pc-row-value { grid-area: v; font: 600 var(--fs-s) var(--font-mono); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.pc-row-formula, .pc-result-formula { grid-area: f; font-size: var(--fs-xs); color: var(--muted); overflow-wrap: anywhere; }
+.pc-result { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l v" "f f"; gap: 4px 12px; align-items: baseline; padding: 14px 16px; border-radius: var(--r-m); background: var(--pc-result-bg); border: 1px solid var(--pc-result-border); }
+.pc-result-label { grid-area: l; font: 600 var(--fs-s) var(--font-sans); color: var(--ink); }
+.pc-result-value { grid-area: v; font: 700 var(--pc-result-fs) var(--font-mono); color: var(--pc-result-ink); font-variant-numeric: tabular-nums; text-align: right; }
+.chart[data-dh-layout="calculator"] .chart-canvas { margin-top: var(--s-4); }
+@media print { .pc-scale, .pc-actions { display: none; } .pc-calc { break-inside: avoid; } }
+.chart .pc-glyph { width: 30px; height: 14px; max-width: none; display: block; }
+.pc-num { width: 10ch; min-width: 92px; }
+
+/* verdict line and units row */
+.pc-rows { display: grid; gap: 0; }
+.pc-rows > .pc-result { margin: 12px 0; }
+.pc-verdict { margin: 4px 0 8px; padding: 8px 12px; border-radius: var(--r-s); border-left: 4px solid var(--pc-tone); background: color-mix(in oklab, var(--pc-tone) 10%, var(--surface)); font-size: var(--fs-s); color: var(--ink); }
+.pc-verdict-label { color: var(--muted); }
+.pc-units-row { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.pc-tiles { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.pc-tile { display: inline-block; width: var(--pc-tile); height: var(--pc-tile); border-radius: 3px; box-sizing: border-box; background: var(--pc-tone); border: 2px solid var(--pc-tone); }
+.pc-tile-1 { background: transparent; }
+.pc-tile-2 { background: repeating-linear-gradient(135deg, var(--pc-tone) 0 2px, transparent 2px 4px); }
+.pc-more { font-size: var(--fs-xs); color: var(--muted); padding-left: 6px; }
+.pc-units-key { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--fs-s); }
+.pc-units-key li { display: inline-flex; align-items: center; gap: 6px; }
+.pc-calc .tone-acc { --pc-tone: var(--acc); } .pc-calc .tone-good { --pc-tone: var(--good); } .pc-calc .tone-warn { --pc-tone: var(--warn); } .pc-calc .tone-bad { --pc-tone: var(--bad); } .pc-calc .tone-muted { --pc-tone: var(--faint); }
+.pc-calc .tone-c1 { --pc-tone: var(--c1); } .pc-calc .tone-c2 { --pc-tone: var(--c2); } .pc-calc .tone-c3 { --pc-tone: var(--c3); } .pc-calc .tone-c4 { --pc-tone: var(--c4); } .pc-calc .tone-c5 { --pc-tone: var(--c5); } .pc-calc .tone-c6 { --pc-tone: var(--c6); } .pc-calc .tone-c7 { --pc-tone: var(--c7); } .pc-calc .tone-c8 { --pc-tone: var(--c8); }
+.pc-presets { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+@container (max-width: 640px) { .pc-presets { grid-column: auto; } }
+
+/* inputs: label (value in the label, slider only) and formulas: worked (one outlined panel of text lines) */
+.pc-calc[data-inputs="label"], .pc-calc[data-formulas="worked"] { grid-template-columns: minmax(0, 1fr); width: 100%; }
+.pc-calc[data-inputs="label"] .pc-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px var(--s-5); }
+@container (max-width: 640px) { .pc-calc[data-inputs="label"] .pc-fields { grid-template-columns: minmax(0, 1fr); } }
+.pc-lab-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.pc-panel { border: 1px solid var(--line-2); border-radius: var(--r-s); padding: 10px 14px; display: grid; gap: 4px; margin: 6px 0; }
+.pc-line { margin: 0; font: 400 var(--fs-s) var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+.pc-line-label { color: var(--muted); }
+.pc-units-row { gap: 4px; }
+.pc-units-label { font-size: var(--fs-xs); color: var(--muted); }
+.pc-units { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.pc-units .pc-tiles { flex: 0 1 auto; min-width: 0; }
+
+.pc-tile-empty { background: color-mix(in oklab, var(--ink) 6%, transparent); border-color: color-mix(in oklab, var(--ink) 14%, transparent); }
+/* a narrow page: every row may shrink, tiles wrap */
+.pc-rows { grid-template-columns: minmax(0, 1fr); }
+.pc-rows > * { min-width: 0; }
+.pc-panel, .pc-line, .pc-verdict, .pc-units-row, .pc-units { min-width: 0; max-width: 100%; }
+.pc-tiles[data-per-row] { display: flex; flex-wrap: wrap; max-width: calc(var(--pc-per-row) * (var(--pc-tile) + 3px)); }
+/* a wide band: the block takes the whole column; inputs left, formulas and units right as one band, the key to the right of the tiles */
+.chart[data-dh-layout="calculator"] { width: 100%; max-width: none; box-sizing: border-box; }
+@container (min-width: 900px) {
+  .pc-calc[data-inputs="label"], .pc-calc[data-formulas="worked"] { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+  .pc-calc[data-inputs="label"] .pc-fields { grid-template-columns: minmax(0, 1fr); }
+  .pc-calc .pc-presets { grid-column: 1 / -1; }
+  .pc-units { flex-wrap: nowrap; align-items: flex-start; }
+  .pc-units .pc-tiles { flex: 1 1 auto; }
+  .pc-units-key { flex: 0 0 auto; flex-direction: column; flex-wrap: nowrap; gap: 4px; }
+}
+
+/* full width: a calculator's figure leaves the text column like the stage's does (site/src/pagecharts.tsx sets the two variables) */
+figure:has(> .chart[data-dh-layout="calculator"]), figure:has(.chart[data-dh-layout="calculator"]) { max-width: none; width: var(--pc-fig-w, auto); margin-left: var(--pc-fig-ml, 0); position: relative; z-index: 2; }
+@media print { figure:has(.chart[data-dh-layout="calculator"]) { width: auto; margin-left: 0; } }

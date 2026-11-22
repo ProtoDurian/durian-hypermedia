@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, BudgetError } from "../../core/budget";
-import { parseTrace, markApp, detectLang, TRACE_LANGS, traceLlm } from "./trace";
+import { parseTrace, markApp, detectLang, TRACE_LANGS, traceLlm, secretIn } from "./trace";
 import { parseStack } from "./part";
 const trace=(n:string)=>readFileSync(new URL(`./fixtures/${n}.txt`,import.meta.url),"utf8");
 const fence=(head:string,body:string)=>`# Page\n\n\`\`\`${head}\n${body}\n\`\`\`\n`;
@@ -35,6 +35,7 @@ describe("stack traces", () => {
   });
 });
 describe("stacktrace: integration, refusals, caps and budget", () => {
+ test("secret guards cover embedded keys and spaced assignments",()=>{expect(secretIn("path/AKIAABCDEFGHIJKLMNOP/end")).toBe("an AWS access key");expect(secretIn("token = abcdefghijklmnop")).toBe("a key, token or password");});
  const body="Error: x\n    at mine (/src/shop/a.ts:1:1)";
  test("plain JSON data, exact LLM and replacement",()=>{const doc=parse(fence("stacktrace",body),{path:"p.dh.md"});const b=doc.blocks.find(b=>b.type==="stacktrace")!;expect(check(doc)).toEqual([]);expect(b.type).toBe("stacktrace");if(b.type!=="stacktrace")throw Error();expect(JSON.parse(JSON.stringify(b.data))).toEqual(b.data);expect(b.llm).toBe("```stacktrace\n"+body+"\n```");expect(doc.llm).toContain(b.llm!);const other=parse(fence("stacktrace",body)+"\n:::llm\nA short trace.\n:::\n");expect(other.llm).toContain("A short trace.");expect(other.llm).not.toContain("at mine");});
  const cases:[string,string,string][]=[

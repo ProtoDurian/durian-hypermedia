@@ -25,6 +25,7 @@ export function stripPath(file: string, strip: string | undefined): string {
 /** Inspect each token once; patterns have disjoint, bounded prefixes. */
 export function secretIn(text: string, budget?: Budget): string | null {
  budget?.charge(text.length);
+ if (/AKIA[0-9A-Z]{16}/.test(text)) return "an AWS access key";
  if (text.includes("-----BEGIN ") && text.includes("PRIVATE KEY-----")) return "a private key";
  const tokens = text.split(/[\s,;"\x27(){}\[\]]+/);
  for (let i = 0; i < tokens.length; i++) { const t = tokens[i]; budget?.charge(1 + t.length);

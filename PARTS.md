@@ -59,10 +59,19 @@ export default definePart<MyData>({
   author text (no nested quantifiers like `(a+)+`, no `(.*)*`): use the kit's hand scans (`scanLines`, `colonSplit`,
   `afterWord`, `indentOf`) or write one.
 - **Imports.** `part.ts` and anything it imports may import only `../types`, `../kit/text`, `../../core/budget`,
-  `../../safety` (types) and your own files. Never `core/dh-lib`, `core/doccheck`, `document`, `markdown` or React: they
+  `../../host/yaml` (`yamlParse`, and `chargeYaml` to charge what it read), `../../safety` (types), your own files and
+  another part's pure files (`../flame/part`; never in a circle). Never `core/dh-lib`, `core/doccheck`, `document`, `markdown` or React: they
   load your part while they load (a test enforces it).
 - **`llm(data, input)`** is plain text: what an LLM reads in place of the part. Keep a normal part under 400 tokens;
   doccheck asks for a `:::llm` block past that. A refused part reads as `[<name> not shown: <message>]` by itself.
+- **Optional fields** (only when the part needs them):
+  - `fences: [{ word: "json", flag: "explore" }]`: a code block ```json explore is this part; `input.attrs.lang` is "json".
+    Without the flag it stays a plain code block.
+  - `chartKinds: ["histogram", ...]`: a ```chart whose YAML has `kind: histogram` at the top level is this part
+    (`input.body` is the chart's YAML); its doccheck messages start `chart:`.
+  - `llmExempt: (data) => boolean`: true lets the LLM view go over the 400-token rule without a `:::llm` (only when the
+    long text is the content, like an audio transcript).
+  - A bare word in the info string is a flag: ```video loop gives `input.attrs.loop === "true"`.
 - **`check(data, input)`** returns `{ line?, level?, message }[]`. Every refusal names its line and says the fix in plain
   words ("write a flow as: from -> to: amount"). `level: "warn"` for a warning. The `<name>:` prefix is added for you.
 

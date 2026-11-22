@@ -18,14 +18,15 @@ import trace from "../trace/part";
 import venn from "../venn/part";
 import video from "../video/part";
 import wardley from "../wardley/part";
+import sparkInline from "../spark/inline";
 
 /** the folder parts, by fence word */
 export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, fishbone, flame, gallery, gantt, lottie, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the inline parts (parts of a sentence), in name order; core/markdown.ts reads them (parts/inline.ts) */
-export const INLINE_PARTS: InlineDef<any, any>[] = [];
+export const INLINE_PARTS: InlineDef<any, any>[] = [sparkInline];
 /** the inline parts' names, in name order */
-export const INLINE_PART_NAMES = [] as const;
+export const INLINE_PART_NAMES = ["spark"] as const;
 
 /** the folder parts' fence words, in name order */
 export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;

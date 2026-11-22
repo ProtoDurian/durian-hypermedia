@@ -21,6 +21,9 @@ const PKG = resolve(import.meta.dir, "..");
 const args = process.argv.slice(2);
 const name = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--out");
 if (!name || !existsSync(join(PKG, "src/parts", name, "sample.md"))) { console.error("usage: bun scripts/part-check.ts <part name> [--out <dir>] (a folder under src/parts/ with a sample.md)"); process.exit(2); }
+// a part of a sentence (a folder with an inline.ts and no part.ts) is found by its inline frame, not by a stage box
+const INLINE_ONLY = existsSync(join(PKG, "src/parts", name, "inline.ts")) && !existsSync(join(PKG, "src/parts", name, "part.ts"));
+const SEL = INLINE_ONLY ? `[data-dh-inline="${name}"]` : `.dh-part-stage[data-dh-part="${name}"]`;
 const OUT = resolve(args.includes("--out") ? args[args.indexOf("--out") + 1] : join(PKG, "dist/part-check", name));
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -48,7 +51,7 @@ const COLLECT = `(() => {
 })();`;
 // what the page shows, read from the DOM (never from the part's own data)
 const MEASURE = (part: string) => `(() => {
-  const parts = [...document.querySelectorAll('.dh-part-stage[data-dh-part="${part}"]')];
+  const parts = [...document.querySelectorAll('${SEL}')];
   const sizes = parts.map((p) => { const r = p.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
   let small = 0, smallest = 99;
   for (const p of parts) for (const t of p.querySelectorAll("text, p, span, li, button, summary, div")) {
@@ -93,6 +96,17 @@ try {
     const s = await p.eval<{ csp: string[]; errors: string[] }>(`window.__dh`);
     const docH = await p.eval<number>(`Math.ceil(document.documentElement.scrollHeight)`);
     await p.shot(join(OUT, "shots", `${name}-${tag}.png`), { x: 0, y: 0, width: w, height: Math.min(docH, 6000) });
+    if (INLINE_ONLY || await p.eval<boolean>(`!!document.querySelector('[data-dh-inline="${name}"]')`)) {
+      // a part of a sentence: put a real mouse over the first one, as a reader does, and take the page again (a card opens). The
+      // browser page has no focus in this headless run, so a card that opens on :focus is seen only by a pointer here.
+      const at = await p.eval<number[] | null>(`(() => { const e = document.querySelector('[data-dh-inline="${name}"] button, [data-dh-inline="${name}"] [tabindex]'); if (!e) return null; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
+      if (at) await p.mouse("mouseMoved", at[0], at[1]);
+      await p.sleep(500);
+      const o = await p.eval<{ csp: string[]; errors: string[] }>(`window.__dh`);
+      await p.shot(join(OUT, "shots", `${name}-${tag}-open.png`), { x: 0, y: 0, width: w, height: Math.min(await p.eval<number>(`Math.ceil(document.documentElement.scrollHeight)`), 6000) });
+      if (o.csp.length > s.csp.length) fails.push(`${tag}: opening a ${name} gave policy violations`);
+      if (o.errors.length > s.errors.length) fails.push(`${tag}: opening a ${name} gave script errors: ${o.errors.slice(s.errors.length, s.errors.length + 3).join(" | ")}`);
+    }
     views.push({ view: tag, ...m, nexts, csp: s.csp.length, errors: s.errors });
     if (!m.count || m.sizes.some(([a, b]) => !a || !b)) fails.push(`${tag}: the part is not drawn (${m.count} found, sizes ${JSON.stringify(m.sizes)})`);
     if (m.sideways > 0) fails.push(`${tag}: the page scrolls sideways by ${m.sideways} px`);
@@ -107,7 +121,7 @@ try {
   await p.eval(`document.querySelectorAll('[data-dh-part="${name}"] .ctl button').forEach((b) => { if (/Next|→/.test(b.textContent) && !b.disabled) b.click(); })`);
   await p.sleep(400);
   const tt = await p.eval<{ csp: string[]; errors: string[] }>(`window.__dh`);
-  const ttCount = await p.eval<number>(`document.querySelectorAll('.dh-part-stage[data-dh-part="${name}"]').length`);
+  const ttCount = await p.eval<number>(`document.querySelectorAll('${SEL}').length`);
   views.push({ view: "trusted-types (browser only)", count: ttCount, csp: tt.csp.length, errors: tt.errors });
   if (!ttCount) fails.push("trusted types: the part is not drawn");
   if (tt.csp.length) fails.push(`trusted types: ${tt.csp.length} violation(s): ${tt.csp.slice(0, 3).join(" | ")}`);

@@ -202,3 +202,53 @@ All of this, in the tagged package:
 - The release notes carry its caps in both sets and its measured worst time for both.
 
 A part that has not passed ships alone in a later 0.7.x and holds nothing up.
+
+## 10. A part of a sentence (the inline hook)
+
+A part may also live **inside a sentence**: a sparkline (`:spark[3,5,2,8,9]`), a term with its meaning. It adds itself to the
+Markdown core with two more files in its folder, and the generator lists it (`INLINE_PARTS`, `FOLDER_INLINE_COMPONENTS`). A
+folder with an `inline.ts` and **no** `part.ts` is an inline part only: it needs `inline.ts`, `inline-view.tsx`, `limits.ts`,
+`style.css`, `spec.md`, `sample.md`, the test and the fixtures (no `part.ts`, no `view.tsx`). A folder with both (`glossary`: a
+block and its terms in the prose) keeps every file of sections 1 to 7 and adds the two.
+
+| File | What it holds |
+| --- | --- |
+| `inline.ts` | `export default defineInline<State, Data>({ name, prepare?, scan, section?, llm?, check?, rank? })` (from `../inline`) |
+| `inline-view.tsx` | `export default function <Name>Inline(props: InlineViewProps<Data>)`: `text`, `data`, `ui`, `static` |
+
+```ts
+export default defineInline<{ cap: number }, Spark>({
+  name: "spark",
+  rank: -1,                                          // a part with a marker of its own reads before parts that match words
+  prepare: (page) => ({ cap: page.limits.sparkValues }),   // once per page; null = nothing to do here, scan is never called
+  scan(text, state, budget) { return [{ from, to, data }]; },   // once per plain text run; ranges in order, no overlap
+  llm: (data, text) => "(3, 5, 2, 8, 9)",            // what an LLM reads instead (optional; then no `prepare` state may depend on the page)
+});
+```
+
+- **`prepare(page)`** runs once per page: `page.frontMatter`, `page.blocks` (the page's own blocks of this part: a
+  ```` ```glossary ```` fence, `input.body` and so on, tabs included), `page.limits` and `page.budget`. It returns the part's
+  state, or `null` when the page has nothing for it.
+- **`scan(text, state, budget)`** is called once per **plain text run** of a paragraph, list item, quote, callout or table cell,
+  in page order. Never inside code, a link, an image, a heading, a table's rule row or an HTML tag. The offsets are in `text`
+  (character references like `&amp;` are already the characters they stand for). Return `{ from, to, data }[]` in order, not
+  overlapping; the core makes each one the node `{ t: "ref", name, text, data }`, which the document draws with your
+  `inline-view.tsx`. A range that overlaps, is out of the text or is not a whole number is dropped, with a problem on the page.
+  `problem: "..."` on a hit (and `level: "warn"`) reports a wrong use with its line; the text stays as written and no other part reads it.
+- **`section(state, depth)`** (optional) is called at every heading with its depth (1 to 6): a part that marks only the first
+  use in a section starts again at depth 1 or 2.
+- **`check(state)`** (optional) is called once after the page's text was read: problems about the whole page (a term the text never uses).
+- **`llm(data, text)`** (optional): the LLM view reads `llm(...)` in place of the range. It runs on the Markdown source, with the state of an empty page.
+- **The work.** The core charges the page's budget **one step per character offered** to your part, and gives `scan` a budget of its
+  own of a fixed number of steps per character (`INLINE_STEPS_PER_CHAR`): a scan that is not linear in its text stops early with
+  "the <name> part does too much work", the rest of the text stays as written, and the page keeps its own budget. Charge `budget`
+  for the work you do (a step per match, per word), as in section 2. Never catch `BudgetError`. Hand scans only: no regular
+  expression that can backtrack over author text, and a search that finds its next match once and keeps it (see
+  `replaceBracketed` in `core/dh-lib.ts`) rather than searching to the end of the text again from every start.
+- **Where the parts meet.** Parts read a text in `rank` order (default 0, then by name); a part sees the ranges of the parts before
+  it as filler characters (so a word part never reads inside `:spark[...]`).
+- **Imports.** `inline.ts` follows the rules of `part.ts` (section 2): `../inline`, `../kit/text`, `../../core/budget`, `../../safety`
+  (types), your own pure files and another part's; never `core/dh-lib`, `core/doccheck`, `document`, `markdown` or React.
+- **Tests.** Section 6, with the doubling test on `scan` (charges at n and 2n, three sizes) and one in time on a text of many near-matches,
+  and the fixtures read with `path: "x.md"` when the page has no block part. `part-check <name>` finds an inline part by its frame
+  (`[data-dh-inline="<name>"]`), puts a real mouse over the first one and takes a second shot.

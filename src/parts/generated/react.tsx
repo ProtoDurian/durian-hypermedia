@@ -45,3 +45,5 @@ export const VennPart = partComponent("venn", VennView);
 export const VideoPart = partComponent("video", VideoView);
 export const WardleyPart = partComponent("wardley", WardleyView);
 export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "chart-kinds": ChartKindsPart, "compare": ComparePart, "compare-image": CompareImagePart, "downloads": DownloadsPart, "explore": ExplorePart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "log": LogPart, "lottie": LottiePart, "pdf": PdfPart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "timeline": TimelinePart, "trace": TracePart, "venn": VennPart, "video": VideoPart, "wardley": WardleyPart };
+/** what the document draws a ref node of an inline part with, by the part's name */
+export const FOLDER_INLINE_COMPONENTS: Record<string, import("react").ComponentType<{ text: string; data: any }>> = {  };

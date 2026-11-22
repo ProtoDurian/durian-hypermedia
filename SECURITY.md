@@ -104,9 +104,12 @@ The budget covers chart expressions and the YAML of charts and front matter. Oth
 
 ## Work that is not an expression
 
-Reading the page's text (the Markdown, the parts' own syntax, the YAML), making the LLM view, `check()` and drawing the
-page the first time take time linear in the length of the text, so `maxInputBytes` bounds them, except where a cap
-below says otherwise:
+**`parse()` time and memory grow linearly with the input**, for plain Markdown and for every part. Reading the page's
+text (the Markdown, the parts' own syntax, the YAML), making the LLM view, `check()` and drawing the page the first time
+take time linear in the length of the text, so `maxInputBytes` bounds them, except where a cap below says otherwise.
+Three things keep it so: `test/linear.test.ts` (8 times the text may take at most 20 times as long, for typical replies,
+constructs grown in place and each part; text that is quadratic takes 40 to 64 times), `bun run bench` (time, peak
+memory and held memory per KB of 1, 10 and 100 KB replies, against budgets), and the CI workflow that runs both.
 
 - **Markdown** is read by markdown-it (vendored in `src/vendor/`), which reads CommonMark in linear time. The rules this
   package adds (GFM tables, strikethrough, task items, autolink literals, `:kbd[]`, `:mouse[]`, a host's inline
@@ -117,7 +120,13 @@ below says otherwise:
   plain text before the reader sees it; past `maxDepth` levels in the tree the rest is plain text. No character is
   dropped either way.
 - **The LLM view** rewrites keys, mouse actions, code spans and links to other pages in one pass each.
-- **A code block** is drawn with one text token per line (Code Hike splits a many-line token once per line).
+- **A code block** is drawn with one text token per line (Code Hike splits a many-line token once per line), and
+  neighbouring one-line marks are handed to it as one annotation (at most 8 layers of the same mark on a line).
+- **The parts' own syntax** (fences, containers, steps, file tree rows, `@file` lines, terminal prompts, tab headings,
+  tier lists, alignment grids, code references in `check()`) is read in one pass, with no pattern that can backtrack.
+  Past real pages, a few outputs have caps: a part's steps carry at most 1,000,000 characters of text (2,000,000 for the
+  page), an alignment grid at most 400 cells and 400 regions, the tables of contents of a page at most 2,000 headings;
+  past them the part is an error block and its source is shown as plain code (nothing is lost).
 - **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (100,000)
   characters and `maxYamlKeys` (1,000) keys in one text, and `maxPageYamlChars` (400,000) and `maxPageYamlKeys`
   (8,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).

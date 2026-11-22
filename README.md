@@ -78,7 +78,7 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | Option | Default | What it does |
 | --- | --- | --- |
 | `urlPolicy(url, kind)` | http, https, mailto, relative links; https and relative images | every link and image URL passes it; return a URL or `null` |
-| `limits` | `LIMITS` | caps on size, blocks, nesting, animation things and steps, chart points, items, and the evaluation budget of one part and of the whole page (SECURITY.md) |
+| `limits` | `LIMITS` | caps on size, blocks, nesting, animation things, steps and layout work, chart points, items, YAML size, and the evaluation budget of one part and of the whole page (SECURITY.md) |
 | `idPrefix` | `"dh-"` | before every id the page makes, so a page cannot clobber the host's ids |
 | `blocks` | none | the host's own fenced blocks (ADOPT.md) |
 | `inlines` | none | the host's own inline references, like `@src/a.ts` (ADOPT.md) |
@@ -86,6 +86,12 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | `frontMatter` | `true` | `false`: a leading `---` block is Markdown (a rule and text the reader sees), not front matter |
 | `marks` | none | own file tree marks for every page, as the front matter `marks:` writes them (ADOPT.md); a page's own entry wins |
 | `prefixes` | none | own terminal prompts for every page, as the front matter `prefixes:` writes them |
+
+**Time and memory grow linearly with the input**, for plain Markdown and for every part: twice the text takes about
+twice as long, whatever it holds. A typical 10 KB reply parses in about 2 ms and a 100 KB one in about 20 ms on a server
+CPU. The work that cannot be linear (laying out an animation, a YAML parser on very many keys) has caps of its own.
+`test/linear.test.ts` checks it for typical replies and every part, and `bun run bench` holds time and memory per KB to a
+budget (SECURITY.md).
 
 ## Drawing Markdown your own way
 
@@ -122,7 +128,8 @@ all of them with their light and dark defaults. `variant="flat"` and `variant="b
 
 ```sh
 bun install
-bun test ./test/            # parser, renderer, hostile input, caps, host blocks
+bun test ./test/            # parser, renderer, hostile input, caps, host blocks, linear time
+bun run bench               # parse() time and memory per KB on 1, 10 and 100 KB replies, against budgets
 bun run typecheck
 bun run example             # every fixture at http://127.0.0.1:4517/, served with a strict CSP
 bun run csp                 # opens every example page in headless Chrome and counts CSP violations (needs Chrome)

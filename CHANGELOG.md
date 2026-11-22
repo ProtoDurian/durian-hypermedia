@@ -20,7 +20,12 @@ and render exactly as in 0.6.1.
   line stays, character references other than the five it always decoded stay as written, a link's address and title
   are as written.
 - The LLM view's rewrites of keys, mouse actions, code spans and links to other pages are one pass each (same results).
+- **Long ordinary text is much faster.** Every part and plain Markdown now take time and memory linear in the input. `test/linear.test.ts` checks it; `bun run bench` holds time and memory per KB to a budget; a CI workflow
+  runs both.
 - A long code block renders in linear time (one text token per line for Code Hike).
+- The parts' own syntax (fences, containers, steps, file tree rows, `@file` lines, terminal prompts, tab headings,
+  tier lists, alignment grids) and `check()`'s scans of prose and code references are read in one pass. A code
+  reference's symbol is matched as text (one with `[` used to stop `check()`).
 - **YAML is sized before any parser reads it.** A YAML parser may take time growing with the square of one map's keys
   in some parsers. Front matter and each chart may have at most `maxYamlChars` characters and `maxYamlKeys`
   keys, and a page `maxPageYamlChars` and `maxPageYamlKeys` in all, counted from the text for any parser; over them,
@@ -37,6 +42,9 @@ and render exactly as in 0.6.1.
   request). Most visible: an autolink literal (`www.`, `http://`, an e-mail address) starts at a line start, after
   white space or after `*`, `_`, `~`, `(`; one-tilde strikethrough follows the same flanking rules as `~~`; an
   ordered list that does not start at 1 does not interrupt a paragraph (inside a list item it still nests, as before).
+- New output caps far past real pages: a part's steps carry at most 1,000,000 characters (2,000,000 a page), an
+  alignment grid at most 400 cells and 400 regions, a page's tables of contents at most 2,000 headings; past them, an
+  error block with the source as plain code.
 - `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlKeys`,
   `maxPageYamlKeys`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
 - Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`

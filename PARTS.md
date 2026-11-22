@@ -59,6 +59,7 @@ export default definePart<MyData>({
 - **Linear time.** Double the input, the work at most about doubles. No regular expression that can backtrack over
   author text (no nested quantifiers like `(a+)+`, no `(.*)*`): use the kit's hand scans (`scanLines`, `colonSplit`,
   `afterWord`, `indentOf`) or write one.
+- **Names.** `svg` and `interactive` are core reference-only types: no folder may take them (the generator refuses).
 - **Imports.** `part.ts` and anything it imports may import only `../types`, `../kit/text`, `../../core/budget`,
   `../../host/yaml` (`yamlParse`, and `chargeYaml` to charge what it read), `../../safety` (types), your own files and
   another part's pure files (`../flame/part`; never in a circle). Never `core/dh-lib`, `core/doccheck`, `document`, `markdown` or React: they

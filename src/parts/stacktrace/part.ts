@@ -1,7 +1,7 @@
 import { definePart, type PartInput, type PartContext, type PartIssue } from "../types";
 import { BudgetError } from "../../core/budget";
 import { LANG_ALIASES, TRACE_KEYS, TRACE_LANGS, parseTrace, markApp, secretIn, traceLlm, type Trace } from "./trace";
-export interface StackData { title: string; trace: Trace | null; strip: string; repo: string; error: string | null; appHits: number; issues: PartIssue[]; text: string }
+export interface StackData { title: string; trace: Trace | null; strip: string; repo: string; pins: Record<string,string>; error: string | null; appHits: number; issues: PartIssue[]; text: string }
 export function parseStack(input: PartInput, ctx: PartContext): StackData {
   const a = input.attrs, issues: PartIssue[] = [];
   ctx.budget.charge(input.body.length);
@@ -17,6 +17,11 @@ export function parseStack(input: PartInput, ctx: PartContext): StackData {
     const attrs = Object.entries(a).filter(([k]) => !["id", "title"].includes(k)).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ");
     text = traceLlm(input.body, `stacktrace${attrs ? " " + attrs : ""}`, a, trace, ctx.budget);
   } catch (e) { if (e instanceof BudgetError) throw e; error = e instanceof Error ? e.message : String(e); issues.push({ line: input.line, message: error }); }
-  return { title: a.title ?? "", trace, strip: a.strip ?? "", repo: a.repo ?? "", error, appHits, issues, text };
+  const repo=a.repo??"", own=Object.prototype.hasOwnProperty;
+  const raw=ctx.frontMatter && own.call(ctx.frontMatter,"pins") ? ctx.frontMatter.pins : null;
+  const pin=raw && typeof raw==="object" && !Array.isArray(raw) && own.call(raw,repo) ? (raw as Record<string,unknown>)[repo] : null;
+  const pins:Record<string,string>=Object.create(null);
+  if(typeof pin==="string" && pin){ctx.budget.charge(repo.length+pin.length+1,1,repo.length+pin.length);pins[repo]=pin;}
+  return { title: a.title ?? "", trace, strip: a.strip ?? "", repo, pins, error, appHits, issues, text };
 }
 export default definePart<StackData>({ name: "stacktrace", form: "fenced", steps: false, llmKind: "own", parse: parseStack, llm: (d) => d.text, check: (d) => d.issues });

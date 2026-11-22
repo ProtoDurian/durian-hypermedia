@@ -5,10 +5,10 @@
 //   alt: A box fills with blocks, one row at a time, then a tick appears.
 //   colours: dh-c1 = c1, dh-warn = warn
 //   ```
-import { definePart } from "../types";
-import type { Budget } from "../../core/budget";
+import { definePart, type PartFileRef } from "../types";
 import { HEIGHTS, TONES, afterColon, checkSrc, flag, nameOf, unknownKeys, bodyLines, type Err } from "../downloads/media";
-import type { LottieCaps } from "./check";
+import { Budget } from "../../core/budget";
+import { checkLottieData, lottieNames, type LottieCaps } from "./check";
 
 export const LOTTIE_KEYS = ["id", "src", "title", "loop", "speed", "start", "height", "llm"];
 export interface LottieSpec { src: string; title: string; alt: string; loop: boolean; speed: number; paused: boolean; height: string; colours: { name: string; tone: string }[]; caps: LottieCaps; errors: Err[] }
@@ -50,6 +50,21 @@ export function parseLottie(body: string, baseLine: number, attrs: Record<string
 
 export function lottieLlm(l: LottieSpec): string { return `Lottie animation: ${l.title || nameOf(l.src)}. ${l.alt}`; }
 
+/** the Lottie file, for the Node entry: it must pass the checks the browser runs at load, and name the colour slots the page uses */
+export function lottieFiles(l: LottieSpec, line: number): PartFileRef[] {
+  if (!l.src) return [];
+  return [{
+    path: l.src, line, json: true, readMax: l.caps.bytes,
+    check: ({ size, json }) => {
+      const nodes = l.caps.nodes;
+      const why = checkLottieData(json ?? null, size, new Budget({ steps: 2 * nodes + 10_000, values: nodes + 10_000, chars: 0 }, null, null, "the lottie part"), l.caps);
+      if (why) return [`${l.src}: ${why}`];
+      const names = lottieNames(json);
+      return l.colours.filter((c) => !names.includes(c.name)).map((c) => `colours: ${l.src} has no layer or shape named "${c.name}" (names it has: ${names.join(", ") || "none that start with dh-"})`);
+    },
+  }];
+}
+
 export default definePart<LottieSpec>({
   name: "lottie",
   form: "fenced",
@@ -57,6 +72,7 @@ export default definePart<LottieSpec>({
   llmKind: "own",
   parse: (input, ctx) => parseLottie(input.body, input.bodyLine, input.attrs, input.line, ctx.limits, ctx.budget),
   llm: (l) => lottieLlm(l),
+  files: (l, { line }) => lottieFiles(l, line),
   check: (l) => l.errors.map((e) => ({ line: e.line, message: e.msg })),
   dependencies: ["lottie-web"],
 });

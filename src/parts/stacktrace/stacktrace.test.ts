@@ -35,7 +35,14 @@ describe("stack traces", () => {
   });
 });
 describe("stacktrace: integration, refusals, caps and budget", () => {
- test("secret guards cover embedded keys and spaced assignments",()=>{expect(secretIn("path/AKIAABCDEFGHIJKLMNOP/end")).toBe("an AWS access key");expect(secretIn("token = abcdefghijklmnop")).toBe("a key, token or password");});
+ test("a frame reference keeps only its repo pin from read-only page front matter",()=>{
+   const pin="abcdef0123456789abcdef0123456789abcdef0123";
+   const d=parse(`---\npins:\n  shop: ${pin}\n  other: 0123456789abcdef\n---\n`+fence("stacktrace repo=shop strip=/src/shop/","Error: x\n    at mine (/src/shop/a.ts:1:1)"));
+   const b=d.blocks.find(b=>b.type==="stacktrace")!;if(b.type!=="stacktrace")throw Error();expect(b.data.pins).toEqual({shop:pin});expect(JSON.parse(JSON.stringify(b.data)).pins).toEqual({shop:pin});
+   const input={body:"Error: x\n    at f (a.ts:1:1)",bodyLine:2,line:1,attrs:{repo:"shop"},head:"",steps:[]};
+   for(const pins of [null,[],{shop:7},{other:pin}])expect(parseStack(input,{limits:LIMITS,budget:big(),frontMatter:{pins}}).pins).toEqual({});
+ });
+ test("secret guards cover embedded keys and spaced assignments",()=>{expect(secretIn(["path/", "AKIA", "ABCDEFGHIJKLMNOP", "/end"].join(""))).toBe("an AWS access key");expect(secretIn("token = abcdefghijklmnop")).toBe("a key, token or password");});
  const body="Error: x\n    at mine (/src/shop/a.ts:1:1)";
  test("plain JSON data, exact LLM and replacement",()=>{const doc=parse(fence("stacktrace",body),{path:"p.dh.md"});const b=doc.blocks.find(b=>b.type==="stacktrace")!;expect(check(doc)).toEqual([]);expect(b.type).toBe("stacktrace");if(b.type!=="stacktrace")throw Error();expect(JSON.parse(JSON.stringify(b.data))).toEqual(b.data);expect(b.llm).toBe("```stacktrace\n"+body+"\n```");expect(doc.llm).toContain(b.llm!);const other=parse(fence("stacktrace",body)+"\n:::llm\nA short trace.\n:::\n");expect(other.llm).toContain("A short trace.");expect(other.llm).not.toContain("at mine");});
  const cases:[string,string,string][]=[

@@ -6,14 +6,18 @@ import chartKinds from "../chart-kinds/part";
 import compare from "../compare/part";
 import compareImage from "../compare-image/part";
 import downloads from "../downloads/part";
+import explore from "../explore/part";
 import fishbone from "../fishbone/part";
 import flame from "../flame/part";
 import gallery from "../gallery/part";
 import gantt from "../gantt/part";
+import log from "../log/part";
 import lottie from "../lottie/part";
+import pdf from "../pdf/part";
 import sankey from "../sankey/part";
 import sequence from "../sequence/part";
 import stacktrace from "../stacktrace/part";
+import timeline from "../timeline/part";
 import trace from "../trace/part";
 import venn from "../venn/part";
 import video from "../video/part";
@@ -21,7 +25,7 @@ import wardley from "../wardley/part";
 import sparkInline from "../spark/inline";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, fishbone, flame, gallery, gantt, lottie, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
+export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, explore, fishbone, flame, gallery, gantt, log, lottie, pdf, sankey, sequence, stacktrace, timeline, trace, venn, video, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the inline parts (parts of a sentence), in name order; core/markdown.ts reads them (parts/inline.ts) */
 export const INLINE_PARTS: InlineDef<any, any>[] = [sparkInline];
@@ -29,7 +33,7 @@ export const INLINE_PARTS: InlineDef<any, any>[] = [sparkInline];
 export const INLINE_PART_NAMES = ["spark"] as const;
 
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;
+export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "explore", "fishbone", "flame", "gallery", "gantt", "log", "lottie", "pdf", "sankey", "sequence", "stacktrace", "timeline", "trace", "venn", "video", "wardley"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -38,14 +42,18 @@ export interface FolderPartData {
   "compare": ReturnType<typeof compare.parse>;
   "compare-image": ReturnType<typeof compareImage.parse>;
   "downloads": ReturnType<typeof downloads.parse>;
+  "explore": ReturnType<typeof explore.parse>;
   "fishbone": ReturnType<typeof fishbone.parse>;
   "flame": ReturnType<typeof flame.parse>;
   "gallery": ReturnType<typeof gallery.parse>;
   "gantt": ReturnType<typeof gantt.parse>;
+  "log": ReturnType<typeof log.parse>;
   "lottie": ReturnType<typeof lottie.parse>;
+  "pdf": ReturnType<typeof pdf.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
   "sequence": ReturnType<typeof sequence.parse>;
   "stacktrace": ReturnType<typeof stacktrace.parse>;
+  "timeline": ReturnType<typeof timeline.parse>;
   "trace": ReturnType<typeof trace.parse>;
   "venn": ReturnType<typeof venn.parse>;
   "video": ReturnType<typeof video.parse>;

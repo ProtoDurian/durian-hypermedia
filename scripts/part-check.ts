@@ -65,13 +65,16 @@ const MEASURE = (part: string) => `(() => {
   return { count: parts.length, sizes, sideways: se.scrollWidth - se.clientWidth, small, smallest: Math.round(smallest * 10) / 10 };
 })()`;
 
-const PORT = 4900 + Math.floor(Math.random() * 300);
+// a port nobody holds (the system picks it): a fixed or random one can land on another run's server and check its pages
+const freePort = () => { const s = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("") }); const p = s.port; s.stop(true); return p; };
+const PORT = freePort();
 const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), OUT, String(PORT), "--trusted-types"], { stdout: "ignore", stderr: "inherit" });
 let p: Page | null = null;
 const fails: string[] = [];
 const views: Record<string, unknown>[] = [];
 try {
   await new Promise((r) => setTimeout(r, 700));
+  if (server.exitCode !== null) throw new Error(`the page server did not start on port ${PORT}: the check is broken`);
   p = await launch();
   await p.send("Page.addScriptToEvaluateOnNewDocument", { source: COLLECT });
   // the control: under the policy a plain string into innerHTML throws and is reported

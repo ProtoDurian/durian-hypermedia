@@ -6,7 +6,7 @@
 //   thumbs: media/create.thumbs.vtt
 //   chapter 0:00 Start
 //   ```
-import { definePart } from "../types";
+import { definePart, type PartFileRef } from "../types";
 import type { Budget } from "../../core/budget";
 import { HEIGHTS, IMAGE_EXT, VIDEO_EXT, checkSrc, extOf, flag, fmtTime, onOff, titleOf, unknownKeys, urlRefusal, type Err } from "../downloads/media";
 import { durationOf, parseTimedBody, skipOf, speedsOf, startOf, transcriptMode, transcriptText, type Timed } from "../audio/timed";
@@ -62,6 +62,12 @@ export function videoLlm(v: VideoSpec): string {
   return v.cues.length ? `${head}\n\n${transcriptText(v.cues)}` : head;
 }
 
+/** the video, its poster, its caption files and the files its body names: they must exist */
+export const videoFiles = (v: VideoSpec, line: number): PartFileRef[] => [
+  ...(v.src ? [{ path: v.src, line }] : []), ...(v.poster ? [{ path: v.poster, line }] : []),
+  ...v.captions.map((c) => ({ path: c.src, line: c.line })), ...v.files,
+];
+
 export default definePart<VideoSpec>({
   name: "video",
   form: "fenced",
@@ -69,6 +75,7 @@ export default definePart<VideoSpec>({
   llmKind: "own",
   parse: (input, ctx) => parseVideo(input.body, input.bodyLine, input.attrs, input.line, ctx.limits, ctx.budget),
   llm: (v) => videoLlm(v),
+  files: (v, { line }) => videoFiles(v, line),
   llmExempt: (v) => v.cues.length > 0,   // the transcript is the content: the 400-token rule does not ask for :::llm
   check: (v) => v.errors.map((e) => ({ line: e.line, message: e.msg })),
 });

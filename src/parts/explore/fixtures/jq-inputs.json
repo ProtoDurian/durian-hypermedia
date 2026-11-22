@@ -1,0 +1,8 @@
+{
+  "order": { "id": "o-7", "customer": { "id": "c-12", "name": "Ana", "tags": ["vip", "early"] }, "lines": [ { "sku": "tea", "qty": 2, "price": 3.5 }, { "sku": "cup", "qty": 1, "price": 8 }, { "sku": "pot", "qty": 3, "price": 12.25 } ], "paid": true, "note": null },
+  "people": [ { "name": "Ana", "age": 31, "team": "red", "langs": ["go", "ts"] }, { "name": "Bo", "age": 25, "team": "blue", "langs": ["dart"] }, { "name": "Cy", "age": 42, "team": "red", "langs": [] }, { "name": "Di", "age": 25, "team": "blue", "langs": ["python", "go", "java"] } ],
+  "tree": { "name": "root", "kids": [ { "name": "a", "kids": [ { "name": "a1", "kids": [] }, { "name": "a2", "kids": [] } ] }, { "name": "b", "kids": [] } ] },
+  "nums": [5, 3, 9, 1, 7, 3],
+  "words": ["delta", "Alpha", "charlie", "bravo", "alpha"],
+  "cfg": { "server": { "host": "app.example.com", "port": 8443, "tls": true }, "limits": { "cpu": "500m", "mem": "256Mi" }, "env": "prod" }
+}

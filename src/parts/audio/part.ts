@@ -8,7 +8,7 @@
 //   marker 5:02 The crash [bad]
 //   0:00 Ana: Welcome back.
 //   ```
-import { definePart } from "../types";
+import { definePart, type PartFileRef } from "../types";
 import type { Budget } from "../../core/budget";
 import { AUDIO_EXT, HEIGHTS, checkSrc, flag, fmtTime, onOff, titleOf, tone, unknownKeys, type Err } from "../downloads/media";
 import { durationOf, parseTimedBody, skipOf, speedsOf, startOf, transcriptMode, transcriptText, type Timed } from "./timed";
@@ -51,6 +51,9 @@ export function audioLlm(a: AudioSpec): string {
   return a.cues.length ? `${head}\n\n${transcriptText(a.cues)}` : head;
 }
 
+/** the audio file and the files its body names: they must exist */
+export const audioFiles = (a: AudioSpec, line: number): PartFileRef[] => [...(a.src ? [{ path: a.src, line }] : []), ...a.files];
+
 export default definePart<AudioSpec>({
   name: "audio",
   form: "fenced",
@@ -58,6 +61,7 @@ export default definePart<AudioSpec>({
   llmKind: "own",
   parse: (input, ctx) => parseAudio(input.body, input.bodyLine, input.attrs, input.line, ctx.limits, ctx.budget),
   llm: (a) => audioLlm(a),
+  files: (a, { line }) => audioFiles(a, line),
   llmExempt: (a) => a.cues.length > 0,   // the transcript is the content: the 400-token rule does not ask for :::llm
   check: (a) => a.errors.map((e) => ({ line: e.line, message: e.msg })),
 });

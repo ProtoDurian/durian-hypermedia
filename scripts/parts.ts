@@ -14,6 +14,8 @@ export const SPEC_BEGIN = `<!-- parts:begin (${HEAD}) -->`;
 export const SPEC_END = "<!-- parts:end -->";
 /** the folders under src/parts/ that are not parts */
 export const NOT_PARTS = new Set(["kit", "generated"]);
+/** names the core keeps for its own reference-only types: no folder part may take them */
+export const RESERVED_NAMES = new Set(["svg", "interactive"]);
 /** the files every part folder has (fixtures/ holds at least one good-*.dh.md and one hostile-*.dh.md) */
 export const PART_FILES = ["part.ts", "limits.ts", "view.tsx", "style.css", "spec.md", "sample.md"];
 /** a folder with an inline.ts is also a part of a sentence (parts/inline.ts): it adds inline-view.tsx. A folder with an inline.ts and
@@ -56,6 +58,7 @@ export function readFolders(root: string): { folders: Folder[]; problems: string
   for (const name of names) {
     const at = join(dir, name);
     if (!NAME_RE.test(name)) { problems.push(`src/parts/${name}: a part's folder name is lower case letters and digits, words joined by "-"`); continue; }
+    if (RESERVED_NAMES.has(name)) { problems.push(`src/parts/${name}: "${name}" is a core reference-only type; a folder part may not take that name`); continue; }
     const inline = existsSync(join(at, "inline.ts")), part = existsSync(join(at, "part.ts"));
     const missing = (inline && !part ? INLINE_ONLY_FILES : [...PART_FILES, ...(inline ? INLINE_FILES : [])]).filter((f) => !existsSync(join(at, f)));
     if (!existsSync(join(at, `${name}.test.ts`))) missing.push(`${name}.test.ts`);

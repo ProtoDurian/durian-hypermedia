@@ -196,6 +196,56 @@ https://example.com/durian-markdown-0.7.0.tar.gz "Source archive (an example add
 media/requests.csv "Raw data" 15.4 KB note="One row per request."
 ```
 
+## Explore
+
+A fence in the data's own language, followed by `explore`, becomes a foldable tree with a search box, a copy-path button on every key and a **jq subset** query box. It reads JSON, YAML or CSV (a CSV's rows become objects). `query=` is the starting query. The box runs our own small jq (the "jq subset": paths, pipes, `select`, `map`, `keys`, `length`, `sort_by`, `group_by`, `to_entries`, `test`, string interpolation, building objects and arrays); a query that needs more work than a page may use says so, and a function outside the subset is named, never answered wrongly. It lacks assignment (`|=`), `reduce`, `foreach`, `def`, `paths`, `del`, `sub`, `gsub`, `match` and `walk`.
+
+```json explore title="One order" query=".lines[] | select(.qty > 1)"
+{
+  "id": "o-7",
+  "customer": { "id": "c-12", "name": "Ana", "tags": ["vip", "early"] },
+  "lines": [
+    { "sku": "tea", "qty": 2, "price": 3.5 },
+    { "sku": "cup", "qty": 1, "price": 8 },
+    { "sku": "pot", "qty": 3, "price": 12.25 }
+  ],
+  "paid": true,
+  "note": null
+}
+```
+
+The same reader takes YAML and CSV. TOML exploration is refused until a TOML reader is available; the TOML example below is ordinary code:
+
+```yaml explore title="A service config" query=".limits | map_values(ascii_upcase)"
+service: shop
+replicas: 3
+limits:
+  cpu: 500m
+  mem: 256Mi
+hosts:
+  - name: app-1.example.com
+    zone: a
+  - name: app-2.example.com
+    zone: b
+```
+
+```toml
+[server]
+host = "198.51.100.7"
+port = 8443
+tls = true
+
+[limits]
+cpu = "500m"
+```
+
+```csv explore title="Latency by region" query="sort_by(.p95) | reverse | .[0].region"
+region,p50,p95,requests
+us-west,42,120,1200000
+eu-central,55,180,830000
+ap-south,70,260,410000
+```
+
 ## Fishbone
 
 Causes by category along a spine into the effect. In a narrow column the spine turns vertical.
@@ -303,6 +353,20 @@ move api 2026-12-14
 launch "Launch" milestone after qa
 ```
 
+## Log
+
+A fence named `log`. It reads JSON lines, logfmt and the common "time level message key=value" shape. The filter box speaks **LogQL** (Grafana Loki's query language): `{level="error"}`, `|= "timeout"`, `!= "health"`, `|~ "5\\d\\d"`, `| status >= 500`; a box that starts with neither `{` nor `|` is plain words. Only the query half of LogQL is read, never metric queries. `filter=` is the starting filter. The author (often an agent) points at what matters with `@highlight` lines: a LogQL filter or `line 3-5`, a colour word and the reason in quotes.
+
+```log title="The failed deploy" labels="app=shop, env=prod" filter="{level=~\"warn|error\"}"
+2026-11-20T10:08:01Z info  deploy started version=1.4
+2026-11-20T10:08:12Z info  migration applied name=0042
+2026-11-20T10:09:03Z warn  cache miss rate high rate=0.41
+2026-11-20T10:09:05Z error request failed path=/cart status=500 err="timeout after 30s" span=checkout trace=request
+2026-11-20T10:09:06Z error request failed path=/cart status=500 err="timeout after 30s" span=checkout trace=request
+@highlight |= "timeout" [bad] "every failure is the same timeout"
+@highlight line 3 [warn] "the first sign"
+```
+
 ## Lottie
 
 A Lottie file is a drawing that moves. This one was written by hand for the sample: a box fills with blocks, one row at a time, then a tick appears. It plays while it is on screen, stops off it, and shows one still frame when the reader asks for less motion. The `colours:` line maps names inside the file to theme colours, so it follows light and dark.
@@ -310,6 +374,18 @@ A Lottie file is a drawing that moves. This one was written by hand for the samp
 ```lottie src="media/build.json" title="What happens while it builds" loop
 alt: A box fills with blocks, one row at a time, then a tick appears.
 colours: dh-c1 = c1, dh-c2 = c2, dh-c3 = c3, dh-good = good
+```
+
+## PDF
+
+pdf.js draws the pages on a canvas, and its text layer makes the words selectable and searchable. The file below was printed from a small made-up document. The viewer works a page at a time; try the search box, the outline and the zoom.
+
+```pdf src="media/sample.pdf" title="A sample document" page=1 height=l
+```
+
+`view=scroll` lays every page out in one scrolling column and draws the ones near the window.
+
+```pdf src="media/sample.pdf" title="The same file, scrolling" view=scroll height=s
 ```
 
 ## Sankey
@@ -387,7 +463,7 @@ Sign-ups this week were :spark[120,135,128,160,182,171,205] and rising, errors f
 
 ## Stacktrace
 
-A fence named `stacktrace`. It reads a trace as printed by Go, .NET, Bun or Node, Dart, Java or Python: the error line, each cause in its own block, threads as groups. Library frames fold into one bar; frames of your own code (`app=`) are marked, and with `repo=` and `strip=` they point at the file and line at that path and line. Tap a frame to open it.
+A fence named `stacktrace`. It reads a trace as printed by Go, .NET, Bun or Node, Dart, Java or Python: the error line, each cause in its own block, threads as groups. Library frames fold into one bar; frames of your own code (`app=`) are marked, and with `repo=` and `strip=` they name the file and line at the page’s pinned commit (when its front matter has a matching pins entry). Tap a frame to open it.
 
 ```stacktrace lang=go app=example.com/shop repo=example.com/shop strip=/src/shop/ title="A Go panic"
 panic: runtime error: index out of range [3] with length 3
@@ -462,6 +538,31 @@ Traceback (most recent call last):
   File "/usr/lib/python3.11/site-packages/x.py", line 5, in run
     raise ValueError("bad")
 ValueError: bad
+```
+
+## Timeline
+
+One line per event, oldest first; an indented line is a detail. A year, a month or a day.
+
+```timeline title="A release plan"
+2026-05-04 Design review [c1]
+  Scope and owners agreed
+2026-09 First release [c2]
+2026-11-21 Old drawing code removed [c5]
+  New drawn parts take their place
+2026-11-23 Version 2 ships [good] note="the big one"
+```
+
+With `dir=across` a wide screen lays it out sideways; a phone is always top to bottom. With steps, the events come in one group at a time.
+
+```timeline title="A build-up" dir=across
+2026 The idea
+@step The first half of the year.
+2026-03 A prototype
+2026-06 A first user
+@step The second half.
+2026-09 First release [c2]
+2026-12 Version 2 [good]
 ```
 
 ## Trace waterfall

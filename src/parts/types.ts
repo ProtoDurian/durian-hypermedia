@@ -54,6 +54,21 @@ export interface PartIssue { line?: number; level?: "error" | "warn"; message: s
 /** How the LLM view shows the part when the author wrote no :::llm after it. */
 export type PartLlm = "own" | "as-is";
 
+/** One local file a part names. */
+export interface PartFileRef {
+  /** the path as written in the page (a query or #fragment is dropped) */
+  path: string;
+  line: number;
+  /** the file's checksum must be this */
+  hash?: { algo: "sha256" | "sha512"; hex: string };
+  /** read the file as JSON and pass it to check (an unreadable one is refused by the Node entry) */
+  json?: boolean;
+  /** read at most this many bytes (default the Node entry's own cap); a bigger file is not read: check still gets its size */
+  readMax?: number;
+  /** the part's own rules over the file: its size, and its JSON when `json` and the file was read. Messages, no prefix. */
+  check?(file: { size: number; json?: unknown }): string[];
+}
+
 export interface PartDef<D = unknown> {
   /** the fence word, the same as the folder's name: lower case letters, digits and dashes */
   name: string;
@@ -81,6 +96,10 @@ export interface PartDef<D = unknown> {
   /** true when this part's LLM view may be over the 400-token rule without a :::llm after it, because the long text IS
    *  the content (an audio part's transcript). doccheck asks it with the part's data. */
   llmExempt?(data: D): boolean;
+  /** The local files this part's data names (a download, a Lottie, a poster, a caption file). Read only by the Node entry
+   *  (durian-hypermedia/node checkLocalFiles); parse, the checks and the browser never call it. `ctx.limits` are the caps the
+   *  page was parsed with, `ctx.line` the fence's line (for a path given in the info string). A path with a scheme or `//` is not local and is skipped; the rest is read under the host's root. */
+  files?(data: D, ctx: { limits: Limits; line: number }): PartFileRef[];
 }
 
 /** Make a part definition (type help; the generator checks the name against the folder). */

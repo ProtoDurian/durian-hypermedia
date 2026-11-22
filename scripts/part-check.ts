@@ -2,6 +2,7 @@
 // One part's browser check (format version 11): builds a page from only that part's sample, serves it under the strict
 // CSP with Trusted Types, and opens it in one headless Chrome at 1280 and 390, light and dark.
 //   bun scripts/part-check.ts <name> [--out <dir>]     (default out: dist/part-check/<name>)
+// Files in src/parts/<name>/media/ are served as media/ (a sample refers to them as media/<file>).
 // For each of the 4 views: the part is drawn (every [data-dh-part=<name>] has a size), no sideways scroll of the page,
 // no text under 11 px inside the part, every Next button pressed once with no error; a screenshot of each view. Then the
 // same sample rendered in the browser only (createRoot) under the policy: 0 Trusted Types violations, 0 script errors.
@@ -9,7 +10,7 @@
 import { launch, type Page } from "./cdp";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse } from "../src/index";
 import { DhDocument } from "../src/react/index";
@@ -26,6 +27,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 // ---- the page: only this part's sample ----
 mkdirSync(join(OUT, "assets"), { recursive: true });
 mkdirSync(join(OUT, "shots"), { recursive: true });
+// a part's own sample files (images, audio ...) in src/parts/<name>/media/ are served next to the page as media/
+if (existsSync(join(PKG, "src/parts", name, "media"))) cpSync(join(PKG, "src/parts", name, "media"), join(OUT, "media"), { recursive: true });
 writeFileSync(join(OUT, "assets/styles.css"), buildCss() + "\n" + readFileSync(join(PKG, "example/site.css"), "utf8"));
 const built = await Bun.build({ entrypoints: [join(PKG, "example/client.tsx"), join(PKG, "example/client-tt.tsx"), join(PKG, "example/tt-control.ts")], outdir: join(OUT, "assets"), splitting: true, format: "esm", minify: true, target: "browser", naming: { entry: "[name].[ext]", chunk: "c-[hash].[ext]" }, define: { "process.env.NODE_ENV": '"production"' } });
 if (!built.success) { console.error(built.logs); process.exit(1); }

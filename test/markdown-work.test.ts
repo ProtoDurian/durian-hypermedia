@@ -224,3 +224,13 @@ describe("LLM view rewrites: the same results as before", () => {
     }
   });
 });
+
+describe("a key chord list is split in one pass", () => {
+  test("same chords as before, and a long run of spaces inside one :kbd[] is quick", () => {
+    expect(inlineToLlm(":kbd[Ctrl , Shift+a]")).toBe("Ctrl, then Shift+a");
+    expect(inlineToLlm(":kbd[ cmd,  k , \tenter ]")).toBe(" cmd, then k, then enter ");
+    const t = performance.now();
+    inlineToLlm(`:kbd[a${" ".repeat(200_000)}b]`);
+    expect(performance.now() - t).toBeLessThan(500);
+  });
+});

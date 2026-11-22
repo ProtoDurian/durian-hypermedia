@@ -326,7 +326,8 @@ export function mouseParts(inner: string): { act: string; target: string } {
   const m = inner.trim().match(/^(?=(\S+))\1(?=(\s*))\2(.*)$/); // each run taken whole: no backtracking into them
   return { act: m?.[1] ?? inner, target: (m?.[3] ?? "").replace(/^"|"$/g, "") };
 }
-const chords = (k: string) => k.split(/\s*,\s*/);
+// k.split(/\s*,\s*/) in one pass (that pattern tries every space of a long run without a comma again)
+const chords = (k: string) => { const p = k.split(","); return p.map((x, i) => (i > 0 ? (i < p.length - 1 ? x.trim() : x.trimStart()) : i < p.length - 1 ? x.trimEnd() : x)); };
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
 export function inlineToLlm(md: string): string {
   return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner));

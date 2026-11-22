@@ -65,8 +65,10 @@ export interface PartFileRef {
   json?: boolean;
   /** read at most this many bytes (default the Node entry's own cap); a bigger file is not read: check still gets its size */
   readMax?: number;
+  /** read the file (up to readMax) and pass its bytes to check */
+  bytes?: boolean;
   /** the part's own rules over the file: its size, and its JSON when `json` and the file was read. Messages, no prefix. */
-  check?(file: { size: number; json?: unknown }): string[];
+  check?(file: { size: number; json?: unknown; bytes?: Uint8Array }): string[];
 }
 
 export interface PartDef<D = unknown> {

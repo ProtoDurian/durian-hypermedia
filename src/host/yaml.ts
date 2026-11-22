@@ -33,25 +33,27 @@ export const YAML_DEPTH = 64;
 export class YamlTooBig extends Error {}
 const fmt = (n: number) => n.toLocaleString("en-US");
 const blank = (c: number) => c === 32 || c === 9 || c === 0xfeff;
-// characters after which (blanks aside) a YAML node, so an alias, may start: a line start, "-", ":", "?", "[", "{", ","
-const NODE_START = new Set([10, 13, 45, 58, 63, 91, 123, 44]);
-const FLOW = new Set([44, 91, 93, 123, 125]);
-/** How many aliases a YAML text may hold: every "*" followed by a name where a node can start, whatever the name is
- *  spelled with. It may count a "*" inside a quoted string too (never fewer than the parser sees). One pass. */
+const alnum = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+/** The key a name has right after "&" or "*" at i: its leading run of ASCII letters and digits (at most 128 of them),
+ *  or else its first character; null when no name follows. An alias names its anchor exactly, and no parser ends a name
+ *  inside such a run, so an alias and its anchor always have the same key. */
+function nameKey(t: string, i: number): string | null {
+  if (i >= t.length) return null;
+  const c = t.charCodeAt(i);
+  if (c === 32 || c === 9 || c === 10 || c === 13) return null;
+  let j = i;
+  while (j < t.length && j < i + 128 && alnum(t.charCodeAt(j))) j++;
+  return t.slice(i, j > i ? j : i + 1);
+}
+/** How many aliases a YAML text may hold: every "*" whose name has the key of some "&" in the text, wherever they are
+ *  (no guess at where a node starts, which parsers read differently). It may count a "*" inside a value too, never
+ *  fewer than a parser resolves; with no "&" at all it is 0, so Markdown in values is never counted. Two passes. */
 export function yamlAliasCount(t: string): number {
-  const first = new Set<number>();
-  for (let i = t.indexOf("&"); i >= 0; i = t.indexOf("&", i + 1)) if (i + 1 < t.length) first.add(t.charCodeAt(i + 1));
-  if (!first.size) return 0;
-  let n = 0, prev = 10;
-  for (let i = 0; i < t.length; i++) {
-    const c = t.charCodeAt(i);
-    if (c === 10 || c === 13) { prev = 10; continue; }
-    if (blank(c)) continue;
-    if (c === 42 && NODE_START.has(prev) && i + 1 < t.length) { const d = t.charCodeAt(i + 1); if (!blank(d) && d !== 10 && d !== 13 && first.has(d)) n++; }
-    // a tag or an anchor where a node starts: the node itself (an alias, if a parser allows it there) may still follow
-    if ((c === 33 || c === 38) && NODE_START.has(prev)) { while (i + 1 < t.length) { const d = t.charCodeAt(i + 1); if (blank(d) || d === 10 || d === 13 || FLOW.has(d)) break; i++; } continue; }
-    prev = c;
-  }
+  const keys = new Set<string>();
+  for (let i = t.indexOf("&"); i >= 0; i = t.indexOf("&", i + 1)) { const k = nameKey(t, i + 1); if (k !== null) keys.add(k); }
+  if (!keys.size) return 0;
+  let n = 0;
+  for (let i = t.indexOf("*"); i >= 0; i = t.indexOf("*", i + 1)) { const k = nameKey(t, i + 1); if (k !== null && keys.has(k)) n++; }
   return n;
 }
 // "<" as YAML may spell it in a key: itself, or an escape in a double-quoted string
@@ -76,23 +78,22 @@ export function yamlMayMerge(t: string): boolean {
 // blanks and line breaks in the widest sense any YAML parser might take them (only used to find more, never fewer)
 const isBreak = (c: number) => c === 10 || c === 13 || c === 0x85 || c === 0x2028 || c === 0x2029;
 const wide = (c: number) => c <= 32 || c === 0xa0 || c === 0x1680 || (c >= 0x2000 && c <= 0x200b) || c === 0x202f || c === 0x205f || c === 0x3000 || c === 0xfeff;
-/** Whether a YAML text may hold a tag ("!" where a node can start, or after an anchor there) or a directive ("%"
- *  first on a line). A tag can spell a merge without the word (percent escapes, %TAG handles), so with an alias in
- *  the text any tag or directive is refused. A "!" or "%" inside a value (after other text) is not one. One pass. */
+/** Whether a YAML text may hold a tag or a directive: a "!" followed by a non-blank and not right after an ASCII letter
+ *  or digit (wherever it is: no guess at where a node starts), or a "%" first on a line. A tag can spell a merge without
+ *  "<<" or the word (percent escapes, %TAG handles), so with an alias in the text any tag or directive is refused.
+ *  "Wow!" and "50% off" are not tags; "x !y" is taken for one. One pass. */
 export function yamlMayTag(t: string): boolean {
-  let atNode = true, lineStart = true;
+  let lineStart = true;
   for (let i = 0; i < t.length; i++) {
     const c = t.charCodeAt(i);
-    if (isBreak(c)) { atNode = true; lineStart = true; continue; }
+    if (isBreak(c)) { lineStart = true; continue; }
     if (wide(c)) continue;
     if (lineStart && c === 37) return true;
     lineStart = false;
-    if (atNode && c === 33) return true;
-    if (atNode && c === 38) { // an anchor: its name, then the node (and its tag) may still start
-      while (i + 1 < t.length) { const d = t.charCodeAt(i + 1); if (wide(d) || isBreak(d) || FLOW.has(d)) break; i++; }
-      continue;
-    }
-    atNode = NODE_START.has(c);
+    if (c !== 33 || i + 1 >= t.length) continue;
+    const d = t.charCodeAt(i + 1);
+    if (wide(d) || isBreak(d) || (i > 0 && alnum(t.charCodeAt(i - 1)))) continue;
+    return true;
   }
   return false;
 }

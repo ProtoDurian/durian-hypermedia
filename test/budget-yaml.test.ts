@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parse, check, setYamlParser, LIMITS } from "../src/index";
 import { pageLimitsOf, partLimitsOf } from "../src/core/budget";
-import { yamlAliasCount, yamlMayMerge, yamlMayTag, yamlParse } from "../src/host/yaml";
+import { yamlAliasCount, yamlMayMerge, yamlMayTag, yamlParse, yamlPrecheck } from "../src/host/yaml";
 
 const F = "```";
 const PAGE = pageLimitsOf(), PART = partLimitsOf();
@@ -78,7 +78,7 @@ describe("before the parser runs: the alias count and merge keys", () => {
     expect(yamlParse("a: !!str 1\nb: 2")).toEqual({ a: "1", b: 2 });
   });
   test("a ! or % inside a value is not a tag or directive", () => {
-    const vals = ['"Wow! 50% off"', "Hello! world", "'100%'", '"a, b! c"', "x !y", "50 %"];
+    const vals = ['"Wow! 50% off"', "Hello! world", "'100%'", '"a, b! c"', "50 %", '"Q: why? *Answer*"'];
     for (const v of vals) {
       const src = `b: &é [1]\nc: *é\nt: ${v}\n`;
       expect(yamlMayTag(src)).toBe(false);
@@ -106,6 +106,11 @@ describe("before the parser runs: the alias count and merge keys", () => {
     expect(yamlAliasCount("a: &&x 1\nb: *&x")).toBe(1);
     expect(yamlAliasCount("a: &é 1\nb: [*é, *e, **bold**]")).toBe(1);
     expect(yamlAliasCount("no anchor: [*a, *b, *c]")).toBe(0);
+  });
+  test("a ! after a blank is taken for a tag, but only next to a real alias (the one narrow refusal)", () => {
+    expect(yamlMayTag("t: x !y")).toBe(true);
+    expect(() => yamlParse("t: x !y")).not.toThrow();
+    expect(() => yamlParse("b: &é [1]\nc: *é\nt: x !y")).toThrow(/tag/);
   });
   test("Markdown and ampersands in values are not taken for aliases or merges", () => {
     const vals = ['"**bold** and *em*"', '"Tom & Jerry, R&D"', "'a < b'", '"x, *y*, **z**"', "plain *text* here"];
@@ -194,5 +199,37 @@ describe("a seeded YAML fuzz: the Document stays within 8 x input + 2 x (page va
     }
     expect(drawn).toBeGreaterThan(300); // most small cases still draw
     void PART;
+  });
+});
+
+describe("the whole pre-parse check, fuzzed: every alias Bun resolves is counted, every merge is refused", () => {
+  test("20,000 seeded documents: anchors and aliases behind tags, anchors, quotes, comments, odd blanks, in every frame", () => {
+    let seed = 6;
+    const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+    const pick = <T>(a: T[]) => a[rnd(a.length)];
+    const props = ["", "", "", "!t ", "!<t,u> ", "!<t]u> ", "!<a>b> ", "!<[> ", "!t,u ", "!! ", "! ", "!!str ", "!!map ", "!%6d ", "!<t#u> ", "!<t:u> ", "&z ", "&z,w ", "&z] ", "&z:w ", "&! ", "&* ", "&z\t", "!t\n    ", "&z\n    ", "#c\n    ", '"q" ', "'q' ", "] ", "> ", ": ", "- ", "? ", "\\ ", "\u00a0", "\u2028", "\ufeff", "\r", "\u0085"];
+    const frames = [(x: string) => " " + x, (x: string) => " [" + x + "]", (x: string) => " [1," + x + "]", (x: string) => " {k: " + x + "}", (x: string) => ' {"k":' + x + "}", (x: string) => "\n  - " + x, (x: string) => "\n  k: " + x, (x: string) => "\n  ? " + x, (x: string) => "\n  " + x, (x: string) => "\n  <<: " + x, (x: string) => "\n  !!%6derge k: " + x, (x: string) => " {<<: " + x + "}", (x: string) => "\n  " + x + " : 1"];
+    const defs = ["s: &N {ZQMARK: 1}", "s: !<t,u> &N {ZQMARK: 1}", "s: [&N {ZQMARK: 1}]", "s: {k: &N {ZQMARK: 1}}", "s:\n  - &N {ZQMARK: 1}", '"s":\n  &N {ZQMARK: 1}', "{s: &N {ZQMARK: 1}, r: 1}", "? &N ZQMARK\n: 1"];
+    const names = ["a", "a", "ab", "a-b", "a.b", "a,b", "é", "*", "-", "1", "😀", "!", ":", "&", "", "aaaaaaaab"];
+    const marks = (v: any, seen = new Set<object>()): number => {
+      if (v === "ZQMARK") return 1;
+      if (!v || typeof v !== "object" || seen.has(v)) return 0;
+      seen.add(v); let n = 0; for (const [k, x] of Object.entries(v)) n += marks(x, seen) + (k === "ZQMARK" ? 1 : 0); seen.delete(v); return n;
+    };
+    const holders = (v: any, out = new Set<object>()): Set<object> => { if (v && typeof v === "object" && !out.has(v)) { if (!Array.isArray(v) && "ZQMARK" in v) out.add(v); for (const x of Object.values(v)) if (x && typeof x === "object") holders(x, out); } return out; };
+    const refused = (s: string, most: number) => { try { yamlPrecheck(s, most); return false; } catch { return true; } };
+    let resolved = 0, merged = 0;
+    for (let i = 0; i < 20_000; i++) {
+      const N = pick(names);
+      let x = ""; for (let j = rnd(3); j >= 0; j--) x += pick(props);
+      const s = pick(defs).replaceAll("&N", "&" + N) + "\nl:" + pick(frames)(x + "*" + N) + "\n";
+      let v: any; try { v = (globalThis as any).Bun.YAML.parse(s); } catch { continue; }
+      if (marks(v) < 2) continue;
+      resolved++;
+      expect({ s, counted: refused(s, 0) }).toEqual({ s, counted: true });
+      if (!s.startsWith("? ") && holders(v).size > 1) { merged++; expect({ s, refused: refused(s, 16) }).toEqual({ s, refused: true }); }
+    }
+    expect(resolved).toBeGreaterThan(500);
+    expect(merged).toBeGreaterThan(50);
   });
 });

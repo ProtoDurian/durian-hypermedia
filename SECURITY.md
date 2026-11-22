@@ -69,10 +69,11 @@ What holds:
   is charged to the part, so to the page.
 - **YAML anchors and aliases** (front matter and charts, with Bun's parser or one given to `setYamlParser`), whatever the
   anchors are named:
-  - before any parser runs, from the text: at most `maxYamlAliases` (16) aliases. An alias is counted where a YAML node
-    can start and only when an anchor (`&`) with the same first character is somewhere in the text, so Markdown such as
-    `**bold**` in a value is not taken for one. In a text that has an alias, a merge key (`<<`, in any spelling), a tag
-    (`!` where a node starts) and a directive (`%` first on a line) are refused: write the keys out, or drop the tag.
+  - before any parser runs, from the text: at most `maxYamlAliases` (16) aliases. An alias is counted wherever it is
+    written (parsers disagree about where a node starts), but only when an anchor (`&`) whose name starts the same way
+    is somewhere in the text, so Markdown such as `**bold**` in a value is not taken for one. In a text that has an
+    alias, a merge key (`<<`, in any spelling), a tag (a `!` not right after a letter or digit) and a directive (`%`
+    first on a line) are refused: write the keys out, or drop the tag.
     (A parser copies merged maps, so that work would come before anything could size it, and a tag or a directive can
     spell a merge without `<<`.) Without an alias, tags and merges of maps written in place are read as before.
   - after parsing, before anything reads, keeps or writes the value: counted as it is read (an alias counts what it

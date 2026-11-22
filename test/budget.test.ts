@@ -22,7 +22,7 @@ const PART = partLimitsOf(), PAGE = pageLimitsOf();
 // every page budget parse() and check() make, to read its counters afterwards
 const made: Budget[] = [];
 const realPart = Budget.prototype.part;
-Budget.prototype.part = function (this: Budget) { if (!this.parent && !made.includes(this)) made.push(this); return realPart.call(this); };
+Budget.prototype.part = function (this: Budget, ...a: Parameters<Budget["part"]>) { if (!this.parent && !made.includes(this)) made.push(this); return realPart.apply(this, a); };
 afterEach(() => { made.length = 0; });
 const underCaps = (b: Budget, L = b.limits) => {
   // a budget never lets work run past a cap: the charge that would cross it throws first, so the work done stays under

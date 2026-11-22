@@ -6,8 +6,8 @@ title: Compare image, good
 Two pictures of one dashboard, a slider between them.
 
 ```compare-image title="A dashboard, light and dark" before="Light" after="Dark" start=40
-before: images/before-light.svg "A dashboard with four tiles and a bar chart on a light page"
-after: images/after-dark.svg "The same dashboard on a dark page"
+before: media/before-light.svg "A dashboard with four tiles and a bar chart on a light page"
+after: media/after-dark.svg "The same dashboard on a dark page"
 ```
 
 The same pair turned, with a fixed shape.

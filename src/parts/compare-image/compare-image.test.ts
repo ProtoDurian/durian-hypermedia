@@ -221,7 +221,7 @@ describe("compare-image: fixtures and the sample's files", () => {
   }
   test("the sample names two images that ship in this folder", () => {
     const sample = readFileSync(join(import.meta.dir, "sample.md"), "utf8");
-    for (const m of sample.matchAll(/^(?:before|after): images\/(\S+) /gm)) expect(existsSync(join(import.meta.dir, "images", m[1]))).toBe(true);
+    for (const m of sample.matchAll(/^(?:before|after): media\/(\S+) /gm)) expect(existsSync(join(import.meta.dir, "media", m[1]))).toBe(true);
     const doc = parse(sample, { path: "s.dh.md" });
     expect(check(doc)).toEqual([]);
   });

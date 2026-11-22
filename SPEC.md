@@ -301,8 +301,8 @@ Cost at our size: good, bad, good
 
 ````
 ```compare-image title="A dashboard, light and dark" before="Light" after="Dark"
-before: images/before-light.svg "A dashboard with four tiles and a bar chart on a light page"
-after: images/after-dark.svg "The same dashboard on a dark page"
+before: media/before-light.svg "A dashboard with four tiles and a bar chart on a light page"
+after: media/after-dark.svg "The same dashboard on a dark page"
 ```
 ````
 

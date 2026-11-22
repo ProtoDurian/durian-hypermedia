@@ -121,11 +121,23 @@ function runMarks(state: StateInline, finders: RefFinder[]): RunMarks {
 function lowerBound(a: number[], x: number): number { let lo = 0, hi = a.length; while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] < x) lo = mid + 1; else hi = mid; } return lo; }
 
 // ---- GFM autolink literals (github.github.com/gfm, "Autolinks (extension)"): www., http://, https://, ftp:// and e-mail
-// addresses. Each starts after a line start, white space or one of * _ ~ ( ; the rule reads forward once.
+// addresses. www. starts after a line start, white space or one of * _ ~ ( (GFM); a scheme starts after any character
+// that is not a letter or a digit, as 0.6.1 read it ("url=https://...", "key:https://...", a quote before it). The rule
+// reads forward once: a domain is scanned once for every start inside it (domainEnd keeps its last scan).
 function litStart(src: string, pos: number): boolean {
+  const pre = litPrefix(src, pos);
+  if (!pre) return false;
   const p = pos > 0 ? src.charCodeAt(pos - 1) : -1;
-  if (!(p < 0 || isWs(p) || p === 0x2a || p === 0x5f || p === 0x7e || p === 0x28)) return false;
-  return litPrefix(src, pos) > 0;
+  if (p < 0 || isWs(p) || p === 0x2a || p === 0x5f || p === 0x7e || p === 0x28) return true;
+  if ((src.charCodeAt(pos) | 0x20) === 0x77) return false;
+  return !isWordBefore(src, pos);
+}
+/** Whether the character before pos is a letter or a digit (any script). */
+function isWordBefore(src: string, pos: number): boolean {
+  const p = src.charCodeAt(pos - 1);
+  if (p < 0x80) return isAlnum(p);
+  const cp = pos >= 2 && p >= 0xdc00 && p <= 0xdfff ? src.codePointAt(pos - 2)! : p;
+  return /[\p{L}\p{N}]/u.test(String.fromCodePoint(cp));
 }
 function litPrefix(src: string, pos: number): number {
   const lc = (i: number) => src.charCodeAt(i) | 0x20;
@@ -136,18 +148,48 @@ function litPrefix(src: string, pos: number): number {
   return 0;
 }
 const isDomainCh = (c: number) => isAlnum(c) || c === 0x2d || c === 0x5f || c > 0x7f && !isWs(c);
-/** End of a valid domain at i (segments of letters, digits, - and _, joined by dots; no _ in the last two), or -1. */
-function domainEnd(src: string, i: number, max: number, needDot: boolean): number {
-  let j = i, dots = 0, underLast = false, underPrev = false, segLen = 0;
-  for (; j < max; j++) {
-    const c = src.charCodeAt(j);
-    if (c === 0x2e) { if (segLen === 0) break; if (j + 1 >= max || !isDomainCh(src.charCodeAt(j + 1))) break; dots++; underPrev = underLast; underLast = false; segLen = 0; continue; }
-    if (!isDomainCh(c)) break;
-    if (c === 0x5f) underLast = true;
-    segLen++;
+// the last domain scan: where it started and stopped, and for the domain as scanned and for it without the trailing
+// "." and "_" (the GFM rules trim those before the domain is judged): its last two dots and the last "_" of each of its
+// last two segments. A scan from any later start inside it stops at the same place (a stop depends only on the
+// characters), so a start inside it is answered from these without reading again.
+interface DomTail { end: number; lastDot: number; prevDot: number; underLast: number; underPrev: number }
+const dom = { src: "", max: -1, from: -1, end: -1, full: null as DomTail | null, trimmed: null as DomTail | null };
+function domTail(src: string, from: number, end: number): DomTail {
+  // read back from end over at most the last two segments
+  const t: DomTail = { end, lastDot: -1, prevDot: -1, underLast: -1, underPrev: -1 };
+  for (let k = end - 1; k >= from; k--) {
+    const c = src.charCodeAt(k);
+    if (c === 0x2e) { if (t.lastDot < 0) t.lastDot = k; else { t.prevDot = k; break; } }
+    else if (c === 0x5f) { if (t.lastDot < 0) { if (t.underLast < 0) t.underLast = k; } else if (t.underPrev < 0) t.underPrev = k; }
   }
-  if (j === i || segLen === 0 || underLast || underPrev || (needDot && dots === 0)) return -1;
-  return j;
+  return t;
+}
+/** The end of the domain characters at i (segments of letters, digits, - and _, joined by dots), or -1 when there are none. */
+function domainEnd(src: string, i: number, max: number): number {
+  if (!(dom.src === src && dom.max === max && i >= dom.from && i < dom.end)) {
+    let j = i, segLen = 0;
+    for (; j < max; j++) {
+      const c = src.charCodeAt(j);
+      if (c === 0x2e) { if (segLen === 0) break; if (j + 1 >= max || !isDomainCh(src.charCodeAt(j + 1))) break; segLen = 0; continue; }
+      if (!isDomainCh(c)) break;
+      segLen++;
+    }
+    dom.src = src; dom.max = max; dom.from = i; dom.end = j; dom.full = null; dom.trimmed = null;
+  }
+  return dom.end > i && src.charCodeAt(i) !== 0x2e ? dom.end : -1;
+}
+/** Whether the domain from i to end (dom.end, or dom.end less its trailing "." and "_") is valid: no _ in its last two
+ * segments, and a dot when one is needed. */
+function domainOk(src: string, i: number, end: number, needDot: boolean): boolean {
+  let t: DomTail;
+  if (end === dom.end) t = dom.full ??= domTail(src, dom.from, dom.end);
+  else {
+    t = dom.trimmed ??= (() => { let e = dom.end; while (e > dom.from && (src.charCodeAt(e - 1) === 0x2e || src.charCodeAt(e - 1) === 0x5f)) e--; return domTail(src, dom.from, e); })();
+    if (end !== t.end) return false;
+  }
+  if (end <= i) return false;
+  const dots = t.lastDot >= i;
+  return !(t.underLast >= i || (dots && t.underPrev >= i) || (needDot && !dots));
 }
 /** Trailing punctuation that is not part of the link (the GFM rules: ? ! . , : * _ ~, an unbalanced ), an entity-like &x;). */
 function trimTrail(src: string, from: number, end: number): number {
@@ -162,18 +204,19 @@ function trimTrail(src: string, from: number, end: number): number {
   }
 }
 function autolinkLiteral(state: StateInline, silent: boolean): boolean {
-  if (state.linkLevel > 0) return false;
+  // never inside a link, nor while markdown-it looks for the end of a link's text (silent): brackets come first
+  if (state.linkLevel > 0 || silent) return false;
   const src: string = state.src, pos: number = state.pos, max: number = state.posMax;
   if (isLocalCh(src.charCodeAt(pos)) && emailLiteral(state, silent)) return true;
   if (!litStart(src, pos)) return false;
   const pre = litPrefix(src, pos);
   const www = (src.charCodeAt(pos) | 0x20) === 0x77;
-  const d = domainEnd(src, pos + pre, max, www);
+  const d = domainEnd(src, pos + pre, max);
   if (d < 0) return false;
   let end = d;
   while (end < max) { const ch = src.charCodeAt(end); if (isWs(ch) || ch === 0x3c) break; end++; }
   end = trimTrail(src, pos, end);
-  if (end <= pos + pre) return false;
+  if (end <= pos + pre || !domainOk(src, pos + pre, Math.min(end, d), false)) return false;
   if (!silent) {
     const text = src.slice(pos, end);
     pushLink(state, www ? "http://" + text : text, text);
@@ -189,7 +232,7 @@ const mail = { src: "", runFrom: -1, runEnd: -1, domAt: -1, domEnd: -1 };
 function emailAt(src: string, p: number, max: number): number {
   if (!(mail.src === src && p >= mail.runFrom && p <= mail.runEnd)) {
     let e = p; while (e < src.length && isLocalCh(src.charCodeAt(e))) e++;
-    if (mail.src !== src) { mail.domAt = -1; mail.domEnd = -1; }
+    if (mail.src !== src) { mail.domAt = -1; mail.domEnd = -1; dom.src = ""; }
     mail.src = src; mail.runFrom = p; mail.runEnd = e;
   }
   const at = mail.runEnd;
@@ -430,7 +473,7 @@ function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: num
   const md = readerFor(defs), env: any = {};
   md.options.maxNesting = nestCap(maxDepth);
   const toks = md.parse(src, env);
-  mail.src = ""; // the e-mail scan's cache need not hold the text
+  mail.src = ""; dom.src = ""; // the e-mail and domain scans' caches need not hold the text
   return { toks, md, env };
 }
 /** The inline tokens of an inline token, read now (with the inline nesting cap) and not kept on it. */
@@ -441,7 +484,7 @@ function kidsOf(t: Tok | undefined): Tok[] {
   const md = cur.md, keep = md.options.maxNesting, out: Tok[] = [];
   md.options.maxNesting = INLINE_NEST;
   try { md.inline.parse(t.content, md, cur.env, out); } finally { md.options.maxNesting = keep; }
-  mail.src = "";
+  mail.src = ""; dom.src = "";
   return out;
 }
 /** Run f with the reader and env of a lexed text current (kidsOf reads from them); nested calls restore the outer one. */
@@ -653,9 +696,11 @@ function quote(toks: Tok[], from: number, to: number, ctx: MdContext, depth: num
       const word = raw.replace(/:$/, "");
       if (CALLOUT_WORDS[word] && /:$/.test(raw)) {
         const rest = kids.slice(sc + 1);
-        if (rest[0]?.type === "text") rest[0] = { ...rest[0], content: rest[0].content.replace(/^\s+/, "") } as Tok;
+        // the white space after the label goes; a text node it leaves empty stays, as 0.6.1 had it (before a code span)
+        const lead = inlines(rest, 0, rest.length, ctx, depth + 1);
+        if (lead[0]?.t === "text" && (rest[0]?.type === "text" || rest[0]?.type === "softbreak")) lead[0] = { t: "text", v: lead[0].v.replace(/^\s+/, "") };
         const pEnd = closeOf(toks, from, to);
-        const body: MdBlock[] = [{ t: "p", c: inlines(rest, 0, rest.length, ctx, depth + 1) }, ...blocks(toks, pEnd + 1, to, ctx, depth + 1, lines)];
+        const body: MdBlock[] = [{ t: "p", c: lead }, ...blocks(toks, pEnd + 1, to, ctx, depth + 1, lines)];
         return { t: "callout", kind: CALLOUT_WORDS[word], label: word, c: body };
       }
     }
@@ -668,10 +713,11 @@ function inlineRaw(toks: Tok[], from: number, to: number): string {
   for (let j = from; j < to; j++) { const t = toks[j]; s += t.type === "inline" ? t.content : t.type === "softbreak" ? "\n" : t.markup && t.nesting !== 0 ? t.markup : t.type === "text_special" ? t.markup : t.content ?? ""; }
   return s;
 }
-function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number): MdInline[] {
+function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, inLink = false): MdInline[] {
   if (depth > ctx.maxDepth) return [{ t: "text", v: inlineRaw(toks, from, to) }];
   const out: MdInline[] = [];
-  // plain text and soft line breaks join into one text node, as the tree had them; an escaped character is a node of its own
+  // plain text and soft line breaks join into one text node, as the tree had them; an escaped character is a node of its own,
+  // except an escaped bracket in a link's text, which joins the text around it (as 0.6.1 had it)
   let buf: string | null = null;
   const flush = () => { if (buf !== null) { out.push({ t: "text", v: decodeEntities(buf) }); buf = null; } };
   for (let i = from; i < to; i++) {
@@ -683,6 +729,7 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
         // a reference stays as written; a real escape (a backslash and ASCII punctuation) is a node of its own; a backslash
         // before anything else is plain text, as it was
         if (t.info === "entity" || !(t.markup.length >= 2 && t.content === t.markup.slice(1))) buf = (buf ?? "") + t.markup;
+        else if (inLink && (t.content === "[" || t.content === "]")) buf = (buf ?? "") + t.content;
         else { flush(); out.push({ t: "text", v: t.content }); }
         break;
       case "hardbreak": flush(); out.push({ t: "br" }); break;
@@ -690,14 +737,14 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
       case "strong_open": case "em_open": case "s_open": {
         flush();
         const e = closeOf(toks, i, to);
-        out.push({ t: t.type === "strong_open" ? "strong" : t.type === "em_open" ? "em" : "del", c: inlines(toks, i + 1, e, ctx, depth + 1) });
+        out.push({ t: t.type === "strong_open" ? "strong" : t.type === "em_open" ? "em" : "del", c: inlines(toks, i + 1, e, ctx, depth + 1, inLink) });
         i = e;
         break;
       }
       case "link_open": {
         flush();
         const e = closeOf(toks, i, to);
-        const c = inlines(toks, i + 1, e, ctx, depth + 1);
+        const c = inlines(toks, i + 1, e, ctx, depth + 1, true);
         const raw = String(t.attrGet("href") ?? "");
         const title = attr(t, "title");
         if (/^code:/i.test(raw)) { out.push({ t: "coderef", ref: raw.slice(5), c }); i = e; break; }
@@ -729,7 +776,7 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
       case "dh-ref": flush(); out.push({ t: "ref", name: (t.meta as any).name, text: t.content, data: (t.meta as any).data }); break;
       case "html_inline": flush(); out.push({ t: "text", v: t.content }); break;   // inline HTML: shown as the text it is
       default:
-        if (t.nesting === 1) { flush(); const e = closeOf(toks, i, to); out.push(...inlines(toks, i + 1, e, ctx, depth + 1)); i = e; }
+        if (t.nesting === 1) { flush(); const e = closeOf(toks, i, to); out.push(...inlines(toks, i + 1, e, ctx, depth + 1, inLink)); i = e; }
         else if (t.content) buf = (buf ?? "") + t.content;
     }
   }

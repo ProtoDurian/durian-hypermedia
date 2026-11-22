@@ -2,17 +2,19 @@
 import type { PartDef } from "../types";
 import downloads from "../downloads/part";
 import fishbone from "../fishbone/part";
+import gallery from "../gallery/part";
 import sankey from "../sankey/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { downloads, fishbone, sankey } as const;
+export const FOLDER_PARTS = { downloads, fishbone, gallery, sankey } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["downloads", "fishbone", "sankey"] as const;
+export const FOLDER_PART_NAMES = ["downloads", "fishbone", "gallery", "sankey"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
   "downloads": ReturnType<typeof downloads.parse>;
   "fishbone": ReturnType<typeof fishbone.parse>;
+  "gallery": ReturnType<typeof gallery.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
 }

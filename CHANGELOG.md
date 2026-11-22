@@ -80,6 +80,22 @@ candlesticks, free alignment grids, your own marks and prompts, and a banner tha
   instead of through their walls; layer planes fade during a move into or out of a scene; moving chips step aside from words
   and other chips; no 3D word is under 11 px; labels of who takes part show inside a scene inside the scene.
 - The code walk's fold bar is not dimmed with the lines out of focus, and its border shows on dark.
+- 3D stages stay drawn: a page asks for WebGL once and gives the test context back at once, and a 3D stage holds its WebGL
+  context only near the screen (before, about 45 test contexts at load pushed out the one on screen: a blank stage with
+  floating words after a jump straight to a 3D scene). A lost context is taken again and redrawn.
+- 3D on a phone: when the whole view would draw words under 11 px, the camera frames what the step touches; layer names
+  keep their order and their plane; words hide while the camera flies into or out of a scene inside the scene; a 3D name at
+  rest keeps off lines that do not end at its own thing; the 3D fit fills the stage (a turned scene used a third of it).
+- 2D: the view slides to cut the fewest things, and every side where it cuts one is shaded; a tag rests nearer its dot.
+- Meters are 7 units tall in an outlined track (a full one read as a line); in 3D they stand on the front face.
+- A closed array, map or tree says what it holds in its title (`sorted ids · 4 items`) when it fits.
+- The code walk's note keeps inline code in its sentence; the editor's step badge counts from 1; a walk or editor pane is
+  as tall as its code (no floor of 6 or 8 rows; the phone editor keeps 8).
+- Alignment grids: columns wide enough for two-line chips, labels kept inside their own cell, a swipe hint when a grid is
+  wider than the page.
+- Charts: whole-number ticks for counts, log axes ending on powers of ten, radar and polar grids that show on dark; the
+  candlestick key wraps between items.
+- A file tree row removed in its first step is tinted as removed, not as added.
 
 ## 0.5.1
 

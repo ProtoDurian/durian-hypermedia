@@ -51,6 +51,7 @@
 .cw-notes { display: grid; padding: 14px 16px 10px; background: var(--surface); }
 .cw-note { grid-area: 1 / 1; display: flex; align-items: flex-start; font-size: var(--fs-s); line-height: 1.5; color: var(--ink-2); opacity: 0; transition: opacity .25s; }
 .cw-note.is-active { opacity: 1; }
+.cw-nt { flex: 1 1 0; min-width: 0; } /* the note is one box: inline code in it no longer becomes a flex column of its own */
 .cw-note[aria-hidden="true"] { visibility: hidden; }
 
 /* ---- editor: a small IDE ---- */
@@ -124,6 +125,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .fx-badge b { font: 700 11px var(--font-mono); color: inherit; }
 .b-new { background: var(--good-soft); color: var(--good-ink); } .b-changed { background: var(--warn-soft); color: var(--warn-ink); }
 .b-removed { background: var(--bad-soft); color: var(--bad-ink); } .b-generated { background: var(--info-soft); color: var(--info-ink); } .b-conflict { background: var(--hot-soft); color: var(--hot); }
+.fx-row.is-removed { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
 .fx-row.is-removed .fx-name { text-decoration: line-through; color: var(--muted); }
 .fx-note { color: var(--muted); font-size: var(--fs-xs); padding: 0 8px 4px 46px; flex-basis: 100%; }
 .fx-gap { color: var(--faint); font-style: italic; font-size: var(--fs-xs); gap: 8px; padding-top: 2px; padding-bottom: 4px; }
@@ -467,7 +469,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* format version 6: a meter (level=) and a stream (send stream) */
 /* format version 8: the fill is the meter's own token in every family and tone (a tone colours the box's border,
    so a fill of the same colour would vanish into it) */
-.scn-meter-track { fill: var(--meter-track); }
+.scn-meter-track { fill: var(--meter-track); stroke: var(--meter); stroke-width: 1; stroke-opacity: 0.55; }
 .scn-meter-fill { fill: var(--meter); transition: none; }
 .scn-stream-track { fill: none; stroke: color-mix(in srgb, var(--hot) 30%, transparent); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; }
 .scn-send.cc .scn-stream-track { stroke: color-mix(in srgb, var(--k) 40%, transparent); }
@@ -480,7 +482,9 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 
 /* candlestick key: up is a light body with a good edge, down a solid bad body (never colour alone) */
 .candle-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
-.candle-key .ck { display: inline-block; width: 10px; height: 16px; border-radius: 2px; border: 2px solid var(--good); background: var(--good-soft); }
+/* each swatch stays with its words: the key wraps between items, never inside one */
+.candle-key .ck-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.candle-key .ck { flex: none; display: inline-block; width: 10px; height: 16px; border-radius: 2px; border: 2px solid var(--good); background: var(--good-soft); }
 .candle-key .ck-down { border-color: var(--bad); background: var(--bad); }
 
 /* a file tree's own marks and a terminal's own prompts (format version 10): a tone sets the colours; only the ones a part uses are listed */
@@ -496,3 +500,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    stage shows no server-drawn 2D: that is the wide layout, words of about 6 px, and a scene that opens in 3D would flash
    it. Only when scripts run (the html has class js); without them the server's drawing stays */
 @media (max-width: 560px) { .js .scn:not([data-live]) .scn-svg { visibility: hidden; } }
+
+/* ---- format version 10: a mermaid edge label sits on a solid card, so its arrow never runs through the words
+   (mermaid's own sheet draws that card at half opacity; its rules are by id, so these need !important) ---- */
+.mermaid-svg svg .edgeLabel rect, .mermaid-svg svg .edgeLabel .background { opacity: 1 !important; fill: var(--surface) !important; }

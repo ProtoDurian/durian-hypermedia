@@ -12,7 +12,11 @@
 
 export interface RPt { x: number; y: number }
 // kind: the thing's shape (a pill's round ends and a cylinder's caps leave less of a side for lines)
-export interface RRect { x: number; y: number; w: number; h: number; kind?: string }
+// head: a container's heading; a queue's rails and a stack's walls start under it (site/src/anim.tsx)
+export interface RRect { x: number; y: number; w: number; h: number; kind?: string; head?: number }
+// the part of a thing a line meets (format version 10): a queue or a stack is drawn open, its walls under its heading,
+// so a line meets them there (beside the heading it started in empty space); any other thing is drawn whole
+export const wallRect = (r: RRect): RRect => ((r.kind === "queue" || r.kind === "stack") && r.head && r.h - r.head > 8 ? { ...r, y: r.y + r.head, h: r.h - r.head, head: 0 } : r);
 // one cubic piece; a routed line is several (straight pieces and rounded corners), kept in segs with their lengths
 export interface Cubic { P: RPt; c1: RPt; c2: RPt; Q: RPt; segs?: Cubic[]; lens?: number[] }
 export type Side = "t" | "b" | "l" | "r";
@@ -33,8 +37,8 @@ const OPP: Record<Side, Side> = { t: "b", b: "t", l: "r", r: "l" };
 const vertSide = (s: Side) => s === "t" || s === "b";
 
 // how far along a side an end may sit: the side's half length, less the corner
-export function sideRoom(r: RRect, s: Side): number {
-  const v = vertSide(s), len = v ? r.w : r.h;
+export function sideRoom(r0: RRect, s: Side): number {
+  const r = wallRect(r0), v = vertSide(s), len = v ? r.w : r.h;
   switch (r.kind) {
     case "pill": return Math.max(0, v ? r.w / 2 - r.h / 2 + 2 : r.h * 0.22);
     case "cylinder": return Math.max(0, v ? len / 2 - 8 : len / 2 - 12);
@@ -43,8 +47,8 @@ export function sideRoom(r: RRect, s: Side): number {
   }
 }
 // the point on side s, o along it from its middle, PORT_GAP out
-export function portAt(r: RRect, s: Side, o: number): RPt {
-  const room = sideRoom(r, s), oo = Math.max(-room, Math.min(room, o));
+export function portAt(r0: RRect, s: Side, o: number): RPt {
+  const r = wallRect(r0), room = sideRoom(r, s), oo = Math.max(-room, Math.min(room, o));
   const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
   switch (s) {
     case "t": return { x: cx + oo, y: r.y - PORT_GAP };
@@ -227,7 +231,8 @@ export interface RBox extends RRect { key: number; kind: string }
 // middle leg of a step runs in the free gap between them, not inside a container. area: where a line may run (the
 // scene and a margin)
 // conts: the containers' outlines (a line crosses them, but does not run along them)
-export interface Req { id: string; a: RBox; b: RBox; words: RRect[]; shapes: RRect[]; ga?: RRect; gb?: RRect; area?: RRect; conts?: RRect[] }
+// away (format version 10): the containers that hold neither end; a line runs through one only when it must
+export interface Req { id: string; a: RBox; b: RBox; words: RRect[]; shapes: RRect[]; ga?: RRect; gb?: RRect; area?: RRect; conts?: RRect[]; away?: RRect[] }
 // clean: it crosses no word, no thing and no other line, meets no line at one point and never turns back
 export interface Choice { rt: Route | null; score: number; pts: RPt[]; clean: boolean; hard: number }
 // lines that keep their old way: a circle's lines run along the line between the centres (a tree's edges)
@@ -250,10 +255,10 @@ export function fanOut(ends: End[]): Map<string, number> {
   const groups = new Map<string, End[]>();
   for (const e of ends) { const k = `${e.box.key}:${e.side}`; groups.set(k, [...(groups.get(k) ?? []), e]); }
   for (const g of groups.values()) {
-    const v = vertSide(g[0].side), b = g[0].box, room = sideRoom(b, g[0].side);
-    const along = (r: RRect) => (v ? r.x + r.w / 2 - (b.x + b.w / 2) : r.y + r.h / 2 - (b.y + b.h / 2));
+    const v = vertSide(g[0].side), b = wallRect(g[0].box), room = sideRoom(b, g[0].side);
+    const along = (r0: RRect) => { const r = wallRect(r0); return v ? r.x + r.w / 2 - (b.x + b.w / 2) : r.y + r.h / 2 - (b.y + b.h / 2); };
     // ends going to one row (the same place along the side): the line that goes farther runs on the outside of the turn
-    const far = (r: RRect) => (v ? Math.abs(r.y + r.h / 2 - (b.y + b.h / 2)) : Math.abs(r.x + r.w / 2 - (b.x + b.w / 2)));
+    const far = (r0: RRect) => { const r = wallRect(r0); return v ? Math.abs(r.y + r.h / 2 - (b.y + b.h / 2)) : Math.abs(r.x + r.w / 2 - (b.x + b.w / 2)); };
     g.sort((p, q) => { const d = along(p.other) - along(q.other); if (Math.abs(d) > 1) return d; const turn = Math.sign(along(p.other)); return (turn > 0 ? far(q.other) - far(p.other) : turn < 0 ? far(p.other) - far(q.other) : 0) || p.want - q.want || p.req - q.req; });
     const s = g.length > 1 ? Math.min(FAN, (2 * room) / (g.length - 1)) : 0;
     // the nearest spread to what each end wants, s apart, in order (weighted least squares: pool adjacent violators
@@ -273,8 +278,8 @@ export function fanOut(ends: End[]): Map<string, number> {
 // where an end would sit for a straight line: the middle of the overlap of the two facing sides, nearest the middle
 // between the two things; else the side's middle
 export const canStraight = (a: RRect, b: RRect, sa: Side) => straightWant(a, b, sa, true) !== 0;
-export function straightWant(a: RRect, b: RRect, sa: Side, ask = false): number {
-  const v = vertSide(sa);
+export function straightWant(a0r: RRect, b0r: RRect, sa: Side, ask = false): number {
+  const a = wallRect(a0r), b = wallRect(b0r), v = vertSide(sa);
   const a0 = v ? a.x : a.y, a1 = a0 + (v ? a.w : a.h), b0 = v ? b.x : b.y, b1 = b0 + (v ? b.w : b.h);
   const ra = sideRoom(a, sa), rb = sideRoom(b, OPP[sa]);
   const ca = (a0 + a1) / 2, cb = (b0 + b1) / 2;
@@ -399,21 +404,37 @@ export function wiggles(pts0: RPt[]): number {
   for (let i = 0; i + 1 < runs.length; i++) { const a = runs[i], b = runs[i + 1]; if (Math.sign(a.sum) !== Math.sign(b.sum) && Math.abs(a.sum) >= 30 * DEG && Math.abs(b.sum) >= 30 * DEG && b.start - a.end < 12) return 1; }
   return 0;
 }
-// hugs: stretches that run along a container's edge (within 4 units, 10 units or more): a line beside a border reads
-// as part of it
+// hugs: stretches that run along a container's edge (within HUG units, 10 units or more): a line beside a border reads
+// as part of it (format version 10: 7, was 4; a line 5 inside a box's wall still read as its border)
+export const HUG = 7;
 export function hugs(pts: RPt[], conts: RRect[]): number {
   let n = 0;
+  // in the middle of a narrow gap between two parallel edges (nested containers) a line runs where it must
+  const mid = (at: number, hz: boolean) => { const es = conts.flatMap((x) => (hz ? [x.y, x.y + x.h] : [x.x, x.x + x.w])); return es.some((e1) => es.some((e2) => e2 - e1 > 0 && e2 - e1 <= 16 && Math.abs(at - (e1 + e2) / 2) <= 2)); };
   for (let i = 0; i + 1 < pts.length; i++) {
     const p = pts[i], q = pts[i + 1];
     const hz = Math.abs(p.y - q.y) < 0.5, vt = Math.abs(p.x - q.x) < 0.5;
     if (!hz && !vt) continue;
+    if (mid(hz ? p.y : p.x, hz)) continue;
     for (const c of conts) {
-      if (hz) { const lo = Math.max(Math.min(p.x, q.x), c.x), hi = Math.min(Math.max(p.x, q.x), c.x + c.w); if (hi - lo >= 10 && (Math.abs(p.y - c.y) < 4 || Math.abs(p.y - c.y - c.h) < 4)) { n++; break; } }
-      else { const lo = Math.max(Math.min(p.y, q.y), c.y), hi = Math.min(Math.max(p.y, q.y), c.y + c.h); if (hi - lo >= 10 && (Math.abs(p.x - c.x) < 4 || Math.abs(p.x - c.x - c.w) < 4)) { n++; break; } }
+      if (hz) { const lo = Math.max(Math.min(p.x, q.x), c.x), hi = Math.min(Math.max(p.x, q.x), c.x + c.w); if (hi - lo >= 10 && (Math.abs(p.y - c.y) < HUG || Math.abs(p.y - c.y - c.h) < HUG)) { n++; break; } }
+      else { const lo = Math.max(Math.min(p.y, q.y), c.y), hi = Math.min(Math.max(p.y, q.y), c.y + c.h); if (hi - lo >= 10 && (Math.abs(p.x - c.x) < HUG || Math.abs(p.x - c.x - c.w) < HUG)) { n++; break; } }
     }
   }
   return n;
 }
+// inside (format version 10): how far a line runs inside containers that hold neither of its ends (more than 30
+// units in one counts): router to shard 3 ran along the inside of shard 2's bottom
+export function insideLen(pts: RPt[], away: RRect[]): number {
+  let n = 0;
+  for (const c of away) {
+    let k = 0;
+    for (let i = 0; i + 1 < pts.length; i++) { const p = pts[i], q = pts[i + 1], L = Math.hypot(q.x - p.x, q.y - p.y), m = Math.max(1, Math.ceil(L / 4)); for (let j = 0; j < m; j++) { const t = (j + 0.5) / m, x = p.x + (q.x - p.x) * t, y = p.y + (q.y - p.y) * t; if (x > c.x + 2 && x < c.x + c.w - 2 && y > c.y + 2 && y < c.y + c.h - 2) k += L / m; } }
+    if (k > 30) n += k;
+  }
+  return n;
+}
+export const INSIDE_COST = 3;
 // a dip (format version 10): a line that arrives through a side (left or right) yet runs above or below both of its
 // things, then comes back (the service mesh: control plane to the first proxy went under the pod box and came up into
 // the proxy's side); the same across for a line arriving through its top or bottom. 1 if it dips, else 0
@@ -431,7 +452,7 @@ export function scoreRoute(pts: RPt[], req: Req, others: Placed[], ends: [number
   let hard = 0;
   for (const r of req.words) if (rectThrough(pts, r, 1)) hard++;
   for (const r of req.shapes) if (rectThrough(pts, r, -5)) hard++;
-  let soft = turnsBack(pts) * 250 + wiggles(pts) * 150 + (req.conts ? hugs(pts, req.conts) * 60 : 0) + dips(pts, req.a, req.b) * DIP_COST;
+  let soft = turnsBack(pts) * 250 + wiggles(pts) * 150 + (req.conts ? hugs(pts, req.conts) * 60 : 0) + dips(pts, req.a, req.b) * DIP_COST + (req.away ? insideLen(pts, req.away) * INSIDE_COST : 0);
   if (req.area) for (const p of pts) if (p.x < req.area.x || p.y < req.area.y || p.x > req.area.x + req.area.w || p.y > req.area.y + req.area.h) { soft += 120; break; }
   const me = placed(pts, ends);
   for (const o of others) { const m = meet(me, o); soft += m.cross * 300 + m.touch * 200 + m.bunch * 150; }

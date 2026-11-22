@@ -53,7 +53,7 @@ export function Chart({ spec, controls, initial, ui }: { spec: Spec; controls: C
     <div className="chart">
       {spec.title && <div className="chart-title">{spec.title}</div>}
       <div className="chart-canvas" ref={box} style={height ? { height } : undefined}><canvas ref={canvas} role="img" aria-label={spec.title ?? ui.chart} /></div>
-      {meta.candle && !data.error && <div className="candle-key"><span className="ck ck-up" aria-hidden="true" />{ui.candleUp ?? "Up: close at or above open"}<span className="ck ck-down" aria-hidden="true" />{ui.candleDown ?? "Down: close below open"}</div>}
+      {meta.candle && !data.error && <div className="candle-key"><span className="ck-item"><span className="ck ck-up" aria-hidden="true" /><span>{ui.candleUp ?? "Up: close at or above open"}</span></span><span className="ck-item"><span className="ck ck-down" aria-hidden="true" /><span>{ui.candleDown ?? "Down: close below open"}</span></span></div>}
       {data.error && <div className="cw-error">{data.error}</div>}
       {controls.length > 0 && (
         <div className="chart-ctl">

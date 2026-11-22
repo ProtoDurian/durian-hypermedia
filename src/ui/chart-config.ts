@@ -28,10 +28,21 @@ export { fmt as fmtChartNum };
 // a log axis labels the powers of ten, and 2 and 5 of each when the axis spans three decades or fewer
 const logTick = (narrow: boolean) => function (this: any, v: any) {
   const e = Math.floor(Math.log10(v)), man = Math.round(v / 10 ** e);
+  if (Math.abs(v - man * 10 ** e) > v * 1e-6) return ""; // Chart.js adds ticks between (15, 150): only 1, 2 and 5 of a power of ten are named
   const span = Math.log10(this.max / this.min);
   return man === 1 || (!narrow && span <= 3 && (man === 2 || man === 5)) ? fmt(v) : "";
 };
 
+// format version 10: a count is never drawn with half steps (0, 0.5, 1.0 answers), and a log axis ends on powers of ten, so
+// its lowest and highest points sit between labels instead of past the last one
+export const allWhole = (vals: any[]) => { const n = vals.filter((v) => typeof v === "number"); return n.length > 0 && n.every((v) => Number.isInteger(v)); };
+export const wholeTicks = (ticks: any, vals: any[]) => (allWhole(vals) ? { ...ticks, precision: 0 } : ticks);
+export function logBounds(vals: any[], o: { min?: number; max?: number } | undefined): { min?: number; max?: number } {
+  const n = vals.filter((v) => typeof v === "number" && v > 0);
+  if (!n.length) return { min: o?.min, max: o?.max };
+  return { min: o?.min ?? 10 ** Math.floor(Math.log10(Math.min(...n))), max: o?.max ?? 10 ** Math.ceil(Math.log10(Math.max(...n))) };
+}
+const numsOf = (series: ChartSeries[], pick: (v: any) => any = (v) => v) => series.flatMap((s) => (s.data as any[]).map(pick));
 // default colour order: --series-1..5, then --c6..--c8 (a seventh series or slice starts again)
 export const defaultColor = (tok: Tok, k: number) => (k % 8 < 5 ? tok(`--series-${(k % 8) + 1}`) : tok(`--c${(k % 8) + 1}`));
 export function toneColor(tok: Tok, tone: string | undefined, k: number) {
@@ -85,12 +96,12 @@ export function chartConfig(spec: any, data: { x: any[]; series: ChartSeries[] }
     const alpha = m.kind === "polar" ? "CC" : "";
     datasets = data.series.map((s) => ({ label: s.name, data: s.data, backgroundColor: data.x.map((_, j) => defaultColor(tok, j) + alpha), borderColor: tok("--surface"), borderWidth: 2 }));
     options.plugins.tooltip.callbacks.label = (c: any) => `${c.label}: ${fmt(c.raw)}`;
-    if (m.kind === "polar") options.scales = { r: { beginAtZero: true, grid: { color: grid }, angleLines: { color: grid }, ticks: { color: ink, font, backdropColor: "transparent", z: 1 } } };
+    if (m.kind === "polar") options.scales = { r: { beginAtZero: true, grid: { color: tok("--axis") || grid }, angleLines: { color: tok("--axis") || grid }, ticks: { ...wholeTicks({ color: ink, font }, numsOf(data.series)), backdropColor: tok("--surface"), backdropPadding: 2, showLabelBackdrop: true, z: 1 } } };
     options.layout = { padding: 4 };
   } else if (m.kind === "radar") {
     type = "radar";
     datasets = data.series.map((s, k) => { const c = toneColor(tok, s.tone, k); return { label: s.name, data: s.data, borderColor: c, backgroundColor: c + "33", pointBackgroundColor: c, pointBorderColor: tok("--surface"), borderWidth: 2, pointRadius: 3, fill: true }; });
-    options.scales = { r: { beginAtZero: true, min: yl.min, max: yl.max, grid: { color: grid }, angleLines: { color: grid }, pointLabels: { color: tok("--ink") || ink, font, callback: (l: string) => wrap(l, narrow ? 10 : 18) }, ticks: { color: ink, font, backdropColor: "transparent", showLabelBackdrop: false, maxTicksLimit: 5 } } };
+    options.scales = { r: { beginAtZero: true, min: yl.min, max: yl.max, grid: { color: tok("--axis") || grid }, angleLines: { color: tok("--axis") || grid }, pointLabels: { color: tok("--ink") || ink, font, callback: (l: string) => wrap(l, narrow ? 10 : 18) }, ticks: { ...wholeTicks({ color: ink, font }, numsOf(data.series)), backdropColor: tok("--surface"), backdropPadding: 2, showLabelBackdrop: true, z: 1, maxTicksLimit: 5 } } };
     options.layout = { padding: 4 };
     options.plugins.tooltip.callbacks.label = (c: any) => `${c.dataset.label}: ${fmt(c.raw)}`;
   } else if (m.points) {
@@ -101,8 +112,8 @@ export function chartConfig(spec: any, data: { x: any[]; series: ChartSeries[] }
       const c = toneColor(tok, s.tone, k);
       return { label: s.name, data: bubble ? s.data.map((p: any) => ({ x: p.x, y: p.y, r: 4 + 20 * Math.sqrt(p.r / maxR), size: p.r })) : s.data, backgroundColor: bubble ? c + "99" : c, borderColor: bubble ? c : tok("--surface"), borderWidth: bubble ? 1.5 : 1, pointRadius: 4, pointHoverRadius: 6 };
     });
-    const sc = (o: any, log: boolean) => ({ type: log ? "logarithmic" : "linear", min: o?.min, max: o?.max, grid: { color: grid }, ticks: log ? { ...ticks, callback: logTick(narrow), maxRotation: 0 } : ticks, title: title(o) });
-    options.scales = { x: sc(xl, m.scale.x === "log"), y: sc(yl, m.scale.y === "log") };
+    const sc = (o: any, log: boolean, vals: any[]) => ({ type: log ? "logarithmic" : "linear", ...(log ? logBounds(vals, o) : { min: o?.min, max: o?.max }), grid: { color: grid }, ticks: log ? { ...ticks, callback: logTick(narrow), autoSkip: false, maxRotation: 0 } : wholeTicks(ticks, vals), title: title(o) });
+    options.scales = { x: sc(xl, m.scale.x === "log", numsOf(data.series, (p) => p?.x)), y: sc(yl, m.scale.y === "log", numsOf(data.series, (p) => p?.y)) };
     options.layout = { padding: bubble ? 14 : 4 };
     options.interaction = { mode: "nearest", intersect: true };
     options.plugins.tooltip.callbacks.label = (c: any) => `${c.dataset.label}: (${fmt(c.raw.x)}, ${fmt(c.raw.y)})${bubble ? `, size ${fmt(c.raw.size)}` : ""}`;
@@ -130,8 +141,8 @@ export function chartConfig(spec: any, data: { x: any[]; series: ChartSeries[] }
     options.animation = false;
     options.interaction = { mode: "index", intersect: false };
     options.scales.x = { type: "category", grid: { color: grid, display: false }, ticks: catTicksFor(ticks, data.x, narrow, false, wrapAt), title: title(xl) };
-    options.scales.y = { type: log ? "logarithmic" : "linear", beginAtZero: false, min: yl.min, max: yl.max, grid: { color: grid }, ticks: log ? { ...ticks, callback: logTick(narrow) } : ticks, title: title(yl) };
-    if (m.y2) { const y2 = spec.y2 ?? {}; options.scales.y2 = { type: m.scale.y2 === "log" ? "logarithmic" : "linear", position: "right", beginAtZero: false, min: y2.min, max: y2.max, grid: { drawOnChartArea: false, color: grid }, ticks: m.scale.y2 === "log" ? { ...ticks, callback: logTick(narrow) } : ticks, title: title(y2) }; }
+    options.scales.y = { type: log ? "logarithmic" : "linear", beginAtZero: false, min: yl.min, max: yl.max, grid: { color: grid }, ticks: log ? { ...ticks, callback: logTick(narrow), autoSkip: false } : ticks, title: title(yl) };
+    if (m.y2) { const y2 = spec.y2 ?? {}; options.scales.y2 = { type: m.scale.y2 === "log" ? "logarithmic" : "linear", position: "right", beginAtZero: false, min: y2.min, max: y2.max, grid: { drawOnChartArea: false, color: grid }, ticks: m.scale.y2 === "log" ? { ...ticks, callback: logTick(narrow), autoSkip: false } : ticks, title: title(y2) }; }
     // the legend lists the lines on top; the up and down key is under the chart (chart.tsx)
     options.plugins.legend.display = data.series.some((s) => s.kind === "line");
     options.plugins.legend.labels.filter = (item: any) => item.datasetIndex !== 0 || !candles;
@@ -167,12 +178,12 @@ export function chartConfig(spec: any, data: { x: any[]; series: ChartSeries[] }
     const cat = m.horizontal ? "y" : "x", val = m.horizontal ? "x" : "y";
     const log = m.scale.y === "log";
     const catTicks = catTicksFor(ticks, data.x, narrow, !!m.horizontal, wrapAt);
-    const valTicks = percent ? { ...ticks, callback: (v: any) => `${v}%` } : log ? { ...ticks, callback: logTick(narrow) } : ticks;
+    const valTicks = percent ? { ...ticks, callback: (v: any) => `${v}%` } : log ? { ...ticks, callback: logTick(narrow), autoSkip: false } : wholeTicks(ticks, numsOf(data.series.filter((s) => s.axis !== "y2")).flat());
     options.indexAxis = m.horizontal ? "y" : "x";
     options.interaction = { mode: "index", intersect: false };
     options.scales[cat] = { type: "category", stacked: !!m.stacked, grid: { color: grid, display: !m.horizontal }, ticks: catTicks, title: title(xl) };
-    options.scales[val] = { type: log ? "logarithmic" : "linear", stacked: !!m.stacked, beginAtZero: !log, min: percent ? 0 : yl.min, max: percent ? 100 : yl.max, grid: { color: grid }, ticks: valTicks, title: title(percent ? { label: yl.label ? `${yl.label} (%)` : "%" } : yl) };
-    if (m.y2) { const y2 = spec.y2 ?? {}; options.scales.y2 = { type: m.scale.y2 === "log" ? "logarithmic" : "linear", position: "right", stacked: false, beginAtZero: m.scale.y2 !== "log", min: y2.min, max: y2.max, grid: { drawOnChartArea: false, color: grid }, ticks: m.scale.y2 === "log" ? { ...ticks, callback: logTick(narrow) } : ticks, title: title(y2) }; }
+    options.scales[val] = { type: log ? "logarithmic" : "linear", stacked: !!m.stacked, beginAtZero: !log, ...(log ? logBounds(numsOf(data.series.filter((s) => s.axis !== "y2")).flat(), yl) : { min: percent ? 0 : yl.min, max: percent ? 100 : yl.max }), grid: { color: grid }, ticks: valTicks, title: title(percent ? { label: yl.label ? `${yl.label} (%)` : "%" } : yl) };
+    if (m.y2) { const y2 = spec.y2 ?? {}; options.scales.y2 = { type: m.scale.y2 === "log" ? "logarithmic" : "linear", position: "right", stacked: false, beginAtZero: m.scale.y2 !== "log", min: y2.min, max: y2.max, grid: { drawOnChartArea: false, color: grid }, ticks: m.scale.y2 === "log" ? { ...ticks, callback: logTick(narrow), autoSkip: false } : ticks, title: title(y2) }; }
     options.plugins.tooltip.callbacks.label = (c: any) => {
       const raw = c.raw;
       if (Array.isArray(raw)) return `${c.dataset.label}: ${fmt(raw[0])} to ${fmt(raw[1])}`;

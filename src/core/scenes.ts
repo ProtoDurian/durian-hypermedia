@@ -150,11 +150,20 @@ export function compileNested(scene: Scene, errors: SceneError[], compileParsed:
   parts.forEach((c, j) => { if (j) offsetKeys(c, j * KEY_STEP); });
   const at = (k: number) => parts[ids.indexOf(path[k].at(-1) ?? "")];
   const frames = scene.steps.map((_, k) => at(k).frames[k]);
+  scene.steps.forEach((_, k) => { if (leave[k] && via[k]) leaveTouch(frames[k], via[k]!); });
   const fx = scene.steps.map((_, k) => at(k).fx[k]);
   const beatF = scene.steps.map((_, k) => at(k).beats?.[k] ?? []);
   const warnings = parts.flatMap((c) => c.warnings);
   // the stage keeps one size for the whole story: the overview's shape (a scene inside is framed into it)
   return { scene, frames, fx, errors: dedupe(errors), warnings: dedupe(warnings), aspect: parts[0].aspect, beats: beatF, nest: { scenes: [{ id: "", label: "" }, ...subs.map((s) => ({ id: s.id, label: s.label }))], path, via, enter, leave, parts } };
+}
+// "where we left it" (format version 10, fix): a step that leaves a scene touches the thing the scene was entered from,
+// with the tokens and pointers at it, so the story's camera frames it (in 3D on a phone too, site/src/least3d.ts)
+export function leaveTouch(f: Frame, via: string) {
+  const b = f.boxes.find((x) => x.key > 0 && x.id === via);
+  if (!b) return;
+  const at = f.boxes.filter((x) => x.key > 0 && (x.kind === "token" || x.kind === "pointer") && x.ent.anchor === via).map((x) => x.key);
+  f.touched = [...new Set([...f.touched, b.key, ...at])];
 }
 const dedupe = (es: SceneError[]) => { const seen = new Set<string>(); return es.filter((e) => { const k = `${e.line}:${e.msg}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
 

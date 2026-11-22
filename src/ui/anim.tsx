@@ -5,7 +5,8 @@
 // this file tweens between frames, draws with page tokens only, and lets the reader explore with a camera:
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, union, pad, center, edgePoint, fitAspect, storyView, connGeom, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { compileScene, useNarrow, phoneInfo, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { moreSides } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
@@ -15,12 +16,15 @@ import { visOf, REST_MS } from "../core/depth";
 // format version 10: a scene inside a scene (tools/scenes.ts; the stage's part in ./anim-scenes)
 import { sceneMove, sceneFrames, stepScene } from "../core/scenes";
 import { moveCam, moveO, SceneChip, StepList, sceneBands } from "./anim-scenes";
+import { hasWebGL } from "./gl";
 
 // 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle. A 3D-only scene (format
 // version 10) needs only WebGL: with reduced motion it shows still 3D frames, one per step
 function can3d(only = false): boolean {
   if (typeof window === "undefined" || (!only && reducedMotion())) return false;
-  try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch { return false; }
+  // asked once per page; the test context is given back at once (site/src/gl.ts: a throwaway context per animation
+  // pushed the 3D stages' own contexts out)
+  return hasWebGL();
 }
 
 // the page's width without its scrollbar, for the phone's edge-to-edge stage (parts.css): 100vw counts a visible
@@ -47,6 +51,8 @@ export type SceneSrc = { head: string; steps: { title: string; raw: string; line
 // g (format version 9): how fully it is drawn, FAINT inside a closed thing (its words hidden) to 1 when open, tweened
 // lift (format version 10): how far it is lifted out of its box (0 to 1, tweened; only the 3D stage raises it)
 type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number; lift?: number };
+// a line's end as the router measured it (format version 10): with its heading, so a queue's line meets its rails
+const endRect = (s: Shown): Rect & { head?: number } => (s.box.head ? { ...s.r, head: s.box.head } : s.r);
 const liftOf = (b?: Box) => (b?.lift ? 1 : 0);
 const gOf = (b?: Box) => (b?.faint ? FAINT : 1);
 const wordsO = (g?: number) => (g == null ? 1 : Math.max(0, Math.min(1, (g - FAINT) / (1 - FAINT))));
@@ -409,9 +415,10 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       sends: (mv ? [] : B.sends).map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k), offs: g.offs, bends: g.bends, rts: g.rts })),
       says: fx.says.map((sy, k) => ({ key: sy.key, text: sy.text, o: sayO(k) })),
       hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), sel,
-      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv ? [] : B.touched, foot, stepKey: String(i),
+      layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
       cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
       part: quiet && B.part ? B.part : null,
+      least: MIN_PX / minFont(B),
       // format version 10: the scene shown; going in, the first half flies into the thing entered from; the second
       // half starts far (going in) or at that thing (going out)
       scene: mv ? mv.scene : sceneNow, sceneDir: mv?.dir, ...(mv ? { fade: stageO } : {}), sceneVia: mv && mv.half === 1 && mv.dir === "out" ? mv.viaKey : null,
@@ -421,12 +428,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   // the story camera keeps words readable, so a big scene can run past the stage: each edge with more of it beyond is
   // shaded, with a small arrow (format version 8 on a phone; format version 10 on every screen, tools/readable.ts), and
   // on a phone the line under the stage says so
-  const more: ("l" | "r" | "t" | "b")[] = mode === "2d" ? (() => {
-    const b = B.bounds, m = 6, out: ("l" | "r" | "t" | "b")[] = [];
-    if (b.x < cam.x - m) out.push("l"); if (b.x + b.w > cam.x + cam.w + m) out.push("r");
-    if (b.y < cam.y - m) out.push("t"); if (b.y + b.h > cam.y + cam.h + m) out.push("b");
-    return out;
-  })() : [];
+  // (format version 10, tools/edge10.ts: a side where the view cuts a thing is shaded too)
+  const more: ("l" | "r" | "t" | "b")[] = mode === "2d" ? moreSides(B, cam) : [];
   const U = ui as any;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
@@ -467,9 +470,10 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
           {conts.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={a.r} b={b.r} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
+          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
           {leaves.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} />)}
+          {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
           {overlays.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
@@ -514,8 +518,9 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   const cls = cx("scn-ent", `k-${b.kind}`, `sz-${b.size}`, tone, cc, e.dim && "is-dim", e.down && "is-down", hl && `is-hl hl-${hl}`, sel && "is-sel");
   const tx = r.x + r.w / 2, ty = r.y + r.h / 2;
   const lb = labelBox(b.kind, r, b.lines, z, e.level != null);
-  // a meter (level=): a thin bar along the bottom, filled to the level
-  const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 : 9); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={4} rx={2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={4} rx={2} /></g>; })() : null;
+  // a meter (level=): a bar along the bottom in an outlined track, filled to the level (format version 10 fix: taller,
+  // with an outline, so a full one still reads as a gauge, not a line)
+  const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 + METER_H - 4 : METER_H + 5); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={METER_H} rx={METER_H / 2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={METER_H} rx={METER_H / 2} /></g>; })() : null;
   // inside a closed thing the words are hidden; they fade in as it opens
   const words = lb && wo > 0.02 ? <g style={wo < 1 ? { opacity: wo } : undefined}><Words lines={b.lines} x={tx} y={lb.y + lb.h / 2} z={z} /></g> : null;
   const title = <title>{[b.label || b.id, e.note].filter(Boolean).join(" · ")}</title>;
@@ -570,14 +575,15 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
   return <g className={cls} data-key={b.key} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;
 }
 
-function Connector({ e, a, b, ak, bk, o, mk }: { e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string }) {
+// labelOnly (format version 10): just the label, drawn again over a send that runs on this connector
+function Connector({ e, a, b, ak, bk, o, mk, labelOnly }: { e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string; labelOnly?: boolean }) {
   const g = connGeom(a, b, ak, bk, e.implicit, 0, e.bend, e.rt ?? null);
   const head = e.style === "->" || e.style === "-->" || e.style === "<->";
   // the label sits where the engine placed it (t along the curve, o beside it), so it covers no label or shape
   const m = e.label ? bezOff(g, e.lt, e.lo) : null;
   return (
     <g className={cx("scn-conn", e.implicit && "is-implicit", e.style === "-->" && "is-dashed", e.cc && `cc cc-${e.cc}`)} style={{ opacity: o }}>
-      <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />
+      {!labelOnly && <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />}
       {m && <g className="scn-conn-l"><rect x={m.x - e.lw / 2} y={m.y - e.lh / 2} width={e.lw} height={e.lh} rx={Math.min(9, e.lh / 2)} /><Words lines={e.lines} x={m.x} y={m.y} z={DESIGN.s} cls="scn-conn-t" font={CHIP.font} /></g>}
     </g>
   );
@@ -593,7 +599,7 @@ function behind(g: Geom, t: number, d: number) {
 function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Shown>; fin: Map<number, Box>; marks: Mark[]; p: number; o?: number }) {
   const rs = g.path.map((k) => at.get(k));
   if (rs.some((x) => !x) || rs.length < 2) return null;
-  const geo: Geom[] = rs.slice(1).map((b, k) => connGeom(rs[k]!.r, b!.r, rs[k]!.box.kind, b!.box.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null));
+  const geo: Geom[] = rs.slice(1).map((b, k) => connGeom(endRect(rs[k]!), endRect(b!), rs[k]!.box.kind, b!.box.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null));
   const n = geo.length, ep = ease(p);
   const seg = Math.min(n - 1, Math.floor(ep * n)), f = ep >= 1 ? 1 : ep * n - seg;
   const tip = bezAt(geo[seg], f), tan = bezTan(geo[seg], Math.max(0.02, f));

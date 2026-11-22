@@ -9,7 +9,8 @@
 // A map is drawn with the parts the engine already has: a table with the columns key and value, or buckets that hold
 // one box per entry. So it lays out, zooms (closed=yes, zoom into) and draws in 2D and 3D like any container.
 // Pure: tools/scene.ts calls these for its parse, play and LLM view.
-import type { Decl, Op, State, Ent, Fx, SceneError } from "./scene";
+import type { Decl, Op, State, Ent, Fx, SceneError, Frame, SizeTok } from "./scene";
+import { headW } from "./scene";
 import { hiddenBy, openSet } from "./story";
 
 // a map's key becomes part of an id (cache.u7), so it is letters, digits, - and _
@@ -141,4 +142,31 @@ export function dataLlm(prev: State, next: State, ops: Op[]): string[] {
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- closed, with content (format version 10)
+// A closed data structure (closed=yes or hidden, not zoomed into) must read as closed with content, not as empty or
+// not loaded: its title says how many it holds ("sorted ids · 4 items"), when that fits its width. Zoomed into, the
+// title is plain again. Nothing moves: only the title's words change. applyDepth (tools/depth.ts) calls it per frame.
+const NOUN: Record<string, [string, string]> = { array: ["item", "items"], list: ["item", "items"], stack: ["item", "items"], queue: ["item", "items"], tree: ["node", "nodes"] };
+export function countOf(s: State, e: Ent): string | null {
+  const one = (n: number, w: [string, string]) => `${n} ${w[n === 1 ? 0 : 1]}`;
+  if (isMap(e)) return one(keysOf(s, e).length, ["key", "keys"]);
+  const w = NOUN[e.kind];
+  return w ? one(e.kids.filter((k) => s.ents[k] && !s.ents[k].ghost).length, w) : null;
+}
+export function closedCounts(f: Frame, s: State): Frame {
+  const shut = new Set(f.boxes.filter((b) => b.key > 0 && (b.faint || b.hidden)).map((b) => b.ent.parent));
+  const k = (t: string) => headW(t, { head: 13 } as SizeTok); // a title's width is in proportion to its words
+  for (const b of f.boxes) {
+    if (b.key <= 0 || b.faint || b.hidden || !b.lbl || !b.label || !shut.has(b.id)) continue;
+    const e = s.ents[b.id];
+    if (!e || !(e.closed || e.hide)) continue;
+    const n = countOf(s, e);
+    if (!n) continue;
+    const t = `${b.label} · ${n}`, w = ((b.lbl.w - 2) * k(t)) / k(b.label) + 2, pad = b.lbl.x - b.x;
+    if (b.lbl.x + w > b.x + b.w - Math.max(0, pad) + 0.5) continue; // it does not fit: the plain title stays
+    b.label = t; b.lines = [t]; b.lbl = { ...b.lbl, w };
+  }
+  return f;
 }

@@ -179,3 +179,21 @@ export function alignLlm(spec: AlignSpec): string {
   }
   return out.join("\n");
 }
+
+// ---- format version 10: how wide a column must be so that no chip in a cell needs more than two lines ----
+// A chip's chrome on a phone: padding 7 + 7, border 1.5 + 1.5; a cell's: padding 5 + 5, border 1 + 1; one pixel of slack.
+export const ALIGN_PHONE_CHIP = 17, ALIGN_PHONE_CELL = 12;
+// The least width (px) of the chip's text box that breaks the name into at most two lines: the wider half when the name
+// is split at its best space, never less than its longest word.
+export function twoLineW(name: string, width: (s: string) => number): number {
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return width(name);
+  let best = Infinity;
+  for (let k = 1; k < words.length; k++) best = Math.min(best, Math.max(width(words.slice(0, k).join(" ")), width(words.slice(k).join(" "))));
+  return Math.max(best, ...words.map(width));
+}
+export function alignColMin(spec: AlignSpec, width: (s: string, font: number) => number, font = 12): number {
+  let need = 0;
+  for (const c of spec.cells) for (const it of c.items) need = Math.max(need, twoLineW(it.name, (s) => width(s, font)));
+  return need ? Math.ceil(need + ALIGN_PHONE_CHIP + ALIGN_PHONE_CELL + 1) : 78;
+}

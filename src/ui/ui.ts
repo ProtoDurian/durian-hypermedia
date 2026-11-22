@@ -19,7 +19,7 @@ export type Ui = {
   // format version 7: moving through the stage, a line under it; the reset button
   hintOff: string; hintOn: string; hintOff3d: string; hintOn3d: string; resetView: string; stageLabel: string;
   // format version 8: the line under the stage on a phone (touch), and its note about shaded edges
-  hintDiagram?: string; hintTouch?: string; hintTouchOn?: string; hintTouch3d?: string; hintTouchOn3d?: string; hintMore?: string;
+  hintDiagram?: string; hintGrid?: string; hintTable?: string; hintTouch?: string; hintTouchOn?: string; hintTouch3d?: string; hintTouchOn3d?: string; hintMore?: string;
   // format version 9: the phone's line under the stage is one short line; the ? button beside it shows the whole of it
   // format version 10: candlestick key and table words
   marksKey?: string; candleUp?: string; candleDown?: string; candlePeriod?: string; candleWords?: Record<string, string>;
@@ -248,4 +248,9 @@ for (const [l, w] of Object.entries(V8_DIAGRAM)) if (UI[l]) UI[l].hintDiagram = 
 // format version 10: an animation's scene inside a scene: the chip on its captions says the reader is inside it
 // (machine translated; not yet read by a native speaker)
 const V10_SCENES: Record<string, string> = { en: "Inside", "zh-Hans": "内部", es: "Dentro", hi: "अंदर", pt: "Dentro", bn: "ভেতরে" };
+// format version 10: the line under an alignment grid that is wider than a phone (machine translated; not yet read by a native speaker)
+const V10_GRID: Record<string, string> = { en: "↔ Swipe the grid to see all of it", "zh-Hans": "↔ 左右滑动查看完整网格", es: "↔ Desliza la cuadrícula para verla entera", hi: "↔ पूरा ग्रिड देखने के लिए स्वाइप करें", pt: "↔ Deslize a grade para ver tudo", bn: "↔ পুরো গ্রিড দেখতে সোয়াইপ করুন" };
+for (const [l, w] of Object.entries(V10_GRID)) if (UI[l]) UI[l].hintGrid = w;
+const V10_TABLE: Record<string, string> = { en: "↔ Swipe the table to see all of it", "zh-Hans": "↔ 左右滑动查看完整表格", es: "↔ Desliza la tabla para verla entera", hi: "↔ पूरी तालिका देखने के लिए स्वाइप करें", pt: "↔ Deslize a tabela para ver tudo", bn: "↔ পুরো টেবিল দেখতে সোয়াইপ করুন" };
+for (const [l, w] of Object.entries(V10_TABLE)) if (UI[l]) UI[l].hintTable = w;
 for (const [l, w] of Object.entries(V10_SCENES)) if (UI[l]) (UI[l] as any).inScene = w;

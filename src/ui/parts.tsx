@@ -42,7 +42,7 @@ export type WalkStep = { file: string; repo: string; commit: string | null; line
 export type WalkNoteProps = { k: number; active: boolean; note: React.ReactNode };
 // the default note: React children only, so no HTML string reaches the DOM
 export function WalkNote({ k, active, note }: WalkNoteProps) {
-  return <div className={cx("cw-note", active && "is-active")} aria-hidden={!active}><span className="cw-num">{k + 1}</span>{note}</div>;
+  return <div className={cx("cw-note", active && "is-active")} aria-hidden={!active}><span className="cw-num">{k + 1}</span><span className="cw-nt">{note}</span></div>;
 }
 // Two modes (format version 7). Animated: only for the same code changing, the morph of Code Hike. Still: the whole file, the
 // step's lines open and marked, the rest folded; a move switches marks and folds at once. Steps joined by animated moves form
@@ -182,7 +182,7 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
       {steps.length > 0 && (
         <div className="ide-steps">
           <div className="ide-step-title">
-            <span className="cw-num">{k}</span><span className="ide-step-t">{step ? step.title : ui.original}</span>
+            <span className="cw-num">{k + 1}</span><span className="ide-step-t">{step ? step.title : ui.original}</span>
             {step && step.removed.length > 0 && (
               <span className="seg" role="group" aria-label={ui.beforeAfter}>
                 <button type="button" aria-pressed={before} onClick={() => setBefore(true)}>{ui.before}</button>
@@ -224,11 +224,12 @@ export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: 
       <div className="fx-head"><span className="fx-title">{ui.explorer}</span>{t.title && <span className="fx-step">{t.title}</span>}</div>
       <ul className="fx-list" role="tree" style={{ ["--rows" as any]: trees.length > 1 ? maxRows : t.rows.length }}>
         {visible.map((r) => {
-          const isNew = prev && !prev.has(r.path);
+          // a row that is new in this step is tinted green (added); a row that first appears marked "removed" is not an added one
+          const gone = r.badges.includes("removed"), isNew = !!prev && !prev.has(r.path) && !gone;
           if (r.gap) return <li key={r.path + r.depth} className="fx-row fx-gap" style={{ ["--d" as any]: r.depth }} role="none"><span className="fx-dots" aria-label={ui.more}>⋯</span><span className="fx-gap-t">{r.note || ui.more}</span></li>;
           const isClosed = r.folder && !!closed[r.path];
           return (
-            <li key={r.path} role="treeitem" aria-expanded={r.folder ? !isClosed : undefined} className={cx("fx-row", isNew && "is-new", r.badges.includes("removed") && "is-removed")} style={{ ["--d" as any]: r.depth }}>
+            <li key={r.path} role="treeitem" aria-expanded={r.folder ? !isClosed : undefined} className={cx("fx-row", isNew && "is-new", gone && "is-removed")} style={{ ["--d" as any]: r.depth }}>
               {r.folder ? (
                 <button type="button" className="fx-line" onClick={() => setClosed((s) => ({ ...s, [r.path]: !isClosed }))}>
                   <span className={cx("chev", !isClosed && "is-open")} aria-hidden="true" /><FileIcon name={r.name} folder open={!isClosed} /><span className="fx-name">{r.name.replace(/\/$/, "")}</span>

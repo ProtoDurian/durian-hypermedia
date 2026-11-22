@@ -13,6 +13,7 @@
 import type { State, Ent, Op, Fx, SceneError, Frame } from "./scene";
 import { CAM_DEFAULT, type CamView } from "./camera";
 import type { Ctx } from "./story";
+import { closedCounts } from "./data";
 
 // how strongly a thing is drawn when it is outside a deep zoom, or not lifted while other things are
 export const OUT = 0.2;
@@ -22,8 +23,9 @@ export const LIFT_UP = 96;
 export const ONLY_3D = ["lift", "put back"] as const;
 // the 3D labels rule: "part" (the default: while a step plays, only the labels of who takes part show) or "all"
 export const LABELS = ["part", "all"] as const;
-// in 3D, the other labels come back this long after a step has ended and the player stopped (the stage reads it)
-export const REST_MS = 1200;
+// in 3D, the other labels come back this long after a step has ended and the player stopped (the stage reads it);
+// format version 10 fix: 600 (was 1200: with the step's own time, names came back 2.5 to 3 s after Next)
+export const REST_MS = 600;
 
 export interface Zoom { ids: string[]; cam: string[] | null; view?: CamView }
 // zooms: the levels the story has zoomed into, innermost last; lifted: what is lifted out of its box now
@@ -130,6 +132,7 @@ export function onlyChecks(ops: Op[], only3d: boolean): SceneError[] {
 // on a laid-out frame of state s: what is lifted (Box.lift), and what fades (Box.vis = OUT): outside a deep zoom (into
 // a closed=hidden thing), or not lifted while things are lifted. What the step touches (lit) never fades
 export function applyDepth(f: Frame, s: State, lit: string[] = []): Frame {
+  closedCounts(f, s);
   const lifted = new Set((s.lifted ?? []).filter((id) => s.ents[id]));
   const top = zoomIds(s).filter((id) => s.ents[id]);
   const deep = top.some((id) => s.ents[id].hide);

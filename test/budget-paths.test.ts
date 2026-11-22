@@ -24,7 +24,7 @@ const PART = partLimitsOf(), PAGE = pageLimitsOf();
 // the page budgets parse() and check() make, to read their counters
 const pages: Budget[] = [];
 const realPart = Budget.prototype.part;
-Budget.prototype.part = function (this: Budget) { if (!this.parent && !pages.includes(this)) pages.push(this); return realPart.call(this); };
+Budget.prototype.part = function (this: Budget, ...a: Parameters<Budget["part"]>) { if (!this.parent && !pages.includes(this)) pages.push(this); return realPart.apply(this, a); };
 afterEach(() => { pages.length = 0; setYamlParser(null); });
 const work = (text: string) => { pages.length = 0; parse(text); return pages.reduce((a, b) => a + b.steps + b.values + b.chars, 0); };
 

@@ -101,16 +101,46 @@ function headOf(line: string): [string, string, string] | null {
 }
 
 // attributes: #id, key=value, key="two words", bare words (flags; an animation's first bare word is its kind)
+const isWordCh = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 45;
+const isSpaceCh = (c: number) => c === 32 || (c >= 9 && c <= 13) || c === 0xa0 || c === 0xfeff || c === 0x1680 || (c >= 0x2000 && c <= 0x200a) || c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000;
+/** `#id`, `key=value` (value "double", 'single' or bare) and bare words, by one hand scan (linear: every character is
+ *  read a fixed number of times). Inside a double-quoted value \" is a quote and \\ a backslash (a LogQL
+ *  filter="{level=~\"warn\"}"); an unclosed quote is read as a bare value. */
 export function parseAttrs(s: string | undefined): { attrs: Attrs; words: string[] } {
   const attrs: Attrs = {}, words: string[] = [];
   if (!s) return { attrs, words };
   const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
-  const re = /#([\w-]+)|([\w-]+)=("([^"]*)"|'([^']*)'|[^\s}]+)|([^\s{}=]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(inner))) {
-    if (m[1]) attrs.id = m[1];
-    else if (m[2]) attrs[m[2]] = m[4] ?? m[5] ?? m[3];
-    else if (m[6]) words.push(m[6]);
+  const n = inner.length;
+  // a bare run: no space, no "}" (a value) or no space, "{", "}" or "=" (a word)
+  const bareEnd = (i: number, word: boolean) => { while (i < n) { const c = inner.charCodeAt(i); if (isSpaceCh(c) || c === 125 || (word && (c === 123 || c === 61))) break; i++; } return i; };
+  // A " is escaped when an odd run of backslashes stands right before it (each backslash takes the next character), which
+  // does not depend on where the value began; so the next closing quote and the next ' are found once, from the right,
+  // and an unclosed quote costs nothing per attempt.
+  const open = new Uint8Array(n); // 1: a " no backslash escapes
+  for (let i = 0, run = 0; i < n; i++) { const c = inner.charCodeAt(i); if (c === 34 && run % 2 === 0) open[i] = 1; run = c === 92 ? run + 1 : 0; }
+  const nextQ = new Int32Array(n + 1), nextApos = new Int32Array(n + 1); nextQ[n] = nextApos[n] = -1;
+  for (let i = n - 1; i >= 0; i--) { nextQ[i] = open[i] ? i : nextQ[i + 1]; nextApos[i] = inner.charCodeAt(i) === 39 ? i : nextApos[i + 1]; }
+  let i = 0;
+  while (i < n) {
+    const c = inner.charCodeAt(i);
+    if (c === 35 && i + 1 < n && isWordCh(inner.charCodeAt(i + 1))) { let j = i + 1; while (j < n && isWordCh(inner.charCodeAt(j))) j++; attrs.id = inner.slice(i + 1, j); i = j; continue; }
+    if (isWordCh(c)) {
+      let j = i; while (j < n && isWordCh(inner.charCodeAt(j))) j++;
+      if (j < n && inner.charCodeAt(j) === 61 && j + 1 < n) {
+        const key = inner.slice(i, j), v = j + 1, q = inner.charCodeAt(v);
+        if (q === 34) {
+          const closed = nextQ[v + 1];
+          if (closed >= 0) { attrs[key] = inner.slice(v + 1, closed).replace(/\\(["\\])/g, "$1"); i = closed + 1; continue; }
+        } else if (q === 39) {
+          const e = nextApos[v + 1];
+          if (e >= 0) { attrs[key] = inner.slice(v + 1, e); i = e + 1; continue; }
+        }
+        const e = bareEnd(v, false);
+        if (e > v) { attrs[key] = inner.slice(v, e); i = e; continue; }
+      }
+    }
+    if (!isSpaceCh(c) && c !== 123 && c !== 125 && c !== 61) { const e = bareEnd(i, true); words.push(inner.slice(i, e)); i = e; continue; }
+    i++;
   }
   return { attrs, words };
 }

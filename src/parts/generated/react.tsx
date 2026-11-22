@@ -4,12 +4,14 @@ import { partComponent } from "../react";
 import FishboneView from "../fishbone/view";
 import SankeyView from "../sankey/view";
 import SequenceView from "../sequence/view";
+import TimelineView from "../timeline/view";
 import VennView from "../venn/view";
 import WardleyView from "../wardley/view";
 
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const SankeyPart = partComponent("sankey", SankeyView);
 export const SequencePart = partComponent("sequence", SequenceView);
+export const TimelinePart = partComponent("timeline", TimelineView);
 export const VennPart = partComponent("venn", VennView);
 export const WardleyPart = partComponent("wardley", WardleyView);
-export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "sankey": SankeyPart, "sequence": SequencePart, "venn": VennPart, "wardley": WardleyPart };
+export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "sankey": SankeyPart, "sequence": SequencePart, "timeline": TimelinePart, "venn": VennPart, "wardley": WardleyPart };

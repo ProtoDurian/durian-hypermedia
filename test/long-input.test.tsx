@@ -161,3 +161,15 @@ describe("alignment grids, drawn", () => {
     expect(d.blocks[0].align.errors.some((e: any) => /more than 400 regions/.test(e.msg))).toBe(true);
   });
 });
+
+describe("long lines with a line separator in them", () => {
+  const ls = String.fromCharCode(0x2028);
+  test("a fence line, a container line and a step line", () => {
+    quick(1500, () => all(`\`\`\`${"a".repeat(60_000)}${ls}b\n`));
+    quick(1500, () => all(`:::a${"a".repeat(60_000)}${ls}b\n`));
+    quick(1500, () => all(`${F}terminal\n@step${" ".repeat(60_000)}a${ls}b\n${F}\n`));
+  });
+  test("an animation with many [ and no ]", () => {
+    quick(1500, () => parse(`${F}animation\nbox a "a"\n${"[".repeat(39_000)}\n${F}\n`));
+  });
+});

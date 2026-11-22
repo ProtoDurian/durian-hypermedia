@@ -228,7 +228,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         if (p.body.length > lim.maxAnimChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxAnimChars.toLocaleString("en-US")}`);
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
         const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
-        const values = [...p.body.matchAll(/\[([^\]]*)\]/g)].reduce((a, m) => a + m[1].split(",").length, 0);
+        // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
+        let values = 0;
+        for (let i = p.body.indexOf("["); i >= 0; i = p.body.indexOf("[", i + 1)) { const j = p.body.indexOf("]", i + 1); if (j < 0) break; values += p.body.slice(i + 1, j).split(",").length; i = j; }
         if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
         // compiled once (core/dh-lib.ts animOf); over its work budget, or the page's, it is refused here
         let c: ReturnType<typeof animOf>;

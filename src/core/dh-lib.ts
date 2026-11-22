@@ -139,6 +139,14 @@ function longestCloser(lines: string[], c: string): Int32Array {
   return m[c];
 }
 
+// FENCE_RE and OPEN_RE with each run taken whole (a lookahead, then the text it saw): the same matches, but a line whose
+// rest holds a line end ("." matches none) fails at once instead of backtracking through every run, which cost the square
+// of the line. Groups as those patterns give them.
+const FENCE_WHOLE = /^(?=(\s*))\1(?=(`{3,}|~{3,}))\2(?=(\s*))\3(?=([^\s`{]*))\4(.*)$/;
+const OPEN_WHOLE = /^:::(?=(\s*))\1(?=([a-z][a-z0-9-]*))\2(.*)$/;
+const fenceLine = (l: string): string[] | null => { const m = FENCE_WHOLE.exec(l); return m && [m[0], m[1], m[2], m[4], m[5]]; };
+const openLine = (l: string): string[] | null => { const m = OPEN_WHOLE.exec(l); return m && [m[0], m[2], m[3]]; };
+
 function parseNodes(lines: string[], start: number, end: number, base: number, inContainer: string | null): Node[] {
   const out: Node[] = [];
   let buf: string[] = [];
@@ -156,7 +164,7 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
   };
   for (let i = start; i < end; i++) {
     const l = lines[i];
-    const f = l.match(FENCE_RE);
+    const f = fenceLine(l);
     if (f) {
       const close = closeFence(lines, i, end, f[2]);
       if (close < 0) throw new ParseError(base + i + 1, "a code fence is never closed");
@@ -172,16 +180,16 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
       bufLine = i + 1;
       continue;
     }
-    const o = l.match(OPEN_RE);
+    const o = openLine(l);
     if (o) {
       const name = o[1];
       if (inContainer) throw new ParseError(base + i + 1, `:::${name} inside :::${inContainer}: containers do not nest; close the :::${inContainer} first`);
       let close = -1;
       for (let j = i + 1; j < end; j++) {
-        const fj = lines[j].match(FENCE_RE);
+        const fj = fenceLine(lines[j]);
         if (fj) { const c = closeFence(lines, j, end, fj[2]); if (c > 0) { j = c; continue; } }
         if (CLOSE_RE.test(lines[j])) { close = j; break; }
-        if (OPEN_RE.test(lines[j])) throw new ParseError(base + j + 1, `:::${lines[j].match(OPEN_RE)![1]} inside :::${name}: containers do not nest; close the :::${name} first`);
+        if (openLine(lines[j])) throw new ParseError(base + j + 1, `:::${openLine(lines[j])![1]} inside :::${name}: containers do not nest; close the :::${name} first`);
       }
       if (close < 0) throw new ParseError(base + i + 1, `:::${name} is never closed (a line ::: closes it)`);
       flush();
@@ -214,7 +222,8 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   const bodyLines = lines.slice(open + 1, close);
   const p = emptyPart(name, attrs, base + open + 1, base + close + 1, lines.slice(open, close + 1).join("\n"), lines[open], bodyLines.join("\n"), base + open + 2);
   // steps: "@step title" (in mermaid "%% @step title", a mermaid comment, so the diagram still draws on any Markdown viewer)
-  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b\s*(.*)$/ : /^@step\b\s*(.*)$/;
+  // the spaces after @step taken whole (no backtracking into them when the title holds a line end)
+  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b(?=(\s*))\1(.*)$/ : /^@step\b(?=(\s*))\1(.*)$/;
   let cur: Step | null = null;
   const head: string[] = [];
   const raw: string[] = [];
@@ -222,7 +231,7 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
     const m = l.match(stepRe);
     if (m) {
       if (cur) { cur.raw = raw.join("\n"); p.steps.push(cur); raw.length = 0; }
-      const { title, attrs: sa } = splitStepArg(m[1], name === "codewalk");
+      const { title, attrs: sa } = splitStepArg(m[2], name === "codewalk");
       cur = { title, attrs: sa, raw: "", line: base + open + 2 + k, header: l };
       return;
     }
@@ -254,7 +263,7 @@ function splitItems(lines: string[], start: number, end: number, base: number, i
   let level = 7;
   const heads: number[] = [];
   for (let i = start; i < end; i++) {
-    const f = lines[i].match(FENCE_RE);
+    const f = fenceLine(lines[i]);
     if (f) { const c = closeFence(lines, i, end, f[2]); if (c > 0) { i = c; continue; } }
     const h = headOf(lines[i]);
     if (h) { level = Math.min(level, h[1].length); heads.push(i); }

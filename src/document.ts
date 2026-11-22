@@ -159,14 +159,14 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       return doc;
     }
 
-    // a part whose steps would carry too much text: an error, then its source as plain code (nothing the author wrote
-    // is lost; the LLM view, which shows the source, stays as it is)
-    function asSource(p: PartNode, chars: number): Block[] {
+    // a part that would draw too much: an error, then its source as plain code (nothing the author wrote is lost; its
+    // LLM view stays as it is)
+    function asSource(p: PartNode, message: string): Block[] {
       refused.add(p);
-      const message = `its steps would show ${chars.toLocaleString("en-US")} characters; the limit is ${(chars > MAX_STEP_TEXT ? MAX_STEP_TEXT : MAX_PAGE_STEP_TEXT).toLocaleString("en-US")}${chars > MAX_STEP_TEXT ? "" : " for the whole page"}, so its source is shown instead`;
       problems.push({ line: p.line, level: "error", message: `${p.name}: ${message}` });
       return [{ type: "error", line: p.line, part: p.name, message }, { type: "markdown", line: p.line, md: [{ t: "code", lang: "", text: p.body }] } as Block];
     }
+    function tooMuchText(chars: number): string { return `its steps would show ${chars.toLocaleString("en-US")} characters; the limit is ${(chars > MAX_STEP_TEXT ? MAX_STEP_TEXT : MAX_PAGE_STEP_TEXT).toLocaleString("en-US")}${chars > MAX_STEP_TEXT ? "" : " for the whole page"}, so its source is shown instead`; }
 
     function refuse(p: PartNode, message: string): ErrorBlock {
       refused.add(p);
@@ -251,7 +251,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       // steps that each carry a whole text (an editor's file before and after, a code walk's lines, a mermaid diagram so
       // far) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
       const carried = stepTextSize(dh, p);
-      if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, carried);
+      if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(carried));
       stepText += carried;
       // the format's own JSON for this one part
       const j = jsonOf({ ...dh, body: [p] } as DhDoc, undefined, !!opts.publicView).blocks[0] as Record<string, any>;
@@ -262,7 +262,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         case "filetree": {
           // each row carries its whole path: deep rows under long folder names carry the square of the tree
           const n = (blk.trees ?? []).reduce((a: number, t: any) => a + t.rows.reduce((b: number, r: any) => b + r.path.length, 0), 0);
-          if (n > MAX_STEP_TEXT || stepText + n > MAX_PAGE_STEP_TEXT) return asSource(p, n);
+          if (n > MAX_STEP_TEXT || stepText + n > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(n));
           stepText += n;
           break;
         }
@@ -273,7 +273,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           break;
         }
         case "tierlist": { const n = (blk.tier?.tiers ?? []).reduce((a: number, t: any) => a + (t.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
-        case "alignment": { const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
+        case "alignment": {
+          // the grid draws every cell: axes far over their limit of 6 names would draw columns times rows of them
+          const nx = blk.align?.xs?.length ?? 0, ny = blk.align?.ys?.length ?? 0;
+          if (nx * ny > MAX_ALIGN_CELLS) return asSource(p, `a grid of ${nx} × ${ny} cells; the limit is ${MAX_ALIGN_CELLS}, so its source is shown instead`);
+          const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
         case "codewalk":
           blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }) }));
           break;
@@ -295,6 +299,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 const MAX_TOC_ITEMS = 2_000;
 // the text a part's steps carry (each step a whole file, diagram or tree of paths), per part and for the whole page
 const MAX_STEP_TEXT = 1_000_000, MAX_PAGE_STEP_TEXT = 2_000_000;
+// the cells an alignment grid draws (within the axis limit, 6 × 6 = 36)
+const MAX_ALIGN_CELLS = 400;
 function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[], problems: Problem[]) {
   // the headings in page order are ctx.heads; a section toc takes the h3+ under the h2 it sits in
   const H = heads.length;

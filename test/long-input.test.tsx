@@ -87,7 +87,11 @@ describe("tier lists and alignment grids", () => {
   });
   test("many names on an axis and many cells", () => {
     const n = 6_000;
-    quick(1500, () => all(`${F}alignment\nx: ${Array.from({ length: n }, (_, i) => "a" + i).join(" .. ")}\ny: b .. c\n${Array.from({ length: n }, (_, i) => `a${n - 1 - i} / b: q${i}`).join("\n")}\n${F}\n`));
+    // far over the cell limit, so the page shows the grid's source; the code block it renders in is timed elsewhere
+    const text = `${F}alignment\nx: ${Array.from({ length: n }, (_, i) => "a" + i).join(" .. ")}\ny: b .. c\n${Array.from({ length: n }, (_, i) => `a${n - 1 - i} / b: q${i}`).join("\n")}\n${F}\n`;
+    let d: any;
+    quick(1500, () => { d = parse(text); check(d); llmView(text, { publicView: true }); });
+    expect(d.blocks[0]).toMatchObject({ type: "error", part: "alignment" });
   });
   test("a message names at most a short list", () => {
     const names = Array.from({ length: 400 }, (_, i) => "t" + i);
@@ -154,7 +158,7 @@ describe("alignment grids, drawn", () => {
     quick(1500, () => all(`${F}alignment\nx: a .. b\ny: c .. d\na / c: ${"w ".repeat(20_000)}\n${F}\n`));
   });
   test("many regions", () => {
-    const k = 150, n = 20_000;
+    const k = 20, n = 20_000;
     let d: any;
     quick(2500, () => { d = all(`${F}alignment\nx: ${Array.from({ length: k }, (_, i) => "a" + i).join(" .. ")}\ny: ${Array.from({ length: k }, (_, i) => "b" + i).join(" .. ")}\n${Array.from({ length: n }, (_, i) => `region: a${i % k} / b${Math.floor(i / k) % k} [c1]`).join("\n")}\n${F}\n`); });
     expect(d.blocks[0].align.regions.length).toBe(400);
@@ -171,5 +175,16 @@ describe("long lines with a line separator in them", () => {
   });
   test("an animation with many [ and no ]", () => {
     quick(1500, () => parse(`${F}animation\nbox a "a"\n${"[".repeat(39_000)}\n${F}\n`));
+  });
+});
+
+describe("alignment grids far over the axis limit", () => {
+  test("show their source instead of drawing every cell", () => {
+    const n = 1_200;
+    const text = `${F}alignment\nx: ${Array.from({ length: n }, (_, i) => "a" + i).join(" .. ")}\ny: ${Array.from({ length: n }, (_, i) => "b" + i).join(" .. ")}\na0 / b0: q\n${F}\n`;
+    let d: any;
+    quick(1500, () => { d = parse(text); check(d); llmView(text, { publicView: true }); });
+    expect(d.blocks[0]).toMatchObject({ type: "error", part: "alignment" });
+    expect(d.blocks[1].md[0].t).toBe("code");
   });
 });

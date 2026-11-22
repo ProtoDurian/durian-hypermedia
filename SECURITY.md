@@ -155,14 +155,14 @@ caps with these smaller:
 | `maxPageYamlNodes` / `maxPageYamlChars` | 24,000 / 200,000 | 4,000 / 64,000 |
 | `maxAnimWork` / `maxPageAnimWork` | 15,000,000 / 64,000,000 | 3,000,000 / 6,000,000 |
 
-The slowest pages measured within each set, on the machine that made 0.6.2 while it was busy (a first parse in a new
-process, then the best warm parse):
+The slowest pages measured within each set, on the machine that made 0.6.2 while it was busy (the slowest first parse in a new
+process, and the slowest best warm parse):
 
 | Slowest page | `LIMITS` | `UNTRUSTED_LIMITS` |
 | --- | --- | --- |
-| YAML, with the yaml package 2.9.0 | 573 ms, 442 ms warm | 105 ms, 35 ms warm |
-| YAML, with a bounded reader | 309 ms, 148 ms warm | 96 ms, 21 ms warm |
-| animations (a page that spends the page cap) | 2.2 s, 1.8 s warm | 0.47 s, 0.36 s warm |
+| YAML, with the yaml package 2.9.0 | 573 ms, 442 ms warm | 105 ms, 42 ms warm |
+| YAML, with a bounded reader | 309 ms, 167 ms warm | 96 ms, 27 ms warm |
+| animations (a page that spends the page cap) | 2.2 s, 1.8 s warm | 0.51 s, 0.48 s warm |
 
 A host may lower any cap further: `parse(text, { limits: { ...UNTRUSTED_LIMITS, maxPageAnimWork: 2_000_000 } })`.
 

@@ -61,7 +61,7 @@ and render exactly as in 0.6.1. Of about 2,400 other real pages compared with 0.
 - `Limits` (and `parse(text, { limits })`) has six new caps: `maxYamlChars`, `maxPageYamlChars`, `maxYamlNodes`,
   `maxPageYamlNodes`, `maxAnimWork`, `maxPageAnimWork` (SECURITY.md).
 - New export `UNTRUSTED_LIMITS`: `LIMITS` with smaller YAML and animation caps, for text nobody reviewed (a chat reply,
-  a streamed message): its slowest pages parse about four to five times quicker. `LIMITS` stays the default
+  a streamed message): its slowest pages parse about three to five times quicker. `LIMITS` stays the default
   and is sized for authored pages (SECURITY.md has both sets and their measured worst cases).
 - Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`
   and `uc.micro` are added (MIT, BSD-2-Clause).

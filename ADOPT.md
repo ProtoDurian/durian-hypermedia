@@ -62,7 +62,7 @@ doc.problems;   // [] for a clean page
 
 **Two sets of caps.** `LIMITS` (the default) fits authored pages: the largest real pages need about half of its YAML and
 animation caps. Text nobody has reviewed (a chat reply, a streamed message) should use `UNTRUSTED_LIMITS`, the same caps
-with smaller YAML and animation work caps, so its slowest pages parse about four to five times quicker (SECURITY.md has
+with smaller YAML and animation work caps, so its slowest pages parse about three to five times quicker (SECURITY.md has
 the measured worst cases). Lower any cap further by spreading it:
 
 ```ts

@@ -107,13 +107,16 @@ The budget covers chart expressions and the YAML of charts and front matter. Oth
 **`parse()` time and memory grow linearly with the input**, for plain Markdown and for every part. Reading the page's
 text (the Markdown, the parts' own syntax, the YAML), making the LLM view, `check()` and drawing the page the first time
 take time linear in the length of the text, so `maxInputBytes` bounds them, except where a cap below says otherwise.
-Three things keep it so: `test/linear.test.ts` (8 times the text may take at most 20 times as long, for typical replies,
-constructs grown in place and each part; text that is quadratic takes 40 to 64 times), `bun run bench` (time, peak
-memory and held memory per KB of 1, 10 and 100 KB replies, against budgets), and the CI workflow that runs both.
+Four things keep it so: `test/linear.test.ts` (8 times the text may take at most 20 times as long, for typical replies,
+constructs grown in place, short pieces repeated and each part; text that is quadratic takes 40 to 64 times),
+`test/unit-fuzz.test.ts` (the same for seeded random short pieces of Markdown and of the parts' syntax, repeated, in
+`parse()`, `llmView()` and `check()`), `bun run bench` (time, peak memory and held memory per KB of 1, 10 and 100 KB
+replies, against budgets), and the CI workflow that runs them.
 
 - **Markdown** is read by markdown-it (vendored in `src/vendor/`), which reads CommonMark in linear time. The rules this
   package adds (GFM tables, strikethrough, task items, autolink literals, `:kbd[]`, `:mouse[]`, a host's inline
-  references) each read forward once and never scan the same text again from a later place. Inside a link's text the
+  references) each read forward once and never scan the same text again from a later place (an autolink's domain and
+  the rest of its run are read once for every start inside them). Inside a link's text the
   reader looks ahead at most 20 levels deep, so its constant stays small. A host's own inline pattern is run once over
   each text run; its speed is the host's (keep it simple).
 - **Nesting**: a line that opens more than `maxDepth` quotes, or twice that many quotes and list markers, is shown as
@@ -125,8 +128,9 @@ memory and held memory per KB of 1, 10 and 100 KB replies, against budgets), and
 - **The parts' own syntax** (fences, containers, steps, file tree rows, `@file` lines, terminal prompts, tab headings,
   tier lists, alignment grids, code references in `check()`) is read in one pass, with no pattern that can backtrack.
   Past real pages, a few outputs have caps: a part's steps carry at most 1,000,000 characters of text (2,000,000 for the
-  page), an alignment grid at most 400 cells and 400 regions, the tables of contents of a page at most 2,000 headings;
-  past them the part is an error block and its source is shown as plain code (nothing is lost).
+  page), an alignment grid at most 400 cells and 400 regions, the tables of contents of a page at most 2,000 headings
+  (each takes its headings as one slice, so its work is what it lists); past them the part is an error block and its
+  source is shown as plain code (nothing is lost).
 - **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` characters and
   `maxYamlNodes` nodes in one text, and `maxPageYamlChars` and `maxPageYamlNodes` over all of a `parse()` call's YAML
   (`check()` gets three times the page's, as it reads the texts again); the values are in the table below.

@@ -79,7 +79,7 @@ export const LIMITS: Limits = {
 };
 /**
  * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML
- * and animation caps, so the slowest page within them parses in a small fraction of a second (SECURITY.md). Pass it as
+ * and animation caps, so its slowest pages parse about four to five times quicker (SECURITY.md). Pass it as
  * parse(text, { limits: UNTRUSTED_LIMITS }); an authored page may need more and is refused here past them.
  */
 export const UNTRUSTED_LIMITS: Limits = {

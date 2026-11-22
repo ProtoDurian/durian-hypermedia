@@ -13,7 +13,7 @@
 /* ---- shared by the media parts ---- */
 .dh-media { font-family: var(--font-sans); color: var(--ink); }
 .dh-media *, .dh-media *::before, .dh-media *::after { box-sizing: border-box; }
-.dh-media button { font: inherit; color: inherit; }
+:where(.dh-media) button { font: inherit; color: inherit; }   /* low specificity: a part's own button rule (the play buttons) wins */
 .m-grow { flex: 1 1 auto; }
 .m-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
 .m-ctl { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: var(--ctl-h, 40px); height: var(--ctl-h, 40px); padding: 0 10px; border: 0; border-radius: var(--ctl-radius, var(--r-pill)); background: var(--ctl-bg, var(--surface-2)); color: var(--ctl-ink, var(--ink)); cursor: pointer; text-decoration: none; font-size: 13px; font-weight: 500; transition: background var(--dur-fast), transform var(--dur-fast); -webkit-tap-highlight-color: transparent; }

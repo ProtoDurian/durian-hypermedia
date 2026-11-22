@@ -571,13 +571,14 @@ export function codewalkRefs(doc: Doc, p: PartNode): CodeRef[] {
   let repo = p.attrs.repo, file = p.attrs.file ?? "";
   const made = new Map(madeUpFiles(p.head, p.bodyLine).files.map((f) => [f.path, f.text]));
   let cur: string | undefined;
+  const lineCounts = new Map<string, number>(); // a made-up file's line count, counted once
   return p.steps.map((s) => {
     const m = s.title.match(/^(\S*?)(?:#(L?\d+(?:-L?\d+)?))?$/);
     if (!m || !s.title) return { repo: repo ?? "", file, lines: null, focus: null, marks: [], err: `a code walk step needs a code reference like \`@step src/a.ts#L10-L20\`, got "${s.title}"` };
     // a made-up file (@file) wins over a repo file of the same path
     if (m[1]) { if (made.has(m[1])) { file = m[1]; cur = made.get(m[1]); } else { const r = splitRef(doc, m[1], repo); repo = r.repo; file = r.file; cur = undefined; } }
     // a made-up file may leave out the range: the whole file
-    const lines = parseLines(m[2]) ?? (cur != null ? [1, Math.max(1, cur.split("\n").length)] as [number, number] : null);
+    const lines = parseLines(m[2]) ?? (cur != null ? [1, Math.max(1, lineCounts.get(file) ?? (lineCounts.set(file, cur.split("\n").length), lineCounts.get(file)!))] as [number, number] : null);
     return { repo: cur != null ? "" : repo ?? "", file, lines, focus: parseLines(s.attrs.focus), marks: (s.attrs.mark ?? "").split(",").map((x) => +x.replace(/L/g, "")).filter((x) => x > 0), err: lines ? undefined : `step "${s.title}" has no line range (#L10-L20)`, made: cur };
   });
 }
@@ -671,6 +672,22 @@ export function editorFiles(doc: Doc, p: PartNode, src: string | undefined) {
   return { spec: e, files: e.files.map((f) => { if (f.made) return { ...f, text: f.text ?? "", commit: null as string | null, err: null as string | null }; const c = readCode(doc, f.repo, f.file, src); return { ...f, text: c.text == null ? null : c.text.replace(/\n$/, ""), commit: c.commit, err: c.err ?? null }; }) };
 }
 
+// How many characters a part's steps carry, at most, when every step holds a whole text: an editor's file before and
+// after each edit, a code walk's lines of a made-up file, a mermaid diagram up to each step. That is the steps times
+// the text, so parse() caps it (a part whose steps would carry too much is shown as its source). Other parts: 0.
+export function stepTextSize(doc: Doc, p: PartNode): number {
+  if (p.name === "mermaid") { let acc = p.head.length, n = p.steps.length ? 0 : acc; for (const s of p.steps) { acc += 1 + s.raw.length; n += acc; } return n; }
+  if (p.name === "codewalk") { const keys = new Set<string>(); let n = 0; for (const r of codewalkRefs(doc, p)) { const k = `${r.repo}/${r.file}`; n += (r.made?.length ?? 0) + (keys.has(k) ? 0 : (keys.add(k), r.made?.length ?? 0)); } return n; }
+  if (p.name === "editor") {
+    // a file after an edit is no longer than before it plus the lines the edit adds
+    const e = editorSpec(doc, p), len = new Map<string, number>();
+    for (const f of e.files) if (f.made) len.set(f.path, (f.text ?? "").length);
+    let n = 0;
+    for (const s of e.steps) { const before = len.get(s.file) ?? 0; let after = before; for (const d of s.diff) if (d[0] === "+") after += d.length; n += before + after; len.set(s.file, after); }
+    return n;
+  }
+  return 0;
+}
 // mermaid steps: each "%% @step" line ends a step; step k draws every line up to its end (the diagram builds up)
 export function mermaidSteps(p: PartNode): { title: string; src: string }[] {
   if (!p.steps.length) return [{ title: "", src: p.head }];
@@ -865,12 +882,14 @@ export function readCode(doc: Doc, repo: string, file: string, src: string | und
   }
   return { text: null, commit: null, err: repo ? `no pins entry for repo ${repo}` : "no repo: give the part repo=<repo>, start the path with a pinned repo, or make the file up with @file" };
 }
+let lastLines: { text: string; all: string[] } | null = null;
 export function readRange(doc: Doc, r: CodeRef, src: string | undefined) {
   const c = r.made != null ? { text: r.made, commit: null, err: undefined } : readCode(doc, r.repo, r.file, src);
   let text: string | null = null, err = r.err ?? c.err ?? null, total = 0;
   if (!err && c.text != null && r.lines) {
-    const all = c.text.split("\n");
-    if (all[all.length - 1] === "") all.pop();
+    // the lines of the text read last, kept: a code walk reads the same file for step after step
+    if (lastLines?.text !== c.text) { const a = c.text.split("\n"); if (a[a.length - 1] === "") a.pop(); lastLines = { text: c.text, all: a }; }
+    const all = lastLines!.all;
     total = all.length;
     if (r.lines[1] > all.length) err = `lines ${r.lines.join("-")} run past the end of ${r.file} (${all.length} lines)`;
     else text = all.slice(r.lines[0] - 1, r.lines[1]).join("\n");

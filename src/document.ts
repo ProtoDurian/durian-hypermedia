@@ -13,6 +13,7 @@ import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
+import { stepTextSize } from "./core/dh-lib";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -97,7 +98,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const refused = new Set<PartNode>();
   const hosts: Kept["hosts"] = new Map();
   const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
-  let count = 0, stopped = false;
+  let count = 0, stopped = false, stepText = 0;
 
   // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
   // layout budget that every animation draws from (core/work.ts)
@@ -158,6 +159,15 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       return doc;
     }
 
+    // a part whose steps would carry too much text: an error, then its source as plain code (nothing the author wrote
+    // is lost; the LLM view, which shows the source, stays as it is)
+    function asSource(p: PartNode, chars: number): Block[] {
+      refused.add(p);
+      const message = `its steps would show ${chars.toLocaleString("en-US")} characters; the limit is ${(chars > MAX_STEP_TEXT ? MAX_STEP_TEXT : MAX_PAGE_STEP_TEXT).toLocaleString("en-US")}${chars > MAX_STEP_TEXT ? "" : " for the whole page"}, so its source is shown instead`;
+      problems.push({ line: p.line, level: "error", message: `${p.name}: ${message}` });
+      return [{ type: "error", line: p.line, part: p.name, message }, { type: "markdown", line: p.line, md: [{ t: "code", lang: "", text: p.body }] } as Block];
+    }
+
     function refuse(p: PartNode, message: string): ErrorBlock {
       refused.add(p);
       textAsLlm(p, `[${p.name} not shown: ${message}]`);
@@ -178,7 +188,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         }
         if (n.kind === "md") { ctx.line = n.line; out.push({ type: "markdown", line: n.line, md: mdBlocks(n.text, ctx) }); continue; }
         if (n.kind === "toc") { out.push({ type: "toc", line: n.line, depth: Math.min(4, Math.max(2, +(n.attrs.depth ?? 3) || 3)), scope: n.attrs.section ? "section" : "page", items: [] }); continue; }
-        try { out.push(part(n)); }
+        try { const b = part(n); if (Array.isArray(b)) out.push(...b); else out.push(b); }
         catch (e) { out.push(refuse(n, `could not be read (${(e as Error).message})`)); }
       }
       return out;
@@ -188,7 +198,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       return { id: p.attrs.id ? idPrefix + p.attrs.id : null, line: p.line, attrs: { ...p.attrs }, llm: (llmOfPart(p, !!opts.publicView) || null) as string | null, llmKind: llmKindOf(p) as LlmKind };
     }
 
-    function part(p: PartNode): Block {
+    function part(p: PartNode): Block | Block[] {
       const def = PARTS[p.name];
       const host = defs.get(p.name);
       if (host && def) {
@@ -236,12 +246,24 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "mermaid") {
         if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
       }
+      // steps that each carry a whole text (an editor's file before and after, a code walk's lines, a mermaid diagram so
+      // far) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
+      const carried = stepTextSize(dh, p);
+      if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, carried);
+      stepText += carried;
       // the format's own JSON for this one part
       const j = jsonOf({ ...dh, body: [p] } as DhDoc, undefined, !!opts.publicView).blocks[0] as Record<string, any>;
       delete j.source; delete j.size; delete j.type; delete j.id; delete j.attrs; delete j.line; delete j.llm; delete j.llmKind;
       const blk: Record<string, any> = { type: p.name, ...base(p), ...j };
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
+        case "filetree": {
+          // each row carries its whole path: deep rows under long folder names carry the square of the tree
+          const n = (blk.trees ?? []).reduce((a: number, t: any) => a + t.rows.reduce((b: number, r: any) => b + r.path.length, 0), 0);
+          if (n > MAX_STEP_TEXT || stepText + n > MAX_PAGE_STEP_TEXT) return asSource(p, n);
+          stepText += n;
+          break;
+        }
         case "chart": {
           if (blk.initial?.limit) return refuse(p, blk.initial.error);
           const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
@@ -269,6 +291,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 // all the tables of contents of one page together list at most this many headings (each lists the page's headings
 // again, so many of them on a page with many headings would grow with the square of the page)
 const MAX_TOC_ITEMS = 2_000;
+// the text a part's steps carry (each step a whole file, diagram or tree of paths), per part and for the whole page
+const MAX_STEP_TEXT = 1_000_000, MAX_PAGE_STEP_TEXT = 2_000_000;
 function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[], problems: Problem[]) {
   // the headings in page order are ctx.heads; a section toc takes the h3+ under the h2 it sits in
   const H = heads.length;

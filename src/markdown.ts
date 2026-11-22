@@ -191,17 +191,31 @@ function domainOk(src: string, i: number, end: number, needDot: boolean): boolea
   const dots = t.lastDot >= i;
   return !(t.underLast >= i || (dots && t.underPrev >= i) || (needDot && !dots));
 }
-/** Trailing punctuation that is not part of the link (the GFM rules: ? ! . , : * _ ~, an unbalanced ), an entity-like &x;). */
-function trimTrail(src: string, from: number, end: number): number {
-  let open = 0, close = 0;
-  for (let k = from; k < end; k++) { const c = src.charCodeAt(k); if (c === 0x28) open++; else if (c === 0x29) close++; }
-  for (;;) {
-    const c = src.charCodeAt(end - 1);
-    if (c === 0x3f || c === 0x21 || c === 0x2e || c === 0x2c || c === 0x3a || c === 0x2a || c === 0x5f || c === 0x7e || c === 0x22 || c === 0x27) { end--; continue; }
-    if (c === 0x29 && close > open) { close--; end--; continue; }
-    if (c === 0x3b) { let k = end - 2; while (k > from && isAlnum(src.charCodeAt(k))) k--; end = k < end - 2 && src.charCodeAt(k) === 0x26 ? k : end - 1; continue; }
-    return end;
+// The run a link's end is read from: from a domain's end to white space or "<". Every start inside the run shares it, so
+// it is read once: where it stops, where its ( and ) are, and its trailing punctuation (the GFM rules: ? ! . , : * _ ~
+// " ', an unbalanced ")", an entity-like "&x;"), read back once from the stop. The ")" in that tail are listed in the
+// order they are met: a link whose ")" outnumber its "(" by k keeps the tail up to the (k+1)th of them.
+const run = { src: "", max: -1, from: -1, stop: -1, opens: [] as number[], closes: [] as number[], tailParens: [] as number[], tailEnd: -1 };
+const isTrailCh = (c: number) => c === 0x3f || c === 0x21 || c === 0x2e || c === 0x2c || c === 0x3a || c === 0x2a || c === 0x5f || c === 0x7e || c === 0x22 || c === 0x27;
+/** Where a link ends whose domain ends at d: the run to white space or "<", less the trailing punctuation. */
+function linkEnd(src: string, d: number, max: number): number {
+  if (!(run.src === src && run.max === max && d >= run.from && d <= run.stop)) {
+    const opens: number[] = [], closes: number[] = [];
+    let stop = d;
+    for (; stop < max; stop++) { const ch = src.charCodeAt(stop); if (isWs(ch) || ch === 0x3c) break; if (ch === 0x28) opens.push(stop); else if (ch === 0x29) closes.push(stop); }
+    const tailParens: number[] = [];
+    let end = stop;
+    for (;;) {
+      const c = src.charCodeAt(end - 1);
+      if (isTrailCh(c)) { end--; continue; }
+      if (c === 0x29) { tailParens.push(end - 1); end--; continue; }
+      if (c === 0x3b) { let k = end - 2; while (k > d && isAlnum(src.charCodeAt(k))) k--; end = k < end - 2 && src.charCodeAt(k) === 0x26 ? k : end - 1; continue; }
+      break;
+    }
+    run.src = src; run.max = max; run.from = d; run.stop = stop; run.opens = opens; run.closes = closes; run.tailParens = tailParens; run.tailEnd = end;
   }
+  const more = (run.closes.length - lowerBound(run.closes, d)) - (run.opens.length - lowerBound(run.opens, d));
+  return more >= 0 && more < run.tailParens.length ? run.tailParens[more] + 1 : more < 0 && run.tailParens.length ? run.tailParens[0] + 1 : run.tailEnd;
 }
 function autolinkLiteral(state: StateInline, silent: boolean): boolean {
   // never inside a link, nor while markdown-it looks for the end of a link's text (silent): brackets come first
@@ -213,9 +227,7 @@ function autolinkLiteral(state: StateInline, silent: boolean): boolean {
   const www = (src.charCodeAt(pos) | 0x20) === 0x77;
   const d = domainEnd(src, pos + pre, max);
   if (d < 0) return false;
-  let end = d;
-  while (end < max) { const ch = src.charCodeAt(end); if (isWs(ch) || ch === 0x3c) break; end++; }
-  end = trimTrail(src, pos, end);
+  const end = linkEnd(src, d, max);
   if (end <= pos + pre || !domainOk(src, pos + pre, Math.min(end, d), false)) return false;
   if (!silent) {
     const text = src.slice(pos, end);
@@ -232,7 +244,7 @@ const mail = { src: "", runFrom: -1, runEnd: -1, domAt: -1, domEnd: -1 };
 function emailAt(src: string, p: number, max: number): number {
   if (!(mail.src === src && p >= mail.runFrom && p <= mail.runEnd)) {
     let e = p; while (e < src.length && isLocalCh(src.charCodeAt(e))) e++;
-    if (mail.src !== src) { mail.domAt = -1; mail.domEnd = -1; dom.src = ""; }
+    if (mail.src !== src) { mail.domAt = -1; mail.domEnd = -1; dom.src = ""; run.src = ""; }
     mail.src = src; mail.runFrom = p; mail.runEnd = e;
   }
   const at = mail.runEnd;
@@ -473,7 +485,7 @@ function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: num
   const md = readerFor(defs), env: any = {};
   md.options.maxNesting = nestCap(maxDepth);
   const toks = md.parse(src, env);
-  mail.src = ""; dom.src = ""; // the e-mail and domain scans' caches need not hold the text
+  mail.src = ""; dom.src = ""; run.src = ""; // the e-mail, domain and link-end scans' caches need not hold the text
   return { toks, md, env };
 }
 /** The inline tokens of an inline token, read now (with the inline nesting cap) and not kept on it. */
@@ -484,7 +496,7 @@ function kidsOf(t: Tok | undefined): Tok[] {
   const md = cur.md, keep = md.options.maxNesting, out: Tok[] = [];
   md.options.maxNesting = INLINE_NEST;
   try { md.inline.parse(t.content, md, cur.env, out); } finally { md.options.maxNesting = keep; }
-  mail.src = ""; dom.src = "";
+  mail.src = ""; dom.src = ""; run.src = "";
   return out;
 }
 /** Run f with the reader and env of a lexed text current (kidsOf reads from them); nested calls restore the outer one. */

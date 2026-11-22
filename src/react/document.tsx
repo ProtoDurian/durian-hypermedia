@@ -12,6 +12,7 @@ import type { InlineDef } from "../markdown";
 import type { Block, Document, HostBlock } from "../types";
 import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type Slots, cx } from "./context";
 import { Md } from "./markdown";
+import { Turn } from "./turn";
 
 export interface DocumentProps {
   doc: Document;
@@ -65,7 +66,7 @@ export function Blocks({ blocks }: { blocks: Block[] }): React.ReactElement {
     if (b.type === "human") { const C = components.human; return C ? <C key={i} block={b} /> : <Fallback key={i} block={b} />; }
     const C = (b.type === "host" ? HostPart : components[b.type]) as React.ComponentType<{ block: Block }> | undefined;
     const part = C ? <C block={b} /> : <Fallback block={b} />;
-    return <slots.Frame key={i} block={b}>{part}<Peek block={b} /></slots.Frame>;
+    return <slots.Frame key={i} block={b}>{C && b.type !== "host" && b.type !== "tabs" && b.type !== "accordion" ? <Turn>{part}</Turn> : part}<Peek block={b} /></slots.Frame>;
   })}</>;
 }
 

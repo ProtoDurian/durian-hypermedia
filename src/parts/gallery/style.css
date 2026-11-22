@@ -1,0 +1,53 @@
+/* gallery: one image, a grid or a carousel, and the lightbox. Tokens read the base tokens, so light and dark follow; a
+   host sets one to restyle the part. */
+:root {
+  --gallery-radius: var(--r-m);
+  --gallery-gap: var(--s-3);
+  --gallery-caption: var(--muted);
+  --gallery-lightbox-bg: rgba(0, 0, 0, .92);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --gallery-lightbox-bg: rgba(0, 0, 0, .94); }
+}
+:root[data-theme="dark"] { --gallery-lightbox-bg: rgba(0, 0, 0, .94); }
+
+.gl { display: flex; flex-direction: column; gap: var(--s-2); }
+.gl-title, .lt-title, .dl-title { margin: 0; font-weight: var(--w-strong); font-size: var(--fs-s); color: var(--ink); }
+.gl-img { display: block; width: 100%; padding: 0; border: 0; border-radius: var(--gallery-radius); overflow: hidden; background: var(--surface-2); cursor: zoom-in; position: relative; }
+.gl-img img, .gl-slide img { display: block; width: 100%; height: auto; object-fit: cover; transition: transform var(--dur) var(--ease); }
+.gl-img:hover img { transform: scale(1.035); }
+.gl-img::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px rgba(0,0,0,.08); pointer-events: none; }
+.gl figure { margin: 0; }
+.gl figcaption { margin-top: 6px; font-size: 13.5px; line-height: 1.4; color: var(--gallery-caption); display: flex; flex-direction: column; gap: 1px; }
+.gl figcaption b { color: var(--ink); font-weight: 600; } .gl figcaption.is-alt span { font-size: 13px; }
+.gl-grid { display: grid; grid-template-columns: repeat(var(--gallery-cols, 3), minmax(0, 1fr)); gap: var(--gallery-gap); align-items: start; }
+.gl-one { max-width: 100%; }
+.gl-car { position: relative; }
+.gl-view { overflow: hidden; border-radius: var(--gallery-radius); touch-action: pan-y; cursor: grab; user-select: none; -webkit-user-select: none; }
+.gl-view:active { cursor: grabbing; }
+.gl-track { display: flex; transition: transform var(--dur-slow) var(--ease); will-change: transform; }
+.gl-track.is-drag { transition: none; }
+.gl-slide { flex: 0 0 100%; min-width: 0; }
+.gl-slide img { border-radius: var(--gallery-radius); }
+.gl-nav { position: absolute; top: calc(50% - 40px); width: 44px; height: 44px; padding: 0; background: rgb(255 255 255 / .82); color: rgb(10 17 36); box-shadow: var(--shadow-md); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.gl-nav:hover:not(:disabled) { background: rgb(255 255 255); } .gl-prev { left: 10px; } .gl-next { right: 10px; }
+.gl-dots { display: flex; justify-content: center; gap: 0; margin-top: 6px; }
+.gl-dot { width: 28px; height: 28px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.gl-dot i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); transition: width var(--dur) var(--ease), background var(--dur-fast); }
+.gl-dot[aria-current="true"] i { width: 22px; border-radius: 4px; background: var(--acc); }
+.lb { position: fixed; inset: 0; z-index: 1000; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--gallery-lightbox-bg); color: rgb(255 255 255); animation: lb-in var(--dur) var(--ease) both; }
+@keyframes lb-in { from { opacity: 0; } }
+.lb-top { display: flex; align-items: center; gap: 6px; padding: 10px 12px; }
+.lb-count { font-size: 14px; font-variant-numeric: tabular-nums; opacity: .85; padding-left: 6px; }
+.lb .m-ctl { background: rgba(255,255,255,.12); color: rgb(255 255 255); } .lb .m-ctl:hover:not(:disabled) { background: rgba(255,255,255,.24); }
+.lb-stage { position: relative; display: grid; place-items: center; overflow: hidden; touch-action: none; min-height: 0; }
+.lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-select: none; transform-origin: 50% 50%; will-change: transform; }
+.lb-nav { position: absolute; top: calc(50% - 22px); width: 48px; height: 48px; padding: 0; } .lb-prev { left: 12px; } .lb-next { right: 12px; }
+.lb-cap { margin: 0; padding: 10px 16px 18px; text-align: center; font-size: 14.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 2px; }
+.lb-cap b { font-weight: 600; } .lb-cap span { opacity: .8; }
+
+@media (max-width: 640px) {
+  .gl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gl-nav { display: none; }
+  .lb-nav { width: 44px; height: 44px; }
+}

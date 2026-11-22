@@ -7,6 +7,18 @@ title: The folder parts
 
 Every part that lives in its own folder, with its sample. The Format page shows each as source, drawing and LLM view.
 
+## Downloads
+
+A card for each file: a type icon, its size, a plain download link, and a checksum that copies on a tap, with the line that checks it. Nothing is counted and nothing is fetched until the reader presses Download.
+
+```downloads title="Files for this page"
+media/report.pdf "The report, first pages" 209 KB sha256=d14bdfa9e9a37c960e8a2835fd6c0e75aa6e201e1e967d18159378e3de124372
+media/talk.mp3 "The spoken sample" 229 KB sha256=8ed40d5dc963c74c457b987f9af4b4f3a33f1c13aa7a547cd3e959bf6fcd5d55
+media/build.json "The hand-written animation" 6.4 KB note="A Lottie file with no expressions and no images."
+https://example.com/durian-markdown-0.7.0.tar.gz "Source archive (an example address)" 1.2 MB sha256=2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae note="The address is an example; nothing is fetched until you press Download."
+media/requests.csv "Raw data" 15.4 KB note="One row per request."
+```
+
 ## Fishbone
 
 Causes by category along a spine into the effect. In a narrow column the spine turns vertical.
@@ -54,6 +66,32 @@ main;serve;handle;render.page 95
 main;serve;gc 45
 main;serve;accept 30
 main;housekeeping;flush 60
+```
+
+## Gallery
+
+A carousel shows one image at a time: swipe, use the arrow keys, the buttons or the dots. A tap opens the picture full screen, where pinch, wheel and double tap zoom it, and one finger or the mouse pans.
+
+```gallery title="Four sample pictures" view=carousel loop
+![A harbour at dawn: a low sun over a still sea](media/harbour.svg "Harbour at dawn: a made-up picture for the sample")
+![A pine forest in green light](media/forest.svg "Pine forest")
+![Sand dunes under a pale sky](media/dunes.svg "Dunes at noon")
+![A mountain behind a lake](media/lake.svg "Mountain lake")
+```
+
+A grid crops to a ratio (the full picture stays in the lightbox), with the caption under each image.
+
+```gallery title="The same pictures, as a grid" view=grid columns=3 ratio=4:3
+![A harbour at dawn](media/harbour.svg "Harbour")
+![A pine forest](media/forest.svg "Forest")
+![Sand dunes](media/dunes.svg "Dunes")
+![A mountain lake](media/lake.svg "Lake")
+```
+
+One image, with zoom.
+
+```gallery view=single
+![A mountain behind a lake](media/lake.svg "Tap the picture to see it full screen")
 ```
 
 ## Sankey

@@ -314,8 +314,8 @@ export const KEY_GLYPHS: Record<string, string> = { left: "←", right: "→", u
 const KEY_NAMES: Record<string, string> = { left: "Left arrow", right: "Right arrow", up: "Up arrow", down: "Down arrow" };
 const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 export function mouseParts(inner: string): { act: string; target: string } {
-  const m = inner.trim().match(/^(\S+)\s*(.*)$/);
-  return { act: m?.[1] ?? inner, target: (m?.[2] ?? "").replace(/^"|"$/g, "") };
+  const m = inner.trim().match(/^(?=(\S+))\1(?=(\s*))\2(.*)$/); // each run taken whole: no backtracking into them
+  return { act: m?.[1] ?? inner, target: (m?.[3] ?? "").replace(/^"|"$/g, "") };
 }
 const chords = (k: string) => k.split(/\s*,\s*/);
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
@@ -899,7 +899,18 @@ export function checkCodeRef(doc: Doc, ref: string, src: string | undefined): st
   }
   return null;
 }
-export function mapCodeRefs(t: string): string[] { return [...t.matchAll(/\]\(code:([^)\s]+)\)/g)].map((m) => m[1]); }
+// the code references of a text: [...t.matchAll(/\]\(code:([^)\s]+)\)/g)].map((m) => m[1]), in one pass (the pattern
+// scanned the same long run again from every "](code:" in it)
+export function mapCodeRefs(t: string): string[] {
+  const out: string[] = [];
+  let stop = -1; // where the run of non-")" non-space characters seen last ends
+  for (let i = t.indexOf("](code:"); i >= 0; i = t.indexOf("](code:", i + 1)) {
+    const a = i + 7;
+    if (a > stop) { stop = a; while (stop < t.length && t[stop] !== ")" && !WS.test(t[stop])) stop++; }
+    if (stop > a && t[stop] === ")") { out.push(t.slice(a, stop)); i = stop; }
+  }
+  return out;
+}
 
 // ---------- translations ----------
 export function sectionsOf(bodyText: string): string[] {

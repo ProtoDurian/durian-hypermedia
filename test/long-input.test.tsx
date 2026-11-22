@@ -5,7 +5,8 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { parse, check, llmView } from "../src/index";
 import { DhDocument } from "../src/react/index";
-import { parseTree, parseTermLines, madeUpFiles } from "../src/core/dh-lib";
+import { parseTree, parseTermLines, madeUpFiles, parseDoc } from "../src/core/dh-lib";
+import { checkDoc } from "../src/core/doccheck";
 
 const F = "```";
 const quick = (ms: number, f: () => unknown) => { const t0 = performance.now(); f(); expect(performance.now() - t0).toBeLessThan(ms); };
@@ -53,5 +54,46 @@ describe("made-up files", () => {
   });
   test("a long @file line", () => {
     quick(1500, () => all(`${F}editor\n@file ${"a".repeat(60_000)}\u2028\nx\n${F}\n`));
+  });
+});
+
+describe("checks of prose", () => {
+  test("key, mouse and file:line rules read the same", () => {
+    const msgs = check("Press :kbd[Ctrl+K , Ctrl+S] then :kbd[] and :mouse[click OK]{x} and :mouse[wave] at src/a.ts:12 or b.rs.\n").map((p) => p.message);
+    expect(msgs.some((m) => m.includes(":kbd[]"))).toBe(true);
+    expect(msgs.some((m) => m.includes("no {attributes}"))).toBe(true);
+    expect(msgs.some((m) => m.includes('"wave" is not a mouse action'))).toBe(true);
+    expect(msgs.some((m) => m.includes('"src/a.ts:12"'))).toBe(true);
+  });
+  // the rules alone (the Markdown reader of parse() has tests of its own)
+  const rules = (t: string) => { const issues: any[] = []; checkDoc(parseDoc("page.dh.md", t), undefined, issues); return issues; };
+  test("long prose with many openers and no closers", () => {
+    quick(1500, () => rules(":kbd[".repeat(30_000)));
+    quick(1500, () => rules(":mouse[a]{".repeat(20_000)));
+    quick(1500, () => rules("www.a".repeat(30_000)));
+    quick(1500, () => rules(`:kbd[a${" ".repeat(60_000)}b]`));
+    quick(1500, () => rules("](code:".repeat(30_000)));
+  });
+});
+
+describe("tier lists and alignment grids", () => {
+  test("a long line with long runs of spaces", () => {
+    const ls = String.fromCharCode(0x2028);
+    quick(1500, () => all(`${F}alignment\nx: a${" ".repeat(60_000)}b .. c\ny: d .. e\na / d: q\n${F}\n`));
+    quick(1500, () => all(`${F}alignment\nx:${" ".repeat(60_000)}a${ls}\ny: d .. e\n${F}\n`));
+    quick(1500, () => all(`${F}alignment\nx: a .. b\ny: c .. d\nq @ ${"1".repeat(60_000)}x, 1\n${F}\n`));
+    quick(1500, () => all(`${F}tierlist\ntiers: ${"[".repeat(60_000)}]\nS: a\n${F}\n`));
+    quick(1500, () => all(`${F}tierlist\nS: "a"${" ".repeat(60_000)}b${ls}\n${F}\n`));
+  });
+  test("many names on an axis and many cells", () => {
+    const n = 6_000;
+    quick(1500, () => all(`${F}alignment\nx: ${Array.from({ length: n }, (_, i) => "a" + i).join(" .. ")}\ny: b .. c\n${Array.from({ length: n }, (_, i) => `a${n - 1 - i} / b: q${i}`).join("\n")}\n${F}\n`));
+  });
+  test("a message names at most a short list", () => {
+    const names = Array.from({ length: 400 }, (_, i) => "t" + i);
+    const d: any = parse(`${F}tierlist\ntiers: ${names.join(", ")}\nnope: a\n${F}\n`);
+    const msg = d.blocks[0].tier.errors.map((e: any) => e.msg).find((m: string) => m.includes("there is no tier"));
+    expect(msg.length).toBeLessThan(500);
+    expect(msg).toContain("(400 in all)");
   });
 });

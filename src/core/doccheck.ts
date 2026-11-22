@@ -11,7 +11,7 @@ import { parseDefs } from "./expr";
 import { BudgetError, partBudget } from "./budget";
 import { chartRoom, briefJson } from "./chart";
 import { animOverMessage } from "./work";
-import { parseTier } from "./tier";
+import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
 
@@ -20,6 +20,40 @@ const SEC_RE = /\*\*Security finding:\*\*/g;
 const WATCH_RE = /\*\*Watch out:\*\*/g;
 const where: Record<Exclude<Ctx, "page">, string> = { part: "inside a part", segment: "inside a human-only segment (the LLM view drops it)", llm: "in an LLM text" };
 
+// the matches of /<open>([^<close>]*)<close>(\{[^}]*\})?/g in s, in one pass (the pattern scanned to the end of the
+// text from every opener with no closer): [the match, inner, the {...} after it or undefined], as matchAll gives them
+function enclosed(s: string, open: string, close: string, braces = false): [string, string, string | undefined][] {
+  const out: [string, string, string | undefined][] = [];
+  const lastBrace = braces ? s.lastIndexOf("}") : -1;
+  for (let from = 0; ;) {
+    const i = s.indexOf(open, from);
+    if (i < 0) break;
+    const j = s.indexOf(close, i + open.length);
+    if (j < 0) break;
+    let attrs: string | undefined, end = j + 1;
+    if (braces && s[j + 1] === "{" && j + 2 <= lastBrace) { const k = s.indexOf("}", j + 2); attrs = s.slice(j + 1, k + 1); end = k + 1; }
+    out.push([s.slice(i, end), s.slice(i + open.length, j), attrs]);
+    from = end;
+  }
+  return out;
+}
+// the first match of /\b[\w./-]+\.(rs|go|ts|py|cs|js):\d+/ in s, in one pass (the pattern tried every word boundary
+// of a long run of those characters, each scan to the run's end): the match, or null
+const WORDCH = /\w/, PATHCH = /[\w./-]/, DIGIT = /\d/;
+function fileLineRef(s: string): string | null {
+  for (let c = s.indexOf(":"); c >= 0; c = s.indexOf(":", c + 1)) {
+    if (!DIGIT.test(s[c + 1] ?? "") || c < 4 || !/^\.(rs|go|ts|py|cs|js)$/.test(s.slice(c - 3, c))) continue;
+    let r0 = c - 3;
+    while (r0 > 0 && PATHCH.test(s[r0 - 1])) r0--;
+    for (let p = r0; p <= c - 4; p++) {
+      if ((p > 0 && WORDCH.test(s[p - 1])) === WORDCH.test(s[p])) continue; // \b
+      let e = c + 1;
+      while (e < s.length && DIGIT.test(s[e])) e++;
+      return s.slice(p, e);
+    }
+  }
+  return null;
+}
 // blockquotes of a Markdown text, outside code fences: [first line offset, lines]
 function blockquotes(text: string): [number, string[]][] {
   const out: [number, string[]][] = []; let cur: string[] | null = null; let fence = false;
@@ -51,13 +85,13 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     for (const m of noCode.matchAll(/^>\s*\*\*([^*]+?):\*\*/gm)) if (!CALLOUTS.includes(m[1])) err(n.line, "part data", `"**${m[1]}:**" is not a callout marker (markers: ${CALLOUTS.join(", ")})`);
     if (/^:::\s*banner/m.test(noCode)) err(n.line, "part data", `:::banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
     const inl = noCode.replace(/`[^`\n]*`/g, "");
-    for (const m of inl.matchAll(/:kbd\[([^\]]*)\]/g)) {
-      if (!m[1].trim() || m[1].split(/\s*,\s*/).some((c) => !c || /^\+|\+\+\+/.test(c))) err(n.line, "part data", `:kbd[${m[1]}] needs keys joined by + and chords separated by commas, like :kbd[Ctrl+K, Ctrl+S]`);
+    for (const m of enclosed(inl, ":kbd[", "]")) {
+      if (!m[1].trim() || splitAround(m[1], ",").some((c) => !c || /^\+|\+\+\+/.test(c))) err(n.line, "part data", `:kbd[${m[1]}] needs keys joined by + and chords separated by commas, like :kbd[Ctrl+K, Ctrl+S]`);
       if (/[←→↑↓⌘⇧⌥↵⇥⌫]/.test(m[1])) err(n.line, "part data", `:kbd[${m[1]}]: write the key's name as typed (Left, Right, Up, Down, Cmd, Shift, Enter); the page draws the symbol`);
     }
-    for (const m of inl.matchAll(/:mouse\[([^\]]*)\](\{[^}]*\})?/g)) { if (m[2]) err(n.line, "part data", `:mouse takes no {attributes}: write the action and its target inside, like :mouse[click Cancel]`); const { act } = mouseParts(m[1]); if (!MOUSE_WORDS.includes(act)) err(n.line, "part data", `:mouse[${m[1]}]: "${act}" is not a mouse action (${MOUSE_WORDS.join(", ")})`); }
-    const ln = noCode.match(/\b[\w./-]+\.(rs|go|ts|py|cs|js):\d+/);
-    if (ln) err(n.line, "line numbers in prose", `"${ln[0]}"; use a code reference`);
+    for (const m of enclosed(inl, ":mouse[", "]", true)) { if (m[2]) err(n.line, "part data", `:mouse takes no {attributes}: write the action and its target inside, like :mouse[click Cancel]`); const { act } = mouseParts(m[1]); if (!MOUSE_WORDS.includes(act)) err(n.line, "part data", `:mouse[${m[1]}]: "${act}" is not a mouse action (${MOUSE_WORDS.join(", ")})`); }
+    const ln = fileLineRef(noCode);
+    if (ln) err(n.line, "line numbers in prose", `"${ln}"; use a code reference`);
     const lines = n.text.split("\n");
     const headingAt = ctx === "page" ? lines.findIndex((l) => /^## /.test(l)) : -1;
     for (const [at, bq] of blockquotes(n.text)) {

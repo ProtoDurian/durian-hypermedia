@@ -14,6 +14,7 @@ import { dirname, extname, join, resolve } from "../host/path";
 import { spawnSync } from "../host/child_process";
 import { chartControls, evalChart } from "./chart";
 import { chartTable } from "./chart-llm";
+import { chartTable11, evalChart11, usesChart11 } from "./chart11";
 import { currentBudget, BudgetError } from "./budget";
 import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
@@ -811,7 +812,8 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
 // the LLM view of a chart: its data as a table; a chart with controls or formulas goes as its source
 function chartLlm(p: PartNode): string {
   const d = chartYaml(p);
-  if (!d || d.controls || d.let) return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
+  if (!d || ((d.controls || d.let) && d.layout !== "calculator")) return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
+  if (usesChart11(d)) return chartTable11(d) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
   return chartTable(d, chartInitial(p, d)) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
 }
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
@@ -1072,12 +1074,13 @@ function chartYaml(p: PartNode): any { return chartYamlOf(p).d; }
 /** Why a chart's YAML could not be read (too many anchors and aliases, not YAML at all), or null. */
 export function chartYamlError(p: PartNode): string | null { return chartYamlOf(p).err; }
 function chartInitial(p: PartNode, d: any): ReturnType<typeof evalChart> {
+  const run = (x: any): ReturnType<typeof evalChart> => (usesChart11(x) ? evalChart11(x) : evalChart(x));
   const b = currentBudget();
-  if (!b) return evalChart(d);
+  if (!b) return run(d);
   let m = initials.get(b);
   if (!m) { m = new WeakMap(); initials.set(b, m); }
   let r = m.get(p);
-  if (!r) { r = evalChart(d); m.set(p, r); }
+  if (!r) { r = run(d); m.set(p, r); }
   return r;
 }
 // ---------- JSON for the renderer ----------

@@ -28,6 +28,13 @@ export interface Limits extends PartLimits {
   maxPageAnimWork: number;
   /** data points of one chart (all series together) */
   maxChartPoints: number;
+  /** annotations (events, ranges, thresholds, goals), steps (`steps:`) and heatmap cells of one chart */
+  maxChartAnnotations: number;
+  maxChartSteps: number;
+  maxChartHeatCells: number;
+  /** rows and inputs of a calculator-layout chart */
+  maxCalcRows: number;
+  maxCalcInputs: number;
   /** items of one tier list or alignment grid */
   maxItems: number;
   /** characters of one mermaid diagram */
@@ -64,6 +71,11 @@ export const LIMITS: Limits = {
   maxAnimWork: 15_000_000,
   maxPageAnimWork: 64_000_000,
   maxChartPoints: 5_000,
+  maxChartAnnotations: 60,
+  maxChartSteps: 40,
+  maxChartHeatCells: 10_000,
+  maxCalcRows: 24,
+  maxCalcInputs: 12,
   maxItems: 500,
   maxMermaidChars: 20_000,
   maxSteps: 200,

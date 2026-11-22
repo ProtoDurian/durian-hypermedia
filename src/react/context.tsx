@@ -86,6 +86,8 @@ export interface DhSettings {
   llmPeek: boolean;
   /** added to every Markdown heading's level (at most 6) */
   demoteHeadings: number;
+  /** the host's setting for interactive parts (DocumentProps.interactive); "off" when not set */
+  interactive?: "off" | "static" | "on";
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

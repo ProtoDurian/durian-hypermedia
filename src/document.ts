@@ -15,6 +15,7 @@ import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
+import { RefSession, fencedSource, type ResolveReference } from "./refs";
 
 export const FORMAT_VERSION = 10;
 /** check() evaluates every chart at several control values: its budget is this many times the page's */
@@ -54,6 +55,10 @@ export interface ParseOptions {
   marks?: Record<string, { label?: string; colour: string; means?: string }>;
   /** prompts every page may use in a terminal, as the front matter `prefixes:` writes them: { ">>>": { label: "Python", colour: "c4" } } */
   prefixes?: Record<string, { label?: string; colour: string; means?: string }>;
+  /** answers for the page's references, [[type:name "label"]] (format version 11): pending, ready with the part's source,
+   *  or failed. A ready part is read here with the same caps and budgets as a part written inline. Without it a reference
+   *  stays unresolved (the renderer may ask later). It must not fetch: answer pending and parse again when it is there. */
+  resolveReference?: ResolveReference;
 }
 
 // what parse() keeps for llmView() and check() of the same Document in this process
@@ -105,6 +110,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   return withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
+    // the page's references (refs.ts): counted, checked and, with the host's resolver, read in place
+    const refs = new RefSession({ lim, problems, resolve: opts.resolveReference, readPart: readReferenced, md: (t, l) => { ctx.line = l; return mdBlocks(t, ctx); } });
     const fmOn = opts.frontMatter !== false;
     const fmText = fmOn ? clean.match(/^---\n([\s\S]*?)\n---\n/)?.[1] : undefined;
     if (fmText != null && tooManyAliases(fmText)) {
@@ -186,12 +193,28 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           out.push({ type: "error", line: n.line, part: null, message });
           break;
         }
-        if (n.kind === "md") { ctx.line = n.line; out.push({ type: "markdown", line: n.line, md: mdBlocks(n.text, ctx) }); continue; }
+        if (n.kind === "md") { ctx.line = n.line; out.push(...refs.split(mdBlocks(n.text, ctx), n.text, n.line)); continue; }
         if (n.kind === "toc") { out.push({ type: "toc", line: n.line, depth: Math.min(4, Math.max(2, +(n.attrs.depth ?? 3) || 3)), scope: n.attrs.section ? "section" : "page", items: [] }); continue; }
         try { const b = part(n); if (Array.isArray(b)) out.push(...b); else out.push(b); }
         catch (e) { out.push(refuse(n, `could not be read (${(e as Error).message})`)); }
       }
       return out;
+    }
+
+    // a part a reference resolved to (refs.ts): read as if it were written on the reference's line, through the same
+    // part() as every part of the page (the same caps, the page's budgets, the block count)
+    function readReferenced(type: string, source: string, line: number): Block[] {
+      const err = (message: string): Block[] => { problems.push({ line, level: "error", message: `${type}: ${message}` }); return [{ type: "error", line, part: type, message }]; };
+      const text = fencedSource(type, source);
+      if (typeof text !== "string") return err(text.error);
+      let nodes: DhNode[];
+      try { nodes = parseDoc(dh.path, text, { frontMatter: false, site }).body; }
+      catch (e) { return err(`the host's answer could not be read (${(e as Error).message})`); }
+      const p = nodes[0];
+      if (nodes.length !== 1 || p.kind !== "part" || p.name !== type) return err(`the host's answer is not one ${type} part`);
+      p.line = p.endLine = p.bodyLine = line;
+      for (const st of p.steps) st.line = line;
+      return walk([p]);
     }
 
     function base(p: PartNode) {
@@ -279,7 +302,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           if (nx * ny > MAX_ALIGN_CELLS) return asSource(p, `a grid of ${nx} × ${ny} cells; the limit is ${MAX_ALIGN_CELLS}, so its source is shown instead`);
           const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
         case "codewalk":
-          blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }) }));
+          blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: refs.inline(mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }), p.steps[i]?.raw ?? "", p.steps[i]?.line ?? p.line) }));
           break;
         case "mermaid": {
           // a %%{init: ...}%% directive may try to change mermaid's settings: it is dropped

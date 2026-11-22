@@ -51,6 +51,14 @@ export interface Limits {
    *  some parsers the square of their number */
   maxYamlNodes: number;
   maxPageYamlNodes: number;
+  /** references (`[[type:name]]`, blocks and chips) one page may hold; past it the rest show as their labels */
+  maxReferences: number;
+  /** UTF-8 bytes of all the parts a page's references resolve to, together (each is read with the caps above) */
+  maxReferenceBytes: number;
+  /** UTF-8 bytes of one SVG a reference resolves to */
+  maxSvgBytes: number;
+  /** UTF-8 bytes of one interactive part a reference resolves to (its HTML, CSS and script together) */
+  maxInteractiveBytes: number;
 }
 export const LIMITS: Limits = {
   maxInputBytes: 1_000_000,
@@ -76,10 +84,14 @@ export const LIMITS: Limits = {
   maxPageYamlChars: 200_000,
   maxYamlNodes: 3_000,
   maxPageYamlNodes: 24_000,
+  maxReferences: 500,
+  maxReferenceBytes: 1_000_000,
+  maxSvgBytes: 200_000,
+  maxInteractiveBytes: 200 * 1024,
 };
 /**
- * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML
- * and animation caps, so its slowest pages parse about three to five times quicker (SECURITY.md). Pass it as
+ * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML,
+ * animation and reference caps, so its slowest pages parse about three to five times quicker (SECURITY.md). Pass it as
  * parse(text, { limits: UNTRUSTED_LIMITS }); an authored page may need more and is refused here past them.
  */
 export const UNTRUSTED_LIMITS: Limits = {
@@ -90,6 +102,9 @@ export const UNTRUSTED_LIMITS: Limits = {
   maxPageYamlNodes: 4_000,
   maxAnimWork: 3_000_000,
   maxPageAnimWork: 6_000_000,
+  maxReferences: 100,
+  maxReferenceBytes: 400_000,
+  maxSvgBytes: 100_000,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

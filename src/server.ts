@@ -88,6 +88,7 @@ export async function highlight(doc: Document, opts: HighlightOptions = {}): Pro
         }
         case "tabs": case "accordion": { const items = []; for (const it of b.items) items.push({ ...it, body: await blocks(it.body) }); out.push({ ...b, items } as Block); break; }
         case "human": out.push({ ...b, body: await blocks(b.body) }); break;
+        case "reference": out.push(b.blocks ? { ...b, blocks: await blocks(b.blocks) } : b); break;
         default: out.push(b);
       }
     }

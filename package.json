@@ -104,6 +104,16 @@
       "bun": "./src/react/containers.tsx",
       "import": "./dist/react/containers.js"
     },
+    "./react/reference": {
+      "types": "./src/react/reference.tsx",
+      "bun": "./src/react/reference.tsx",
+      "import": "./dist/react/reference.js"
+    },
+    "./react/interactive": {
+      "types": "./src/react/interactive.tsx",
+      "bun": "./src/react/interactive.tsx",
+      "import": "./dist/react/interactive.js"
+    },
     "./react/hydrate": {
       "types": "./src/react/hydrate.tsx",
       "bun": "./src/react/hydrate.tsx",

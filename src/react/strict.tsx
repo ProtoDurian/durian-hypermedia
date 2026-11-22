@@ -18,11 +18,13 @@ import { AnimationPart } from "./animation";
 import { TierListPart } from "./tierlist";
 import { AlignmentPart } from "./alignment";
 import { TabsPart, AccordionPart, HumanPart } from "./containers";
+import { SvgPart, InteractiveStill } from "./reference";
 import type { Components } from "./context";
 
 export const STRICT_PARTS: Components = {
   terminal: TerminalPart, filetree: FileTreePart, editor: EditorPart, codewalk: CodeWalkPart, chart: ChartPart, mermaid: HostMermaidPart,
   animation: AnimationPart, tierlist: TierListPart, alignment: AlignmentPart, tabs: TabsPart, accordion: AccordionPart, human: HumanPart,
+  svg: SvgPart, interactive: InteractiveStill,
 };
 /** A Document with every part; mermaid diagrams are drawn by the host's Mermaid slot. */
 export function DhDocument(p: DocumentProps) { return <DocumentView {...p} components={{ ...STRICT_PARTS, ...(p.components ?? {}) }} />; }

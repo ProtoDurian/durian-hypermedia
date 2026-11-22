@@ -6,6 +6,7 @@ import { mark, add, del, lineTokens } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
 import { inlineText } from "../markdown";
+import { ReferenceInline } from "./reference";
 import type { MdBlock, MdInline, MarkdownBlock } from "../types";
 
 // the mouse icon: the button the action presses is filled; a double click adds a "2", a scroll arrows, a drag a move arrow
@@ -55,6 +56,7 @@ export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
         </span>
       );
       case "ref": { const R = hostInlines.get(x.name); return R ? <R key={i} text={x.text} data={x.data} /> : <span key={i} className="dh-ref" data-dh-ref={x.name}>{x.text}</span>; }
+      case "reference": return <ReferenceInline key={i} x={x} />;
       case "mouse": return <span key={i} className="dh-mouse"><MouseIcon press={x.press} badge={x.badge} /><span className="dh-mouse-act">{x.act}</span>{x.target ? <> <b>{x.target}</b></> : null}</span>;
     }
   })}</>;

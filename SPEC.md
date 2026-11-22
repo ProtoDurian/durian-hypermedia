@@ -379,6 +379,22 @@ media/requests.csv "Raw data" note="one row per request"
 - **Local files:** `checkLocalFiles` from `durian-hypermedia/node` (never the core) reads each file named under the host's root: the stated size must be what the file has at the precision written, and the checksum must match; a missing file, an absolute path or a `..` is refused.
 - **doccheck refuses:** an address that is not allowed; a size with no unit (B, KB, MB, GB; decimal); a checksum of the wrong length or not hex; `md5=` or `sha1=` (weak: use `sha256=`); a second label; an unknown `key=`; a word that is not a size, a label or a key; a file listed twice; no files; more files than the cap; an unknown option; a part over the page's work budget.
 
+#### Explore
+
+```json explore query=".items[] | select(.qty > 1)"
+{"items":[{"name":"tea","qty":2},{"name":"cup","qty":1}]}
+```
+
+A json, yaml or csv fence with the bare word explore draws a foldable tree, counts, search that opens matching ancestors, path copying, a table for lists of objects, starter queries and a jq subset box. Without explore it remains an ordinary fence. The author query= runs during parsing on the page budget. A reader query always receives a new budget, so a failed query does not spend the next one. The LLM reads the original data followed by the author query result. :::llm can replace it.
+
+The query subset provides paths, iteration, select, map, pipes, arithmetic, arrays/objects, variables, conditionals, try, sorting/grouping, strings and a metered non-backtracking regex test. Unsupported syntax or functions are refused by name. Integer-looking object keys follow JavaScript order. CSV accepts quoted fields, doubled quotes and newlines in fields, and recognizes plain decimal numbers. YAML uses the host reader and its page, node and alias caps.
+
+TOML explore is recognized but explicitly refused: TOML explore needs a TOML reader; this build has none.
+
+Caps (authored; strict in parentheses when lower): exploreChars 262144 (131072), exploreDepth 64 (32), exploreCsvRows 5000 (2500), exploreCsvCols 30 (20), exploreQueryChars 2000 (1000), exploreReaderQueryChars 500, exploreQueryDepth 100 (50), exploreQueryResults 10000 (5000), exploreRegexChars 2000, exploreRegexProgram 4000 (2000), exploreRegexRepeat 200, exploreQueryJsonChars 100000, exploreReaderSteps 200000 (100000), exploreReaderValues 400000 (200000), exploreReaderChars 1000000, exploreRowsPerNode 100, exploreSearchNodes 20000 (10000), exploreTableRows 200, exploreTableCols 12, exploreStringCut 120. Hosts can lower all caps.
+
+Doccheck refuses unknown options, invalid JSON or YAML, malformed or unclosed CSV, duplicate headers, a missing CSV header or data row, too many columns/rows, too much data, nesting over the cap, query errors, unsupported syntax, too many query results, and work beyond the page budget.
+
 #### Fishbone
 
 ````
@@ -452,6 +468,24 @@ launch "Launch" milestone after beta
 - **LLM view:** `Gantt: <title>.` and a table `task | start | end | after` for each section (progress, done and milestone in the task cell), then the critical chain with `critical=on`, and for each later step only the tasks that changed.
 - **Caps:** `ganttTasks` (200; 100 in UNTRUSTED_LIMITS), `ganttSteps` (30; 15), `ganttSections` (30; 15), `ganttDeps` (600 `after` arrows; 300) and `ganttSpanDays` (3,700 days; 1,850). The schedule of every task at every step is charged to the page's work budget when the part is read.
 - **doccheck refuses:** `after` an unknown id, a task that waits for itself or for one that first appears in a later step, a loop of `after`s (it names the tasks), an end before its start, an unknown length unit, a length of 0 or a length over the span, progress over 100%, a task written twice, an unknown colour, a line it does not understand, a step command (`progress`, `done`, `move`) outside a step or on an unknown task, an unknown fence key, a `tz`, `today` or `workdays` it cannot read, no tasks, more tasks, sections, arrows or steps than the caps, a chart that would span more days than the cap, and a part over the page's work budget. It warns on a label over 60 characters.
+
+#### Log
+
+```log labels="app=shop" title="Checkout"
+2026-11-20T10:00:00Z info request status=200
+2026-11-20T10:00:01Z error timeout status=504
+@highlight |= "timeout" [bad] "the request timed out"
+```
+
+Reads JSON, logfmt and time/level/message lines. Consecutive repeated lines fold (fold=off disables it). Level chips, as-written or relative times, matched-word marks, author highlights and a reader LogQL box are included. @highlight accepts a LogQL filter or line 3-5, optional colour word and a quoted reason. llm=highlights keeps matching lines and two nearby lines; otherwise the LLM reads highlights first and the log as written, folding repeats.
+
+The LogQL subset supports selectors, literal and non-backtracking regex line filters, json/logfmt parser stages and field comparisons (including durations and bytes), joined by and, or or comma. Metric queries and unsupported stages are refused by name. Every reader query receives a new budget.
+
+Caps: logLines 5000 (2500 strict), logQueryChars 2000 (1000), logReaderQueryChars 500, logQueryDepth 100 (50), logQueryResults 10000 (5000), logRegexChars 2000, logRegexProgram 4000 (2000), logRegexRepeat 200, logQueryJsonChars 100000, logReaderSteps 200000 (100000), logReaderValues 400000 (200000), logReaderChars 1000000. Hosts may lower each. All author work shares the page budget.
+
+Doccheck refuses an empty log, unknown option, too many lines, bad filter or unsupported query stage, invalid highlight, missing or empty reason, unknown colour, reversed or zero line range, highlight past the end, highlight matching no line, and work over the budget.
+
+Rows expose data-span and optional data-trace, accept keyboard focus and show a Show span action when the trace marks them data-trace-linked=1. The action dispatches dh-trace-focus on document with span and trace.
 
 #### Lottie
 

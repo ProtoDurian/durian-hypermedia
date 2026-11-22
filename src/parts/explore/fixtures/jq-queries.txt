@@ -1,0 +1,92 @@
+# 40 common jq queries. Format: <input name> :: <query>. Every result is compared with real jq (jq -c) by tools/v11-data.test.ts.
+order :: .
+order :: .id
+order :: .customer.name
+order :: .customer.tags[0]
+order :: .customer.tags[-1]
+order :: .lines | length
+order :: .lines[].sku
+order :: .lines[] | select(.qty > 1)
+order :: .lines[] | select(.qty > 1) | .sku
+order :: [.lines[] | .qty * .price]
+order :: [.lines[] | .qty * .price] | add
+order :: .lines | map(.sku) | join(", ")
+order :: .lines | map(select(.price < 10) | .sku)
+order :: .lines | sort_by(.price) | map(.sku)
+order :: .lines | sort_by(.qty) | reverse | .[0].sku
+order :: .lines | map({sku, total: (.qty * .price)})
+order :: {id, who: .customer.name, n: (.lines | length)}
+order :: keys
+order :: .customer | keys_unsorted
+order :: .customer | to_entries | map(.key)
+order :: .lines | map({key: .sku, value: .qty}) | from_entries
+order :: .customer.tags | contains(["vip"])
+order :: .customer | has("name"), has("zip")
+order :: .note // "none"
+order :: "order \(.id) for \(.customer.name): \(.lines | length) lines"
+order :: .lines | first(.[] | select(.qty == 1)) | .sku
+order :: [.lines[] | .price] | min, max
+order :: .customer.name | ascii_downcase | test("^an")
+order :: .lines | any(.qty > 2), all(.qty > 0)
+order :: [.. | numbers] | length
+people :: map(.name)
+people :: group_by(.team) | map({team: .[0].team, n: length})
+people :: group_by(.age) | map(length)
+people :: unique_by(.age) | map(.name)
+people :: map(.age) | unique
+people :: sort_by(.age, .name) | map(.name)
+people :: map(select(.langs | index("go"))) | length
+people :: map(.langs | length) | add
+people :: [.[] | select(.team == "red" and .age > 30) | .name]
+people :: [.[] | .langs[]] | unique | sort
+people :: map({(.name): .age}) | add
+people :: (map(.age) | add) / length
+people :: map(select(.langs | contains(["go"]))) | map(.name)
+people :: limit(2; .[] | .name)
+people :: [range(0; length; 2) as $i | .[$i].name]
+tree :: [.. | .name? // empty]
+tree :: .kids | map(.name)
+tree :: .kids[0].kids | length
+tree :: [.kids[] | .name | ascii_upcase]
+nums :: sort
+nums :: sort | reverse
+nums :: unique | length
+nums :: map(. * 2) | add
+nums :: [.[] | select(. % 2 == 1)]
+nums :: .[1:3]
+nums :: .[-2:]
+nums :: [limit(3; .[])]
+nums :: first, last
+nums :: [range(5)] | map(. * .)
+nums :: add / length
+nums :: map(tostring) | join("-")
+nums :: min_by(.) , max_by(.)
+nums :: to_entries | map(select(.value > 4) | .key)
+words :: sort
+words :: sort_by(ascii_downcase)
+words :: map(ascii_downcase) | unique
+words :: map(select(startswith("a") or startswith("A")))
+words :: map(length)
+words :: map(select(test("^[a-c]"; "i")))
+words :: [.[] | select(endswith("o"))]
+words :: map(.[0:1]) | join("")
+words :: group_by(length) | map(length)
+cfg :: .server.host
+cfg :: .server | to_entries | map("\(.key)=\(.value)") | join(";")
+cfg :: .. | strings
+cfg :: with_entries(select(.value | type == "string"))
+cfg :: .limits | map_values(ascii_upcase)
+cfg :: .server.port + 1
+cfg :: .server | map_values(type)
+cfg :: [.server.host, .env] | @csv
+cfg :: .server.host | split(".")
+cfg :: .server.host | ltrimstr("app.") | rtrimstr(".com")
+cfg :: if .env == "prod" then "careful" elif .env == "dev" then "free" else "?" end
+cfg :: .server.tls as $t | {secure: $t}
+cfg :: try error("x") catch .
+cfg :: .missing?
+cfg :: [.server[]?]
+cfg :: .limits | tojson
+cfg :: .limits | tojson | fromjson | keys
+cfg :: .server.host | @uri
+cfg :: .env | @json

@@ -1,0 +1,2 @@
+export const LIMITS = { logLines: 5000, logQueryChars: 2000, logReaderQueryChars: 500, logQueryDepth: 100, logQueryResults: 10000, logRegexChars: 2000, logRegexProgram: 4000, logRegexRepeat: 200, logQueryJsonChars: 100000, logReaderSteps: 200000, logReaderValues: 400000, logReaderChars: 1000000 };
+export const UNTRUSTED_LIMITS: typeof LIMITS = { ...LIMITS, logLines: 2500, logQueryChars: 1000, logQueryDepth: 50, logQueryResults: 5000, logRegexProgram: 2000, logReaderSteps: 100000, logReaderValues: 200000 };

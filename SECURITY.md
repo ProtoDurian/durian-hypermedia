@@ -210,11 +210,36 @@ part attaches its cleaned SVG as nodes. For a page under `require-trusted-types-
 
 - `durian-hypermedia/react/strict` reaches neither mermaid nor DOMPurify; its whole import graph (dependencies
   included, React left out) has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
-  `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`).
+  `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`), and never reaches
+  `durian-hypermedia/react/interactive`, the only module that sets a frame's page, under its own policy
+  `dh-interactive` (`test/refs-tt.test.ts`).
 - `bun run tt` renders every fixture (hostile ones included) in the browser only, through the strict entry, under the
   policy: 0 violations. A control page that puts a plain string into `innerHTML` must be refused, or the check fails.
 - Mermaid diagrams go to the host's `Mermaid` slot. The full entry's in-page mermaid uses `innerHTML` inside the
   library and is refused under the policy (`bun scripts/csp-check.ts --trusted-types --full`).
+
+## References (format version 11)
+
+- **Nothing is fetched.** A reference `[[type:name "label"]]` names a part the host keeps; the host's
+  `resolveReference` answers it. A name is letters, digits, `.`, `-` and `_`, at most 128: a path, a scheme or a
+  URL is refused with the reason, so a name can never become an address.
+- **One pass.** The reader looks at each `[[` once and reads forward no further than the line, the next `[[` or a
+  fixed window (`test/refs.test.ts` counts the reader's work at n and 2n). Every reference charges one step to the
+  page budget's "reference reader"; `maxReferences` caps a page (500, or 100 in `UNTRUSTED_LIMITS`).
+- **The same caps as inline.** A ready part goes through the same part reader as an inline one, with the page's
+  budgets; all of a page's resolved parts together are capped by `maxReferenceBytes`. A reference inside a part that a
+  reference resolved to is refused, so a host's store cannot make a chain or a loop.
+- **svg** is drawn only through an `<img>` (a `data:` address): script and event handlers in it never run, and the
+  browser loads nothing it names. A DOCTYPE or ENTITY is refused.
+- **interactive** runs only when the host turns it on, in `<iframe sandbox="allow-scripts">` with no
+  `allow-same-origin` (an empty origin: no cookies, no storage, no access to the page), under
+  `default-src 'none'` (no fetch, XHR, WebSocket, images from elsewhere or fonts), with no forms, pop-ups or top
+  navigation. The page accepts only a height from it; it must answer within 5 s, it stops after 10 minutes, and it is
+  stopped if it loads a second page. The checks refuse code that names the network, storage, cookies, `top`,
+  `parent`, `location` or `RTCPeerConnection` before it runs. Not covered: a script that hides those names (the
+  checks read words, not meaning); the sandbox and the policy are the barrier. A browser's WebRTC is not governed by
+  `default-src`: a host that must rule it out serves the frame from an origin of its own with a
+  `Permissions-Policy`.
 
 ## Reporting
 

@@ -14,6 +14,7 @@ On the stateless replay article: source about 5,200 tokens, what a person reads 
 | --- | --- | --- |
 | a part with data | a code fence named for the part | ```` ```terminal ```` |
 | a part that holds prose | a line `:::name`, closed by a line `:::` | `:::tabs` |
+| a part the host keeps (format version 11) | a reference, on its own paragraph or in a sentence | `[[chart:sales "Sales"]]` (section 8a) |
 | steps on a part | a line `@step <title>` inside it | `@step Init call 1` |
 | inline part | a word in a sentence | `:kbd[Left]`, `:mouse[click Next]` |
 | table of contents | one line | `::toc` or `::toc{depth=2}` |
@@ -714,6 +715,84 @@ The Format page shows one scene where an array, a hash map and a tree live in on
 - **Keys** are typed names: `:kbd[Esc]`, `:kbd[Ctrl+Shift+P]`, a sequence `:kbd[Ctrl+K, Ctrl+S]`, and `:kbd[Left]`, `:kbd[Right]`, `:kbd[Up]`, `:kbd[Down]`, `:kbd[Enter]`, `:kbd[Cmd]`. The page draws the symbol (←, →, ↵, ⌘); doccheck refuses a symbol in the source.
 - **Mouse** is one icon and the action: `:mouse[click Next]`, `:mouse[right-click src/]`. Action words: click, double-click, right-click, middle-click, drag, drop, scroll, hover, select. The icon is about two lines tall and **fills the button the action presses**: the left button for click, double-click, drag and select; the right one for right-click; the wheel for middle-click and scroll. A double click adds a "2" badge, so it never looks like a single click; scroll adds arrows by the wheel, drag a move arrow, drop a down arrow, hover motion lines, select a text cursor. The Format page shows all nine.
 
+## 8a. References: a part the host keeps (format version 11)
+
+**Answer first.** `[[<type>:<name> "label"]]` stands for a part the host keeps. Every special part may be written as a reference. `interactive` and `svg` may only be references, so their HTML, CSS, script or raw SVG never sits in the page. The page holds the reference and its label; the host answers for it. The file stays Markdown: on any viewer the reference reads as its text.
+
+| Written | It is | With no resolver |
+| --- | --- | --- |
+| on a paragraph of its own | a block | the label, as a chip |
+| in a sentence, a heading, a list item, a table cell or link text | a chip | the label, as a chip |
+| in a code span or a code block | plain text | plain text |
+
+```md
+The month's numbers:
+
+[[chart:revenue-2026 "Revenue by month, 2026"]]
+
+The build log is in [[terminal:build-42 "the build"]], and the label is optional: [[filetree:repo-layout]].
+```
+
+- **Type:** the name of a fenced part (`terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `animation`, `tierlist`, `alignment`, every part added later, and a host block's name), or `interactive` or `svg`. Containers (`:::tabs` and the others) are not referenced. A word that is not a type (`[[note:this]]`) is plain text.
+- **Name:** letters, digits, `.`, `-` and `_`, at most 128 characters. Never a path (`/`, `\`, a leading `.`, `..`), a scheme (`x:`) or a URL (`//`, `www.`). The host finds the part by its name; the package never fetches anything.
+- **Label:** optional, in double quotes, on the same line, at most 200 characters. A reader sees it until the part is there; an LLM reads it.
+- **Escape:** `\[[` is plain text.
+- **A page with a reference** is a `.dh.md` page (doccheck counts it as a part).
+
+**Resolving.** The host passes `resolveReference({ type, name })` to `parse()`. It answers one of three:
+
+| Answer | A block is drawn as | A chip is drawn as |
+| --- | --- | --- |
+| `{ state: "pending" }` | a card that says Loading | the chip, dashed, Loading |
+| `{ state: "ready", part }` | the part, read as if written there | the chip |
+| `{ state: "failed", reason }` | a card that says Not available, and the reason | the chip, Not available |
+
+- **`part`** is the part's source: as it would be written inline (its fence included), or only what goes inside the fence. For `svg` it is the SVG text; for `interactive`, its sections (below).
+- **A ready part is read with the page's caps and budgets**, by the same part reader as a part written inline, on the reference's line, and it renders through the same part dispatch. An answer of another type, or of more than one part, fails with the reason.
+- **A chip asks for its state only;** it never draws the part.
+- **The resolver never fetches inside `parse()`.** To fill a reference later (another process, a helper agent), answer pending, then parse again when the part is ready. A server can resolve before it sends the page (pre-render). An answer that is none of the three, or a resolver that throws, is a failure with a reason.
+- **A reference inside a part that a reference resolved to is refused.**
+
+**LLM view.** The reference as written, `[[chart:revenue-2026 "Revenue by month, 2026"]]`, resolved or not. Nothing of the part.
+
+**Caps.** In both `LIMITS` and `UNTRUSTED_LIMITS`; a host may change them.
+
+| Cap | What it counts | LIMITS | UNTRUSTED_LIMITS |
+| --- | --- | --- | --- |
+| `maxReferences` | references on one page (the rest show as their labels) | 500 | 100 |
+| `maxReferenceBytes` | UTF-8 bytes of all the parts a page's references resolve to | 1,000,000 | 400,000 |
+| `maxSvgBytes` | one SVG | 200,000 | 100,000 |
+| `maxInteractiveBytes` | one interactive part | 204,800 | 204,800 |
+
+Every reference charges one step to one part budget of the page, "the reference reader". The Markdown reader looks at each `[[` once and reads forward no further than the line, the next `[[` or a fixed window: the work is linear in the page.
+
+### 8a.1 svg
+
+Raw SVG the host keeps, drawn only through an `<img>` with a `data:` address: no script in it runs, and nothing it names is fetched. The image's text alternative is the label. Refused: a text that does not start with `<svg` (after an `<?xml ?>` line and comments), a DOCTYPE or an ENTITY, more than `maxSvgBytes`. A host's CSP needs `img-src data:` to show it.
+
+### 8a.2 interactive
+
+A small component the host keeps, in sections: `@html`, `@css`, `@script` and an optional `@fallback` (Markdown shown when it does not run; without one, the label).
+
+```text
+@html
+<label>Growth <input id="g" type="range" min="0" max="50" value="20"></label> <output id="o"></output>
+@css
+output { font-weight: 600; }
+@script
+const g = document.getElementById("g"), o = document.getElementById("o");
+g.addEventListener("input", () => { o.textContent = g.value + "%"; });
+@fallback
+Revenue grows 20% a year: year 5 is about 2.07 times year 1.
+```
+
+- **Off unless the host turns it on.** Off (the default) shows the still and a chip, "Interactive part: off on this site". `interactive="static"` draws the HTML and CSS with no script; `interactive="on"` runs it. Both need `InteractivePart` from `durian-hypermedia/react/interactive`.
+- **Isolated.** An `<iframe sandbox="allow-scripts">` with no `allow-same-origin`: an empty origin of its own, so no cookies, no storage and no reach into the page; no forms, pop-ups or top navigation. Its page has the policy `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'`, so nothing is fetched. It gets the theme tokens as CSS variables, and new values when the theme changes.
+- **One message.** The page accepts only the frame's height, a number, from that frame. With `interactive="on"` the frame must say it within 5 seconds; it is stopped after 10 minutes; a frame that loads a second page (it tried to leave) is stopped. A stopped frame is removed and the still comes back.
+- **Trusted Types.** Only `durian-hypermedia/react/interactive` makes a policy, named `dh-interactive`. A page that requires Trusted Types lists that name to run the part; otherwise the still stays.
+- **The host page's CSP holds in the frame too** (a srcdoc frame keeps its page's policy). On a page whose CSP has no `'unsafe-inline'` for scripts, the frame's script does not run and the part stops at its 5 second check.
+- **What it is for:** a picture the reader changes (bars, a curve, a grid, with sliders, toggles, a select). Never a stepper, a slideshow or a quiz: a sequence is prose or steps.
+
 ## 9. doccheck's checks (format version 10)
 
 | Check | Refuses |
@@ -728,11 +807,20 @@ The Format page shows one scene where an array, a hash map and a tree live in on
 | watch-out blocks, security blocks | as in version 2 |
 | translation behind, translation shape | as in version 2; the shape now compares parts by order |
 | LLM view in step | a `docs-llm/` file that is not what `dh llm` makes now |
+| references (format version 11) | a bad name (empty, over 128 characters, a path, a scheme, a URL, any other character); a label with no closing quote or over 200 characters; anything but a label after the name; more references than `maxReferences` (one problem; the rest show as their labels); a reference inside a part a reference resolved to; a fenced ```` ```svg ```` or ```` ```interactive ```` (write the reference instead); a resolved part over the caps, of another type or more than one part; an SVG that is not SVG, holds a DOCTYPE or ENTITY, or is over `maxSvgBytes`; an interactive part over 200 KB, with an unknown section, with no @html and no @script, an inline `on...=` handler, a `<script>` in @html, `<form`, `<iframe`, `<object`, `<embed`, `<link`, `<base` or `<meta`, a URL with a scheme or `//`, `@import`, `fetch(`, XMLHttpRequest, WebSocket, EventSource, `import(`, storage, `document.cookie`, `window.open`, `top.`, `parent.`, `location`, `navigator.sendBeacon`, `eval(`, `new Function`, `Worker(` or RTCPeerConnection. Each message names the fix |
 | lines cross (format version 10) | warns, does not refuse: two lines of an animation cross in a step because no way around them is free; it names the step, the two lines and the fix (put the things a line joins next to each other, in the order of where their lines come from, or show fewer lines at once) |
 
 ## 10. Translations
 
 A translation keeps every part, attribute, code reference and code block of its source, in order; doccheck's "translation shape" compares them. Translated: prose, headings, list items, table cells, callout text, front matter `title`, `description` and the `label` and `means` of own marks and prefixes, `:::llm` texts, mermaid labels, terminal and file tree step titles, code walk notes, chart `title`/`label`/`name` (a second axis's `label` too; the category names in `x` stay as they are), a tier list's title, tier names, item names and notes, an alignment grid's title, axis names, cell and region labels, item names and notes (translate a tier or axis name the same way everywhere it is written, on the `tiers:` line and in the tier lines, on the axis lines, the `region:` lines and the cell lines; never the colours in square brackets, the keys `tiers:`, `x:`, `y:`, `region:`, `arrows:` or the `@ x, y` numbers), and an animation's captions, its quoted labels and its say and note texts (never its ids, entity kinds or change words). No native speaker has read the five translations yet.
+
+## What changed from version 10
+
+### References (section 8a)
+
+- New: `[[<type>:<name> "label"]]` stands for a part the host keeps; on its own paragraph a block, in a sentence a chip, in code text. A version 10 page with none reads and draws as before.
+- New types that exist only as references: `svg` (drawn through an `<img>`) and `interactive` (run in a sandboxed frame, off unless the host turns it on). A fenced ```` ```svg ```` or ```` ```interactive ```` is refused, naming the reference form; its text still shows as code.
+- New `parse()` option `resolveReference`, new caps `maxReferences`, `maxReferenceBytes`, `maxSvgBytes`, `maxInteractiveBytes`, new entry `durian-hypermedia/react/interactive`, new tokens `--ref-*` and `--ix-*`.
 
 ## 11. What changed from version 9
 

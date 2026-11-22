@@ -124,7 +124,7 @@ function mask(text: string, found: Found[]): string {
 export function finishInlines(run: InlineRun): InlineProblem[] {
   const out: InlineProblem[] = [...run.problems];
   for (const a of run.active) {
-    if (!a.def.check) continue;
+    if (!a.def.check || a.stopped) continue;
     try { for (const i of a.def.check(a.state)) out.push({ line: i.line ?? 1, level: i.level ?? "error", message: i.message.startsWith(`${a.def.name}:`) ? i.message : `${a.def.name}: ${i.message}` }); }
     catch (e) { out.push({ line: 1, level: "error", message: `${a.def.name}: the check stopped: ${e instanceof Error ? e.message : String(e)}` }); }
   }

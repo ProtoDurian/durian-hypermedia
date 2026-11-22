@@ -1,0 +1,57 @@
+// Long inputs stay quick: each case once took seconds (work grew with the square of the input) and now grows with its
+// length. The bounds are loose on purpose (a slow machine passes); the old code took many times longer.
+import { describe, expect, test } from "bun:test";
+import React from "react";
+import { renderToString } from "react-dom/server";
+import { parse, check, llmView } from "../src/index";
+import { DhDocument } from "../src/react/index";
+import { parseTree, parseTermLines, madeUpFiles } from "../src/core/dh-lib";
+
+const F = "```";
+const quick = (ms: number, f: () => unknown) => { const t0 = performance.now(); f(); expect(performance.now() - t0).toBeLessThan(ms); };
+const all = (text: string) => { const d = parse(text); check(d); llmView(text, { publicView: true }); renderToString(<DhDocument doc={d} />); return d; };
+
+describe("the format's own reading", () => {
+  test("a fence that never closes inside a container", () => {
+    let d: any;
+    quick(1500, () => { d = all(`:::human\n${"```a\n".repeat(20_000)}:::\n`); });
+    expect(d.problems[0].message).toMatch(/never closed/);
+  });
+});
+
+describe("file trees", () => {
+  test("notes and marks read the same", () => {
+    const rows = parseTree("a.ts  # the note\nb/ (new) (closed)\n# only a note\nc.ts (new)#x\nd #\ne\u2028x # y").rows;
+    expect(rows.map((r) => [r.name, r.note, r.badges.join(","), r.closed])).toEqual([
+      ["a.ts", "the note", "", false], ["b/", "", "new", true], ["", "only a note", "", false], ["c.ts#x", "", "new", false], ["d #", "", "", false], ["e\u2028x", "y", "", false],
+    ]);
+  });
+  test("a long line with long runs of spaces", () => {
+    quick(1500, () => all(`${F}filetree\na${" ".repeat(60_000)}b (new)\n${"a # x".repeat(5_000)}\u2028b\n${F}\n`));
+  });
+});
+
+describe("terminals", () => {
+  test("a page's own prompts, longest first", () => {
+    const defs = { marks: {}, prefixes: { ">": { label: "a", colour: "c1", means: "" }, ">>>": { label: "b", colour: "c1", means: "" } } };
+    expect(parseTermLines(">>> x\n> y\n>> z\n>>>\n$ w", defs).map((l) => [l.k, l.prompt ?? "", l.text])).toEqual([
+      ["cmd", ">>>", "x"], ["cmd", ">", "y"], ["out", "", ">> z"], ["cmd", ">>>", ""], ["cmd", "$", "w"],
+    ]);
+  });
+  test("many prompts and many lines", () => {
+    const n = 2_000;
+    const text = `---\nprefixes:\n${Array.from({ length: n }, (_, i) => `  "p${i}": { colour: c1 }`).join("\n")}\n---\n${F}terminal\n${Array.from({ length: n }, (_, i) => `p${i} x`).join("\n")}\n${F}\n`;
+    let d: any;
+    quick(1500, () => { d = all(text); });
+    expect(Object.keys(d.blocks[0].prefixes).length).toBe(n);
+  });
+});
+
+describe("made-up files", () => {
+  test("an @file line reads the same", () => {
+    expect(madeUpFiles("@file a.ts (open)\nx\n@file  b.ts\ny\n@filec\n@file d\u2028e", 1).files.map((f) => [f.path, f.open])).toEqual([["a.ts", true], ["b.ts", false]]);
+  });
+  test("a long @file line", () => {
+    quick(1500, () => all(`${F}editor\n@file ${"a".repeat(60_000)}\u2028\nx\n${F}\n`));
+  });
+});

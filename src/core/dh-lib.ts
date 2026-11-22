@@ -114,8 +114,29 @@ export function parseAttrs(s: string | undefined): { attrs: Attrs; words: string
 export class ParseError extends Error { constructor(public line: number, msg: string) { super(msg); } }
 
 function closeFence(lines: string[], from: number, end: number, ticks: string): number {
-  for (let i = from + 1; i < end; i++) { const t = lines[i].trim(); if (t.startsWith(ticks[0].repeat(ticks.length)) && /^[`~]+$/.test(t) && t.length >= ticks.length) return i; }
+  // no line from here on could close it: say so at once (a container's scan asks again for every fence line inside it)
+  if (from + 1 < end && longestCloser(lines, ticks[0])[from + 1] < ticks.length) return -1;
+  const open = ticks[0].repeat(ticks.length);
+  for (let i = from + 1; i < end; i++) { const t = lines[i].trim(); if (t.startsWith(open) && /^[`~]+$/.test(t) && t.length >= ticks.length) return i; }
   return -1;
+}
+// for each line, the longest fence of ` (or ~) that this line or a later one closes: a closing line is backticks and
+// tildes only, and it closes a fence as long as its first run of that character. Made once per page's lines.
+const closers = new WeakMap<string[], Record<string, Int32Array>>();
+function longestCloser(lines: string[], c: string): Int32Array {
+  let m = closers.get(lines);
+  if (!m) {
+    const b = new Int32Array(lines.length + 1), t = new Int32Array(lines.length + 1);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const s = lines[i].trim();
+      let rb = 0, rt = 0;
+      if (/^[`~]+$/.test(s)) { const r = s[0] === "`" ? "`" : "~"; let k = 0; while (k < s.length && s[k] === r) k++; if (r === "`") rb = k; else rt = k; }
+      b[i] = Math.max(rb, b[i + 1]); t[i] = Math.max(rt, t[i + 1]);
+    }
+    m = { "`": b, "~": t };
+    closers.set(lines, m);
+  }
+  return m[c];
 }
 
 function parseNodes(lines: string[], start: number, end: number, base: number, inContainer: string | null): Node[] {
@@ -427,6 +448,26 @@ export function usedMarks(defs: Defs | undefined, names: string[]): Record<strin
 //            (new) (changed) (removed) (generated) (conflict) are badges, (closed) starts a folder closed,
 //            "# text" is a note, and a line "..." stands for entries left out.
 export interface TreeRow { depth: number; name: string; folder: boolean; badges: string[]; closed: boolean; note: string; gap: boolean; path: string; line: number }
+// a row's note: t.match(/\s+#\s+(.*)$/) ?? t.match(/^#\s+(.*)$/), read in one pass (the first pattern tries every
+// space and every "#" and scans to the end from each). [index, text], or null.
+const WS = /\s/;
+const LINE_END_CH = /[\n\r\u2028\u2029]/;
+function noteOf(t: string): [number, string] | null {
+  let lastEnd = -1;
+  for (let i = t.length - 1; i >= 0; i--) if (LINE_END_CH.test(t[i])) { lastEnd = i; break; }
+  // "#", then spaces, then text with no line end ("." matches none): the spaces run as far as they go
+  const after = (b: number): number => { if (b + 1 >= t.length || !WS.test(t[b + 1])) return -1; let c = b + 1; while (c < t.length && WS.test(t[c])) c++; return c > lastEnd ? c : -1; };
+  for (let b = t.indexOf("#", 1); b >= 0; b = t.indexOf("#", b + 1)) {
+    if (!WS.test(t[b - 1])) continue;
+    const c = after(b);
+    if (c < 0) continue;
+    let a = b - 1;
+    while (a > 0 && WS.test(t[a - 1])) a--;
+    return [a, t.slice(c)];
+  }
+  if (t[0] === "#") { const c = after(0); if (c >= 0) return [0, t.slice(c)]; }
+  return null;
+}
 export function parseTree(text: string, base = 0, defs?: Defs): { rows: TreeRow[]; errors: { line: number; msg: string }[] } {
   const own = (f: string) => !!defs?.marks[f];
   const rows: TreeRow[] = [], errors: { line: number; msg: string }[] = [];
@@ -437,10 +478,10 @@ export function parseTree(text: string, base = 0, defs?: Defs): { rows: TreeRow[
     if (ind % 2) errors.push({ line: base + i, msg: `filetree: indent by 2 spaces per level ("${raw.trim()}")` });
     const depth = Math.floor(ind / 2);
     let t = raw.trim(), note = "";
-    const n = t.match(/\s+#\s+(.*)$/) ?? t.match(/^#\s+(.*)$/);
-    if (n) { note = n[1].trim(); t = t.slice(0, n.index).trim(); }
+    const n = noteOf(t);
+    if (n) { note = n[1].trim(); t = t.slice(0, n[0]).trim(); }
     const flags: string[] = [];
-    t = t.replace(/\s*\(([a-z]+(?:-[a-z]+)*)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
+    t = t.replace(/(?<!\s)\s*\(([a-z]+(?:-[a-z]+)*)\)/g, (_, f) => { flags.push(f); return ""; }).trim();
     if (t === "..." || t === "…") { rows.push({ depth, name: "...", folder: false, badges: [], closed: false, note, gap: true, path: `${stack.slice(0, depth).join("")}...`, line: base + i }); return; }
     for (const f of flags) if (!BADGES.includes(f) && !FOLDER_FLAGS.includes(f) && !own(f)) errors.push({ line: base + i, msg: `filetree: unknown mark "(${f})": built-in marks are ${[...BADGES, ...FOLDER_FLAGS].join(", ")}${defs && Object.keys(defs.marks).length ? `; defined here: ${Object.keys(defs.marks).join(", ")}` : ""}; to use your own, define it in the page's front matter (marks: { ${f}: { label: ${f}, colour: warn } }) or for every page with the marks option of parse()` });
     if (!t || t.startsWith("/") || t.includes("\\")) errors.push({ line: base + i, msg: `filetree: "${raw.trim()}" needs a relative name using /` });
@@ -467,10 +508,13 @@ export interface TermLine { k: "cmd" | "out"; text: string; prompt?: string }
 export function parseTermLines(text: string, defs?: Defs): TermLine[] {
   const out: TermLine[] = [];
   // the page's own prefixes first, the longest first, then $ % #
-  const own = Object.keys(defs?.prefixes ?? {}).sort((a, b) => b.length - a.length);
+  // (each line looks its prompt up by length, longest first, instead of trying every prefix the page defines)
+  const own = new Set(Object.keys(defs?.prefixes ?? {}));
+  const lens = [...new Set([...own].map((p) => p.length))].sort((a, b) => b - a);
   for (const l of text.split("\n")) {
     if (!l.trim()) continue;
-    const mine = own.find((p) => l === p || l.startsWith(p + " "));
+    let mine: string | undefined;
+    for (const n of lens) { const p = l.slice(0, n); if (own.has(p) && (l.length === n || l[n] === " ")) { mine = p; break; } }
     if (mine) { out.push({ k: "cmd", prompt: mine, text: l.slice(mine.length + 1) }); continue; }
     const m = l.match(/^([$%#])(?: (.*)|$)/);
     if (m) out.push({ k: "cmd", prompt: m[1], text: m[2] ?? "" });
@@ -478,6 +522,8 @@ export function parseTermLines(text: string, defs?: Defs): TermLine[] {
   }
   return out;
 }
+// the prompts a terminal's steps use (one pass, then each defined prefix is a lookup)
+const usedPrompts = (steps: { lines: TermLine[] }[]): Set<string> => { const s = new Set<string>(); for (const st of steps) for (const l of st.lines) if (l.prompt != null) s.add(l.prompt); return s; };
 export function terminalSteps(p: PartNode): { title: string; lines: TermLine[] }[] {
   if (p.steps.length) return p.steps.map((s) => ({ title: s.title, lines: parseTermLines(s.raw, p.defs) }));
   const steps: { title: string; lines: TermLine[] }[] = [];
@@ -501,8 +547,8 @@ export function madeUpFiles(head: string, bodyLine: number): { files: MadeFile[]
   let cur: MadeFile | null = null; let buf: string[] = [];
   const end = () => { if (cur) { while (buf.length && !buf[buf.length - 1].trim()) buf.pop(); cur.text = buf.join("\n"); files.push(cur); cur = null; buf = []; } };
   head.split("\n").forEach((l, i) => {
-    const fm = l.match(/^@file\s+(\S+)(.*)$/);
-    if (fm) { end(); cur = { path: fm[1], open: /\(open\)/.test(fm[2]), text: "", line: bodyLine + i }; return; }
+    const fm = l.match(/^@file(?=(\s+))\1(?=(\S+))\2(.*)$/);
+    if (fm) { end(); cur = { path: fm[2], open: /\(open\)/.test(fm[3]), text: "", line: bodyLine + i }; return; }
     if (cur) buf.push(l); else rest.push({ text: l, line: bodyLine + i });
   });
   end();
@@ -674,7 +720,9 @@ function ownAsIs(p: PartNode): string | null {
     const body = p.body.replace(/\(([a-z]+(?:-[a-z]+)*)\)/g, (all, k) => { if (!defs.marks[k]) return all; hit = true; return `(${defs.marks[k].label})`; });
     return hit ? `${llmOpen(p)}\n${body.replace(/(?<!\n)\n+$/, "")}\n${fence}` : null;
   }
-  const used = Object.keys(defs.prefixes).filter((k) => terminalSteps(p).some((st) => st.lines.some((l) => l.prompt === k)));
+  const keys = Object.keys(defs.prefixes);
+  const prompts = keys.length ? usedPrompts(terminalSteps(p)) : new Set<string>();
+  const used = keys.filter((k) => prompts.has(k));
   if (!used.length) return null;
   const note = used.map((k) => `${k} is ${defs.prefixes[k].label}${defs.prefixes[k].means ? ` (${defs.prefixes[k].means})` : ""}`).join("; ");
   return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}\n\nPrompts: ${note}.`;
@@ -942,7 +990,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "mermaid": base.steps = mermaidSteps(n); break;
       case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text, 0, n.defs).rows })); base.marks = usedMarks(n.defs, base.trees.flatMap((t: any) => t.rows.flatMap((r: any) => r.badges))); break;
-      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; base.prefixes = Object.fromEntries(Object.entries(n.defs?.prefixes ?? {}).filter(([k]) => base.steps.some((st: any) => st.lines.some((l: any) => l.prompt === k)))); base.title = n.attrs.title ?? null; break;
+      case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; { const ps = Object.entries(n.defs?.prefixes ?? {}); const used = ps.length ? usedPrompts(base.steps) : new Set<string>(); base.prefixes = Object.fromEntries(ps.filter(([k]) => used.has(k))); } base.title = n.attrs.title ?? null; break;
       case "codewalk": { const refs = codewalkRefs(doc, n); const modes = codewalkModes(n, refs); base.walkFiles = {}; base.steps = refs.map((r, i) => { const t = readRange(doc, r, src); const key = `${r.repo}/${r.file}`; if (!(key in base.walkFiles)) base.walkFiles[key] = readWhole(doc, r, src); return { animated: modes[i], key, repo: r.repo, file: r.file, commit: t.commit, lines: r.lines, focus: r.focus, marks: r.marks, lang: t.lang, code: t.text, error: t.err, note: noteHtml(n.steps[i].raw.trim()) }; }); break; }
       case "editor": {
         const { spec, files } = editorFiles(doc, n, src);

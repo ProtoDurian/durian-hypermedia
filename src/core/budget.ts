@@ -30,6 +30,8 @@ export class Budget {
   steps = 0;
   values = 0;
   chars = 0;
+  /** the limits a page budget was made from (parse options or LIMITS), for checks that are not counters */
+  lim: Limits | null = null;
   /** the message of the first overrun; once set, every later charge fails with it */
   spent: string | null = null;
   /** a page budget: it has part limits and no parent */
@@ -72,7 +74,7 @@ export class Budget {
 export const partLimitsOf = (l: Limits = LIMITS): BudgetLimits => ({ steps: l.maxEvalSteps, values: l.maxEvalValues, chars: l.maxEvalChars });
 export const pageLimitsOf = (l: Limits = LIMITS): BudgetLimits => ({ steps: l.maxPageEvalSteps, values: l.maxPageEvalValues, chars: l.maxPageEvalChars });
 /** A page budget: one per parse() (or check()) call. */
-export const pageBudget = (l: Limits = LIMITS): Budget => new Budget(pageLimitsOf(l), partLimitsOf(l));
+export const pageBudget = (l: Limits = LIMITS): Budget => { const b = new Budget(pageLimitsOf(l), partLimitsOf(l)); b.lim = l; return b; };
 
 // the page budget of the parse() call running now (parse() is synchronous, so one at a time; nested calls stack)
 let ambient: Budget | null = null;

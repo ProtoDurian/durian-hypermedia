@@ -146,7 +146,8 @@ describe("YAML anchors: sized as a graph, whatever the anchor's name", () => {
     setYamlParser((t) => { used++; return (globalThis as any).Bun.YAML.parse(t); });
     const { rows, top } = bomb("é");
     const d = parse(chart(["kind: line", ...rows, "x: [1]", "series:", `  - name: ${top}`, "    data: [1]"]));
-    expect(used).toBeGreaterThan(0);
+    // refused before the parser runs (too many aliases): see budget-yaml.test.ts for the parser's own runs
+    expect(used).toBe(0);
     expect(first(d).type).toBe("error");
   });
   test("the guard itself: a graph, a self-reference, deep nesting", () => {

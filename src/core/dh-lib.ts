@@ -1,5 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
-import { yamlParse } from "../host/yaml";
+import { yamlParse, chargeYaml } from "../host/yaml";
 // dh-lib: the Durian Hypermedia parser and writers, shared by dh (parse and write) and doccheck (checks).
 // Format version 3: plain Markdown first.
 //   - a part with data is a fenced code block whose info string names it: ```terminal, ```filetree, ```editor,
@@ -253,7 +253,8 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const m = opts.frontMatter === false ? null : src.match(/^---\n([\s\S]*?)\n---\n/);
   const fmRaw = m ? m[1] : "";
   let fm: any = {};
-  if (m) fm = yamlParse(fmRaw) ?? {};
+  // what the front matter's aliases add beyond its text is charged to the page (parse()'s budget), as for every part
+  if (m) { fm = yamlParse(fmRaw) ?? {}; chargeYaml(fm, currentBudget()); }
   const bodyText = m ? src.slice(m[0].length) : src;
   const bodyStart = m ? m[0].split("\n").length - 1 : 0;
   const lines = bodyText.split("\n");
@@ -705,7 +706,7 @@ export function humanText(doc: Doc, src?: string): string {
       else if (n.kind === "part") {
         if (n.name === "llm") continue;
         if (n.name === "animation") out.push(...animOf(n).scene.texts);
-        else if (n.name === "chart") out.push(yamlTexts(safeYaml(n.body)).join("\n"));
+        else if (n.name === "chart") out.push(yamlTexts(chartYaml(n)).join("\n"));
         else if (n.name === "codewalk") { out.push(...n.steps.map((s) => s.raw)); if (src) codewalkRefs(doc, n).forEach((r) => { const t = readRange(doc, r, src); if (t.text) out.push(t.text); }); }
         else if (PARTS[n.name]?.form === "fenced") out.push(n.body);
         else walk(n.nodes);
@@ -817,7 +818,7 @@ export function structureOf(doc: Doc) {
       } else if (n.kind === "part") {
         const a = { ...n.attrs }; delete a.title;
         let data = "";
-        if (n.name === "chart") data = JSON.stringify(stripTexts(safeYaml(n.body)));
+        if (n.name === "chart") data = JSON.stringify(stripTexts(chartYaml(n)));
         if (n.name === "mermaid") data = `${n.body.split("\n").length} lines, ${n.steps.length} steps`;
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
@@ -851,7 +852,8 @@ const initials = new WeakMap<object, WeakMap<PartNode, ReturnType<typeof evalCha
 const yamls = new WeakMap<PartNode, { d: any; err: string | null }>();
 function chartYamlOf(p: PartNode): { d: any; err: string | null } {
   let r = yamls.get(p);
-  if (!r) { try { r = { d: yamlParse(p.body), err: null }; } catch (e) { r = { d: null, err: (e as Error).message }; } yamls.set(p, r); }
+  // what the chart's aliases add beyond its text is charged to the page once, here (the first read of this part)
+  if (!r) { try { const d = yamlParse(p.body); chargeYaml(d, currentBudget()); r = { d, err: null }; } catch (e) { r = { d: null, err: (e as Error).message }; } yamls.set(p, r); }
   return r;
 }
 function chartYaml(p: PartNode): any { return chartYamlOf(p).d; }

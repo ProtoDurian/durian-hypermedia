@@ -3,6 +3,7 @@
 // Pure: no node modules, so the browser evaluates a chart with the same code doccheck checks it with.
 import { parseDefs, evalDefs, parse as parseExpr, evaluate as evalAst, sizeOf, spelledOf, type Val } from "./expr";
 import { type Budget, BudgetError, partBudget } from "./budget";
+import { yamlExtra } from "../host/yaml";
 export const CHART_CAPS = { controls: 100, options: 1000, message: 2000 };
 /** JSON of a value from the author's text, stopping after max characters (never the whole of a long or shared value). */
 export function briefJson(v: any, max = 60): string {
@@ -27,10 +28,13 @@ export const label = (v: any, max = 200): string => { const t = v === null || ty
 const brief = (v: any, json = false): string => (Array.isArray(v) ? `a list of ${v.length}` : json || (v !== null && typeof v === "object") ? briefJson(v) : label(v, 60));
 const fmt = (n: number) => n.toLocaleString("en-US");
 /** YAML anchors and aliases may repeat data: what a chart holds may pass what its source spells out by at most one
- *  part's caps. Returns the room the chart's results have (what the source spells out plus one part's caps). */
-export function chartRoom(d: any, b: Budget): { n: number; c: number } {
-  const spelled = spelledOf(d, b), whole = sizeOf(d, b);
-  const room = { n: spelled.n + b.limits.values, c: spelled.c + b.limits.chars };
+ *  part's caps. What the source spells out is the length of its YAML text (a value slot or a character takes at least
+ *  one character of text); for data that did not come from yamlParse, its size with each shared list counted once.
+ *  Returns the room the chart's results have (what the source spells out plus one part's caps). */
+export function chartRoom(d: any, b: Budget): { n: number; c: number; spelled: { n: number; c: number } } {
+  const t = yamlExtra(d)?.text;
+  const spelled = t != null ? { n: t, c: t } : spelledOf(d, b), whole = sizeOf(d, b);
+  const room = { n: spelled.n + b.limits.values, c: spelled.c + b.limits.chars, spelled };
   if (whole.n > room.n || whole.c > room.c) throw new BudgetError(`the chart's YAML anchors and aliases repeat too much (${whole.n > room.n ? `${fmt(whole.n)} values where the source spells out ${fmt(spelled.n)}` : `${fmt(whole.c)} characters where the source spells out ${fmt(spelled.c)}`}; the limit for one part is ${fmt(b.limits.values)} values and ${fmt(b.limits.chars)} characters more)`);
   return room;
 }
@@ -42,6 +46,7 @@ export function chartControls(d: any): { controls: ChartControl[]; errors: strin
   for (const c of all.slice(0, CHART_CAPS.controls)) {
     const kind = isObj(c) ? (["slider", "select", "toggle", "button"] as const).find((k) => k in c) : undefined;
     if (!kind) { errors.push(`a control needs one of slider, select, toggle or button: ${brief(c, true)}`); continue; }
+    if (typeof c[kind] === "string" && c[kind].length > 64) { errors.push(`a control name has at most 64 characters: "${label(c[kind], 40)}"`); continue; }
     const name = label(c[kind], 64);
     if (kind === "select" && Array.isArray(c.options) && c.options.length > CHART_CAPS.options) { errors.push(`select ${name} has ${c.options.length} options; the limit is ${CHART_CAPS.options}`); continue; }
     if (kind === "slider") { if (typeof c.min !== "number" || typeof c.max !== "number" || c.min >= c.max) errors.push(`slider ${name} needs min < max`); controls.push({ kind, name, label: c.label, min: c.min, max: c.max, step: c.step ?? 1, value: c.value ?? c.min }); }
@@ -177,6 +182,10 @@ export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget)
     add(x);
     for (const s of series) { add(s.name); add(s.data); add(s.tone); add(s.kind); add(s.axis); }
     if (held > room.n || text > room.c) throw new BudgetError(`the chart's data is too big (${held > room.n ? `${fmt(held)} values where the source spells out ${fmt(room.n - b.limits.values)}` : `${fmt(text)} characters where the source spells out ${fmt(room.c - b.limits.chars)}`}; the limit for one part is ${fmt(b.limits.values)} values and ${fmt(b.limits.chars)} characters more)`);
+    // what the result holds beyond its source and beyond what this part already paid for (a list or text named many
+    // times) is charged too, so across the page the results stay within the sources plus the page's caps
+    const overN = held - room.spelled.n - b.values, overC = text - room.spelled.c - b.chars;
+    if (overN > 0 || overC > 0) b.charge(1, Math.max(0, overN), Math.max(0, overC));
     if (m.radial && d.kind === "radar" && x.length < 3) throw new Error(`a radar chart needs at least 3 axes in x (it has ${x.length}); add axes, or use kind: bar`);
     const log = (s: ChartSeries, name: string, v: any) => { if (v !== null && v <= 0) throw new Error(`log scale needs values above 0 (series "${s.name}" has ${v}); use scale: linear or change the value`); void name; };
     for (const s of series) {

@@ -1,5 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
-import { yamlParse } from "../host/yaml";
+import { yamlParse, chargeYaml } from "../host/yaml";
 // doccheck, Durian Hypermedia part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
 // Usage: bun tools/doccheck.ts check <docs-dir|file...> [--src <code-root>]
 // Each error names its check, as in the design's check table. Exit codes: 0 ok, 1 a check refused, 2 usage error.
@@ -125,7 +125,8 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   if (!d || typeof d !== "object") { err(p.line, "chart has no data"); return; }
   // a spent check budget is not the chart's fault: it says that not every control value was checked
   const spent = (e: BudgetError) => (e.page ? warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`) : err(p.line, `chart: ${e.message}`));
-  try { chartRoom(d, partBudget()); } catch (e) { if (!(e instanceof BudgetError)) throw e; spent(e); return; }
+  try { const pb = partBudget(); chargeYaml(d, pb); chartRoom(d, pb); }
+  catch (e) { if (e instanceof BudgetError) { spent(e); return; } if (/anchors and aliases/.test((e as Error).message)) { err(p.line, `chart: ${(e as Error).message}`); return; } throw e; }
   for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${briefJson(k).slice(1, -1)}" (keys: ${CHART_KEYS.join(", ")})`);
   if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}`);
   for (const e of chartCheck(d)) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);

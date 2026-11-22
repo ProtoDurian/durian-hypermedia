@@ -22,12 +22,12 @@ Format page parse, check and render exactly as in 0.6.0.
 - Deep expressions, long chains of definitions and deeply nested lists give an error, never a stack overflow.
 - Error messages that quote a value are short (text cut to 60 characters; a list is "a list of n"); a chart reports at
   most 10 definition errors (the rest are counted) in at most 2,000 characters.
-- **YAML anchors and aliases** are sized as a graph as the YAML is read (front matter and charts, Bun's parser or one
-  given to `setYamlParser`), whatever the anchors are named: a value that stands for much more than its text spells out
-  is refused before anything reads it (front matter ignored with a problem, a chart refused). The old count of anchor
-  names stays as a first check.
-- Everything a chart returns (`vars`, `x`, series and their names) is sized against what its source spells out plus
-  one part's caps.
+- **YAML anchors and aliases**, whatever the anchors are named (front matter and charts, Bun's parser or one given to
+  `setYamlParser`): at most 16 aliases per YAML text, checked before parsing; a parsed value may pass its text's length
+  by at most one part's caps (an aliased string counts each time it is held); what aliases add is charged to the page,
+  so many parts share one allowance. Front matter over it is ignored with a problem; a chart over it is refused.
+- Everything a chart returns (`vars`, `x`, series and their names) is sized against its YAML text plus one part's caps,
+  and what it repeats beyond what it paid for is charged to the page.
 - Comparing two texts with `==` or `!=` pays for the characters compared; a definition key is read in one pass.
 - Two regular expressions that could backtrack on author text are replaced by one-pass code with the same results.
 - `check()` of a page over `maxInputBytes` returns its problems instead of throwing.
@@ -48,7 +48,12 @@ Format page parse, check and render exactly as in 0.6.0.
   (they reached the engine's own objects before); `__proto__` may be an author's own definition.
 - A chart result over a budget carries `limit: "part"` or `limit: "page"` next to `error`.
 - A name has at most 64 characters, a definition key at most 256, a user function at most 16 parameters; a chart has at
-  most 100 controls and a select at most 1,000 options.
+  most 100 controls and a select at most 1,000 options. A control name over 64 characters is an error (it could not be
+  used in an expression).
+- A series name is shown to at most 200 characters, a series tone or kind to 20 (longer ones are cut with "…").
+- **YAML merge keys** (`<<`) are not read in a YAML text that also uses an alias: the front matter or chart is refused
+  with a message to write the keys out. A merge of a map written in place still works.
+- `LIMITS.maxYamlAliases` (16): aliases one YAML text may use.
 
 ## 0.6.0
 

@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { parse, check, setYamlParser, LIMITS } from "../src/index";
 import { pageLimitsOf, partLimitsOf } from "../src/core/budget";
-import { yamlAliasCount, yamlMayMerge, yamlParse } from "../src/host/yaml";
+import { yamlAliasCount, yamlMayMerge, yamlMayTag, yamlParse } from "../src/host/yaml";
 
 const F = "```";
 const PAGE = pageLimitsOf(), PART = partLimitsOf();
@@ -65,6 +65,47 @@ describe("before the parser runs: the alias count and merge keys", () => {
     }
     expect(() => yamlParse('b: &é {x: 1}\nm: {"<\\\n  <": *é}')).toThrow(/merge key/);
     expect(() => yamlParse("m:\n  <<: {x: 1}")).not.toThrow(); // a merge of a map written out costs only its text
+  });
+  test("with an alias, any tag or directive is refused (a tag can spell a merge without << or the word)", () => {
+    const tagged = ["!!%6derge k: *é", "!<tag:yaml.org,2002:%6derge> k: *é", "!m!ge k: *é", "!!str k: *é", "k: !!str *é", "k: &z !x [1]\nl: *é", "- !t 1\n- *é", "k: {a: !t 1, b: *é}"];
+    for (const body of tagged) {
+      const src = `b: &é {x: 1}\n${body}`;
+      expect(yamlMayTag(src)).toBe(true);
+      expect(() => yamlParse(src)).toThrow(/tag \(!\) or a directive/);
+    }
+    for (const head of ["%YAML 1.1\n---\n", "%TAG !m! tag:yaml.org,2002:mer\n---\n"]) expect(() => yamlParse(`${head}b: &é {x: 1}\nm: *é`)).toThrow(/directive/);
+    // without an alias a tag costs only its text, as before
+    expect(yamlParse("a: !!str 1\nb: 2")).toEqual({ a: "1", b: 2 });
+  });
+  test("a ! or % inside a value is not a tag or directive", () => {
+    const vals = ['"Wow! 50% off"', "Hello! world", "'100%'", '"a, b! c"', "x !y", "50 %"];
+    for (const v of vals) {
+      const src = `b: &é [1]\nc: *é\nt: ${v}\n`;
+      expect(yamlMayTag(src)).toBe(false);
+      expect(() => yamlParse(src)).not.toThrow();
+    }
+  });
+  test("Markdown in block scalars is not counted: a page with no anchor reads exactly as before", () => {
+    const fm = (body: string) => `---\ntitle: T\n${body}\n---\n\ntext\n`;
+    const bold = (n: number) => Array.from({ length: n }, (_, i) => `  **word${i}** text`).join("\n");
+    const cases = [
+      fm(`summary: |\n${bold(16)}`), fm(`summary: |\n${bold(40)}`),
+      fm(`summary: |\n${Array.from({ length: 40 }, (_, i) => `  - **item${i}**`).join("\n")}`),
+      fm("summary: |\n  **Note** use\n  cout << x\n  !important\n  %d"),
+      chart(["note: |", bold(40), ...plain]),
+    ];
+    for (const src of cases) {
+      const d = parse(src);
+      expect(d.problems).toEqual([]);
+      expect(yamlAliasCount(src)).toBe(0);
+    }
+    expect(parse(cases[0]).title).toBe("T");
+  });
+  test("an alias whose name starts with * or & still counts when such an anchor exists", () => {
+    expect(yamlAliasCount("a: &*x 1\nb: [**x, **x]")).toBe(2);
+    expect(yamlAliasCount("a: &&x 1\nb: *&x")).toBe(1);
+    expect(yamlAliasCount("a: &é 1\nb: [*é, *e, **bold**]")).toBe(1);
+    expect(yamlAliasCount("no anchor: [*a, *b, *c]")).toBe(0);
   });
   test("Markdown and ampersands in values are not taken for aliases or merges", () => {
     const vals = ['"**bold** and *em*"', '"Tom & Jerry, R&D"', "'a < b'", '"x, *y*, **z**"', "plain *text* here"];

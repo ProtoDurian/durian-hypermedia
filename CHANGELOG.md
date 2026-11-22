@@ -51,8 +51,9 @@ Format page parse, check and render exactly as in 0.6.0.
   most 100 controls and a select at most 1,000 options. A control name over 64 characters is an error (it could not be
   used in an expression).
 - A series name is shown to at most 200 characters, a series tone or kind to 20 (longer ones are cut with "…").
-- **YAML merge keys** (`<<`) are not read in a YAML text that also uses an alias: the front matter or chart is refused
-  with a message to write the keys out. A merge of a map written in place still works.
+- **YAML merge keys** (`<<`), **tags** (`!`) and **directives** (`%`) are not read in a YAML text that also uses an
+  alias: the front matter or chart is refused with a message saying so. Without an alias they are read as before.
+  An alias counts only when an anchor with the same first character exists, so Markdown in values is never one.
 - `LIMITS.maxYamlAliases` (16): aliases one YAML text may use.
 
 ## 0.6.0

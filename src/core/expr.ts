@@ -498,6 +498,7 @@ export function parseDefs(entries: Record<string, unknown>, known: string[], bud
   let more = 0;
   const fail = (m: string) => { if (errors.length < EXPR_CAPS.errors) errors.push(clip(m, EXPR_CAPS.errorChars)); else more++; };
   const defs: Defs = { order: [], vars: Object.create(null), fns: Object.create(null) };
+  b.charge(1 + known.length); // the controls' names, read into sets below (once per evaluation)
   const knownSet = new Set(known);
   for (const [k, v] of Object.entries(entries ?? {})) {
     b.charge(1 + (k.length >> 3));

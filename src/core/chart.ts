@@ -163,6 +163,7 @@ export function evalChart(d: any, values?: Record<string, Val>, budget?: Budget)
     const b = budget ?? partBudget();
     const room = chartRoom(d, b);
     const { controls } = chartControls(d);
+    b.charge(1 + controls.length); // reading the controls, once per evaluation (check() evaluates every case)
     const start: Record<string, Val> = {};
     for (const c of controls) if (c.kind !== "button") start[c.name] = c.value as Val;
     const { defs, errors } = parseDefs(d.let ?? {}, controls.filter((c) => c.kind !== "button").map((c) => c.name), b);

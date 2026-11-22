@@ -15,7 +15,7 @@ draws that data with React, so author text is always a text node or an escaped a
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | an animation with too many things, steps or characters | an error block naming the cap, before anything is compiled | `hostile/09`, `10` |
 | a chart with too many points; expressions that make huge lists, nest, recurse or loop | an error block and a problem for that chart; the rest of the page still draws. Every expression is paid for from one budget per page (see [The evaluation budget](#the-evaluation-budget)) | `hostile/11`, `test/budget.test.ts` |
-| YAML anchors and aliases (an alias bomb), whatever the anchors are named | at most 16 aliases and no merge key next to an alias, checked before parsing; the parsed value sized against its text, extras charged to the page (see [The evaluation budget](#the-evaluation-budget)): front matter ignored with a problem; the part refused | `hostile/12`, `test/budget-paths.test.ts` |
+| YAML anchors and aliases (an alias bomb), whatever the anchors are named | at most 16 aliases and, next to an alias, no merge key, tag or directive, checked before parsing; the parsed value sized against its text, extras charged to the page (see [The evaluation budget](#the-evaluation-budget)): front matter ignored with a problem; the part refused | `hostile/12`, `test/budget-paths.test.ts` |
 | an unclosed fence or container | one error block, the page shown as text | `hostile/13` |
 | an unknown container | an error block | `hostile/14` |
 | ids that clobber page globals (`id="location"`) | every id the page makes is prefixed (`dh-`), and `#anchor` links follow | `hostile/15` |
@@ -69,9 +69,12 @@ What holds:
   is charged to the part, so to the page.
 - **YAML anchors and aliases** (front matter and charts, with Bun's parser or one given to `setYamlParser`), whatever the
   anchors are named:
-  - before any parser runs, from the text: at most `maxYamlAliases` (16) aliases, and no merge key (`<<`, in any
-    spelling) in a text that has an alias. A merge key next to an alias is refused: write the keys out. (A parser
-    copies merged maps, so that work would come before anything could size it.)
+  - before any parser runs, from the text: at most `maxYamlAliases` (16) aliases. An alias is counted where a YAML node
+    can start and only when an anchor (`&`) with the same first character is somewhere in the text, so Markdown such as
+    `**bold**` in a value is not taken for one. In a text that has an alias, a merge key (`<<`, in any spelling), a tag
+    (`!` where a node starts) and a directive (`%` first on a line) are refused: write the keys out, or drop the tag.
+    (A parser copies merged maps, so that work would come before anything could size it, and a tag or a directive can
+    spell a merge without `<<`.) Without an alias, tags and merges of maps written in place are read as before.
   - after parsing, before anything reads, keeps or writes the value: counted as it is read (an alias counts what it
     stands for, a string each time it is held), it may pass its text's length by at most one part's caps (`maxEvalValues`
     slots, `maxEvalChars` characters). It may not nest more than 64 levels or hold itself.
@@ -79,8 +82,9 @@ What holds:
     aliases across many parts share one page allowance.
   - over any of these, front matter is ignored with a problem and a chart is an error block. A few short aliases work
     as before. The caps given to `parse(text, { limits })` apply.
-  - the host's parser should resolve an alias to the same object, as Bun's does; a parser that copies
-    aliased values builds them before this check can run, within the 16 aliases.
+  - use a host parser that resolves an alias to the same object, as Bun's does. A parser that copies aliased values
+    builds them before this check can run: within the 16 aliases that can be about 256 times its text.
+  - the host parser's own work on plain YAML (no aliases) is not bounded here; `maxInputBytes` is the only cap on it.
 - **Names and messages**: a name (and a control's name) has at most 64 characters, a definition key at most 256, a function at most 16
   parameters; a chart reports at most 10 definition errors (the rest are counted) and a message of at most 2,000
   characters; a chart has at most 100 controls and a select at most 1,000 options. An error message never prints a long

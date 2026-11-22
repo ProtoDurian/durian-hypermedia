@@ -11,6 +11,7 @@ import SequenceView from "../sequence/view";
 import StacktraceView from "../stacktrace/view";
 import TraceView from "../trace/view";
 import VennView from "../venn/view";
+import WardleyView from "../wardley/view";
 
 export const DownloadsPart = partComponent("downloads", DownloadsView);
 export const FishbonePart = partComponent("fishbone", FishboneView);
@@ -22,4 +23,5 @@ export const SequencePart = partComponent("sequence", SequenceView);
 export const StacktracePart = partComponent("stacktrace", StacktraceView);
 export const TracePart = partComponent("trace", TraceView);
 export const VennPart = partComponent("venn", VennView);
-export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "trace": TracePart, "venn": VennPart };
+export const WardleyPart = partComponent("wardley", WardleyView);
+export const FOLDER_PART_COMPONENTS = { "downloads": DownloadsPart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "trace": TracePart, "venn": VennPart, "wardley": WardleyPart };

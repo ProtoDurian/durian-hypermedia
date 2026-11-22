@@ -10,12 +10,13 @@ import sequence from "../sequence/part";
 import stacktrace from "../stacktrace/part";
 import trace from "../trace/part";
 import venn from "../venn/part";
+import wardley from "../wardley/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { downloads, fishbone, flame, gallery, gantt, sankey, sequence, stacktrace, trace, venn } as const;
+export const FOLDER_PARTS = { downloads, fishbone, flame, gallery, gantt, sankey, sequence, stacktrace, trace, venn, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["downloads", "fishbone", "flame", "gallery", "gantt", "sankey", "sequence", "stacktrace", "trace", "venn"] as const;
+export const FOLDER_PART_NAMES = ["downloads", "fishbone", "flame", "gallery", "gantt", "sankey", "sequence", "stacktrace", "trace", "venn", "wardley"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -29,4 +30,5 @@ export interface FolderPartData {
   "stacktrace": ReturnType<typeof stacktrace.parse>;
   "trace": ReturnType<typeof trace.parse>;
   "venn": ReturnType<typeof venn.parse>;
+  "wardley": ReturnType<typeof wardley.parse>;
 }

@@ -10,8 +10,9 @@ import * as sequence from "../sequence/limits";
 import * as stacktrace from "../stacktrace/limits";
 import * as trace from "../trace/limits";
 import * as venn from "../venn/limits";
+import * as wardley from "../wardley/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof stacktrace.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS;
-export const PART_LIMITS: PartLimits = { ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...stacktrace.LIMITS, ...trace.LIMITS, ...venn.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS };
+export type PartLimits = typeof downloads.LIMITS & typeof fishbone.LIMITS & typeof flame.LIMITS & typeof gallery.LIMITS & typeof gantt.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof stacktrace.LIMITS & typeof trace.LIMITS & typeof venn.LIMITS & typeof wardley.LIMITS;
+export const PART_LIMITS: PartLimits = { ...downloads.LIMITS, ...fishbone.LIMITS, ...flame.LIMITS, ...gallery.LIMITS, ...gantt.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...stacktrace.LIMITS, ...trace.LIMITS, ...venn.LIMITS, ...wardley.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...downloads.UNTRUSTED_LIMITS, ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...gallery.UNTRUSTED_LIMITS, ...gantt.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...stacktrace.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };

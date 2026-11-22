@@ -73,5 +73,16 @@ export const HANDLERS_BASE = [tokenTransitions, mark, add, del, focus];
 // add block annotations to a highlighted block (line numbers are 1-based within the block)
 export type Ann = { name: "focus" | "mark" | "add" | "del"; from: number; to: number };
 export function annotate(h: HighlightedCode, anns: Ann[]): HighlightedCode {
-  return { ...h, annotations: [...h.annotations, ...anns.map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to }))] };
+  return { ...lineTokens(h), annotations: [...h.annotations, ...anns.map((a) => ({ name: a.name, query: "", fromLineNumber: a.from, toLineNumber: a.to }))] };
+}
+// Code Hike cuts a text token at its first line end and joins the rest back together, again for every line, so one
+// token holding many lines costs the square of its line count (plain code is one token; highlighted code keeps a run
+// of blank lines in one). The same text as one token per line draws the same lines in one pass.
+export function lineTokens(h: HighlightedCode): HighlightedCode {
+  const ts = h.tokens as unknown[];
+  const many = ts.some((t) => typeof t === "string" && t.indexOf("\n") >= 0 && t.indexOf("\n", t.indexOf("\n") + 1) >= 0);
+  if (!many) return h;
+  const out: unknown[] = [];
+  for (const t of ts) if (typeof t === "string" && t.indexOf("\n") >= 0) { for (const p of t.split(/(?<=\n)/)) out.push(p); } else out.push(t);
+  return { ...h, tokens: out } as HighlightedCode;
 }

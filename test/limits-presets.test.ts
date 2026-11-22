@@ -17,8 +17,8 @@ function chartOf(nodes: number, chars: number): { text: string; yaml: string } {
 const yamlRefused = (d: ReturnType<typeof parse>) => d.problems.filter((p) => /YAML/.test(p.message)).length + d.blocks.filter((b: any) => /YAML/.test(String(b.initial?.error ?? (b.type === "error" ? b.message : "")))).length;
 
 describe("the two sets of caps", () => {
-  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML and animation caps", () => {
-    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork"] as const;
+  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML, animation and reference caps", () => {
+    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork", "maxReferences", "maxReferenceBytes", "maxSvgBytes"] as const;
     for (const k of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
       if ((smaller as readonly string[]).includes(k)) expect(UNTRUSTED_LIMITS[k]).toBeLessThan(LIMITS[k]);
       else expect(UNTRUSTED_LIMITS[k]).toBe(LIMITS[k]);

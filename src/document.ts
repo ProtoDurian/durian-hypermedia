@@ -159,6 +159,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       const hasPart = blocks.some((x) => x.type !== "markdown" && x.type !== "toc");
       const path = opts.path ?? (hasPart ? "page.dh.md" : "page.md");
       dh.path = path;
+      dh.refs = refs.count;
       let llm = "";
       try { llm = dhLlmView(dh, path, !!opts.publicView); } catch (e) { problems.push({ line: 1, level: "error", message: `the LLM view could not be made: ${(e as Error).message}` }); }
       const doc: Document = { ast: 1, format: FORMAT_VERSION, source: clean, path, frontMatter: fm, title: typeof fm.title === "string" ? fm.title : null, blocks, headings: ctx.heads, problems, highlighted: false, llm } as Document;

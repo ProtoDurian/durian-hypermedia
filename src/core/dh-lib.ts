@@ -71,7 +71,7 @@ export interface PartNode {
   defs?: Defs;                       // the page's and the site's own marks and prefixes (format version 10), set by parseDoc
 }
 export type Node = MdNode | TocNode | PartNode;
-export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[] }
+export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[]; /** references parse() read (format version 11) */ refs?: number }
 export interface Issue { file: string; line: number; msg: string; level: "error" | "warn" }
 
 // ---------- parsing ----------

@@ -157,7 +157,7 @@ function trimTrail(src: string, from: number, end: number): number {
     const c = src.charCodeAt(end - 1);
     if (c === 0x3f || c === 0x21 || c === 0x2e || c === 0x2c || c === 0x3a || c === 0x2a || c === 0x5f || c === 0x7e || c === 0x22 || c === 0x27) { end--; continue; }
     if (c === 0x29 && close > open) { close--; end--; continue; }
-    if (c === 0x3b) { let k = end - 2; while (k > from && isAlnum(src.charCodeAt(k))) k--; if (k < end - 2 && src.charCodeAt(k) === 0x26) { end = k; continue; } }
+    if (c === 0x3b) { let k = end - 2; while (k > from && isAlnum(src.charCodeAt(k))) k--; end = k < end - 2 && src.charCodeAt(k) === 0x26 ? k : end - 1; continue; }
     return end;
   }
 }
@@ -308,13 +308,37 @@ function subList(state: any, line: number, _end: number, silent: boolean): boole
   return p < max;
 }
 // ---- white space at the start of a paragraph's lines stays in its text, as 0.6.0's tree had it (a page shows it the same)
+// 0.6.0 (marked) read a list item's own paragraphs as text, with a line indented four or more past the item losing four
+// spaces (it was read as code and joined to the text); after a list inside the item, the item's paragraphs were
+// paragraphs again, lines as written. One frame per nested block parse says which applies.
+interface Frame { parent: string; afterList: boolean }
 function keepLineStarts(md: Reader) {
+  const block = md.block as any, tokenize = block.tokenize.bind(block);
+  block.tokenize = (state: any, start: number, end: number) => {
+    const frames: Frame[] = (state.env.__dhFrames ??= []);
+    frames.push({ parent: state.parentType, afterList: false });
+    try { tokenize(state, start, end); } finally { frames.pop(); }
+  };
+  const list = (md.block.ruler as any).__rules__.find((r: any) => r.name === "list");
+  const listFn = list.fn, listAlt = [...list.alt];
+  md.block.ruler.at("list", (state: any, start: number, end: number, silent: boolean) => {
+    const ok = listFn(state, start, end, silent);
+    if (ok && !silent) { const fr: Frame[] | undefined = state.env.__dhFrames; if (fr?.length) fr[fr.length - 1].afterList = true; }
+    return ok;
+  }, { alt: listAlt });
   const para = (md.block.ruler as any).__rules__.find((r: any) => r.name === "paragraph").fn;
   md.block.ruler.at("paragraph", (state: any, start: number, end: number, silent: boolean) => {
     const n = state.tokens.length;
     const ok = para(state, start, end, silent);
+    const inl = state.tokens[n + 1];
+    if (!ok || silent || inl?.type !== "inline") return ok;
     const lead = state.sCount[start] - state.blkIndent;
-    if (ok && lead > 0 && state.tokens[n + 1]?.type === "inline") state.tokens[n + 1].content = " ".repeat(lead) + state.tokens[n + 1].content;
+    if (lead > 0) inl.content = " ".repeat(lead) + inl.content;
+    const fr: Frame[] | undefined = state.env.__dhFrames, top = fr?.[fr.length - 1];
+    if (top?.parent === "list") {
+      state.tokens[n].meta = { dhKind: top.afterList ? "p" : "text" };
+      if (!top.afterList && inl.content.includes("\n    ")) inl.content = inl.content.replace(/\n {4}/g, "\n");
+    }
     return ok;
   });
   // a line break (soft, or two spaces, or a backslash) no longer drops the next line's leading spaces
@@ -503,7 +527,7 @@ const srcOf = (toks: Tok[], i: number, end: number, lines: string[]): string => 
   for (let j = i; j < end; j++) { const m = toks[j].map; if (m) { if (a < 0 || m[0] < a) a = m[0]; b = Math.max(b, m[1]); } }
   return a < 0 ? inlineRaw(toks, i, end) : lines.slice(a, b).join("\n");
 };
-function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, lines: string[], inItem = false): MdBlock[] {
+function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: number, lines: string[]): MdBlock[] {
   if (depth > ctx.maxDepth) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; the rest is plain text` }); return [{ t: "raw", text: srcOf(toks, from, to, lines) }]; }
   const out: MdBlock[] = [];
   for (let i = from; i < to; i++) {
@@ -513,7 +537,9 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
         const inl = toks[i + 1];
         const c = inl?.type === "inline" ? inl.children ?? [] : [];
         // a list item's own paragraphs are "text", tight or loose (0.6.0's tree; a loose list draws as a tight one)
-        out.push(t.hidden || inItem ? { t: "text", c: inl ? inlines(c, 0, c.length, ctx, depth) : [] } : { t: "p", c: inlines(c, 0, c.length, ctx, depth) });
+        // a list item's own paragraph: the kind the reader set (keepLineStarts), else tight text or a paragraph
+        const kind = (t.meta as { dhKind?: string } | null)?.dhKind ?? (t.hidden ? "text" : "p");
+        out.push(kind === "text" ? { t: "text", c: inlines(c, 0, c.length, ctx, depth) } : { t: "p", c: inlines(c, 0, c.length, ctx, depth) });
         i = closeOf(toks, i, to);
         break;
       }
@@ -544,7 +570,7 @@ function blocks(toks: Tok[], from: number, to: number, ctx: MdContext, depth: nu
           if (toks[j].type !== "list_item_open") continue;
           const e = closeOf(toks, j, end);
           const meta = toks[j].meta as { task?: boolean; checked?: boolean } | null;
-          items.push({ task: !!meta?.task, checked: !!meta?.checked, c: blocks(toks, j + 1, e, ctx, depth + 1, lines, true) });
+          items.push({ task: !!meta?.task, checked: !!meta?.checked, c: blocks(toks, j + 1, e, ctx, depth + 1, lines) });
           j = e;
         }
         const st = t.attrGet("start");
@@ -635,7 +661,7 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
         else { flush(); out.push({ t: "text", v: t.content }); }
         break;
       case "hardbreak": flush(); out.push({ t: "br" }); break;
-      case "code_inline": flush(); out.push({ t: "code", v: t.content }); break;
+      case "code_inline": flush(); out.push({ t: "code", v: decodeEntities(t.content) }); break;
       case "strong_open": case "em_open": case "s_open": {
         flush();
         const e = closeOf(toks, i, to);

@@ -4,6 +4,33 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.6.2
+
+A security fix: Markdown and the other text of a page are read in time linear in their length. Format version 10 is
+unchanged; every fixture, sample and the Format page parse, check and render exactly as in 0.6.1.
+
+### Fixed
+
+- **Markdown is read by markdown-it, in linear time.** marked (0.6.1 and before) backtracks on some ordinary-looking
+  text, so a short message could keep a page busy for seconds. markdown-it 15.0.3 (MIT) reads CommonMark in time
+  linear in the text; its library build is vendored in `src/vendor/` (src/vendor/README.md says why and what). GFM
+  tables, strikethrough, task items and autolink literals are rules of this package, each one pass over the text. The
+  tree keeps 0.6.1's choices where a page could tell: a list item's paragraphs are text, white space at the start of a
+  line stays, character references other than the five it always decoded stay as written, a link's address and title
+  are as written.
+- The LLM view's rewrites of keys, mouse actions, code spans and links to other pages are one pass each (same results).
+- A long code block renders in linear time (one text token per line for Code Hike).
+
+### Changed
+
+- Markdown edge cases follow CommonMark and GFM where marked did not (on the CommonMark spec's examples: 20 now match
+  the spec that did not, 1 white-space-only case matched before and not now; the full list is in the 0.6.2 pull
+  request). Most visible: an autolink literal (`www.`, `http://`, an e-mail address) starts at a line start, after
+  white space or after `*`, `_`, `~`, `(`; one-tilde strikethrough follows the same flanking rules as `~~`; an
+  ordered list that does not start at 1 does not interrupt a paragraph (inside a list item it still nests, as before).
+- Dependencies: `marked` is gone; markdown-it's runtime imports `entities`, `linkify-it`, `mdurl`, `punycode.js`
+  and `uc.micro` are added (MIT, BSD-2-Clause).
+
 ## 0.6.1
 
 A security fix: chart expressions now run on a real work budget. Format version 10 is unchanged; every fixture and the

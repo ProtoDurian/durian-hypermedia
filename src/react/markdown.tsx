@@ -2,7 +2,7 @@
 // URLs were checked by parse(); the renderer checks them again with the same policy (defence in depth).
 import React from "react";
 import { Pre, type HighlightedCode } from "codehike/code";
-import { mark, add, del } from "../ui/ch";
+import { mark, add, del, lineTokens } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
 import { inlineText } from "../markdown";
@@ -61,7 +61,8 @@ export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
 }
 
 export function CodeBlock({ text, lang, hl }: { text: string; lang: string; hl?: unknown }) {
-  const code = (hl as HighlightedCode | undefined) ?? plainCode(text, lang || "text");
+  // one text token per line: Code Hike splits a many-line token once per line (long code would render in quadratic time)
+  const code = lineTokens((hl as HighlightedCode | undefined) ?? plainCode(text, lang || "text"));
   return <div className="code-block">{lang ? <span className="code-lang">{lang}</span> : null}<Pre code={code} handlers={[mark, add, del]} className="ch-pre" /></div>;
 }
 

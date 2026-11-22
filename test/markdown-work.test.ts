@@ -100,6 +100,7 @@ describe("GFM additions", () => {
     expect(json("mail a.b-c_d+e@example.com.")).toContain('"href":"mailto:a.b-c_d+e@example.com"');
     expect(json("not a.b@example.c_")).not.toContain("mailto:");
     expect(json("www.example.com&amp;")).toContain('"href":"http://www.example.com"');
+    expect(json("see https://example.com/a);")).toContain('"href":"https://example.com/a"');
     expect(json("xwww.example.com")).not.toContain('"t":"link"');
     expect(json("[www.example.com](/x)")).toBe(JSON.stringify([{ t: "p", c: [{ t: "link", href: "/x", c: [{ t: "text", v: "www.example.com" }] }] }]));
   });
@@ -133,6 +134,20 @@ describe("what the tree keeps as before", () => {
   test("a link keeps its address as written (the URL policy decodes it)", () => {
     const p = tree("[a](x&amp;y \"t &amp; u\")")[0] as any;
     expect(p.c[0]).toMatchObject({ t: "link", href: "x&y", title: "t &amp; u" });
+  });
+  test("a list item's paragraphs are text; after a list inside the item they are paragraphs (0.6.0's tree)", () => {
+    expect(json("- a\n\n- b")).toBe(JSON.stringify([{ t: "list", ordered: false, start: null, items: [{ task: false, checked: false, c: [{ t: "text", c: [{ t: "text", v: "a" }] }] }, { task: false, checked: false, c: [{ t: "text", c: [{ t: "text", v: "b" }] }] }] }]));
+    const l = tree("- a\n  - b\n\n  c")[0] as any;
+    expect(l.items[0].c.map((x: any) => x.t)).toEqual(["text", "list", "p"]);
+  });
+  test("white space at line starts stays; in an item's text a line four past the item loses four (0.6.0's tree)", () => {
+    expect(json("  a\n   b")).toBe(JSON.stringify([{ t: "p", c: [{ t: "text", v: "  a\n   b" }] }]));
+    expect(json("a  \n   b")).toBe(JSON.stringify([{ t: "p", c: [{ t: "text", v: "a" }, { t: "br" }, { t: "text", v: "   b" }] }]));
+    expect(JSON.stringify((tree("- [ ] a\n      b")[0] as any).items[0].c)).toBe(JSON.stringify([{ t: "text", c: [{ t: "text", v: "a\nb" }] }]));
+    expect(JSON.stringify((tree("- a\n      `x\n      y`")[0] as any).items[0].c[0].c[1])).toBe(JSON.stringify({ t: "code", v: "x y" }));
+  });
+  test("a code span decodes the same five references as text", () => {
+    expect(json("`&quot;&copy;`")).toBe(JSON.stringify([{ t: "p", c: [{ t: "code", v: "\"&copy;" }] }]));
   });
   test("keys, mouse actions and host references", () => {
     expect(json(":kbd[Ctrl+K] :mouse[click a]")).toContain('"t":"kbd"');

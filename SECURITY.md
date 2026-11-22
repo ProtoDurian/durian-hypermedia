@@ -44,7 +44,7 @@ pays for:
 
 | Cap (`LIMITS` / `parse(text, { limits })`) | One part | The whole page |
 | --- | --- | --- |
-| steps | `maxEvalSteps`: 100,000 | `maxPageEvalSteps`: 300,000 |
+| steps | `maxEvalSteps`: 100,000 | `maxPageEvalSteps`: 200,000 |
 | values | `maxEvalValues`: 50,000 | `maxPageEvalValues`: 150,000 |
 | characters | `maxEvalChars`: 50,000 | `maxPageEvalChars`: 150,000 |
 

@@ -51,7 +51,7 @@ export const LIMITS: Limits = {
   maxEvalSteps: 100_000,
   maxEvalValues: 50_000,
   maxEvalChars: 50_000,
-  maxPageEvalSteps: 300_000,
+  maxPageEvalSteps: 200_000,
   maxPageEvalValues: 150_000,
   maxPageEvalChars: 150_000,
 };

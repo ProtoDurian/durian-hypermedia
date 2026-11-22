@@ -9,8 +9,8 @@ import { yamlGuard, YamlTooBig } from "../src/host/yaml";
 
 // these tests reach the evaluation guards through long YAML texts: the YAML size caps (0.6.2, test/yaml-size.test.ts)
 // are raised while they run, so each test still meets the guard it is about
-const YAML_CAPS = { maxYamlChars: LIMITS.maxYamlChars, maxPageYamlChars: LIMITS.maxPageYamlChars, maxYamlKeys: LIMITS.maxYamlKeys, maxPageYamlKeys: LIMITS.maxPageYamlKeys };
-beforeAll(() => { Object.assign(LIMITS, { maxYamlChars: 1e8, maxPageYamlChars: 1e9, maxYamlKeys: 1e8, maxPageYamlKeys: 1e9 }); });
+const YAML_CAPS = { maxYamlChars: LIMITS.maxYamlChars, maxPageYamlChars: LIMITS.maxPageYamlChars, maxYamlNodes: LIMITS.maxYamlNodes, maxPageYamlNodes: LIMITS.maxPageYamlNodes };
+beforeAll(() => { Object.assign(LIMITS, { maxYamlChars: 1e8, maxPageYamlChars: 1e9, maxYamlNodes: 1e8, maxPageYamlNodes: 1e9 }); });
 afterAll(() => { Object.assign(LIMITS, YAML_CAPS); });
 
 const F = "```";

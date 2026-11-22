@@ -364,7 +364,7 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
   // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlKeys: cl.maxPageYamlKeys * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
+  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

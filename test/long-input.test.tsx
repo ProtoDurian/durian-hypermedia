@@ -44,7 +44,7 @@ describe("terminals", () => {
     const text = `---\nprefixes:\n${Array.from({ length: n }, (_, i) => `  "p${i}": { colour: c1 }`).join("\n")}\n---\n${F}terminal\n${Array.from({ length: n }, (_, i) => `p${i} x`).join("\n")}\n${F}\n`;
     let d: any;
     // 2,000 prompts in front matter pass the YAML key cap (test/yaml-size.test.ts): raised here, as a host may
-    const limits = { maxYamlKeys: 1e6, maxPageYamlKeys: 1e7 };
+    const limits = { maxYamlNodes: 1e6, maxPageYamlNodes: 1e7, maxYamlChars: 1e7, maxPageYamlChars: 1e8 };
     quick(1500, () => { d = parse(text, { limits }); check(d, { limits }); llmView(text, { publicView: true, limits }); renderToString(<DhDocument doc={d} />); });
     expect(Object.keys(d.blocks[0].prefixes).length).toBe(n);
   });

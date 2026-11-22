@@ -2,7 +2,7 @@
 //   import { parse } from "yaml"; setYamlParser(parse);
 // A parser's own work may grow faster than the text: the yaml package (2.x) compares each new key of a map with the keys
 // before it, so one map of 20,000 keys takes seconds. Before parsing, from the text: at most LIMITS.maxYamlChars characters
-// and LIMITS.maxYamlKeys keys (yamlKeyCount) in one text, and maxPageYamlChars / maxPageYamlKeys over all of one parse()
+// and LIMITS.maxYamlNodes nodes (yamlNodeCount) in one text, and maxPageYamlChars / maxPageYamlNodes over all of one parse()
 // or check() call's YAML texts.
 // An anchor used many times stands for its whole value each time, so a few bytes of anchors and aliases can stand for
 // gigabytes. Two guards, for any parser:
@@ -82,51 +82,34 @@ export function yamlMayMerge(t: string): boolean {
   return false;
 }
 /**
- * An upper bound, from the text alone, on the keys and flow collections a YAML parser will build from it. Counted, as
- * written: every ":" and "?" (a map key needs one, except in a flow map), "[", "{", "!" (a lenient parser, Bun's among
- * them, may make a key of a scalar tagged !!map) and line (a parser that recovers from an error, as the yaml package
- * does, may make a key of a line with no ":"), and every "," whose innermost open bracket is a "{" (a flow map's key
- * may stand alone, as in {a, b}). A "," in a list is not a key, so a chart's long data lists cost nothing here.
- * The brackets are followed as written; a "}" or "]" only closes what it matches. A quoted string, comment, tag or
- * block scalar could hold a bracket that is not one, so once one of their marks (" ' # ! | > & * % @ ` \) appears
- * inside an open "{", or a closer does not match, every "," after it counts. Escapes make content, never structure.
- * Never fewer than the parser sees (seeded fuzz with Bun's parser and the yaml package). One pass.
+ * An upper bound, from the text alone, on the nodes (keys, values, lists and maps) a YAML parser will build from it, and
+ * so on its work (one map's keys cost some parsers the square of their number, every node costs every parser some
+ * microseconds). Counted, as written: every ":" and "?" (a key), "," and "-" (an item), "[" and "{" (a list or a map),
+ * "!" (a lenient parser, Bun's among them, may make a key of a scalar tagged !!map) and line (a parser that recovers
+ * from an error, as the yaml package does, may make a key of a line with no ":"). Escapes make content, never
+ * structure, so only these characters as written count; a quoted or commented one counts too, so never fewer than the
+ * parser sees (seeded fuzz with Bun's parser and the yaml package). One pass.
  */
-export function yamlKeyCount(t: string): number {
+export function yamlNodeCount(t: string): number {
   let n = t.length ? 1 : 0; // the last line, which may have no line break
-  const open: number[] = [];  // the open brackets, as written
-  let braces = 0, all = false; // open "{" among them; every "," counts from here on
   for (let i = 0; i < t.length; i++) {
     const c = t.charCodeAt(i);
-    switch (c) {
-      case 58: case 63: case 10: case 13: n++; break;
-      case 91: n++; open.push(91); break;
-      case 123: n++; open.push(123); braces++; break;
-      case 93: case 125: {
-        const want = c === 93 ? 91 : 123;
-        if (open.length && open[open.length - 1] === want) { open.pop(); if (want === 123) braces--; }
-        else all = true;
-        break;
-      }
-      case 44: if (all || (open.length && open[open.length - 1] === 123)) n++; break;
-      case 33: n++; if (braces) all = true; break;
-      case 34: case 39: case 35: case 124: case 62: case 38: case 42: case 37: case 64: case 96: case 92: if (braces) all = true; break;
-    }
+    if (c === 58 || c === 63 || c === 44 || c === 45 || c === 91 || c === 123 || c === 33 || c === 10 || c === 13) n++;
   }
   return n;
 }
 // what one parse() or check() call's YAML texts have used so far (characters, keys), per call budget
 const pageYaml = new WeakMap<object, { c: number; k: number }>();
-/** Throws YamlTooBig, before any parser runs, when the text has more characters or keys (yamlKeyCount) than one text
+/** Throws YamlTooBig, before any parser runs, when the text has more characters or keys (yamlNodeCount) than one text
  *  may, or would take the page's YAML over its totals. */
-export function yamlSizeCheck(t: string, lim: { maxYamlChars: number; maxYamlKeys: number; maxPageYamlChars: number; maxPageYamlKeys: number } = LIMITS, page: object | null = null): void {
+export function yamlSizeCheck(t: string, lim: { maxYamlChars: number; maxYamlNodes: number; maxPageYamlChars: number; maxPageYamlNodes: number } = LIMITS, page: object | null = null): void {
   if (t.length > lim.maxYamlChars) throw new YamlTooBig(`the YAML is too long (${fmt(t.length)} characters; the limit is ${fmt(lim.maxYamlChars)})`);
-  const k = yamlKeyCount(t);
-  if (k > lim.maxYamlKeys) throw new YamlTooBig(`the YAML has too many keys and lists (${fmt(k)}, counting every ":", "?", "!", "[", "{" and line; the limit is ${fmt(lim.maxYamlKeys)})`);
+  const k = yamlNodeCount(t);
+  if (k > lim.maxYamlNodes) throw new YamlTooBig(`the YAML has too many keys and values (${fmt(k)}, counting every ":", "?", ",", "-", "!", "[", "{" and line; the limit is ${fmt(lim.maxYamlNodes)})`);
   if (!page) return;
   const u = pageYaml.get(page) ?? { c: 0, k: 0 };
   if (u.c + t.length > lim.maxPageYamlChars) throw new YamlTooBig(`the page's YAML is too long (${fmt(u.c + t.length)} characters with this one; the limit for a page is ${fmt(lim.maxPageYamlChars)})`);
-  if (u.k + k > lim.maxPageYamlKeys) throw new YamlTooBig(`the page's YAML has too many keys and lists (${fmt(u.k + k)} with this one; the limit for a page is ${fmt(lim.maxPageYamlKeys)})`);
+  if (u.k + k > lim.maxPageYamlNodes) throw new YamlTooBig(`the page's YAML has too many keys and values (${fmt(u.k + k)} with this one; the limit for a page is ${fmt(lim.maxPageYamlNodes)})`);
   u.c += t.length; u.k += k; pageYaml.set(page, u);
 }
 // blanks and line breaks in the widest sense any YAML parser might take them (only used to find more, never fewer)

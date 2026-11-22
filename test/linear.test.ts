@@ -19,12 +19,16 @@ const shapes: [string, (bytes: number) => string][] = [
 ];
 
 const opts = { frontMatter: false } as const;
+// a chart's data past the YAML caps (SECURITY.md) is refused before it is read: this test raises them, as a host may,
+// to time the chart itself
+const wide = { frontMatter: false, limits: { maxYamlNodes: 1e7, maxPageYamlNodes: 1e8, maxYamlChars: 1e8, maxPageYamlChars: 1e9 } } as const;
+let use: typeof opts | typeof wide = opts;
 /** The fastest of several parses (at least 5, and for at least 40 ms in all). */
 function best(src: string): number {
   let b = Infinity;
   const until = performance.now() + 40;
   for (let i = 0; i < 5 || (i < 50 && performance.now() < until); i++) {
-    const t = performance.now(); parse(src, opts); b = Math.min(b, performance.now() - t);
+    const t = performance.now(); parse(src, use); b = Math.min(b, performance.now() - t);
   }
   return b;
 }
@@ -39,8 +43,9 @@ describe("8 times the text takes about 8 times as long", () => {
   for (const [name, f] of shapes) {
     test(name, () => {
       const small = SMALL[name] ?? 8192;
+      use = name === "chart" ? wide : opts;
       // the larger text is read for real: no part of it is refused by a cap
-      const d = parse(f(small * 8), opts);
+      const d = parse(f(small * 8), use);
       expect(d.blocks.filter((b) => b.type === "error").map((b: any) => b.message)).toEqual([]);
       expect(d.problems.map((p) => p.message)).toEqual([]);
       // a busy machine can stall one run: measure again before calling it a failure

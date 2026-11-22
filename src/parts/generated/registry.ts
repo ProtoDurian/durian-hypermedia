@@ -10,6 +10,7 @@ import flame from "../flame/part";
 import gallery from "../gallery/part";
 import gantt from "../gantt/part";
 import lottie from "../lottie/part";
+import pdf from "../pdf/part";
 import sankey from "../sankey/part";
 import sequence from "../sequence/part";
 import stacktrace from "../stacktrace/part";
@@ -19,10 +20,10 @@ import video from "../video/part";
 import wardley from "../wardley/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, fishbone, flame, gallery, gantt, lottie, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
+export const FOLDER_PARTS = { audio, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, fishbone, flame, gallery, gantt, lottie, pdf, sankey, sequence, stacktrace, trace, venn, video, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;
+export const FOLDER_PART_NAMES = ["audio", "chart-kinds", "compare", "compare-image", "downloads", "fishbone", "flame", "gallery", "gantt", "lottie", "pdf", "sankey", "sequence", "stacktrace", "trace", "venn", "video", "wardley"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -36,6 +37,7 @@ export interface FolderPartData {
   "gallery": ReturnType<typeof gallery.parse>;
   "gantt": ReturnType<typeof gantt.parse>;
   "lottie": ReturnType<typeof lottie.parse>;
+  "pdf": ReturnType<typeof pdf.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
   "sequence": ReturnType<typeof sequence.parse>;
   "stacktrace": ReturnType<typeof stacktrace.parse>;

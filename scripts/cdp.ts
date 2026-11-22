@@ -3,7 +3,7 @@
 // Real input: Input.dispatchMouseEvent / dispatchTouchEvent / dispatchKeyEvent go through
 // the browser's input pipeline, the same path as a person's mouse, finger and keyboard.
 //
-// No browser outlives its runner (pass 11; pass 10's helpers left 56 running for up to 19 h):
+// No browser outlives its runner:
 // - Chrome starts in a process group of its own; close() kills the whole group (the wrapper
 //   script, the browser and every renderer), not just the first process;
 // - a failed start, the runner's exit, SIGINT, SIGTERM and SIGHUP kill every group this runner made;
@@ -11,10 +11,17 @@
 //   kills the group when the runner is gone (even after SIGKILL), or when DH_CDP_MAX_S
 //   (default 3600 s) has passed;
 // - every protocol call times out (DH_CDP_CALL_MS, default 120 s), so a hung page cannot hang the runner.
+//
+// No profile outlives its browser either:
+// - each browser gets a fresh profile dir from mkdtemp; the tool removes exactly that dir (its path
+//   checked against the mkdtemp prefix) after the group is dead, on close, a failed start, exit and
+//   signals, and the guard removes it when the runner died by SIGKILL or the time ran out;
+// - Chrome is told not to fetch components, models or crash reporters into the profile, and its
+//   disk caches are capped (DH_CDP_CACHE_MB, default 16), so a profile stays a few MB while it lives.
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 export type Page = {
   send: (method: string, params?: Record<string, unknown>) => Promise<any>;
@@ -32,19 +39,42 @@ export type Page = {
   close: () => Promise<void>;
   /** the browser's process group id (for checks and tests) */
   pgid: number;
+  /** the browser's profile dir (removed when the browser ends) */
+  profileDir: string;
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Process groups of the browsers this runner started and has not closed yet. */
-const live = new Map<number, ChildProcess | null>();
+/** Process groups of the browsers this runner started and has not closed yet, with their guard and profile dir. */
+const live = new Map<number, { guard: ChildProcess | null; dir: string }>();
 export const liveBrowsers = () => [...live.keys()];
+
+const PROFILE_PREFIX = "dh-cdp-";
+/** True only for a dir that mkdtemp(join(tmpdir(), "dh-cdp-")) can return: an absolute path straight under tmpdir, "dh-cdp-" and 6 letters or digits. */
+export function isOwnProfileDir(dir: string): boolean {
+  return dir.startsWith("/") && dirname(dir) === tmpdir() && /^dh-cdp-[A-Za-z0-9]{6}$/.test(basename(dir)) && !dir.includes("..");
+}
+
+function groupGone(pgid: number): boolean {
+  try { process.kill(-pgid, 0); return false; } catch { return true; }
+}
+
+/** Removes the profile dir of a dead browser; refuses any path that is not one of ours. */
+function removeProfile(dir: string, pgid: number) {
+  if (!isOwnProfileDir(dir)) return;
+  // the group was just sent SIGKILL: give the kernel a moment so no process still writes into the dir
+  for (let i = 0; i < 50 && !groupGone(pgid); i++) Bun.sleepSync(20);
+  for (let i = 0; i < 3; i++) {
+    try { rmSync(dir, { recursive: true, force: true }); return; } catch { Bun.sleepSync(50); }
+  }
+}
 
 function killGroup(pgid: number) {
   try { process.kill(-pgid, "SIGKILL"); } catch {}
-  const guard = live.get(pgid);
-  try { guard?.kill("SIGKILL"); } catch {}
+  const entry = live.get(pgid);
+  try { entry?.guard?.kill("SIGKILL"); } catch {}
   live.delete(pgid);
+  if (entry) removeProfile(entry.dir, pgid);
 }
 export function killAll() { for (const g of [...live.keys()]) killGroup(g); }
 
@@ -57,24 +87,55 @@ function hookExit() {
     process.on(sig, () => { killAll(); process.exit(128 + n); });
 }
 
-/** A guard in its own process group: kills the browser group when this runner is gone or the time is up. */
-function startGuard(pgid: number): ChildProcess | null {
+/**
+ * A guard in its own process group: kills the browser group when this runner is gone or the time is up,
+ * waits for the group to die, then removes the profile dir. It re-checks the dir's shape itself
+ * (a direct child of the temp dir named dh-cdp-XXXXXX) and removes nothing else.
+ */
+function startGuard(pgid: number, dir: string): ChildProcess | null {
   const maxS = Math.max(10, Number(process.env.DH_CDP_MAX_S ?? 3600) | 0);
-  const script = 'r=$1; g=$2; m=$3; i=0; while kill -0 "$r" 2>/dev/null && [ "$i" -lt "$m" ]; do sleep 1; i=$((i+1)); done; kill -KILL -"$g" 2>/dev/null; exit 0';
+  if (!isOwnProfileDir(dir)) return null;
+  const script = [
+    'r=$1; g=$2; m=$3; d=$4; t=$5; i=0',
+    'while kill -0 "$r" 2>/dev/null && [ "$i" -lt "$m" ]; do sleep 1; i=$((i+1)); done',
+    'kill -KILL -"$g" 2>/dev/null',
+    'j=0; while kill -0 -"$g" 2>/dev/null && [ "$j" -lt 50 ]; do sleep 0.1; j=$((j+1)); done',
+    'case "$d" in "$t"/dh-cdp-[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]) [ -d "$d" ] && [ ! -L "$d" ] && rm -rf -- "$d" ;; esac',
+    'exit 0',
+  ].join("; ");
   try {
-    const g = nodeSpawn("sh", ["-c", script, "dh-cdp-guard", String(process.pid), String(pgid), String(maxS)], { detached: true, stdio: "ignore" });
+    const g = nodeSpawn("sh", ["-c", script, "dh-cdp-guard", String(process.pid), String(pgid), String(maxS), dir, tmpdir()], { detached: true, stdio: "ignore" });
     g.unref();
     return g;
   } catch { return null; }
 }
 
-export async function launch(port = 9333 + Math.floor(Math.random() * 500)): Promise<Page> {
+export async function launch(port = 9333 + Math.floor(Math.random() * 500), opts: { scrollbars?: boolean } = {}): Promise<Page> {
   hookExit();
-  const dir = mkdtempSync(join(tmpdir(), "dh-cdp-"));
-  const proc = nodeSpawn("google-chrome", ["--headless=new", "--no-sandbox", "--disable-gpu", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, "--hide-scrollbars", "about:blank"], { detached: true, stdio: "ignore" });
+  const dir = mkdtempSync(join(tmpdir(), PROFILE_PREFIX));
+  const cacheBytes = Math.max(1, Number(process.env.DH_CDP_CACHE_MB ?? 16) | 0) * 1024 * 1024;
+  const flags = [
+    "--headless=new", "--no-sandbox", "--disable-gpu", "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
+    `--remote-debugging-port=${port}`, `--user-data-dir=${dir}`, ...(opts.scrollbars ? [] : ["--hide-scrollbars"]),
+    // keep the profile small: no component, model or safe-browsing downloads, no crash reporter, capped caches
+    "--no-first-run", "--no-default-browser-check", "--disable-component-update", "--disable-background-networking",
+    "--disable-default-apps", "--disable-extensions", "--disable-sync", "--disable-breakpad", "--disable-crash-reporter",
+    "--disable-domain-reliability", "--disable-client-side-phishing-detection", "--disable-gpu-shader-disk-cache",
+    "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,OptimizationHints,MediaRouter,Translate,CertificateRevocationListFetcher,AutofillServerCommunication",
+    `--disk-cache-size=${cacheBytes}`, `--media-cache-size=${cacheBytes}`,
+    "about:blank",
+  ];
+  let proc: ChildProcess;
+  try {
+    // Chrome's own temp dirs (com.google.Chrome.*, url_fetcher) go inside the profile, so they leave with it
+    proc = nodeSpawn("google-chrome", flags, { detached: true, stdio: "ignore", env: { ...process.env, TMPDIR: dir } });
+  } catch (e) {
+    if (isOwnProfileDir(dir)) rmSync(dir, { recursive: true, force: true });
+    throw e;
+  }
   proc.unref();
   const pgid = proc.pid!;
-  live.set(pgid, startGuard(pgid));
+  live.set(pgid, { guard: startGuard(pgid, dir), dir });
   const callMs = Number(process.env.DH_CDP_CALL_MS ?? 120000);
   try {
     let wsUrl = "";
@@ -108,6 +169,7 @@ export async function launch(port = 9333 + Math.floor(Math.random() * 500)): Pro
     let buttonsDown = 0;
     const page: Page = {
       pgid,
+      profileDir: dir,
       send,
       async eval(expr) {
         const r = await send("Runtime.evaluate", { expression: expr, awaitPromise: true, returnByValue: true });

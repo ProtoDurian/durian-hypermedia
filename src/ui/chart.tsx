@@ -13,6 +13,7 @@ const fmtNum = fmtChartNum;
 export function Chart({ spec, controls, initial, ui }: { spec: Spec; controls: ChartControl[]; initial: ReturnType<typeof evalChart>; ui: Ui }) {
   const start = useMemo(() => Object.fromEntries(controls.filter((c) => c.kind !== "button").map((c) => [c.name, c.value as Val])), []);
   const [vals, setVals] = useState<Record<string, Val>>(start);
+  // a reader's move evaluates again with a fresh budget of its own (LIMITS), never the page's
   const data = useMemo(() => (Object.keys(vals).length ? evalChart(spec, vals) : initial), [vals]);
   const canvas = useRef<HTMLCanvasElement>(null);
   const chart = useRef<any>(null);

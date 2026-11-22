@@ -2,7 +2,7 @@
 // The format's own parser (core/dh-lib.ts, shared with the site and doccheck) reads the parts; this file adds the caps,
 // the URL policy, the safe Markdown tree, host blocks, and turns every part into plain typed data.
 import {
-  PARTS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf,
+  PARTS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf, chartYamlError,
   type Doc as DhDoc, type Node as DhNode, type PartNode, type MdNode as DhMd,
 } from "./core/dh-lib";
 import { checkDoc } from "./core/doccheck";
@@ -11,9 +11,12 @@ import { countHeading, mdBlocks, mdInline, type MdContext, type InlineDef } from
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
+import { pageBudget, withBudget } from "./core/budget";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
+/** check() evaluates every chart at several control values: its budget is this many times the page's */
+const CHECK_FACTOR = 8;
 
 /**
  * The texts a reader sees in an animation block, in story order: the quoted labels, the captions (step titles), the
@@ -93,7 +96,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
   const ctx: MdContext = { inlines: opts.inlines, policy: opts.urlPolicy, idPrefix, slugger: new GithubSlugger(), maxDepth: lim.maxDepth, problems: [], line: 1, heads: [] };
   let count = 0, stopped = false;
 
-  return withHostParts(defs, problems, () => {
+  // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it
+  return withBudget(pageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     const fmOn = opts.frontMatter !== false;
@@ -220,6 +224,8 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "chart" || p.name === "tierlist" || p.name === "alignment") {
         if (tooManyAliases(p.body)) return refuse(p, "too many YAML anchors and aliases");
       }
+      // the YAML is sized as it parses (host/yaml.ts): anchors that stand for too much refuse the chart before anything reads it
+      if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself/.test(ye)) return refuse(p, ye); }
       if (p.name === "mermaid") {
         if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
       }
@@ -230,6 +236,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
         case "chart": {
+          if (blk.initial?.limit) return refuse(p, blk.initial.error);
           const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
           if (pts > lim.maxChartPoints) return refuse(p, `${pts.toLocaleString("en-US")} data points; the limit is ${lim.maxChartPoints.toLocaleString("en-US")}`);
           break;
@@ -249,7 +256,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  });
+  }));
 }
 
 function fillTocs(blocks: Block[], heads: { depth: number; text: string; id: string }[]) {
@@ -283,15 +290,18 @@ export function llmView(doc: Document | string, opts: ParseOptions = {}): string
 export function check(doc: Document | string, opts: ParseOptions = {}): Problem[] {
   let d = typeof doc === "string" ? parse(doc, opts) : doc;
   let k = kept.get(d);
-  if (!k) { d = parse(d.source, { ...opts, path: d.path }); k = kept.get(d)!; }
+  if (!k) { d = parse(d.source, { ...opts, path: d.path }); k = kept.get(d); }
   const out: Problem[] = d.problems.map((p) => ({ ...p }));
-  if (!k.dh) return out;
+  if (!k || !k.dh) return out; // a page over a cap (or one that could not be read) has only its problems
   // take refused parts out so the checks do not evaluate them again
   const strip = (nodes: DhNode[]): DhNode[] => nodes.map((n) => (n.kind === "part" && k!.refused.has(n) ? ({ kind: "md", text: "", line: n.line } as DhMd) : n.kind === "part" ? ({ ...n, nodes: strip(n.nodes), items: n.items.map((it) => ({ ...it, nodes: strip(it.nodes) })) } as PartNode) : n));
   const dh = { ...k.dh, body: strip(k.dh.body) } as DhDoc;
   const issues: { file: string; line: number; msg: string; level: "error" | "warn" }[] = [];
   const defs = registeredBlocks(k.opts.blocks ?? []);
-  withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } });
+  // the checks evaluate every chart again for each control value: one budget of their own for the whole call, eight
+  // times the page's (a chart is checked at several values); when it is spent the rest is a warning, not an error
+  const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
+  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR }), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

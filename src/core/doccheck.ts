@@ -1,5 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
-import { yamlParse } from "../host/yaml";
+import { yamlParse, chargeYaml } from "../host/yaml";
 // doccheck, Durian Hypermedia part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
 // Usage: bun tools/doccheck.ts check <docs-dir|file...> [--src <code-root>]
 // Each error names its check, as in the design's check table. Exit codes: 0 ok, 1 a check refused, 2 usage error.
@@ -8,6 +8,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
 import { dirname, join, relative, resolve } from "../host/path";
 import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
 import { parseDefs } from "./expr";
+import { BudgetError, partBudget } from "./budget";
+import { chartRoom, briefJson } from "./chart";
 import { parseTier } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
@@ -98,7 +100,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
       if (w > 160) warn(p.llm.line, "LLM text placed", `:::llm text is ${w} words; keep it concise (at most 160)`);
       visit(p.llm.nodes, "llm");
     }
-    checkPartData(doc, p, (l, m) => err(l, "part data", m), src);
+    checkPartData(doc, p, (l, m) => err(l, "part data", m), src, (l, m) => warn(l, "part data", m));
     // an animation's warnings (format version 6): a token's label too long for its small chip
     if (p.name === "animation") for (const w of animOf(p).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
     if (def.form === "container") visit(p.nodes, p.name === "human" || ctx === "segment" ? "segment" : "part");
@@ -117,29 +119,42 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   if (isDh && !partsSeen) err(1, "parts known", `a .dh.md page with no part and no human-only segment; name it .md`);
   if (!isDh && partsSeen) err(1, "parts known", `a .md page holds a part; name it .dh.md`);
 }
-function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => void, src?: string) {
+function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: number, m: string) => void): void {
+  let d: any;
+  try { d = yamlParse(p.body); } catch (e: any) { err(p.bodyLine, `chart data is not valid YAML: ${e.message}`); return; }
+  if (!d || typeof d !== "object") { err(p.line, "chart has no data"); return; }
+  // a spent check budget is not the chart's fault: it says that not every control value was checked
+  const spent = (e: BudgetError) => (e.page ? warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`) : err(p.line, `chart: ${e.message}`));
+  try { const pb = partBudget(); chargeYaml(d, pb); chartRoom(d, pb); }
+  catch (e) { if (e instanceof BudgetError) { spent(e); return; } if (/anchors and aliases/.test((e as Error).message)) { err(p.line, `chart: ${(e as Error).message}`); return; } throw e; }
+  for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${briefJson(k).slice(1, -1)}" (keys: ${CHART_KEYS.join(", ")})`);
+  if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}`);
+  for (const e of chartCheck(d)) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
+  const { controls, errors } = chartControls(d);
+  for (const e of errors) err(p.line, `chart: ${e}`);
+  const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);
+  if (new Set(names).size !== names.length) err(p.line, "chart: two controls share a name");
+  let defs: ReturnType<typeof parseDefs>;
+  try { defs = parseDefs(d.let ?? {}, names); }
+  catch (e) { if (!(e instanceof BudgetError)) throw e; spent(e); return; }
+  for (const e of defs.errors) err(p.line, `chart let: ${e}`);
+  const known = new Set(names);
+  for (const c of controls) if (c.kind === "button") for (const k of Object.keys(c.set ?? {})) if (!known.has(k)) err(p.line, `chart: button ${c.name} sets unknown control "${briefJson(k).slice(1, -1)}"`);
+  if (!(d.series ?? []).length) err(p.line, `chart has no series`);
+  // evaluate at the start values, every slider's ends and every select option, so a reader can never break it
+  const cases: Record<string, any>[] = [{}];
+  for (const c of controls) { if (c.kind === "slider") cases.push({ [c.name]: c.min }, { [c.name]: c.max }); if (c.kind === "select") for (const o of c.options ?? []) cases.push({ [c.name]: o }); if (c.kind === "toggle") cases.push({ [c.name]: !c.value }); if (c.kind === "button") cases.push({ ...c.set }); }
+  for (const v of cases) { const r = evalChart(d, v); if (r.limit === "page") { warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`); return; } if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${briefJson(v, 80)}` : ""}: ${r.error}`); return; } }
+}
+function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => void, src?: string, warn: (l: number, m: string) => void = err) {
   switch (p.name) {
     case "animation": for (const e of animOf(p).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;
     case "chart": {
-      let d: any;
-      try { d = yamlParse(p.body); } catch (e: any) { err(p.bodyLine, `chart data is not valid YAML: ${e.message}`); return; }
-      if (!d || typeof d !== "object") { err(p.line, "chart has no data"); return; }
-      for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${k}" (keys: ${CHART_KEYS.join(", ")})`);
-      if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}`);
-      for (const e of chartCheck(d)) err(p.line, `chart: ${e}`);
-      const { controls, errors } = chartControls(d);
-      for (const e of errors) err(p.line, `chart: ${e}`);
-      const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);
-      if (new Set(names).size !== names.length) err(p.line, "chart: two controls share a name");
-      const defs = parseDefs(d.let ?? {}, names);
-      for (const e of defs.errors) err(p.line, `chart let: ${e}`);
-      for (const c of controls) if (c.kind === "button") for (const k of Object.keys(c.set ?? {})) if (!names.includes(k)) err(p.line, `chart: button ${c.name} sets unknown control "${k}"`);
-      if (!(d.series ?? []).length) err(p.line, `chart has no series`);
-      // evaluate at the start values, every slider's ends and every select option, so a reader can never break it
-      const cases: Record<string, any>[] = [{}];
-      for (const c of controls) { if (c.kind === "slider") cases.push({ [c.name]: c.min }, { [c.name]: c.max }); if (c.kind === "select") for (const o of c.options ?? []) cases.push({ [c.name]: o }); if (c.kind === "toggle") cases.push({ [c.name]: !c.value }); if (c.kind === "button") cases.push({ ...c.set }); }
-      for (const v of cases) { const r = evalChart(d, v); if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${JSON.stringify(v)}` : ""}: ${r.error}`); break; } }
+      // at most 20 problems per chart (each at most 300 characters), then a count of the rest
+      let n = 0;
+      checkChart(p, (l, m) => { if (++n <= 20) err(l, m.length > 300 ? m.slice(0, 299) + "…" : m); }, (l, m) => { if (++n <= 20) warn(l, m); });
+      if (n > 20) err(p.line, `chart: and ${n - 20} more problems`);
       break;
     }
     case "tierlist": case "alignment": {

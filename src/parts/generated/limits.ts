@@ -3,8 +3,9 @@
 import * as fishbone from "../fishbone/limits";
 import * as flame from "../flame/limits";
 import * as sankey from "../sankey/limits";
+import * as trace from "../trace/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof fishbone.LIMITS & typeof flame.LIMITS & typeof sankey.LIMITS;
-export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...flame.LIMITS, ...sankey.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS };
+export type PartLimits = typeof fishbone.LIMITS & typeof flame.LIMITS & typeof sankey.LIMITS & typeof trace.LIMITS;
+export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...flame.LIMITS, ...sankey.LIMITS, ...trace.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...flame.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...trace.UNTRUSTED_LIMITS };

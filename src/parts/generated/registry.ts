@@ -3,16 +3,18 @@ import type { PartDef } from "../types";
 import fishbone from "../fishbone/part";
 import flame from "../flame/part";
 import sankey from "../sankey/part";
+import trace from "../trace/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { fishbone, flame, sankey } as const;
+export const FOLDER_PARTS = { fishbone, flame, sankey, trace } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["fishbone", "flame", "sankey"] as const;
+export const FOLDER_PART_NAMES = ["fishbone", "flame", "sankey", "trace"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
   "fishbone": ReturnType<typeof fishbone.parse>;
   "flame": ReturnType<typeof flame.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
+  "trace": ReturnType<typeof trace.parse>;
 }

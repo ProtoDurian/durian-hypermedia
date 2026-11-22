@@ -4,8 +4,10 @@ import { partComponent } from "../react";
 import FishboneView from "../fishbone/view";
 import FlameView from "../flame/view";
 import SankeyView from "../sankey/view";
+import TraceView from "../trace/view";
 
 export const FishbonePart = partComponent("fishbone", FishboneView);
 export const FlamePart = partComponent("flame", FlameView);
 export const SankeyPart = partComponent("sankey", SankeyView);
-export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "flame": FlamePart, "sankey": SankeyPart };
+export const TracePart = partComponent("trace", TraceView);
+export const FOLDER_PART_COMPONENTS = { "fishbone": FishbonePart, "flame": FlamePart, "sankey": SankeyPart, "trace": TracePart };

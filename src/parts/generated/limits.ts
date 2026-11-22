@@ -4,8 +4,9 @@ import * as fishbone from "../fishbone/limits";
 import * as sankey from "../sankey/limits";
 import * as sequence from "../sequence/limits";
 import * as venn from "../venn/limits";
+import * as wardley from "../wardley/limits";
 
 /** every folder part's caps, as one type (safety.ts Limits extends it) */
-export type PartLimits = typeof fishbone.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof venn.LIMITS;
-export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...venn.LIMITS };
-export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS };
+export type PartLimits = typeof fishbone.LIMITS & typeof sankey.LIMITS & typeof sequence.LIMITS & typeof venn.LIMITS & typeof wardley.LIMITS;
+export const PART_LIMITS: PartLimits = { ...fishbone.LIMITS, ...sankey.LIMITS, ...sequence.LIMITS, ...venn.LIMITS, ...wardley.LIMITS };
+export const PART_UNTRUSTED_LIMITS: PartLimits = { ...fishbone.UNTRUSTED_LIMITS, ...sankey.UNTRUSTED_LIMITS, ...sequence.UNTRUSTED_LIMITS, ...venn.UNTRUSTED_LIMITS, ...wardley.UNTRUSTED_LIMITS };

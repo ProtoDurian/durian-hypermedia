@@ -4,12 +4,13 @@ import fishbone from "../fishbone/part";
 import sankey from "../sankey/part";
 import sequence from "../sequence/part";
 import venn from "../venn/part";
+import wardley from "../wardley/part";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { fishbone, sankey, sequence, venn } as const;
+export const FOLDER_PARTS = { fishbone, sankey, sequence, venn, wardley } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["fishbone", "sankey", "sequence", "venn"] as const;
+export const FOLDER_PART_NAMES = ["fishbone", "sankey", "sequence", "venn", "wardley"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -17,4 +18,5 @@ export interface FolderPartData {
   "sankey": ReturnType<typeof sankey.parse>;
   "sequence": ReturnType<typeof sequence.parse>;
   "venn": ReturnType<typeof venn.parse>;
+  "wardley": ReturnType<typeof wardley.parse>;
 }

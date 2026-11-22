@@ -230,8 +230,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "chart" || p.name === "tierlist" || p.name === "alignment") {
         if (tooManyAliases(p.body)) return refuse(p, "too many YAML anchors and aliases");
       }
-      // the YAML is sized as it parses (host/yaml.ts): anchors that stand for too much refuse the chart before anything reads it
-      if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself/.test(ye)) return refuse(p, ye); }
+      // the YAML is sized as it parses (host/yaml.ts): a text over its size caps, or anchors that stand for too much,
+      // refuse the chart before anything reads it
+      if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself|YAML is too long|YAML has too many keys/.test(ye)) return refuse(p, ye); }
       if (p.name === "mermaid") {
         if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
       }

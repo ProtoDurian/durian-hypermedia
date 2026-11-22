@@ -1,11 +1,17 @@
 // The evaluation budget's edges (0.6.1): names, keys, error text, YAML anchors, everything a chart returns, check() on
 // normal pages, and how work grows with the input. Counts and sizes only, never time.
-import { afterEach, describe, expect, test } from "bun:test";
-import { parse, check, setYamlParser } from "../src/index";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { parse, check, setYamlParser, LIMITS } from "../src/index";
 import { Budget, partLimitsOf, pageLimitsOf } from "../src/core/budget";
 import { parseDefs, EXPR_CAPS, ExprError, evaluate, parse as parseExpr } from "../src/core/expr";
 import { CHART_CAPS } from "../src/core/chart";
 import { yamlGuard, YamlTooBig } from "../src/host/yaml";
+
+// these tests reach the evaluation guards through long YAML texts: the YAML size caps (0.6.2, test/yaml-size.test.ts)
+// are raised while they run, so each test still meets the guard it is about
+const YAML_CAPS = { maxYamlChars: LIMITS.maxYamlChars, maxPageYamlChars: LIMITS.maxPageYamlChars, maxYamlKeys: LIMITS.maxYamlKeys, maxPageYamlKeys: LIMITS.maxPageYamlKeys };
+beforeAll(() => { Object.assign(LIMITS, { maxYamlChars: 1e8, maxPageYamlChars: 1e9, maxYamlKeys: 1e8, maxPageYamlKeys: 1e9 }); });
+afterAll(() => { Object.assign(LIMITS, YAML_CAPS); });
 
 const F = "```";
 const q = (v: string) => JSON.stringify(v);

@@ -71,9 +71,9 @@ export const LIMITS: Limits = {
   maxPageEvalValues: 400_000,
   maxPageEvalChars: 400_000,
   maxYamlAliases: 16,
-  maxYamlChars: 50_000,
-  maxPageYamlChars: 200_000,
-  maxYamlKeys: 2_000,
+  maxYamlChars: 20_000,
+  maxPageYamlChars: 100_000,
+  maxYamlKeys: 1_000,
   maxPageYamlKeys: 8_000,
 };
 

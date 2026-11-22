@@ -83,15 +83,17 @@ export function yamlMayMerge(t: string): boolean {
 }
 /**
  * An upper bound, from the text alone, on the keys and flow collections a YAML parser will build from it: every ":" and
- * "?" (a map key needs one of them, except in a flow map), every "[" and "{", and every "," once a "{" has appeared (a
- * flow map's key may stand alone, as in {a, b}, but only inside a "{"). Escapes make content, never structure, so only
- * these characters as written count. A quoted or commented one counts too: never fewer than the parser sees. One pass.
+ * "?" (a map key needs one of them, except in a flow map), every "[" and "{", every "," once a "{" has appeared (a flow
+ * map's key may stand alone, as in {a, b}, but only inside a "{"), every "!" (a tag such as !!map: a lenient parser,
+ * Bun's among them, may make a key of a tagged scalar) and every line (a parser that recovers from an error, as the yaml
+ * package does, may make a key of a line with no ":"). Escapes make content, never structure, so only these
+ * characters as written count. A quoted or commented one counts too: never fewer than the parser sees. One pass.
  */
 export function yamlKeyCount(t: string): number {
-  let n = 0, brace = false;
+  let n = t.length ? 1 : 0, brace = false; // the last line, which may have no line break
   for (let i = 0; i < t.length; i++) {
     const c = t.charCodeAt(i);
-    if (c === 58 || c === 63 || c === 91) n++;
+    if (c === 58 || c === 63 || c === 91 || c === 33 || c === 10 || c === 13) n++;
     else if (c === 123) { n++; brace = true; }
     else if (c === 44 && brace) n++;
   }
@@ -104,7 +106,7 @@ const pageYaml = new WeakMap<object, { c: number; k: number }>();
 export function yamlSizeCheck(t: string, lim: { maxYamlChars: number; maxYamlKeys: number; maxPageYamlChars: number; maxPageYamlKeys: number } = LIMITS, page: object | null = null): void {
   if (t.length > lim.maxYamlChars) throw new YamlTooBig(`the YAML is too long (${fmt(t.length)} characters; the limit is ${fmt(lim.maxYamlChars)})`);
   const k = yamlKeyCount(t);
-  if (k > lim.maxYamlKeys) throw new YamlTooBig(`the YAML has too many keys and lists (${fmt(k)}, counting every ":", "?", "[" and "{"; the limit is ${fmt(lim.maxYamlKeys)})`);
+  if (k > lim.maxYamlKeys) throw new YamlTooBig(`the YAML has too many keys and lists (${fmt(k)}, counting every ":", "?", "!", "[", "{" and line; the limit is ${fmt(lim.maxYamlKeys)})`);
   if (!page) return;
   const u = pageYaml.get(page) ?? { c: 0, k: 0 };
   if (u.c + t.length > lim.maxPageYamlChars) throw new YamlTooBig(`the page's YAML is too long (${fmt(u.c + t.length)} characters with this one; the limit for a page is ${fmt(lim.maxPageYamlChars)})`);

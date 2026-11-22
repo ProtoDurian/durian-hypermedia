@@ -18,8 +18,8 @@ function namingDir(dir: string): number {
   return out.split("\n").filter((l) => l.includes(dir) && !l.trim().startsWith("Z") && !l.includes("dh-cdp-guard")).length;
 }
 
-async function runAndEnd(how: string, kill?: "SIGKILL" | "SIGTERM" | "SIGINT") {
-  const r = spawn(["bun", join(import.meta.dir, "cdp-runner.ts"), how], { stdout: "pipe", stderr: "ignore", env: { ...process.env } });
+async function runAndEnd(how: string, kill?: "SIGKILL" | "SIGTERM" | "SIGINT", o: { pre?: string[]; env?: Record<string, string>; waitS?: number } = {}) {
+  const r = spawn([...(o.pre ?? []), "bun", join(import.meta.dir, "cdp-runner.ts"), how], { stdout: "pipe", stderr: "ignore", env: { ...process.env, ...(o.env ?? {}) } });
   const reader = r.stdout.getReader();
   let text = "";
   const t0 = Date.now();
@@ -36,10 +36,12 @@ async function runAndEnd(how: string, kill?: "SIGKILL" | "SIGTERM" | "SIGINT") {
   expect(groupAlive(pgid)).toBeGreaterThan(0);
   expect(existsSync(dir)).toBe(true);
   if (kill) r.kill(kill);
-  await r.exited;
-  // the guard polls once a second, then waits for the group to die: allow 8 s
-  for (let i = 0; i < 80 && (groupAlive(pgid) || existsSync(dir) || namingDir(dir)); i++) await Bun.sleep(100);
-  return { procs: groupAlive(pgid), dirLeft: existsSync(dir), naming: namingDir(dir) };
+  if (!o.waitS) await r.exited;
+  // the guard polls once a second, then waits for the group to die: allow 8 s (or the given time)
+  for (let i = 0; i < (o.waitS ?? 8) * 10 && (groupAlive(pgid) || existsSync(dir) || namingDir(dir)); i++) await Bun.sleep(100);
+  const res = { procs: groupAlive(pgid), dirLeft: existsSync(dir), naming: namingDir(dir) };
+  if (o.waitS) { r.kill("SIGKILL"); await r.exited; } // measured first: the runner was alive the whole time
+  return res;
 }
 
 const clean = { procs: 0, dirLeft: false, naming: 0 };
@@ -64,6 +66,16 @@ describe.skipIf(!withBrowser)("cdp: no browser and no profile dir outlives its r
   }, 40000);
   test("unhandled rejection", async () => {
     expect(await runAndEnd("reject")).toEqual(clean);
+  }, 40000);
+  test("time cap ran out (DH_CDP_MAX_S), runner still alive: the guard kills the browser and removes its dir", async () => {
+    // the cap's floor is 10 s; the runner hangs forever, so only the guard can end the browser
+    expect(await runAndEnd("hang", undefined, { env: { DH_CDP_MAX_S: "10" }, waitS: 20 })).toEqual(clean);
+  }, 60000);
+  test("an outer timeout ends the runner with SIGKILL", async () => {
+    expect(await runAndEnd("hang", undefined, { pre: ["timeout", "-s", "KILL", "6"] })).toEqual(clean);
+  }, 40000);
+  test("an outer timeout ends the runner with SIGTERM", async () => {
+    expect(await runAndEnd("hang", undefined, { pre: ["timeout", "6"] })).toEqual(clean);
   }, 40000);
   test("close() ends the whole group, guard included, and removes the dir", async () => {
     const { launch, liveBrowsers } = await import("../scripts/cdp");

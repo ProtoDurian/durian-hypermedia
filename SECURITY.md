@@ -118,11 +118,12 @@ below says otherwise:
   dropped either way.
 - **The LLM view** rewrites keys, mouse actions, code spans and links to other pages in one pass each.
 - **A code block** is drawn with one text token per line (Code Hike splits a many-line token once per line).
-- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (20,000)
-  characters and `maxYamlKeys` (1,000) keys in one text, and `maxPageYamlChars` (100,000) and `maxPageYamlKeys`
+- **YAML** (front matter, each chart), before any parser runs, from the text: at most `maxYamlChars` (100,000)
+  characters and `maxYamlKeys` (1,000) keys in one text, and `maxPageYamlChars` (400,000) and `maxPageYamlKeys`
   (8,000) over all of a `parse()` call's YAML (`check()` gets three times the page's, as it reads the texts again).
-  The key count is an upper bound for any parser: every `:`, `?`, `!`, `[`, `{` and line, and every `,` once a `{`
-  has appeared, as written (quoted or not). The yaml package (2.x), which a host outside Bun may give to
+  The key count is an upper bound for any parser: every `:`, `?`, `!`, `[`, `{` and line, and every `,` inside a
+  `{`, as written (a `,` in a list is not a key, so a chart's long data costs nothing here; once a quote, comment or
+  tag appears inside a `{`, every later `,` counts, as it might hide a bracket). The yaml package (2.x), which a host outside Bun may give to
   `setYamlParser`, compares each new key of a map with the keys before it; at these caps one text takes it tens of
   milliseconds. The busiest real page uses at most a fifth of each cap.
 - **Animations** count their layout work (placing things, routing lines, wrapping labels, every step) as it is done,

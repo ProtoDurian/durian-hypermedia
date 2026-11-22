@@ -82,20 +82,36 @@ export function yamlMayMerge(t: string): boolean {
   return false;
 }
 /**
- * An upper bound, from the text alone, on the keys and flow collections a YAML parser will build from it: every ":" and
- * "?" (a map key needs one of them, except in a flow map), every "[" and "{", every "," once a "{" has appeared (a flow
- * map's key may stand alone, as in {a, b}, but only inside a "{"), every "!" (a tag such as !!map: a lenient parser,
- * Bun's among them, may make a key of a tagged scalar) and every line (a parser that recovers from an error, as the yaml
- * package does, may make a key of a line with no ":"). Escapes make content, never structure, so only these
- * characters as written count. A quoted or commented one counts too: never fewer than the parser sees. One pass.
+ * An upper bound, from the text alone, on the keys and flow collections a YAML parser will build from it. Counted, as
+ * written: every ":" and "?" (a map key needs one, except in a flow map), "[", "{", "!" (a lenient parser, Bun's among
+ * them, may make a key of a scalar tagged !!map) and line (a parser that recovers from an error, as the yaml package
+ * does, may make a key of a line with no ":"), and every "," whose innermost open bracket is a "{" (a flow map's key
+ * may stand alone, as in {a, b}). A "," in a list is not a key, so a chart's long data lists cost nothing here.
+ * The brackets are followed as written; a "}" or "]" only closes what it matches. A quoted string, comment, tag or
+ * block scalar could hold a bracket that is not one, so once one of their marks (" ' # ! | > & * % @ ` \) appears
+ * inside an open "{", or a closer does not match, every "," after it counts. Escapes make content, never structure.
+ * Never fewer than the parser sees (seeded fuzz with Bun's parser and the yaml package). One pass.
  */
 export function yamlKeyCount(t: string): number {
-  let n = t.length ? 1 : 0, brace = false; // the last line, which may have no line break
+  let n = t.length ? 1 : 0; // the last line, which may have no line break
+  const open: number[] = [];  // the open brackets, as written
+  let braces = 0, all = false; // open "{" among them; every "," counts from here on
   for (let i = 0; i < t.length; i++) {
     const c = t.charCodeAt(i);
-    if (c === 58 || c === 63 || c === 91 || c === 33 || c === 10 || c === 13) n++;
-    else if (c === 123) { n++; brace = true; }
-    else if (c === 44 && brace) n++;
+    switch (c) {
+      case 58: case 63: case 10: case 13: n++; break;
+      case 91: n++; open.push(91); break;
+      case 123: n++; open.push(123); braces++; break;
+      case 93: case 125: {
+        const want = c === 93 ? 91 : 123;
+        if (open.length && open[open.length - 1] === want) { open.pop(); if (want === 123) braces--; }
+        else all = true;
+        break;
+      }
+      case 44: if (all || (open.length && open[open.length - 1] === 123)) n++; break;
+      case 33: n++; if (braces) all = true; break;
+      case 34: case 39: case 35: case 124: case 62: case 38: case 42: case 37: case 64: case 96: case 92: if (braces) all = true; break;
+    }
   }
   return n;
 }

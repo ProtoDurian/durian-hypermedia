@@ -46,7 +46,7 @@ describe("the key count from the text is never below the keys the parser builds"
     }
   });
   test("on seeded random YAML punctuation (100,000 texts)", () => {
-    const P = ["{", "}", "[", "]", ",", ", ", ":", ": ", "? ", "- ", "\n", "\n  ", "\n    ", "  ", "a", "b1", "\"", "'", "\"x\":", "# c", "|", ">", "|-", "!!set ", "!!map ", "!!omap ", "!t ", "!<x> ", "null", "\\", "\t", "1", "x y", "---\n", "...\n", "%YAML 1.2\n", "=", "~", "<<"];
+    const P = ["{", "}", "[", "]", ",", ", ", ":", ": ", "? ", "- ", "\n", "\n  ", "\n    ", "  ", "a", "b1", "\"", "'", "\"x\":", "\"}\"", "\"]\"", "\"[\"", "'}'", "# }", "# c", "|", ">", "|-", "!!set ", "!!map ", "!!omap ", "!!pairs ", "!t ", "!<x}> ", "&a ", "*a ", "null", "\\", "\t", "1", "x y", "a{b", "a}b", "a]b", "---\n", "%YAML 1.1\n---\n", "=", "~", "<<: ", "{? a}"];
     let parsed = 0;
     for (let seed = 1; seed <= 100_000; seed++) {
       const r = rng(seed); let t = "";

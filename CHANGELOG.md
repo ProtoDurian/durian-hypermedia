@@ -4,6 +4,61 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.7.0-rc.2 (not yet released)
+
+The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this
+candidate, as in 0.7.0-rc.1. Every page, fixture and sample that parsed in 0.7.0-rc.1 parses, checks and renders the
+same: an `animation` whose setup reads like a graph (boxes, pills, groups and their lines) stays the graph engine's, and
+none of the package's own animations changes (checked on every fixture and the example).
+
+### Added
+
+- **The composed stage** (`animation`, SPEC.md 3.12 to 3.14): a scene laid out once for every step, so nothing moves
+  between steps. An `animation` is a composed stage unless its fence asks for the graph engine (`layout=graph` or
+  another engine layout, `3d`, a kind) or its setup reads like a graph. Its words, by group:
+  - **Scene and steps:** `title:`, lanes (`## Lane`, left to right), bands under or over lanes (`## Band under A..B`,
+    `## X above A..B`), `@step Title: caption`; per step `show`, `hide` (cards, and `hide ## Title` for a heading),
+    `light` (`light none` for no card), `dim`, `dashed`, `cross` (and `cross ids corner`), `text id:`, `state id:`,
+    `tone ids`, a key (`key role [tone]: words`); `notes: above`, `flow: off`, `lines: straight`, `layout: row`.
+  - **Cards and panels:** a card `role ids: title | line | line`, cards inside a card (one level), pills that move,
+    token chips, records, badges (`+ (a) words`, `badges: stacked`), lines in a tone or role (`(good) words`) and the
+    panel marks (`. `, `> `, `~ `, `= `); panels shown in one step in one region: `grid N`, `rows` (`_` an empty cell,
+    `- words` a dropped one, ` [chip]` boxed cells), `list Title` (`| roomy`), `cells a: 32, +4 new` with `labels:`.
+  - **Connectors:** `a, b -> c: label` (`-->` dashed, `<-` from the right side), ends at a pill or a badge (`id.a`),
+    a label in a tone (`(bad)`), `keep a -> b: words` (the words stay while the line does), `x2` (two per pair).
+  - **Head blocks:** a phase track (`track:`, `at phase`; `form: chips`, `form: chips | arrows`, `place: beside
+    where`), a worksheet (`sheet:`, `fill`, `mark`, `sum`, `pass`, an outcome column), bins, counted columns and a
+    bar chart in a scene (`columns`, `bars`), and a swimlane matrix (`matrix:`).
+  - **Time block:** `time: a..b | unit`, rows of states (`row role id "Label": a 0..3; b 3..7`), a state in its own
+    role (`b 3..7 (server)`), `[soft]`, `[dot]` and `[dot] [plain]`, markers (`at`, `keep at`, `[beside]`, `[below]`,
+    `[tick]`, `[caption]`), `ticks:` with words, a reveal step (`@3`) and a tone, `zoom:` (`| below`, `| bracket`),
+    `window:` with `height: N lines`, `axis: First..Last` under the lanes, `band role id "Title": first..last`, `span
+    row a..b [bar]`, `tag row a..b: words`, `hush at`, `hush span`, `dot row a..b [tone]`, `fill row`, arrows between
+    rows (`arrow a -> b at 1.5`) with one tone, counted units, a row label as a chip (`row ... [chip]:`).
+  - **Roles and colours:** `roles:` in the front matter names each role's colour (`c0` the neutral, `c1` to `c8`);
+    several roles may share a colour on a page, never in one scene; `theme: { fill-c1: "#RRGGBB #RRGGBB" }` sets a
+    colour's fill on the page's stages, light then dark.
+  - **On a phone:** lanes stack and stacked lanes never on screen together share a place; a line that would cross a
+    card takes the side channel, and a gap whose lines fall back to the right edge grows (4 px at a time, at most 12 a
+    gap and 24 a stage); numbers in narrow cells stay level, or stand on end only inside their own cell, or stagger,
+    and every cell keeps its number; a word too wide for its cell gets a key and a caption row; staggered words keep
+    10 px from their neighbours on a page-coloured backing; no word is ever under 11 px.
+  - **doccheck:** a composed scene is exempt from the 400-token rule and warns over 2,000 tokens in the LLM view; it
+    refuses, naming the line and the fix: a coordinate, pixel size, colour value or millisecond option in the source,
+    a role the page does not declare (it lists those it does), two roles of one colour in one scene, an unknown card,
+    lane, phase, pill, token, key, sheet row or column, or time row (each lists the known ones), ids that do not match
+    their titles or appear twice, a time axis, tick, zoom, window, band, span, tag or marker that does not read
+    (SPEC.md section 9 lists them all), and a scene over its caps or over the page's stage budget.
+- **`AnimationBlock.stage`** (additive): a composed stage's block carries `stage: { src, roles }` beside `anim`, which
+  every animation block still has; `animationTexts(block)` reads either. The React `AnimationPart` draws a stage with
+  the stage's own view, and `dist/styles.css` holds its rules (`.stg*`).
+- **Theme tokens:** `--c0`, `--c0-fill`, `--c0-soft`, `--c0-plane`, `--c0-ink` (the neutral role, light and dark), and
+  in dark `--c1-dot` to `--c8-dot`, `--acc-dot` and their `-dot-new` (a column's plain and lit dots); a stage's own
+  `--stg-*` tokens live in its stylesheet.
+- **A layout budget for stages:** each page's stages share one budget of their own (2,000,000 units of work); a stage
+  over it is refused like any part over its budget (an error block and a problem), and a host that renders many pages
+  in one process lays each stage out on a fresh one.
+
 ## 0.7.0-rc.1
 
 A release candidate of 0.7.0. It holds what has passed review so far; 0.7.0 itself may still change before it is final,

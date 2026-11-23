@@ -26,7 +26,6 @@ row job archive "| Archive": reads a parcel 0..4; +stored 4..7 @3
 @step Copy: The copy is ready, but no reply reaches the draft.
 tag copy 0..2: copy is ready
 foot (job): the draft keeps its colour
-arrow copy -> draft at 0.5 [dashed]: no reply
 @step Input: The remaining columns appear in place.
 arrow above -> draft at 5.5 [dashed]: a new parcel
 ```

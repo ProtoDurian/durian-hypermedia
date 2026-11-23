@@ -74,7 +74,8 @@ export function ticksEvery(min: number, max: number, unit: string, every: number
   if (pay) charge(room + 8, room);
   // minutes are seeded from the exact start instant (the start of its real minute), not from a wall clock time that a
   // repeated hour could read an hour early
-  let t = u === "minute" ? Math.floor(min / MIN) * MIN : startOf(min, u, tz);
+  // (a zone's own offset may have seconds, as Europe/Paris did before 1911, so the wall second is taken off too)
+  let t = u === "minute" ? min - (() => { const w = partsOf(min, tz); return w.s * 1000 + w.ms; })() : startOf(min, u, tz);
   const p = partsOf(t, tz);
   if (every > 1) {
     if (u === "hour") t = wallToMs(p.y, p.mo, p.d, Math.floor(p.h / every) * every, 0, 0, 0, tz);

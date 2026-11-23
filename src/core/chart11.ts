@@ -61,6 +61,16 @@ function baseSpec(d: any): any {
   spec.series = series.map((s: any) => (isObj(s) ? { ...s } : s));
   return spec;
 }
+/** the keys a schema pass walks in a plain chart: the chart's, its axes' and every series' (counted before the pass is charged) */
+function keysWalked(b: any): number {
+  let n = 0;
+  if (isObj(b)) {
+    n += Object.keys(b).length;
+    for (const k of ["x", "y", "y2"]) if (isObj(b[k])) n += Object.keys(b[k]).length;
+    if (Array.isArray(b.series)) for (const s of b.series) { n++; if (isObj(s)) n += Object.keys(s).length; }
+  }
+  return n;
+}
 /** one step's changes on top of the chart before it: a new chart, the one before is not touched. Charged for what it reads. */
 function applyStep(prev: any, st: any, i: number, errors: string[]): any {
   const have: any[] = prev.series;
@@ -78,14 +88,14 @@ function applyStep(prev: any, st: any, i: number, errors: string[]): any {
   if (st.title !== undefined && typeof st.title !== "string") errors.push(`step ${i + 1}: title must be text`);
   if (st.series !== undefined) {
     if (!Array.isArray(st.series)) errors.push(`step ${i + 1}: series must be a list`);
-    else for (const ss of st.series) {
+    else for (const [si, ss] of (st.series as any[]).entries()) {
       if (!isObj(ss) || typeof ss.name !== "string") { errors.push(`step ${i + 1}: a series needs a name`); continue; }
       for (const key of Object.keys(ss)) if (!STEP_SERIES_KEYS.includes(key)) errors.push(`step ${i + 1}: series "${ss.name}": unknown key "${key}" (keys: ${STEP_SERIES_KEYS.join(", ")})`);
       const found = at.get(ss.name) ?? -1;
       if (ss.add === true) {
         if (found >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
         else { const { add, ...rest } = ss; at.set(ss.name, spec.series.length); spec.series.push(rest); }
-      } else if (found < 0) { if (++missing <= MISSING_SHOWN) errors.push(`step ${i + 1}: series "${ss.name.length > 60 ? ss.name.slice(0, 59) + "…" : ss.name}" is not in the chart; add add: true to bring in a new series (series: ${nameList()})`); }
+      } else if (found < 0) { if (++missing <= MISSING_SHOWN) errors.push(`step ${i + 1}: series "${ss.name.length > 60 ? ss.name.slice(0, 59) + "…" : ss.name}" is not in the chart (entry ${si + 1}); add add: true to bring in a new series (series: ${nameList()})`); }
       else { const { add, name, ...rest } = ss; spec.series[found] = { ...spec.series[found], ...rest }; }
     }
     if (missing > MISSING_SHOWN) errors.push(`step ${i + 1}: and ${missing - MISSING_SHOWN} more series are not in the chart`);
@@ -370,8 +380,9 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
   let cur = baseSpec(d); // each step is built from the one before, once
   // what is already said is kept in sets, so saying a problem once costs one look-up
   const seenE = new Set<string>(errors), seenW = new Set<string>();
-  const addE = (m: string) => { if (!seenE.has(m)) { seenE.add(m); errors.push(m); } };
-  let first = new Set<string>(), firstErrs = new Set<string>(), schema1: string[] = [];
+  const MAX_ERRORS = 20; let dropped = 0; // a chart says at most 20 problems of its steps, then how many more
+  const addE = (m: string) => { if (seenE.has(m)) return; seenE.add(m); if (errors.length >= MAX_ERRORS) dropped++; else errors.push(m); };
+  let prev = new Set<string>(), firstErrs = new Set<string>(), schema1: string[] = [];
   for (let k = 0; k < n; k++) {
     const es: string[] = [];
     if (steps.length) cur = applyStep(cur, steps[k], k, es);
@@ -389,18 +400,19 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
     for (const w of p.warnings) { const msg = n > 1 ? `step ${k + 1}: ${w}` : w; if (!seenW.has(msg)) { seenW.add(msg); warnings.push(msg); } }
     // every step's plain chart is checked: its schema, then (later steps) its data lengths and numbers with the evaluator; one step's
     // problem never hides another's, and a problem the first chart has is not said again
-    if (!p.errors.length && !es.length) {
-      const sn = p.base?.series?.length ?? 0;
-      charge(2 + sn, sn); // before the schema pass of this step
+    {
+      const kw = keysWalked(p.base);
+      charge(2 + kw, kw); // before the schema pass of this step: every axis and series key it walks
       const found = chartCheck(p.base);
       charge(1 + found.length, found.length); // and before the diagnostics are looked through
-      if (k === 0) { schema1 = found; first = new Set(found); }
-      else {
-        for (const e of found) if (!first.has(e)) addE(`step ${k + 1}: ${e}`);
-        const r = evalChart(p.base); if (r.error) addE(`step ${k + 1}: ${r.error}`);
-      }
+      // a problem is said at the step where it appears (or comes back), not again at each step that carries it on
+      if (k === 0) schema1 = found.slice(0, MAX_ERRORS);
+      else for (const e of found) if (!prev.has(e)) addE(`step ${k + 1}: ${e}`);
+      prev = new Set(found);
+      if (k > 0 && !p.errors.length && !es.length) { const r = evalChart(p.base); if (r.error) addE(`step ${k + 1}: ${r.error}`); }
     }
   }
+  if (dropped) errors.push(`and ${dropped} more problems in the steps`);
   return { base: out[0].base, errors, warnings, steps: out, schema1 };
 }
 /** what doccheck calls first for a chart: the new words checked, and the plain chart left for the evaluator's own checks */

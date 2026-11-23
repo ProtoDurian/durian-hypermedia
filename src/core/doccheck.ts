@@ -168,10 +168,11 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   catch (e) { if (e instanceof BudgetError) { spent(e); return; } if (/anchors and aliases/.test((e as Error).message)) { err(p.line, `chart: ${(e as Error).message}`); return; } throw e; }
   // steps, a time axis, annotations, formats, heatmaps and the page-chart words are checked first (core/chart11.ts); what is left is
   // the plain chart the evaluator's own checks understand
-  { const c11 = chart11Check(d); for (const e of c11.errors) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); for (const w of c11.warnings) warn(p.line, `chart: ${w}`); if (c11.errors.length) { for (const e of c11.first) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); return; } d = c11.base; }
+  let firstSchema: string[] = [];
+  { const c11 = chart11Check(d); for (const e of c11.errors) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); for (const w of c11.warnings) warn(p.line, `chart: ${w}`); if (c11.errors.length) { for (const e of c11.first) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); return; } d = c11.base; firstSchema = c11.first; }
   for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${briefJson(k).slice(1, -1)}" (keys: ${CHART_KEYS.join(", ")})`);
   if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}, heatmap`);
-  for (const e of chartCheck(d)) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
+  for (const e of firstSchema) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
   const { controls, errors } = chartControls(d);
   for (const e of errors) err(p.line, `chart: ${e}`);
   const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);

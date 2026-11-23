@@ -1,5 +1,5 @@
 ---
-title: "Animation: dots on a ruler"
+title: "Test: dots on a ruler"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: dots on a ruler
+## Test: dots on a ruler
 
 Dots can sit on the ruler without a value plot. A dashed box names the observation window, and a marker above the ruler stays visible from its step onward.
 

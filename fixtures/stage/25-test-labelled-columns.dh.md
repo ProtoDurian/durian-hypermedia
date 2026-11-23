@@ -1,5 +1,5 @@
 ---
-title: "Animation: labelled columns"
+title: "Test: labelled columns"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: labelled columns
+## Test: labelled columns
 
 Boxed headers use the same columns as the ordinary cell rows. Tick positions name column centres; labels can include a short word.
 

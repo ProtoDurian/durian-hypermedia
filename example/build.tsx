@@ -29,10 +29,13 @@ const r = await Bun.build({ entrypoints: [join(HERE, "client.tsx"), join(HERE, "
 if (!r.success) { console.error(r.logs); process.exit(1); }
 
 const groups: [string, string][] = [["", "Hand-written"], ["format", "From the Format page"], ["parts", "The folder parts (generated from src/parts/*/sample.md)"], ["stage", "The composed stage (from the Format page)"], ["hostile", "Hostile input (each one attack)"]];
+// the composed stage samples titled "Test: ..." check one edge case of the layout: they follow the stories, in a group of their own (0.7.0-rc.3)
+const STAGE_TESTS = "The composed stage: tests and edge cases";
+const groupOf = (dir: string, f: string, group: string) => (dir === "stage" && /^\d\d-test-/.test(f) ? STAGE_TESTS : group);
 const pages: { group: string; file: string; title: string; href: string }[] = [];
 for (const [dir, group] of groups) {
   const d = join(PKG, "fixtures", dir);
-  for (const f of readdirSync(d).filter((x) => x.endsWith(".md")).sort()) pages.push({ group, file: join(dir, f), title: "", href: `${(dir ? dir + "-" : "") + f.replace(/\.(dh\.)?md$/, "")}.html` });
+  for (const f of readdirSync(d).filter((x) => x.endsWith(".md")).sort()) pages.push({ group: groupOf(dir, f, group), file: join(dir, f), title: "", href: `${(dir ? dir + "-" : "") + f.replace(/\.(dh\.)?md$/, "")}.html` });
 }
 const shell = (title: string, body: string, json = "", script = "client") => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)} · durian-hypermedia example</title><link rel="stylesheet" href="assets/styles.css"><script type="module" src="assets/${script}.js"></script></head><body><header class="ex-head"><a class="ex-brand" href="index.html">durian-hypermedia</a><span class="ex-tools"><span class="ex-label">Style</span><button type="button" data-variant="">soft</button><button type="button" data-variant="flat">flat</button><button type="button" data-variant="bold">bold</button><button type="button" data-theme-toggle aria-label="Switch light or dark">◐</button></span></header><main class="ex-main">${body}</main>${json ? `<script type="application/json" id="dh-doc">${json}</script>` : ""}</body></html>`;
 
@@ -55,7 +58,7 @@ for (const p of pages) {
   writeFileSync(join(OUT, p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · ${esc(p.group)} · <code>${esc(p.file)}</code></p>${probs}${views}<div id="dh-root">${html}</div>`, documentJson(doc)));
   n++;
 }
-const list = exampleSections(pages, groups.map(([, g]) => g)).map(({ title, pages: entries }) => `<h2>${esc(title)}</h2><ul class="ex-list">${entries.map((p) => `<li><a href="${p.href}">${esc(p.title)}</a> <code>${esc(p.file)}</code></li>`).join("")}</ul>`).join("");
+const list = exampleSections(pages, groups.flatMap(([dir, g]) => (dir === "stage" ? [g, STAGE_TESTS] : [g]))).map(({ title, pages: entries }) => `<h2>${esc(title)}</h2><ul class="ex-list">${entries.map((p) => `<li><a href="${p.href}">${esc(p.title)}</a> <code>${esc(p.file)}</code></li>`).join("")}</ul>`).join("");
 // a control page that breaks the CSP on purpose (an inline script and an inline handler): the checker must see it
 writeFileSync(join(OUT, "_control.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>control</title></head><body><div class="dh-doc"><script>window.__inline = 1</script><img src="nope.png" onerror="window.__inline = 2" alt=""></div></body></html>`);
 // the Trusted Types control page: its script puts a plain string into innerHTML; under the policy that must be refused

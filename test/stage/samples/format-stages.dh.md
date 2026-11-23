@@ -120,22 +120,24 @@ client c: Browser | the person
   sb: [u1] Upload | 4 MB, one file
   rp: [u3] Done page | thumbnail shown
 server a: API | checks and accepts
-  sb: [a1] Accept | size and type checked; + 202
+  sb: [a1] Accept | size and type checked; + [r202] 202
   rp: [a2] Status | answers polling
 job w: Worker | does the slow part
   rn: [w1] Resize | three sizes; + strip metadata
 cache k: Job queue | keeps the order
   qu: [q1] Waiting job | first in, first out; ... about 30 more
 store s: Storage | keeps the files
-  rn: + original; + 3 sizes
+  rn: + [orig] original; + [sizes] 3 sizes
 @step Send: The browser sends the file.
 light c.sb: the request leaves
 light u1
 @step Accept: The API checks it and queues a job.
+show r202
 light a.sb: 202 sent back
 light k.qu: one more waiting
 @step Work: A worker takes the job and writes the sizes.
 light w.rn
+show orig, sizes
 light s.rn: files written
 @step Done: The browser polls and shows the result.
 show u3
@@ -234,9 +236,9 @@ keep span batch 3..9 [warn]: six hours
 keep at 6 [bad]: both are active
 ```
 
-## Animation: cells exchange a copy
+## Test: cells exchange a copy
 
-Roomy cells can keep words while idle, change their state on a later step, and pass a copy to another row. Row labels can include a badge and a second line.
+A section titled **Test:** checks one edge case of the layout (a crowded ruler, a phone-width cell, a dense header) rather than telling a story. Roomy cells can keep words while idle, change their state on a later step, and pass a copy to another row. Row labels can include a badge and a second line.
 
 ```animation
 title: A print desk | one column per sheet
@@ -252,7 +254,7 @@ arrow copy -> draft at 1.5: saved copy
 arrow above -> draft at 2.5 [dashed]: new sheet
 ```
 
-## Animation: dots on a ruler
+## Test: dots on a ruler
 
 Dots can sit on the ruler without a value plot. A dashed box names the observation window, and a marker above the ruler stays visible from its step onward.
 
@@ -279,7 +281,7 @@ hush at 40
 span axis 0..20 [line] [warn]: first half
 ```
 
-## Animation: two clocks
+## Test: two clocks
 
 Name each axis when a scene compares clocks. A numbered state prints each cell's interval start, and a marker can name its axis explicitly.
 
@@ -300,7 +302,7 @@ keep at ticks 43 [solid] [plain] [below]: tick
 keep span r 40..44 [line]: early range
 ```
 
-## Animation: a late timeline
+## Test: a late timeline
 
 A named time block can appear in a later step without moving the surrounding drawing. Hide its ruler while retaining its caption and true proportions. Words may sit after thin bars.
 
@@ -562,7 +564,7 @@ light Sat: the busiest
 heading: two baristas, a month later
 ```
 
-## Animation: dots with short words
+## Test: dots with short words
 
 On a phone, a row of dots keeps its short word beside the dot when it fits, with the row heading immediately above. Each dot stays on its true time.
 
@@ -594,7 +596,7 @@ at lookup
 at publish
 ```
 
-## Animation: labelled columns
+## Test: labelled columns
 
 Boxed headers use the same columns as the ordinary cell rows. Tick positions name column centres; labels can include a short word.
 
@@ -609,7 +611,7 @@ row server copy "Copy": waiting 0..7
 @step Ready: The fifth shift is ready.
 ```
 
-## Animation: compact numeric rows
+## Test: compact numeric rows
 
 On a phone, dense numbered cells show every digit, bottom to top when the number cannot fit level. A short row heading can sit beside the cells.
 
@@ -629,7 +631,7 @@ row server readings "reads": 0 0..1; 1 1..2; 2 2..3; 3 3..4; 4 4..5; 5 5..6; 6 6
 keep at reads 12 [guide]: saved
 ```
 
-## Animation: a panel with an enlarged inset
+## Test: a panel with an enlarged inset
 
 Place the panels before the time block. A lone panel with two shares leaves room for the enlarged inset; on a phone the panel, inset and overview stack in that order.
 
@@ -656,7 +658,7 @@ list Result
 note: The result is ready to compare with the full window.
 ```
 
-## Animation: every tick keeps its words
+## Test: every tick keeps its words
 
 On a phone, tick labels can share several lines. No labelled tick is removed to make room for another one.
 
@@ -670,7 +672,7 @@ row job run "Run": +working 0..32
 keep at 16 [bad]: copy lost
 ```
 
-## Animation: full words in narrow columns
+## Test: full words in narrow columns
 
 When a word cannot fit inside a phone cell, its full caption sits below the row. Long header words share several lines above their columns.
 
@@ -684,7 +686,7 @@ row job archive "": operators 0..4; /receipt 4..5; archived 5..6; payload 6..7 @
 @step Keep: The payload and the pause arrive; the other cells keep their places.
 ```
 
-## Animation: arrivals over a bottom ruler
+## Test: arrivals over a bottom ruler
 
 The ruler can sit below the rows. Arrival dots use their role’s pale fill and coloured border, and a marker can put its words in the step caption without a second stage label.
 
@@ -702,7 +704,7 @@ at 6 [solid] [good] [caption]: The parcel is released.
 @step Store: The second dot records storage.
 ```
 
-## Animation: roomy rows across a phone
+## Test: roomy rows across a phone
 
 Columns keep their full-axis pitch as cells appear. Row headings sit above phone cells; a transfer starts outside its source heading. Whole words retain the shared phone size.
 
@@ -721,7 +723,7 @@ foot (job): the draft keeps its colour
 arrow above -> draft at 5.5 [dashed]: a new parcel
 ```
 
-## Animation: short pulses, readable intervals
+## Test: short pulses, readable intervals
 
 Short interval captions keep each complete range and pack several entries onto a phone line.
 
@@ -735,7 +737,7 @@ row server engine "Engine": +working behind peers 0..24
 at 20 [good]: all refreshed
 ```
 
-## Animation: open and neutral arrival dots
+## Test: open and neutral arrival dots
 
 A dot uses its row’s pale colour and outline. The existing plain style gives a neutral filled dot.
 
@@ -814,7 +816,7 @@ light c: four photos move here
 into c: p3, p4, p8, p9
 ```
 
-## Animation: dense points with clear labels
+## Test: dense points with clear labels
 
 A phone keeps the planned dot pitch and clears marker strokes behind caption words. Fill changes only paint.
 
@@ -835,7 +837,7 @@ keep span receiver -150..2 [line] [plain]: one range caption
 off receiver
 ```
 
-## Animation: boxed headers with independent rows
+## Test: boxed headers with independent rows
 
 Each tick header is a band. Independent row ranges reveal in place without an extra header body row.
 
@@ -852,7 +854,7 @@ row job archive "archive": +x 840..848 @2; x 848..869 @3 [warn]; x 869..872 @4 [
 @step Finish: The final interval appears.
 ```
 
-## Animation: keyed cell captions below markers
+## Test: keyed cell captions below markers
 
 Words too wide for a phone cell keep a numbered key and a packed caption row. Marker formulas sit below their lines, with fixed positions across steps.
 
@@ -871,7 +873,7 @@ keep at 2 [accent] [below]: check = shift 2
 keep at 4 [bad] [below]: switch = shift 4
 ```
 
-## Animation: compact desktop tick headers
+## Test: compact desktop tick headers
 
 Dense numeric tick headers share a compact strip. Longer desktop row labels have room beside the cells; formulas remain below their lines.
 

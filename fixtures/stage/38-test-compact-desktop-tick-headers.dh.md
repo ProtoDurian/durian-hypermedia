@@ -1,5 +1,5 @@
 ---
-title: "Animation: compact desktop tick headers"
+title: "Test: compact desktop tick headers"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: compact desktop tick headers
+## Test: compact desktop tick headers
 
 Dense numeric tick headers share a compact strip. Longer desktop row labels have room beside the cells; formulas remain below their lines.
 

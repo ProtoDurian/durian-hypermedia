@@ -151,6 +151,14 @@ The third release candidate of 0.7.0. The format number stays 10.
 - Every fixture renders the same HTML as in 0.7.0-rc.2 (none asks for static on these parts); one new fixture,
   `fixtures/format/81-static-live-and-still.dh.md`, shows the same parts live and static.
 
+### Changed: the composed stage samples: stories first, edge cases apart
+
+- **Eighteen stage samples that check one edge case of the layout are titled `Test: ...`** (their fixtures are
+  `fixtures/stage/NN-test-*.dh.md`; the first says what the group is). The example index lists them after the stories,
+  under "The composed stage: tests and edge cases" (rc.2 reviews: about half the samples read like fixtures).
+- **The swimlane matrix sample's chips come in when the story makes them** (fixture 04): the API's `202` at the step
+  it answers, the stored `original` and `3 sizes` at the step the worker writes them (`+ [id] words` and `show id`).
+
 ### Changed: kube-proxy and the Kubernetes samples; a wide table says to swipe
 
 - **kube-proxy takes the real path** (Format fixture 66, now `Animation: a packet through kube-proxy`): a flat scene

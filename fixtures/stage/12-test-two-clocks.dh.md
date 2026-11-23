@@ -1,5 +1,5 @@
 ---
-title: "Animation: two clocks"
+title: "Test: two clocks"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: two clocks
+## Test: two clocks
 
 Name each axis when a scene compares clocks. A numbered state prints each cell's interval start, and a marker can name its axis explicitly.
 

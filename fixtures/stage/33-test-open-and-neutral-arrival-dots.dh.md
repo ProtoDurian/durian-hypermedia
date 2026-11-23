@@ -1,5 +1,5 @@
 ---
-title: "Animation: open and neutral arrival dots"
+title: "Test: open and neutral arrival dots"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: open and neutral arrival dots
+## Test: open and neutral arrival dots
 
 A dot uses its row’s pale colour and outline. The existing plain style gives a neutral filled dot.
 

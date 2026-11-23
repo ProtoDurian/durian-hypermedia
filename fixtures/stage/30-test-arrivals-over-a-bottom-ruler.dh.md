@@ -1,5 +1,5 @@
 ---
-title: "Animation: arrivals over a bottom ruler"
+title: "Test: arrivals over a bottom ruler"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: arrivals over a bottom ruler
+## Test: arrivals over a bottom ruler
 
 The ruler can sit below the rows. Arrival dots use their role’s pale fill and coloured border, and a marker can put its words in the step caption without a second stage label.
 

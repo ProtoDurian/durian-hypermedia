@@ -1,5 +1,5 @@
 ---
-title: "Animation: short pulses, readable intervals"
+title: "Test: short pulses, readable intervals"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: short pulses, readable intervals
+## Test: short pulses, readable intervals
 
 Short interval captions keep each complete range and pack several entries onto a phone line.
 

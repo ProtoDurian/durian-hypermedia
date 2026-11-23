@@ -26,22 +26,24 @@ client c: Browser | the person
   sb: [u1] Upload | 4 MB, one file
   rp: [u3] Done page | thumbnail shown
 server a: API | checks and accepts
-  sb: [a1] Accept | size and type checked; + 202
+  sb: [a1] Accept | size and type checked; + [r202] 202
   rp: [a2] Status | answers polling
 job w: Worker | does the slow part
   rn: [w1] Resize | three sizes; + strip metadata
 cache k: Job queue | keeps the order
   qu: [q1] Waiting job | first in, first out; ... about 30 more
 store s: Storage | keeps the files
-  rn: + original; + 3 sizes
+  rn: + [orig] original; + [sizes] 3 sizes
 @step Send: The browser sends the file.
 light c.sb: the request leaves
 light u1
 @step Accept: The API checks it and queues a job.
+show r202
 light a.sb: 202 sent back
 light k.qu: one more waiting
 @step Work: A worker takes the job and writes the sizes.
 light w.rn
+show orig, sizes
 light s.rn: files written
 @step Done: The browser polls and shows the result.
 show u3

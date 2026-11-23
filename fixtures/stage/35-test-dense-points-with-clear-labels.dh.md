@@ -1,5 +1,5 @@
 ---
-title: "Animation: dense points with clear labels"
+title: "Test: dense points with clear labels"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: dense points with clear labels
+## Test: dense points with clear labels
 
 A phone keeps the planned dot pitch and clears marker strokes behind caption words. Fill changes only paint.
 

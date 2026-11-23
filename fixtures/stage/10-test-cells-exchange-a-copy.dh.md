@@ -1,5 +1,5 @@
 ---
-title: "Animation: cells exchange a copy"
+title: "Test: cells exchange a copy"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,9 +11,9 @@ roles:
   plain: c0
 ---
 
-## Animation: cells exchange a copy
+## Test: cells exchange a copy
 
-Roomy cells can keep words while idle, change their state on a later step, and pass a copy to another row. Row labels can include a badge and a second line.
+A section titled **Test:** checks one edge case of the layout (a crowded ruler, a phone-width cell, a dense header) rather than telling a story. Roomy cells can keep words while idle, change their state on a later step, and pass a copy to another row. Row labels can include a badge and a second line.
 
 ```animation
 title: A print desk | one column per sheet

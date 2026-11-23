@@ -1,5 +1,5 @@
 ---
-title: "Animation: dots with short words"
+title: "Test: dots with short words"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: dots with short words
+## Test: dots with short words
 
 On a phone, a row of dots keeps its short word beside the dot when it fits, with the row heading immediately above. Each dot stays on its true time.
 

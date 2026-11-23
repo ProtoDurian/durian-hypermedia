@@ -1,5 +1,5 @@
 ---
-title: "Animation: every tick keeps its words"
+title: "Test: every tick keeps its words"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: every tick keeps its words
+## Test: every tick keeps its words
 
 On a phone, tick labels can share several lines. No labelled tick is removed to make room for another one.
 

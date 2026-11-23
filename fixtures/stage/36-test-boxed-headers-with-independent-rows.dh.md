@@ -1,5 +1,5 @@
 ---
-title: "Animation: boxed headers with independent rows"
+title: "Test: boxed headers with independent rows"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: boxed headers with independent rows
+## Test: boxed headers with independent rows
 
 Each tick header is a band. Independent row ranges reveal in place without an extra header body row.
 

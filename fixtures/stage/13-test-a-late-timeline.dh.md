@@ -1,5 +1,5 @@
 ---
-title: "Animation: a late timeline"
+title: "Test: a late timeline"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: a late timeline
+## Test: a late timeline
 
 A named time block can appear in a later step without moving the surrounding drawing. Hide its ruler while retaining its caption and true proportions. Words may sit after thin bars.
 

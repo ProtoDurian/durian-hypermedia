@@ -1,5 +1,5 @@
 ---
-title: "Animation: keyed cell captions below markers"
+title: "Test: keyed cell captions below markers"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: keyed cell captions below markers
+## Test: keyed cell captions below markers
 
 Words too wide for a phone cell keep a numbered key and a packed caption row. Marker formulas sit below their lines, with fixed positions across steps.
 

@@ -1,5 +1,5 @@
 ---
-title: "Animation: roomy rows across a phone"
+title: "Test: roomy rows across a phone"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: roomy rows across a phone
+## Test: roomy rows across a phone
 
 Columns keep their full-axis pitch as cells appear. Row headings sit above phone cells; a transfer starts outside its source heading. Whole words retain the shared phone size.
 

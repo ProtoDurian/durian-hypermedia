@@ -1,5 +1,5 @@
 ---
-title: "Animation: a panel with an enlarged inset"
+title: "Test: a panel with an enlarged inset"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: a panel with an enlarged inset
+## Test: a panel with an enlarged inset
 
 Place the panels before the time block. A lone panel with two shares leaves room for the enlarged inset; on a phone the panel, inset and overview stack in that order.
 

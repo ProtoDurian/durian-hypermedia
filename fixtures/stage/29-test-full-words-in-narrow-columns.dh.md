@@ -1,5 +1,5 @@
 ---
-title: "Animation: full words in narrow columns"
+title: "Test: full words in narrow columns"
 description: A fixture made from the Format page section of the same name (a composed stage).
 roles:
   client: c1
@@ -11,7 +11,7 @@ roles:
   plain: c0
 ---
 
-## Animation: full words in narrow columns
+## Test: full words in narrow columns
 
 When a word cannot fit inside a phone cell, its full caption sits below the row. Long header words share several lines above their columns.
 

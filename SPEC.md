@@ -828,7 +828,7 @@ A line joins the key to the column it points at. A key with no relationship line
 
 **An LLM reads** one line per table, then each relationship both ways.
 
-**All three diagrams** take `#id`, `title=`, `static=` and `dir=right` or `dir=down`. They take at most 60 boxes, 120 lines, 40 steps, 1500 lines of source and 300 characters a line. Their layout is charged to the page's animation work budget. A refused one shows its source as plain text with the reason. A host may restyle what a diagram draws by the hooks `data-dh-slot` names: `state`, `current`, `start`, `end`, `choice`, `group`, `transition`, `event` (state); `relation`, `relation-label`, `multiplicity` (class); `relation`, `verb`, `cardinality` (ER); and the tokens `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--class-head-bg`, `--class-member`, `--class-static`, `--er-head-bg` and `--er-key-ink`. Backticks in a caption are plain text in this release.
+**All three diagrams** take `#id`, `title=`, `static=` and `dir=right` or `dir=down`. They take at most 60 boxes, 120 lines, 40 steps, 1500 lines of source and 300 characters a line. Their layout is charged to the page's animation work budget. A refused one shows its source as plain text with the reason. A host may restyle what a diagram draws by the hooks `data-dh-slot` names: `state`, `current`, `start`, `end`, `choice`, `group`, `transition`, `event` (state); `relation`, `relation-label`, `multiplicity` (class); `relation`, `verb`, `cardinality` (ER); and the tokens `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--class-head-bg`, `--class-member`, `--class-static`, `--er-head-bg` and `--er-key-ink`.
 
 ## 4. Steps are an attachment
 
@@ -1531,6 +1531,8 @@ customer.id -- order.customer_id start=one end=zero-or-many "places"
 | `also=yes` | a second line between the same two, or a line from a thing to itself |
 
 A layout follows a line from its first end, so inheritance is written parent first: `shape -- circle start=triangle`. Two more shapes for a scene: `initial` and `final` (a filled dot, and a ring round one), which the state part uses for `[start]` and `[end]`. An end's shape is never dashed, whatever its line is.
+
+**Words:** captions, `say` and `note=` take three marks and nothing else: `code`, **bold** and *italic*. A star opens before a word and closes after one, so `2 * 3`, `*.ts,*.js` and `a*b*c` stay as written; bold may enclose code; other Markdown and HTML stay text. Labels on the stage are plain text (a backtick in one is a warning). An unclosed backtick is a doccheck error with its line. The marks are drawn as elements, never as HTML, in 2D, in 3D and in the "All steps" list; an LLM reads the source marks.
 
 ## 7. Charts
 

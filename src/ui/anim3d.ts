@@ -19,6 +19,7 @@ import { leastGoal, edgeRows, planeAnchor, orderRows, lineHitsRect, type P2 } fr
 import { keepInScene } from "./fit3d";
 import { endMeshes } from "./line-ends3d";
 import { markAt, type Ends } from "../core/line-ends";
+import { setRich } from "./inline-dom";
 import { hasWebGL, NEAR_MARGIN, RESTORE_AFTER } from "./gl";
 
 export interface Item3 {
@@ -606,7 +607,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // speech for this step, above the thing
     while (bubbles.length > v.says.length) bubbles.pop()!.remove();
     while (bubbles.length < v.says.length) { const b = document.createElement("div"); b.className = "scn3-say"; labels.append(b); bubbles.push(b); }
-    v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; if (b.dataset.sk !== `${s.key} ${s.text}`) { b.dataset.fresh = "1"; b.dataset.sk = `${s.key} ${s.text}`; } b.textContent = s.text; b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
+    v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; if (b.dataset.sk !== `${s.key} ${s.text}`) { b.dataset.fresh = "1"; b.dataset.sk = `${s.key} ${s.text}`; setRich(b, s.text); } b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
     // the story camera moves when the step changes (or on the first draw)
     rests = restsOf(v);
     if (!user) { goal = storyGoal(); if (first) { Object.assign(camNow, goal); first = false; } }

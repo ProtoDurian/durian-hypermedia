@@ -6,6 +6,7 @@
 // - "All steps": a scene's steps are a list inside the step that enters it
 // - the slider: a band under the steps of each scene
 import React from "react";
+import { Rich } from "./inline";
 import { center, pad, fitAspect, type Compiled, type Rect } from "../core/scene";
 import { ZOOM_THROUGH, stepScene, type SceneMove } from "../core/scenes";
 
@@ -50,7 +51,7 @@ function tree(c: Compiled, n: number): Item[] {
 // "All steps": numbered by the story's own count, a scene's steps inside the step that enters it
 export function StepList({ c, titles, i, go }: { c: Compiled; titles: string[]; i: number; go: (k: number) => void }) {
   const list = (items: Item[]): React.ReactNode => (
-    <ol start={(items[0]?.k ?? 0) + 1}>{items.map((it) => <li key={it.k} value={it.k + 1}><button type="button" className={it.k === i ? "is-cur" : undefined} onClick={() => go(it.k)}>{titles[it.k]}</button>{it.sub.length > 0 && <div className="scn-sub" data-scene={stepScene(c, it.sub[0].k).label}>{list(it.sub)}</div>}</li>)}</ol>
+    <ol start={(items[0]?.k ?? 0) + 1}>{items.map((it) => <li key={it.k} value={it.k + 1}><button type="button" className={it.k === i ? "is-cur" : undefined} onClick={() => go(it.k)}><Rich text={titles[it.k]} /></button>{it.sub.length > 0 && <div className="scn-sub" data-scene={stepScene(c, it.sub[0].k).label}>{list(it.sub)}</div>}</li>)}</ol>
   );
   return <>{list(tree(c, titles.length))}</>;
 }

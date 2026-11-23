@@ -23,7 +23,7 @@ customer 1 -- 0..* order "places"
 order 1 -- 1..* line "holds"
 @step Start from the customer's key.
 highlight customer.id
-@step Each order keeps it as customer_id.
+@step Each order keeps it in `customer_id`.
 highlight customer.id order.customer_id
 @step Each line of an order keeps the order's key.
 highlight order.id line.order_id

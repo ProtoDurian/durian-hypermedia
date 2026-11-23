@@ -38,6 +38,7 @@ import { narrowWins, storyFocus, leastScale } from "./readable";
 import { slideWhole } from "./edge10";
 // the layout work of a compile is counted and charged to the animation's budget (core/work.ts)
 import { work, metered, animPartBudget } from "./work";
+import { hasMarks, lineRuns, plain, unclosedTick } from "./inline";
 export const SHAPES = ["box", "circle", "pill", "cylinder", "cloud", "person", "diamond", "text", "dot", "initial", "final"] as const;
 export const CONTAINERS = ["group", "array", "list", "stack", "queue", "tree", "graph", "grid", "buckets", "table", "record"] as const;
 export const OVERLAYS = ["token", "pointer"] as const;
@@ -216,6 +217,15 @@ export function parseScene(head: string, steps: { title: string; raw: string; li
     scene.attrs.still = true;
     if (!scene.setup.some((o) => o.op === "add") && !errors.length) errors.push({ line: base - 1, msg: 'a still scene needs something to draw: box api "API", or add 2 or more @step lines for a story' });
   } else if (steps.length < 2) errors.push({ line: base - 1, msg: "an animation needs at least 2 @step lines (or none, for a still scene)" });
+  // inline marks (SPEC 6.15): code in a caption, speech or a note opens and closes
+  const ticks = (text: string, line: number, what: string) => { if (text && unclosedTick(text)) errors.push({ line, msg: `${what} has a backtick that is not closed: write \`code\` with one before and one after` }); };
+  for (const st of steps) ticks(st.title, st.line, "this caption");
+  for (const op of [...scene.setup, ...(scene.subs ?? []).flatMap((x) => x.setup), ...scene.steps.flatMap((x) => x.ops)]) {
+    if (op.op === "say") ticks(op.text, op.line, `say ${op.id}`);
+    else if (op.op === "note") ticks(op.text, op.line, `note ${op.id}`);
+    else if (op.op === "layer") ticks(op.note, op.line, `layer ${op.id}'s note`);
+    else if (op.op === "add" && op.decl.kv.note) ticks(op.decl.kv.note, op.line, `${op.decl.id}'s note`);
+  }
   return { scene, errors };
 }
 
@@ -1844,8 +1854,9 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
     work(16 + sy.text.length * 4);
     const a = byKey.get(sy.key);
     if (!a) continue;
-    const words = wrapEven(sy.text, CHIP.font + 0.5, chipOf(f.phone).sayW, 2);
-    const w = linesW(words, CHIP.font + 0.5) + 22, h = words.length * CHIP.lh + 10;
+    const words = wrapEven(plain(sy.text), CHIP.font + 0.5, chipOf(f.phone).sayW, 2);
+    const wordsW = hasMarks(sy.text) ? Math.max(...lineRuns(sy.text, words, CHIP.font + 0.5, textW).map((r) => r.w)) : linesW(words, CHIP.font + 0.5);
+    const w = wordsW + 22, h = words.length * CHIP.lh + 10;
     // then rings around the thing, further and further out
     const c = center(a), ring: { r: Rect; side: "up" | "down" | "left" | "right" }[] = [];
     for (const rr of [0.5, 0.75, 1.05, 1.4, 1.8]) for (let k = 0; k < 16; k++) { const ang = (k * Math.PI) / 8, ox = Math.cos(ang) * (a.w / 2 + w / 2 + 12) * rr * 1.4, oy = Math.sin(ang) * (a.h / 2 + h / 2 + 12) * rr * 1.6; ring.push({ r: { x: c.x + ox - w / 2, y: c.y + oy - h / 2, w, h }, side: Math.abs(ox) > Math.abs(oy) ? (ox > 0 ? "right" : "left") : oy > 0 ? "down" : "up" }); }
@@ -2422,6 +2433,9 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   for (const op of [...scene.setup, ...scene.steps.flatMap((s) => s.ops)]) {
     if (op.op === "send" && op.show === "token" && op.label) longTok(op.label, op.line, "the token's label");
     if (op.op === "add" && op.decl.kind === "token" && op.decl.label) longTok(op.decl.label, op.line, `token ${op.decl.id}`);
+    // words on the stage are plain, so a backtick there would be drawn as one
+    const on = op.op === "add" ? op.decl.label : op.op === "conn" || op.op === "send" || op.op === "push" || op.op === "layer" || op.op === "family" ? op.label : op.op === "set" ? op.kv.label : null;
+    if (on?.includes("`")) warnings.push({ line: op.line, msg: `the label "${on}" has backticks: words on the stage are plain text, so write it without them (inline code works in captions, say and note=)` });
   }
   // the 3D-only words in a scene that is not 3D only; who takes part in each step (the 3D labels rule)
   errors.push(...onlyChecks([...scene.setup, ...scene.steps.flatMap((s) => s.ops)], !!scene.attrs.only3d));

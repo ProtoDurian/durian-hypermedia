@@ -27,6 +27,8 @@ import { moveCam, moveO, SceneChip, StepList, sceneBands } from "./anim-scenes";
 import { hasWebGL } from "./gl";
 import { EndLabels, LineEnds } from "./line-ends";
 import { FieldRow, RecordBox } from "./record";
+import { hasMarks, plain } from "../core/inline";
+import { Rich, RichWords } from "./inline";
 import { lineSlots, slotOf, wordOf, type LineSlots } from "./diagram-slots";
 
 // 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle. A 3D-only scene (format
@@ -263,7 +265,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
 
   if (!n) return <div className="cw-error">This animation has nothing to draw.</div>;
   // format version 11: a still scene has the stage and the notes, and no player; its words for a screen reader are its setup
-  const stageWords = still ? (src.part ? srText ?? src.title ?? "" : sceneLlm(c)) : src.steps[i]?.title ?? "";
+  const stageWords = still ? (src.part ? srText ?? src.title ?? "" : sceneLlm(c)) : plain(src.steps[i]?.title ?? "");
   // a step into or out of a scene inside the scene (format version 10): the stage shows one scene at a time, the one
   // left in the first half and the next in the second; nothing tweens between two scenes, the camera zooms through
   const mv = sceneMove(c, from, i, t);
@@ -577,7 +579,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
         onKeyDown={st.on ? undefined : onStageKey} onPointerDownCapture={st.on || fixed ? undefined : () => setActive(true)} onFocus={st.on || fixed ? undefined : () => setActive(true)}
         onBlur={(e) => { if (!e.currentTarget.closest(".scn")?.contains(e.relatedTarget as Node | null)) setActive(false); }}>
         {mode === "3d" ? <div ref={host3} className="scn3" aria-label={stageWords} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div>
-        : only3d && !st.on ? <div className="scn-only3d" role="note"><p>{still ? stageWords : U.only3d ?? "This scene is drawn in 3D only. Without 3D (WebGL), here are its steps:"}</p><ol>{src.steps.map((s, k) => <li key={k} className={cx(k === i && "is-cur")} aria-current={k === i ? "step" : undefined}>{s.title}</li>)}</ol></div>
+        : only3d && !st.on ? <div className="scn-only3d" role="note"><p>{still ? stageWords : U.only3d ?? "This scene is drawn in 3D only. Without 3D (WebGL), here are its steps:"}</p><ol>{src.steps.map((s, k) => <li key={k} className={cx(k === i && "is-cur")} aria-current={k === i ? "step" : undefined}><Rich text={s.title} /></li>)}</ol></div>
         : <svg ref={svg} className="scn-svg" viewBox={`${cam.x.toFixed(1)} ${cam.y.toFixed(1)} ${cam.w.toFixed(1)} ${cam.h.toFixed(1)}`} preserveAspectRatio="xMidYMid meet"
           onPointerDown={st.on ? undefined : onDown} onPointerMove={st.on ? undefined : onMove} onPointerUp={st.on ? undefined : onUp} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); drag.current = null; }} role="img" aria-label={stageWords} style={stageO < 1 ? { opacity: stageO } : undefined}>
           <defs>
@@ -595,8 +597,8 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
         {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{downMore === "b" ? "↓" : "↑"} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
-        {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{wordOf(src.part, selBox)}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
-        {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note">{B.layers[pickL].note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
+        {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{wordOf(src.part, selBox)}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note"><Rich text={selBox.ent.note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
+        {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note"><Rich text={B.layers[pickL].note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>
       {/* how to move: always shown, under the stage, so it never covers the scene */}
       {/* format version 9: one line; on a phone a short one; the ? button shows the whole of it */}
@@ -605,12 +607,12 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       {howOpen && !listOnly && !st.on && !steady && <p className="scn-how-full" role="note">{hint}</p>}
       {st.on && <StaticSteps titles={src.steps.map((s) => s.title)} i={i} label={ui.allSteps} print={st.print} />}
       {!still && !st.on && <><div className="scn-caps" aria-live="polite">
-        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} />{s.title}{zoomCue(k)}</span></div>)}
+        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} /><Rich text={s.title} />{zoomCue(k)}</span></div>)}
       </div>
       <Controls ui={ui} i={i} n={n} bands={sceneBands(c)} onGo={(k) => go(k)} playing={playing} onPlay={() => { if (!playing) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }} />
       <details className="scn-steps">
         <summary>{ui.allSteps ?? "All steps"} ({n})</summary>
-        {c.nest ? <StepList c={c} titles={src.steps.map((s) => s.title)} i={i} go={(k) => go(k)} /> : <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}>{s.title}</button></li>)}</ol>}
+        {c.nest ? <StepList c={c} titles={src.steps.map((s) => s.title)} i={i} go={(k) => go(k)} /> : <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}><Rich text={s.title} /></button></li>)}</ol>}
       </details></>}
     </div>
   );
@@ -641,7 +643,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: S
   const meter = s.lv != null && b.kind !== "layer" ? (() => { const inX = b.container ? z.pad : Math.max(8, z.px - 4), w = r.w - 2 * inX, y = r.y + r.h - (b.container ? z.pad - 2 + METER_H - 4 : METER_H + 5); return <g className="scn-meter"><rect className="scn-meter-track" x={r.x + inX} y={y} width={w} height={METER_H} rx={METER_H / 2} /><rect className="scn-meter-fill" x={r.x + inX} y={y} width={Math.max(0, (w * s.lv!) / 100)} height={METER_H} rx={METER_H / 2} /></g>; })() : null;
   // inside a closed thing the words are hidden; they fade in as it opens
   const words = lb && wo > 0.02 ? <g style={wo < 1 ? { opacity: wo } : undefined}><Words lines={b.lines} x={tx} y={lb.y + lb.h / 2} z={z} /></g> : null;
-  const title = <title>{[b.label || b.id, e.note].filter(Boolean).join(" · ")}</title>;
+  const title = <title>{[b.label || b.id, plain(e.note ?? "")].filter(Boolean).join(" · ")}</title>;
   const shadow = { filter: `url(#${sh}-sh)` };
   let body: React.ReactNode;
   if (b.kind === "layer") body = <><rect className="scn-band" x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 6} /><text x={r.x + 12} y={ty} className="scn-band-t" dominantBaseline="central" style={{ fontSize: z.head }}>{b.label}</text></>;
@@ -788,7 +790,9 @@ function Say({ m, r, o }: { m: Mark; r: Rect; o: number }) {
   return (
     <g className="scn-say" style={{ opacity: o }}>
       <path d={d} />
-      <Words lines={m.lines} x={x + w / 2} y={y + h / 2} z={DESIGN.s} cls="scn-say-t" font={CHIP.font + 0.5} />
+      {hasMarks(m.text)
+        ? <RichWords text={m.text} lines={m.lines} x={x + w / 2} y={y + h / 2} font={CHIP.font + 0.5} />
+        : <Words lines={m.lines} x={x + w / 2} y={y + h / 2} z={DESIGN.s} cls="scn-say-t" font={CHIP.font + 0.5} />}
     </g>
   );
 }

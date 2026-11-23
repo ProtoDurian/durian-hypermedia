@@ -4,8 +4,8 @@
 import { compileScene, type SceneError } from "./scene";
 import { animOverMessage, animPartBudget, metered, work } from "./work";
 import { BudgetError } from "./budget";
-// a backtick that is not closed (linear: no pattern over the text)
-const unclosedTick = (s: string) => (s.split("`").length - 1) % 2 === 1;
+import { unclosedTick } from "./inline";
+
 
 export type DiagramName = "state" | "class" | "er";
 export interface DiagramSrc { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string>; part: DiagramName; title: string }

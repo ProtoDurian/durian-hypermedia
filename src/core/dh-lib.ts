@@ -18,6 +18,7 @@ import { chartTable11, evalChart11, usesChart11 } from "./chart11";
 import { currentBudget, BudgetError } from "./budget";
 import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
+import { codeSpans } from "./inline";
 import { diagramOf, isDiagram } from "./diagrams"; // state, class and ER diagrams: each compiles to a scene
 import { isStagePart, setStageRoles, stagePartJson, stagePartLlm, stagePartTexts } from "./stage-part"; // the composed stage (0.7.0)
 import { parseTier, tierLlm } from "./tier";
@@ -1038,8 +1039,9 @@ export function structureOf(doc: Doc) {
         const a = { ...n.attrs }; delete a.title;
         let data = "";
         if (n.name === "chart") data = JSON.stringify(stripTexts(chartYaml(n)));
-        if (isDiagram(n.name)) data = diagramOf(n).shape; // what a translation must keep of a state, class or ER diagram
+        if (isDiagram(n.name)) { const d = diagramOf(n); data = d.shape; for (const t of d.code) inline.push(...codeSpans(t)); } // what a translation must keep of a state, class or ER diagram
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
+        if (n.name === "animation") for (const t of [n.head, ...n.steps.flatMap((s) => [s.title, s.raw])]) inline.push(...codeSpans(t)); // a translation keeps the code spans of captions, speech and notes
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
         if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t, 0, n.defs).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
         if (n.name === "editor") data = JSON.stringify([n.head.trim(), ...n.steps.map((s) => s.raw.trim())]);

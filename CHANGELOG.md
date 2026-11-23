@@ -37,6 +37,10 @@ The third release candidate of 0.7.0. The format number stays 10.
   word by an end (`start-label=`, `end-label=`), a second line between two things or a loop (`also=yes`), and the
   `initial` and `final` shapes.
 
+- **Inline marks in an animation's prose (SPEC.md 6.15).** Captions, `say` and `note=` take `code`, **bold** and
+  *italic*, in 2D, in 3D and in the "All steps" list; a translation must keep a caption's code spans, and an unclosed
+  backtick is a doccheck error with its line. The scan is one pass with no pattern that can backtrack. The state,
+  class and ER parts use it for their captions and notes.
 - **The example site shows each fixture's source and LLM view:** every fixture page (the hand-written ones, the
   Format page samples, the composed stage samples, the folder parts and the hostile pages) opens with two closed
   toggles, `Source` (the fixture as written) and `LLM view` (what `llmView` returns, or a line saying an LLM reads

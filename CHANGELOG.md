@@ -25,6 +25,18 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Added
 
+- **The `graph` part (SPEC.md 3.2 Graph): an explorable network graph.** `group`, `node` and `a -> b "label"` lines
+  (lists, chains and numbered ranges such as `api-{1..8}` keep a 120-service graph short), with `layers`, `force` and
+  `radial centre=` layouts. A reader searches (the match is framed and lit), focuses a node one or two steps out (the
+  rest fades), folds and opens groups, pans and zooms (pinch on a phone) and reads a side list of the focused node's
+  links in and out; over 300 nodes every group starts folded, and a phone starts folded where the open graph would
+  draw under a third of its size. The look is ours, filled from the base tokens, light and dark; Tab, Enter, arrows
+  and Escape work. The canvas library loads only when the part scrolls near; before that, and with no script, a still
+  picture of the groups and their counts is drawn (it is also the `static` form). It has an LLM view of its own (the
+  nodes by group, the edges, the most connected). Caps `graphNodes` 2000, `graphEdges` 5000, `graphGroups` 300,
+  `graphDepth` 6 and `graphFoldFirst` 300, each lower in the chat preset; the force layout has a fixed iteration cap.
+- **cytoscape 3.35.0 is a dependency** (MIT), used only by the graph part and loaded in its own chunk.
+
 - Map and routes, country/state choropleths, directed flow arcs and an optional globe; bounded calendar repeats with time zones, overlap packing and narrow layouts. Both parts include static output, LLM summaries, checks and host-lowerable caps. Optional base-map providers are an explicit host entry; source text cannot select them or a router.
 - **`state`, `class` and `er` parts (SPEC.md 3.3, 6.15).** Three diagrams, each in a small language of its own, drawn by
   the animation engine instead of a diagram library: a state machine that its steps walk (`at`, `fire`), a class

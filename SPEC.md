@@ -538,6 +538,34 @@ Each team keeps its own UL inside a bounded context.
 - **Caps:** `glossaryTerms` (200 on a page; 100 in UNTRUSTED_LIMITS), `glossaryLabel` (60 characters), `glossaryDef` (600 characters; 400 in UNTRUSTED_LIMITS) and `glossaryAliases` (5 other names).
 - **doccheck refuses:** a line that is not a term line, an empty meaning, a name or meaning over its cap, a bad id, too many other names, more terms than the cap, a term (or its id) defined twice (it names both lines), an unknown key, front matter `glossary:` that is not a map of text. It warns on a term the text never uses.
 
+#### Graph
+
+For finding your way around a big graph: hundreds of nodes, such as calls between services or package dependencies. An animation is for telling a story; a graph is for exploring.
+
+````
+```graph title="Package dependencies" layout=layers
+group core "core" [c1]
+node parse "parser" in core
+node check "doccheck" in core
+node react "react renderer" [c2]
+check -> parse
+react -> parse
+react -> chart.js "lazy"
+```
+````
+
+- **Lines**, one thing a line (`// text` is a comment): `group <id> ["label"] [in <group>] [colour] [note="..."]`; `node <id> ["label"] [in <group>] [colour] [note="..."]`; an edge `a -> b`, with a label in quotes, a `[colour]` and `dashed` after it. Each end may be a list (`web, admin -> auth`), a chain (`a -> b -> c`) or a group's id (the group as a whole). A node an edge names and no line declares is added. A node takes its group's colour unless it names its own; a top-level group with no colour takes the next family colour.
+- **Patterns:** an id may carry a numbered range. `node api-{1..8} in api` declares api-1 to api-8; `web-{1..3} -> api-{1..8}` is every pair (24 edges). A pattern is counted before it makes anything, so a short line that stands for millions of names is refused at once.
+- **Colours:** the theme's words in square brackets, `[c1]` to `[c8]`, `[acc]`, `[good]`, `[warn]`, `[bad]`, `[muted]`; never a hex value.
+- **The info string:** `#id`, `title="..."`, `layout=layers` (the default: each node above what it uses; `dir=down` or `right`), `layout=force` (linked nodes pull together, the clusters show), `layout=radial centre=<node>` (one node in the middle, a ring per step away from it), `size=s|m|l` (the stage's height) and `static`.
+- **Explore:** search (the node is framed and lit); tap a node, or Tab to it and press Enter, to focus it with its neighbours 1 or 2 steps out (the rest fade); fold a group into one box with a count, and open it again (beside the graph, a double tap on the group, or "Fold groups" for all); pan and zoom (pinch on a phone, Ctrl + scroll or the buttons on a desktop); a side list of the focused node's links in and out (below the graph on a phone). With more than `graphFoldFirst` nodes in groups, only the groups are drawn first; so are they when the open graph would be drawn under a third of its size in the box, as on a phone (the folded boxes then take the places of the still picture, big enough to tap, and Open groups opens them). The keyboard does all of it: Tab runs through the nodes in reading order, Enter focuses, the arrows step, Escape clears.
+- **How it is drawn:** cytoscape (a dependency), loaded in its own chunk only when the part scrolls near, on a canvas styled from the theme's tokens (`--graph-*`, which read the shared `--dg-*` diagram tokens): pills in family colours, open groups as tinted areas, folded groups as double-ringed pills, a label in real text over the focused node. Before it loads, and with no script, a still picture of the groups with their node counts and the edges between them. No word goes through an HTML string.
+- **Static:** `static` draws that still picture whole: no search, no controls, nothing to move.
+- **Work:** parsing, patterns and our own layouts (layers, radial, the still picture) charge the part's budget as they go. The force layout runs in the browser in two stages (each top-level group alone, then the groups as blocks with the nodes in no group, so group areas never overlap) with a fixed number of iterations (250 at most, fewer for a big graph); cytoscape cannot be metered, so that cost is charged up front, when the part is read, from the node and edge counts.
+- **LLM view:** the nodes by group, the edges as `a -> b` lines, and the most connected nodes (`Most connected: parse (2 in), react (2 out), ...`). A graph of more than a few dozen edges is over 400 tokens: put a `:::llm` after it. A graph that does not parse reads as its source.
+- **Caps:** `graphNodes` (2,000; 1,000 in UNTRUSTED_LIMITS), `graphEdges` (5,000; 2,500), `graphGroups` (300; 150), `graphDepth` (6, how many groups deep a group may sit) and `graphFoldFirst` (300). A graph over its caps, or over the page's work budget, is refused.
+- **doccheck refuses** (each message names the line and the fix): an unknown attribute (it lists them), `center=` (write `centre=`), a layout other than `layers`, `force`, `radial`, `dir=` on a layout that is not `layers` or a word other than `down` and `right`, a `size=` other than `s`, `m`, `l`, `layout=radial` with no `centre=` or one that is not a node, `centre=` on another layout; a colour that is not a theme word (a hex value too; it lists the words); a group inside itself, a ring of groups, groups nested over `graphDepth` deep; `in` a group that does not exist; a node or group declared twice; one id for a node and a group; a label over 80 characters; a label on a list or a pattern; a node that links to a group and to a member of it at once (either direction, nested groups too); an edge from a node to its own group, or from a group to its member; an edge written twice; a range that counts down; a pattern that makes more names than `graphNodes`; `@step`; a line that is not a graph line; an unclosed quote; an edge with an empty end; an id with a character outside letters, digits, `-`, `_`, `.`; an empty graph; more than `graphNodes` nodes or `graphEdges` edges; a spent work budget. Warning: over `graphFoldFirst` nodes with over `graphFoldFirst` of them in no group.
+
 #### Http
 
 ````

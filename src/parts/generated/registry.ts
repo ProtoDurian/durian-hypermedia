@@ -14,6 +14,7 @@ import flame from "../flame/part";
 import gallery from "../gallery/part";
 import gantt from "../gantt/part";
 import glossary from "../glossary/part";
+import graph from "../graph/part";
 import http from "../http/part";
 import log from "../log/part";
 import lottie from "../lottie/part";
@@ -37,7 +38,7 @@ import referencesInline from "../references/inline";
 import sparkInline from "../spark/inline";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, calendar, "chart-kinds": chartKinds, compare, "compare-image": compareImage, diff, downloads, explore, fishbone, flame, gallery, gantt, glossary, http, log, lottie, map, math, pdf, references, sankey, sequence, stacktrace, stats, timeline, trace, venn, video, wardley, weather } as const;
+export const FOLDER_PARTS = { audio, calendar, "chart-kinds": chartKinds, compare, "compare-image": compareImage, diff, downloads, explore, fishbone, flame, gallery, gantt, glossary, graph, http, log, lottie, map, math, pdf, references, sankey, sequence, stacktrace, stats, timeline, trace, venn, video, wardley, weather } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the inline parts (parts of a sentence), in name order; core/markdown.ts reads them (parts/inline.ts) */
 export const INLINE_PARTS: InlineDef<any, any>[] = [glossaryInline, mathInline, referencesInline, sparkInline];
@@ -45,7 +46,7 @@ export const INLINE_PARTS: InlineDef<any, any>[] = [glossaryInline, mathInline, 
 export const INLINE_PART_NAMES = ["glossary", "math", "references", "spark"] as const;
 
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "calendar", "chart-kinds", "compare", "compare-image", "diff", "downloads", "explore", "fishbone", "flame", "gallery", "gantt", "glossary", "http", "log", "lottie", "map", "math", "pdf", "references", "sankey", "sequence", "stacktrace", "stats", "timeline", "trace", "venn", "video", "wardley", "weather"] as const;
+export const FOLDER_PART_NAMES = ["audio", "calendar", "chart-kinds", "compare", "compare-image", "diff", "downloads", "explore", "fishbone", "flame", "gallery", "gantt", "glossary", "graph", "http", "log", "lottie", "map", "math", "pdf", "references", "sankey", "sequence", "stacktrace", "stats", "timeline", "trace", "venn", "video", "wardley", "weather"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -62,6 +63,7 @@ export interface FolderPartData {
   "gallery": ReturnType<typeof gallery.parse>;
   "gantt": ReturnType<typeof gantt.parse>;
   "glossary": ReturnType<typeof glossary.parse>;
+  "graph": ReturnType<typeof graph.parse>;
   "http": ReturnType<typeof http.parse>;
   "log": ReturnType<typeof log.parse>;
   "lottie": ReturnType<typeof lottie.parse>;

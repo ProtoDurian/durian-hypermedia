@@ -156,6 +156,7 @@
     "chart.js": "4.5.1",
     "chartjs-chart-matrix": "3.1.0",
     "codehike": "1.1.0",
+    "cytoscape": "3.35.0",
     "d3-sankey": "0.12.3",
     "diff": "9.0.0",
     "entities": "8.1.0",

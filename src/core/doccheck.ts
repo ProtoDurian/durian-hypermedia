@@ -18,6 +18,7 @@ import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
 import { folderPart, folderCheck, folderLlmExempt } from "../parts/runtime";
+import { staticIssues, frontMatterStaticIssue } from "./static"; // static (SPEC 4.1)
 
 type Ctx = "page" | "part" | "segment" | "llm";
 const SEC_RE = /\*\*Security finding:\*\*/g;
@@ -75,11 +76,12 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   let inSummary = true; // the summary is the text before the first ## heading
   let partsSeen = 0;
   for (const e of doc.defErrors ?? []) err(1, "part data", e);
+  { const s = frontMatterStaticIssue(doc.fm); if (s) err(1, "part data", s); }
   if (doc.fm && "banner" in doc.fm) err(1, "part data", `banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
   const visit = (nodes: Node[], ctx: Ctx) => {
     for (const n of nodes) {
       if (n.kind === "md") checkMd(n, ctx);
-      else if (n.kind === "part") checkPart(n, ctx);
+      else if (n.kind === "part") { checkPart(n, ctx); for (const s of staticIssues(n)) (s.level === "error" ? err : warn)(s.line, "part data", s.msg); }
       else if (n.kind === "toc") { for (const k of Object.keys(n.attrs)) if (!["depth", "section"].includes(k)) err(n.line, "part data", `::toc takes depth=2..4 and section, not "${k}"`); if (n.attrs.depth && !/^[234]$/.test(n.attrs.depth)) err(n.line, "part data", `::toc depth is 2, 3 or 4`); }
     }
   };

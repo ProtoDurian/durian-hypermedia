@@ -14,6 +14,8 @@ import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type
 import { Md } from "./markdown";
 import { Turn } from "./turn";
 import { ReferencePart } from "./reference";
+import { pageStatic } from "../parts/kit/static";
+
 
 export interface DocumentProps {
   doc: Document;
@@ -88,9 +90,10 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     hostInlines: new Map((p.inlines ?? []).filter((d) => d.Component).map((d) => [d.name, d.Component!])),
     llmPeek: !!p.llmPeek,
     demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
-    static: p.static,
+    // the host's option first, then the page's front matter `static: true` (the finished state of every part)
+    static: p.static !== undefined ? p.static : pageStatic(p.doc.frontMatter) ? "" : undefined,
     interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive]);
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter]);
   const { doc } = p;
   return (
     <DhContext.Provider value={settings}>

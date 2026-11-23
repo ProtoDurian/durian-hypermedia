@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import type { HighlightedCode } from "codehike/code";
 import { CodeWalk, type WalkStep } from "../ui/parts";
 import { packCode, walkRuns, type Packed } from "../ui/codewalk";
+import { staticOfAttr } from "../parts/react";
 import { useDh, plainCode, linesUpTo } from "./context";
 import { Inline } from "./markdown";
 import type { CodeWalkBlock } from "../types";
@@ -29,9 +30,10 @@ export function codewalkProps(b: CodeWalkBlock) {
   return { steps, files, rows: Math.min(rows, 20) };
 }
 export function CodeWalkPart({ block }: { block: CodeWalkBlock }) {
-  const { ui } = useDh();
+  // static (SPEC 4.1): the fence's own static= wins, then the page's (front matter static: true) or the host's
+  const { ui, static: docStatic } = useDh(), fence = staticOfAttr(block.attrs?.static), stp = fence !== undefined ? fence : docStatic;
   const p = useMemo(() => codewalkProps(block), [block]);
   if (!p.steps.length) return <div className="cw-error">a code walk needs at least one step</div>;
-  return <CodeWalk steps={p.steps} files={p.files} rows={p.rows} ui={ui} />;
+  return <CodeWalk steps={p.steps} files={p.files} rows={p.rows} ui={ui} static={stp} />;
 }
 export default CodeWalkPart;

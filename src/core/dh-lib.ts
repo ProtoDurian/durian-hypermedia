@@ -23,6 +23,7 @@ import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
 import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
 import { inlineLlmText } from "../parts/inline-runtime";
+import { normaliseStatic } from "./static";
 
 // ---------- part registry ----------
 // fenced: a code block with this info word. llm: how the LLM view shows it when no :::llm follows.
@@ -283,6 +284,7 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   });
   if (cur) { (cur as Step).raw = raw.join("\n"); p.steps.push(cur); }
   p.head = head.join("\n");
+  normaliseStatic(p); // static (SPEC 4.1): static="<title>" becomes its step number
   return p;
 }
 // a code walk step line is a code reference then key=value words; any other step line is a title

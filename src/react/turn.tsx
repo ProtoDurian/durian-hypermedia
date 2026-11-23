@@ -9,8 +9,10 @@
 // waiting part stays as it is (React keeps it), so nothing flashes. Only hydrateDocument() turns this on; a page
 // rendered on the server, rendered in the browser only, or hydrated by the host's own hydrateRoot is not delayed.
 import React, { Suspense, createContext, useContext, useEffect, useId, useRef } from "react";
+import { DhContext } from "./context";
 
-type Entry = { key: string; box: HTMLElement | null; mark: HTMLElement | null; released: boolean; done: boolean; promise: Promise<void>; resolve: () => void; seq: number };
+/** view: the part as its Turn last drew it, with the page's settings (print draws a part still waiting from it) */
+type Entry = { key: string; box: HTMLElement | null; mark: HTMLElement | null; released: boolean; done: boolean; promise: Promise<void>; resolve: () => void; seq: number; view?: () => React.ReactNode };
 
 /** The queue behind the hydration order. hydrateDocument() makes one; a host never needs to. */
 export class HydrationOrder {
@@ -77,6 +79,10 @@ export class HydrationOrder {
     if (e.done) this.wait();
   }
 
+  /** the parts not drawn yet (their server HTML still stands): print draws these from their views (react/hydrate.tsx) */
+  waiting(): { mark: HTMLElement; view: () => React.ReactNode }[] {
+    return [...this.entries.values()].filter((e) => !e.done && e.mark && e.view).sort((a, b) => a.seq - b.seq).map((e) => ({ mark: e.mark!, view: e.view! }));
+  }
   /** start watching the reader: scrolling to a part, and touching one */
   watch(root: Element) {
     // if no marker ever comes (the page did not hydrate as planned), nothing may stay waiting for long
@@ -131,8 +137,9 @@ function Wait({ id, order, children }: { id: string; order: HydrationOrder | nul
  * block with no height at the top of the part, so the queue can tell where on the page the part is.
  */
 export function Turn({ children }: { children: React.ReactNode }) {
-  const order = useContext(TurnContext);
+  const order = useContext(TurnContext), dh = useContext(DhContext);
   const id = useId();
+  if (order) order.entry(id).view = () => <DhContext.Provider value={dh}>{children}</DhContext.Provider>;
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     const m = ref.current;

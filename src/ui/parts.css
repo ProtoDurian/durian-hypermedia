@@ -522,3 +522,12 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-chip-t.is-mute { opacity: 0 !important; }
 /* the line under a zoomed step's caption */
 .scn-cap .scn-zoomed { display: block; margin-top: 2px; font-style: normal; font-size: var(--fs-xs); color: var(--muted); }
+
+/* ---- static (SPEC 4.1) and print: a terminal, file tree, editor or code walk prints whole, as its static state, with
+   no control row; its panes grow to what they hold instead of scrolling. A part the reader never reached is drawn for
+   print by react/hydrate.tsx (printUnseen) in a .dh-print-copy box where the server's HTML stood. ---- */
+@media print {
+  .term .ctl, .fx .ctl, .ide .ctl, .cw .ctl, .term .btn-play { display: none !important; }
+  .term-body, .ide-code .ch-pre, .cw-code { height: auto !important; max-height: none !important; overflow: visible !important; }
+  .term, .fx, .ide, .cw, .dh-print-copy { break-inside: avoid; }
+}

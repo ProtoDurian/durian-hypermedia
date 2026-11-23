@@ -81,6 +81,23 @@ The third release candidate of 0.7.0. The format number stays 10.
   does, not at the line after the code block (a code reference above a ```` ```ts ```` block was reported 30 lines
   below itself).
 
+### Added: static on the terminal, file tree, editor and code walk; a static page; print draws every part (SPEC 4.1)
+
+- `static` (the bare word), `static=<number>`, `static="<step title>"` and `static=false` on a terminal, file tree,
+  editor or code walk draw one state whole on the server: every command typed (a terminal), the last tree, the file
+  after the last edit, the last step of a walk (or the step named), with no control row. The bare word `static` now
+  reaches every fenced part (before, only folder parts read it) and is never an animation's kind.
+- Front matter `static: true` makes every part of the page static. `DocumentView`'s `static` prop (the host's option)
+  wins over it; a fence's own `static` wins over both.
+- Print: `hydrateDocument` adds `printUnseen` (also exported from `react/hydrate`): before the page prints, a part still
+  waiting for its turn to hydrate is drawn at once, static, where the server's HTML stood; after printing it goes back.
+  Print CSS for these parts: no control row, panes grow to what they hold.
+- doccheck: `static=<number>` outside the part's steps and `static=<title>` that names no step are errors (a terminal's
+  steps are its commands); a value on a part with one state is a warning; a front matter `static:` that is not true
+  or false is an error. `static="<title>"` reaches the renderer as its step number.
+- Every fixture renders the same HTML as in 0.7.0-rc.2 (none asks for static on these parts); one new fixture,
+  `fixtures/format/81-static-live-and-still.dh.md`, shows the same parts live and static.
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this

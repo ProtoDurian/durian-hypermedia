@@ -744,6 +744,52 @@ evolve kettle 0.65 "smart kettle"
 - **The editor on a phone** (format version 10, 640 px and narrower): the file tree sits above the file (it starts as a closed "Files" drawer, a button in the crumbs row, when the repo has more than 4 tree rows), tree rows are at least 36 px tall, the code is 14 px (the chart rule's 12 px is the floor), the code pane is at least 8 lines tall, and nothing sticks out of the screen. A browser script measures all of it at 390 and 360 px.
 - **The old stepper part is gone.** Its job (a few states side by side) is a Markdown table; the article's worked example is now one.
 
+### 4.1 Static: one state, drawn whole (format version 11)
+
+Any part that moves or steps can be drawn **static**: one state, drawn whole, with no player, no control row, no motion and no camera move. It is for a printed page, a PDF, an email, a slide, a reader who asks for less motion, or a picture that is simply meant to stand still. The same option works the same way on every part that has steps or moves: animation (and state, class and ER), terminal, file tree, editor, code walk, sequence, venn, fishbone, wardley, timeline, chart, sankey, gantt, flame and map.
+
+**Which state.** `static` alone is the finished state: the last step (a terminal has typed every step, an animation has done every step, a chart shows its last step, a code walk shows its last step). `static=<number>` is that step, counted from 1. `static=<title>` is the step whose `@step` title it is (case and spaces at the ends do not count). A part with no steps that only moves (a chart with motion, a map) is drawn at rest, as it first appears.
+
+````
+```animation layout=graph static
+box api "API"
+box db "Database"
+@step The API reads a row.
+api -> db
+@step The row comes back.
+db -> api
+```
+
+```sequence static=2
+...
+```
+
+```terminal static="Install"
+...
+```
+````
+
+**Four ways to ask, one meaning.** The first that applies wins:
+
+| Asked by | How | Applies to |
+| --- | --- | --- |
+| the part | `static`, `static=<number or title>` on the fence | that part |
+| the page | `static: true` in the front matter | every part of the page |
+| the host | `DocumentView`'s `static` prop (`""`, a step, or `false`) | every part of the page it draws |
+| the reader | printing, or the system's "reduce motion" setting | every part, in that reader's browser |
+
+A page or host static draws each part's finished state, unless the part's own fence names a step. The host's prop wins over the page's front matter (`static={false}` keeps a `static: true` page live). doccheck refuses a front matter `static:` that is not true or false. `static=false` on a part keeps it live on a static page (never in print).
+
+**What a static part shows.** The chosen state, drawn whole and at rest; the caption of that step under it; and, when the part has steps, every step's caption in a closed list ("All steps (4)") so a reader still has the whole story. The box keeps the size it has when live, so a page lays out the same.
+
+**Print** is static for every part, whether or not the reader has scrolled to it: before the page prints, every part switches to its static state, and a part still waiting for its turn to hydrate (`hydrateDocument`) is drawn at once, static, in a `.dh-print-copy` box where the server's HTML stood (that HTML is hidden while printing); after printing, the copies go and each part goes back to where the reader left it. A scene prints whole at the width of the printed page, with no scroll bars, buttons or hints.
+
+**The LLM view does not change.** It is already static: it lists every step.
+
+**doccheck refuses** `static=<number>` outside 1 to the number of steps, and `static=<title>` that names no step, with the line, the steps there are, and the fix. It warns on `static=` with a value on a part with no steps (there is only one state).
+
+**For a renderer** (`src/parts/kit/static.ts`): one hook, `useStatic(prop, n, titles)`, gives `{ on, i }`: whether the part is static now and which step to draw. The part's props carry `static` when the fence, the page or the host asked (the fence through `staticOfAttr`, else `useDh().static`, which holds the host's prop or the page's front matter; so the server's HTML is already static); the reader's print and reduced-motion settings switch it on in the browser. A static part renders the state of step `i` with no `Controls`, no Play, no timers and no camera move, and puts `<StaticSteps>` under it.
+
 ## 5. Callouts
 
 **How the icon is chosen.** The author never picks an icon. The marker word picks it, and the colour with it:

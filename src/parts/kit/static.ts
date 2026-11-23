@@ -27,6 +27,13 @@ function subscribe(l: () => void) { wire(); listeners.add(l); return () => { lis
 /** for tests and the print check: switch the reader's print mode by hand */
 export function setPrinting(on: boolean) { printing = on; notify(); }
 
+/** Is the whole page static: its front matter `static: true` (also yes or 1). The host's own option is DocumentView's
+ *  `static` prop, which wins over this. */
+export function pageStatic(frontMatter: Record<string, unknown> | null | undefined): boolean {
+  const v = frontMatter?.static;
+  return v === true || v === 1 || (typeof v === "string" && ["true", "1", "yes"].includes(v.trim().toLowerCase()));
+}
+
 /** Which step a static part draws: the last one, a step number (from 1) or a step title; out of range = the last. */
 export function staticIndex(prop: StaticProp, n: number, titles: readonly string[] = []): number {
   const last = Math.max(0, n - 1);

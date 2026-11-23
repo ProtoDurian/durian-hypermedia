@@ -255,6 +255,8 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   const { attrs, words } = parseAttrs(rest);
   // a folder part reads a bare word as a flag (```video loop: loop is "true")
   if (folderPart(name)) for (const w of words) if (!Object.hasOwn(attrs, w)) attrs[w] = "true";
+  // format version 11 (SPEC 6.14): the bare word zoom gives an animation the reader's camera (pan, zoom, show everything)
+  if (name === "animation" && words.includes("zoom")) { if (attrs.zoom === undefined) attrs.zoom = "yes"; words.splice(words.indexOf("zoom"), 1); }
   // an animation's first bare word: 3d or 2d is the view it opens in (format version 5); any other word was a version 3 kind
   if (name === "animation" && words.length) { if (/^[23]d$/i.test(words[0])) attrs.view = words[0].toLowerCase(); else if (words[0] === "only") attrs.only = "?"; else attrs.kind = words[0]; }
   // format version 10: ```animation 3d only: the scene has no flat form (tools/depth.ts)
@@ -756,7 +758,7 @@ export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEY
 // animation: see tools/scene.ts (pure, shared with the browser)
 export function animSrc(p: PartNode) {
   const info: Record<string, string> = {};
-  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels"]) if (p.attrs[k]) info[k] = p.attrs[k];
+  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels", "zoom"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
 // one compile per part: the page, its JSON, its LLM view and its checks share it (a part over its work budget keeps

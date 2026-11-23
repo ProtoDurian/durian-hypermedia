@@ -13,6 +13,8 @@ export function AnimationPart({ block }: { block: AnimationBlock }) {
     const fence = staticOfAttr(block.attrs?.static);
     return <Stage src={block.stage.src} roles={block.stage.roles} ui={ui} srText={block.llm ?? undefined} static={fence !== undefined ? fence : docStatic} />;
   }
-  return <Animation src={block.anim} srText={block.llm} ui={ui} />;
+  // static (SPEC 4.1): the fence's own word wins, else the page's or the host's (one state, drawn whole and flat)
+  const fence = staticOfAttr(block.attrs?.static);
+  return <Animation src={block.anim} srText={block.llm} ui={ui} static={fence !== undefined ? fence : docStatic} />;
 }
 export default AnimationPart;

@@ -5,7 +5,7 @@
 // Colours come from the page tokens (read from CSS); every word is an HTML label over the canvas, so it stays flat and readable.
 // Loaded only when a reader opens the 3D view (a dynamic import), so pages without it never fetch three.js.
 import * as THREE from "three";
-import { gapOf, baseY as baseOf, heightOf, floorY, planeY, PLANE_H, minElevation, MAX_ELEVATION } from "./geo3d";
+import { gapOf, baseY as baseOf, heightOf, floorY, SLAB, planeY, PLANE_H, minElevation, MAX_ELEVATION } from "./geo3d";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { DESIGN, CHIP, cut, type Layer, type Rect } from "../core/scene";
 import { FAINT } from "../core/story";
@@ -20,6 +20,7 @@ import { keepInScene } from "./fit3d";
 import { hasWebGL, NEAR_MARGIN, RESTORE_AFTER } from "./gl";
 
 export interface Item3 {
+  slab?: number; // (format version 11) the slabs it stands on while it moves to another floor or parent, eased from where it starts to where it ends
   key: number; id: string; kind: string; label: string; size: string; cc: number; fill: string; pcc: number; container: boolean; bare: boolean; parent: number | null;
   tone: string; dim: boolean; down: boolean; x: number; y: number; w: number; h: number; L: number; o: number; depth: number;
   nest?: number; // format version 9: in a scene with no declared layers, its nesting level (it stands on one floor)
@@ -35,10 +36,13 @@ export interface View3 {
   says: { key: number; text: string; o: number }[];
   hl: Map<number, string>; sel: number | null;
   layers: Layer[]; levels: number; spread: number; focus: number | null; look: number[] | null; touched: number[];
+  // the held view (core/calm.ts): the things of each step that shares it, at rest, and what those steps touch
+  hold?: { frames: Item3[][]; touched: number[]; least: number; spread: number };
   foot: Rect; // the floor plan of the whole story, so layer planes and the centre never move
   stepKey: string; // changes when the step changes: the story camera moves again
   cam?: CamView | null; // the author's camera words for this step (format version 9): close, far, turn=, tilt=
   part?: number[] | null; // format version 10: while a step plays, only these things' labels show (null: every label)
+  toks?: number[] | null; // (format version 11) the tokens the step is about: every other token keeps its pill, its label fades (null: all)
   // format version 10: the scene inside the scene that is shown; when it changes the camera starts far from the new one
   // (going in) or close to the thing it was entered from (going out, sceneVia), and glides to the story's view
   scene?: string; sceneDir?: "in" | "out"; sceneVia?: number | null;
@@ -215,8 +219,31 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   const peelO: number[] = [];
   const topY = () => {
     let y = view && peelK > 0 ? floorY(peelK, gap(view)) : 0;
-    for (const [k, p] of pos) if ((posL.get(k) ?? 0) > peelK - 0.5) y = Math.max(y, p.top);
+    // under the story's camera a token on its way does not push it up and let it down again
+    if (!user && rests.length) for (const r of rests) for (const [k, p] of r.pos) { if ((r.posL.get(k) ?? 0) > peelK - 0.5) y = Math.max(y, p.top); }
+    else for (const [k, p] of pos) if ((posL.get(k) ?? 0) > peelK - 0.5) y = Math.max(y, p.top);
     return y;
+  };
+  // (format version 11) where the held view's things rest, step by step: the story's camera reads these, never a tween
+  type Rest = { items: Item3[]; pos: Map<number, { c: THREE.Vector3; half: THREE.Vector3; top: number }>; posL: Map<number, number> };
+  let rests: Rest[] = [];
+  const restsOf = (v: View3): Rest[] => {
+    if (!v.hold) return [];
+    const g = gap({ ...v, spread: v.hold.spread }), X0 = cx(), Z0 = cz();
+    return v.hold.frames.map((raw) => {
+      const items = flatNest({ ...v, items: raw, spread: v.hold!.spread }).items, by = new Map(items.map((i) => [i.key, i]));
+      const out: Rest = { items, pos: new Map(), posL: new Map() };
+      for (const it of items) {
+        if (it.kind === "layer") continue;
+        let up = 0;
+        for (let x: Item3 | undefined = it, n = 0; x && n < 64; x = x.parent != null ? by.get(x.parent) : undefined, n++) up += x.lift ?? 0;
+        const hgt = heightOf(it), y = baseOf(it, by, g) + (it.nest ?? 0) * NEST_LIFT * v.hold!.spread + up * LIFT_UP + (it.kind === "token" ? 14 : 0);
+        const half = new THREE.Vector3(it.w / 2, Math.max(hgt, 8) / 2, (it.kind === "pill" ? Math.min(it.h, 26) : it.h) / 2);
+        out.pos.set(it.key, { c: new THREE.Vector3(it.x + it.w / 2 - X0, y + half.y, it.y + it.h / 2 - Z0), half, top: y + Math.max(hgt, it.kind === "person" ? 34 : it.kind === "pointer" ? 32 : 0) });
+        out.posL.set(it.key, it.L);
+      }
+      return out;
+    });
   };
   const planeRects = (): PlaneRect[] => {
     if (!view) return [];
@@ -301,15 +328,21 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   const storyGoal = () => {
     if (!view) return goal;
     const v = view;
-    const all = [...pos.entries()];
+    // (format version 11) one held view from a camera word to the next: the view is worked out from where the things of
+    // every step that shares it rest, so it does not move between those steps (core/calm.ts heldViews)
+    const R: Rest[] = rests.length ? rests : [{ items: v.items, pos, posL }];
+    const ptsOf = (k: number) => R.map((r) => r.pos.get(k)).filter(Boolean) as { c: THREE.Vector3; half: THREE.Vector3; top: number }[];
+    const layerOf = (keys: number[]) => R.flatMap((r) => keys.map((k) => r.posL.get(k))).filter((x): x is number => x != null);
+    const all = R.flatMap((r) => [...r.pos.entries()]);
     // (format version 10, fix-edge) a thing dimmed by a highlight is still on the stage: it counts (before, under 0.3 it
     // was left out, the whole view slid to what the step lights and cut the rest, and the scene jumped between steps)
-    const visible = all.filter(([k]) => (v.items.find((i) => i.key === k)?.o ?? 0) > 0.05).map(([, p]) => p);
+    const visible = R.flatMap((r) => r.items.filter((i) => i.o > 0.05).map((i) => r.pos.get(i.key)).filter(Boolean) as { c: THREE.Vector3; half: THREE.Vector3; top: number }[]);
     // what the step touches, with room above it for its words (its label, a chip, speech): 34 units up
     // (fix) the box moves up half of it and grows half of it: 34 more on top, not 68 (a close-up of one thing sat low,
     // under an empty half stage)
     const up = new THREE.Vector3(0, 17, 0);
-    const touched = (v.touched.map((k) => pos.get(k)).filter(Boolean) as { c: THREE.Vector3; half: THREE.Vector3 }[]).map((p) => ({ c: p.c.clone().add(up), half: p.half.clone().add(up) }));
+    const touchKeys = rests.length ? v.hold!.touched : v.touched;
+    const touched = (touchKeys.flatMap(ptsOf) as { c: THREE.Vector3; half: THREE.Vector3 }[]).map((p) => ({ c: p.c.clone().add(up), half: p.half.clone().add(up) }));
     // format version 9: turn= and tilt= set the angle, close fills the stage with what it frames, far pulls back; the
     // layer the story looks into (a focus, or the highest layer of what it frames) lets the layers above it fade
     const cw = v.cam ?? null, far = (g: ReturnType<typeof fitBox>) => (cw?.far ? { ...g, dist: g.dist * FAR } : g);
@@ -321,11 +354,14 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     if (v.look?.length) {
       // format version 10: what a framed thing holds and shows comes too (on a declared layer it stands on a lower plane,
       // outside the thing's own box): a zoom into a pod frames its containers below it
-      const lk = new Set(v.look), byK = new Map(v.items.map((i) => [i.key, i]));
-      const under = (it: Item3) => { for (let x = it.parent != null ? byK.get(it.parent) : undefined, n = 0; x && n < 64; x = x.parent != null ? byK.get(x.parent) : undefined, n++) if (lk.has(x.key)) return true; return false; };
-      const s = [...v.look.map((k) => pos.get(k)), ...v.items.filter((it) => it.o > 0.3 && !it.container && under(it)).map((it) => pos.get(it.key))].filter(Boolean) as any[];
+      const lk = new Set(v.look);
+      const s = R.flatMap((r) => {
+        const byK = new Map(r.items.map((i) => [i.key, i]));
+        const under = (it: Item3) => { for (let x = it.parent != null ? byK.get(it.parent) : undefined, n = 0; x && n < 64; x = x.parent != null ? byK.get(x.parent) : undefined, n++) if (lk.has(x.key)) return true; return false; };
+        return [...v.look!.map((k) => r.pos.get(k)), ...r.items.filter((it) => it.o > 0.3 && !it.container && under(it)).map((it) => r.pos.get(it.key))].filter(Boolean) as any[];
+      });
       if (s.length) {
-        const Ls = v.look.map((k) => posL.get(k)).filter((x): x is number => x != null);
+        const Ls = layerOf(v.look);
         storyL = Ls.length ? Math.round(Math.min(...Ls)) : null;
         // (format version 10, fix-edge) a scene with no layers keeps its flat angle when the author frames part of it, so it
         // does not swing between steps (it took -0.35, 0.7 here and -0.15, flat in the whole view)
@@ -345,7 +381,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // format version 10 (site/src/least3d.ts): on a phone, a whole view under the least scale frames what the step
     // touches instead, at that size, looking into its highest layer (the layers above it fade)
     const lg = leastGoal(whole, touched.length ? far(fitBox(touched, a.el, a.az)) : null, W.w, W.h, cam.fov, v.least ?? 0);
-    if (lg.cut) { const Ls = v.touched.map((k) => posL.get(k)).filter((x): x is number => x != null); storyL = Ls.length ? Math.round(Math.min(...Ls)) : null; }
+    if (lg.cut) { const Ls = layerOf(touchKeys); storyL = Ls.length ? Math.round(Math.min(...Ls)) : null; }
     return inScene(lg);
   };
   const layerPts = (L: number) => {
@@ -362,6 +398,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     view = v;
     touchedKeys = new Set([...v.touched, ...v.hl.keys()]);
     partSet = v.part ? new Set(v.part) : null;
+    tokSet = v.toks ? new Set(v.toks) : null;
     host.dataset.part = v.part ? v.part.join(",") : "all";
     syncPlanes(v.layers.length);
     const byKey = new Map(v.items.map((i) => [i.key, i]));
@@ -381,7 +418,10 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       const hgt = heightOf(it);
       // nested scenes with no declared layers: split layers lifts each nesting level above its container
       const up = raised(it) * LIFT_UP;
-      const by = baseY(it, byKey) + (it.nest ?? 0) * NEST_LIFT * v.spread + up;
+      // (format version 11) a thing that moves to another parent or floor rises along its way: its slab count is eased by the 2D
+      // side from where it starts to where it ends (a count read from the tween dropped a slab half way: a hop)
+      const floor = it.slab != null ? floorY(it.L, gap(view!)) + it.slab * (SLAB + 1) : baseY(it, byKey);
+      const by = floor + (it.nest ?? 0) * NEST_LIFT * v.spread + up;
       const x = it.x + it.w / 2 - X0, z = it.y + it.h / 2 - Z0;
       const hlt = v.hl.get(it.key), sel = v.sel === it.key;
       // a highlight lifts a thing a little; a lit container lifts what stands on it too (format version 9: before, its
@@ -445,7 +485,9 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     planes.forEach((p, L) => {
       const l = v.layers[L];
       const off = (focusOn != null && L !== focusOn ? FOCUS_OFF : 1) * (peelO[L] ?? 1);
-      const story = (v.focus != null && L !== v.focus ? FOCUS_OFF : 1) * (v.fade ?? 1);
+      // (format version 11) in the author's zoom the layer plane, wider than what is zoomed into, stood cut at the stage's
+      // edges: in a zoom every thing is whole or left out, the plane and its name included
+      const story = (v.focus != null && L !== v.focus ? FOCUS_OFF : 1) * (v.fade ?? 1) * (v.look?.length ? 0 : 1);
       p.mesh.scale.set(v.foot.w + 40, PLANE_H, v.foot.h + 40);
       p.mesh.position.set(v.foot.x + v.foot.w / 2 - X0, planeY(L, g), v.foot.y + v.foot.h / 2 - Z0);
       p.mesh.renderOrder = p.edge.renderOrder = (v.layers.length + 1 - L) * 100;
@@ -548,6 +590,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     while (bubbles.length < v.says.length) { const b = document.createElement("div"); b.className = "scn3-say"; labels.append(b); bubbles.push(b); }
     v.says.forEach((s, i) => { const p = pos.get(s.key); const b = bubbles[i]; if (b.dataset.sk !== `${s.key} ${s.text}`) { b.dataset.fresh = "1"; b.dataset.sk = `${s.key} ${s.text}`; } b.textContent = s.text; b.dataset.o = p ? String(s.o) : "0"; if (p) { b.dataset.x = String(p.c.x); b.dataset.y = String(p.top + 18); b.dataset.z = String(p.c.z); } });
     // the story camera moves when the step changes (or on the first draw)
+    rests = restsOf(v);
     if (!user) { goal = storyGoal(); if (first) { Object.assign(camNow, goal); first = false; } }
     // format version 10: into or out of a scene inside the scene (site/src/anim-scenes.tsx)
     if (newScene) { if (lastScene != null || v.sceneDir) sceneJump(v); lastScene = v.scene ?? ""; }
@@ -741,7 +784,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   // the 3D labels rule (format version 10): while a step plays, only who takes part shows a label; each label eases
   // to hidden (about 0.1 s) or shown (about 0.2 s), by the clock, not per frame, so it is quick on a slow device and
   // never blinks
-  let partSet: Set<number> | null = null;
+  let partSet: Set<number> | null = null, tokSet: Set<number> | null = null;
   const showK = new WeakMap<HTMLElement, { v: number; t: number }>();
   const ease = (el: HTMLElement, on: boolean) => {
     const want = on ? 1 : 0, now = performance.now(), st = showK.get(el) ?? { v: want, t: now };
@@ -763,8 +806,10 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const it of view.items) {
       const o = objs.get(it.key), p = pos.get(it.key);
       if (!o || !p) continue;
-      const op = +(o.label.dataset.o ?? 1) * ease(o.label, still && labelOn([it.key], partSet));
-      o.label.dataset.on = partSet && !labelOn([it.key], partSet) ? "0" : "1";
+      // (format version 11, one focus at a time) a token the step is not about keeps its pill; its label fades
+      const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key);
+      const op = +(o.label.dataset.o ?? 1) * ease(o.label, still && labelOn([it.key], partSet) && !tokOff);
+      o.label.dataset.on = (partSet && !labelOn([it.key], partSet)) || tokOff ? "0" : "1";
       if (it.container) project(o.label, p.c.x - it.w / 2 + 8, p.top + 1, p.c.z - it.h / 2 + 2, it.label ? op : 0);
       else project(o.label, p.c.x, p.top + 2, p.c.z, op);
     }

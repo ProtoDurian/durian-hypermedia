@@ -508,3 +508,37 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* ---- format version 10: a mermaid edge label sits on a solid card, so its arrow never runs through the words
    (mermaid's own sheet draws that card at half opacity; its rules are by id, so these need !important) ---- */
 .mermaid-svg svg .edgeLabel rect, .mermaid-svg svg .edgeLabel .background { opacity: 1 !important; fill: var(--surface) !important; }
+/* ---- format version 11: still and static scenes, a calm story (src/ui/anim.tsx, src/core/whole.ts, src/core/calm.ts) */
+.scn.is-whole .scn-stage, .scn.is-still .scn-stage { min-height: 0; max-height: none; }
+/* a phone's stage that grew to keep the camera still between two zooms (core/calm.ts calmHeight, the same numbers) */
+.scn.is-tall .scn-stage { max-height: min(680px, 82vh); }
+/* a scene taller than its frame says so in words */
+.scn-more-say { position: absolute; left: 50%; translate: -50% 0; bottom: 6px; max-width: calc(100% - 64px); padding: 2px 9px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface-2); color: var(--ink); font: normal 11.5px/1.35 var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scn-more-say[data-side="t"] { bottom: auto; top: 6px; }
+/* a still or static drawing wider than the stage at its least word size scrolls in its box, the side with more fades (as a table) */
+.scn.is-swipe .scn-stage { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+.scn.is-swipe .scn-svg { width: var(--swipe-w); max-width: none; }
+.scn.is-swipe .scn-stage[data-more="r"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.scn.is-swipe .scn-stage[data-more="l"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.scn.is-swipe .scn-stage[data-more="lr"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+.scn-swipe-more { margin: 4px 14px 8px; color: var(--muted); font-size: var(--fs-xs); }
+/* its step list looks like one: the summary keeps its marker */
+.scn > .dh-static-steps details > summary { display: list-item; }
+/* static (SPEC 4.1): one state, whole; nothing to grab */
+.scn.is-static .scn-stage { max-height: none; min-height: 0; }
+.scn.is-static .scn-svg { touch-action: auto; cursor: default; }
+/* a steady scene has no pan or zoom (SPEC 6.14): the page scrolls and pinches over it, a tap reads a note */
+.scn.is-fixed .scn-svg, .scn.is-steady .scn-svg { touch-action: auto; cursor: default; }
+/* the static caption sits inside the card, in line with the bar's words */
+.scn > .dh-static-steps { margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); background: var(--surface); }
+/* in print a scene is never taller than its page and is never blank, also one the reader never scrolled to */
+@media print {
+  .scn .scn-stage { max-height: 85vh; min-height: 0; break-inside: avoid; }
+  .js .scn:not([data-live]) .scn-svg { visibility: visible; }
+  .scn.is-static .scn-stage.scn-stage { max-height: calc(100vh - 300px); }
+}
+/* (one focus at a time) a token the step is not about keeps its pill; its words fade */
+.scn-chip-t { transition: opacity .25s var(--ease); }
+.scn-chip-t.is-mute { opacity: 0 !important; }
+/* the line under a zoomed step's caption */
+.scn-cap .scn-zoomed { display: block; margin-top: 2px; font-style: normal; font-size: var(--fs-xs); color: var(--muted); }

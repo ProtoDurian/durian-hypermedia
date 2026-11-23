@@ -8,6 +8,21 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 The third release candidate of 0.7.0. The format number stays 10.
 
+### Changed: the graph engine's animation is calm (SPEC.md 6.14)
+
+- **No jitter.** A thing that takes no part in a step keeps its place: only items that pass another item of their row
+  travel on an arc (a queue moving up goes straight); a step's first frame is its start (no back step, no flash of a
+  beat's end); in 3D a thing that moves to another parent or floor rises along its way (no hop).
+- **One held view from zoom to zoom.** The steps between two camera words share one view of all they touch, so the
+  camera moves only at a zoom in or out (2D and 3D); a zoomed step says so under its caption. On a phone the stage grows
+  a little (at most 680 px) where that keeps the camera still.
+- **One focus at a time.** At rest only the tokens a step is about keep their words; the others keep their pills. Inside
+  a 3D zoom what is outside it and untouched leaves the stage, the layer plane too.
+- **The reader's camera only when asked.** An animation shows the 3D button, zoom, show everything and drag or wheel to
+  move only when its fence says `zoom` (new bare fence word) or `3d`. The story's camera, the player and its keys stay.
+- **Words are cut whole or not at all.** An arrow's label counts in a scene's bounds and in what a view cuts (one was
+  clipped to a letter at 1180 wide). A story cut by its frame says so in words at that edge.
+
 ### Added
 
 - **The example site shows each fixture's source and LLM view:** every fixture page (the hand-written ones, the
@@ -15,11 +30,17 @@ The third release candidate of 0.7.0. The format number stays 10.
   toggles, `Source` (the fixture as written) and `LLM view` (what `llmView` returns, or a line saying an LLM reads
   nothing). They need no script, and they sit above the part, so a part that grows as it loads moves nothing it did
   not move before.
+- **Still scenes** (SPEC.md 6.14): an `animation` with no `@step` is its setup, drawn once: no player, no toolbar, pan or
+  zoom unless the fence says `zoom` or `3d`; it shows whole (top to bottom when too wide, sideways scrolling in its box
+  when still too wide for 11 px words); a tall one is as tall as it is. Before, it was refused ("needs at least 2 @step
+  lines"). Its LLM view is its setup. `src/core/whole.ts`, `src/core/calm.ts`.
+- **Static on the graph engine's animation** (SPEC.md 4.1): the fence's `static`, or the page's or host's, draws one step
+  whole and flat with its step list and `data-dh-static`; print and reduced motion switch it on.
 
 - Fishbone and Sankey lead the example index, with live and static examples in both themes. Source and LLM panels wrap long lines within the page.
 - Sankey node labels keep every word on measured, theme-coloured backing plates; narrow layouts wrap labels without ellipsis and reserve their positions across steps.
 
-### Changed
+### Changed: the role palette is measured (SPEC.md 6.10)
 
 - **The measured role palette** (SPEC.md 6.10): the eight family colours, light and dark, are new and measured. Any two
   families differ in border and fill, also with protanopia or deuteranopia simulated; every border is 3:1 on the stage,
@@ -486,7 +507,6 @@ Format version 9 (SPEC.md section 11): more control over animation for the autho
 - **`slug(text)`** exported from `durian-hypermedia`: the one anchor rule (GitHub's), for a tool that links to or checks a
   heading anchor. SPEC.md section 1 states it.
 - Dependency `github-slugger` 2.0.0 (exact version, the one doccheck pins).
-
 
 ## 0.3.0 (git tag v0.3.0)
 

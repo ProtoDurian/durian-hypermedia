@@ -5,8 +5,15 @@
 // this file tweens between frames, draws with page tokens only, and lets the reader explore with a camera:
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
-import { stageScene, phoneScene } from "../core/readable";
+import { baseY as geoBase, floorY, SLAB } from "./geo3d";
+import { sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { stageScene, phoneScene, leastScale } from "../core/readable";
+// format version 11: a still scene and a static one show whole (core/whole.ts); a calm story (core/calm.ts): only
+// items that pass each other arc, one held view from a camera word to the next, one token's words at a time
+import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeLayout, wholeSize, wholeView } from "../core/whole";
+import { calmHeight, heldViews, tokenSubject, passing, stepT } from "../core/calm";
+import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
+import type { Compiled } from "../core/scene"; // (tokenIds' cache)
 import { moreSides } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
@@ -51,7 +58,22 @@ export type SceneSrc = { head: string; steps: { title: string; raw: string; line
 // lv: its meter (level=) at this moment, tweened
 // g (format version 9): how fully it is drawn, FAINT inside a closed thing (its words hidden) to 1 when open, tweened
 // lift (format version 10): how far it is lifted out of its box (0 to 1, tweened; only the 3D stage raises it)
-type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number; lift?: number };
+// slab (format version 11): the slabs it stands on in 3D while it moves to another floor or parent, eased from start to end
+type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number; lift?: number; slab?: number };
+// every token id a scene ever has, once per compiled scene (a token that has left still counts as named)
+const tokCache = new WeakMap<Compiled, Set<string>>();
+function tokenIds(c: Compiled): Set<string> {
+  let s = tokCache.get(c);
+  if (!s) { s = new Set(c.frames.flatMap((f) => f.boxes.filter((b) => b.kind === "token").map((b) => b.id))); tokCache.set(c, s); }
+  return s;
+}
+// the slabs each thing stands on in 3D, at rest in one frame: the 3D stage's own rule (./geo3d.ts baseY)
+function slabsOf(boxes: readonly Box[]): Map<number, number> {
+  const key = new Map(boxes.map((b) => [b.id, b.key]));
+  const rest = boxes.map((b) => ({ key: b.key, kind: b.kind, container: b.container, bare: ["array", "list"].includes(b.kind), parent: key.get((b.ent.parent ?? b.ent.anchor) as string) ?? null, L: b.layer ?? 0 }));
+  const by = new Map(rest.map((r) => [r.key, r]));
+  return new Map(rest.map((r) => [r.key, Math.round((geoBase(r, by, 1) - floorY(r.L, 1)) / (SLAB + 1))]));
+}
 // a line's end as the router measured it (format version 10): with its heading, so a queue's line meets its rails
 const endRect = (s: Shown): Rect & { head?: number } => (s.box.head ? { ...s.r, head: s.box.head } : s.r);
 const liftOf = (b?: Box) => (b?.lift ? 1 : 0);
@@ -59,7 +81,7 @@ const gOf = (b?: Box) => (b?.faint ? FAINT : 1);
 const wordsO = (g?: number) => (g == null ? 1 : Math.max(0, Math.min(1, (g - FAINT) / (1 - FAINT))));
 const bandOff = (b: Box) => b.y - b.ly;
 
-export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: string | null }) {
+export function Animation({ src, ui, srText, static: staticProp }: { src: SceneSrc; ui: Ui; srText: string | null; static?: StaticProp }) {
   // the scene, and its phone variant (format version 8) for a stage under NARROW pixels: the phone's tokens (the same
   // type, tighter spacing), and the narrow layout when the scene is wide (a wide row or left-to-right graph runs top to
   // bottom). The story camera then never draws a phone's smallest words under 11 px (tools/scene.ts storyView)
@@ -68,21 +90,47 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const cWide = useMemo(() => stageScene(src), []);
   const [px0, setPx0] = useState(0);
   const phone = px0 > 0 && px0 < NARROW;
-  const pKey = phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : "wide";
-  const cPhone = useMemo(() => (pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey]);
-  const c = cPhone ?? cWide;
+  // SPEC 4.1: static is one step, drawn whole and flat (so the server's HTML, a PDF and a mail show it); the fence, the
+  // page or the host ask for it (the static prop), print and reduced motion switch it on too (parts/kit/static.ts)
+  const st = useStatic(staticProp, cWide.frames.length, src.steps.map((s) => s.title));
+  // static draws a closed thing's inside in full, words and all: on paper no reader can zoom in to open it
+  const gOfS = st.on ? (_b?: Box) => 1 : gOf;
+  // format version 11: a still scene (no steps) and a static one show whole, laid out for the width of the stage
+  const still = !!cWide.scene.attrs.still;
+  const whole = st.on || still, wpx = layoutWidth(px0 || STAGE);
+  // SPEC 6.14: the reader's camera (the 3D button, zoom, show everything, drag and wheel to move, and the line that says
+  // how) comes only when the fence says zoom or 3d: steady. The story's own camera still follows the steps; a tap or
+  // Enter still reads a note. fixed: a steady still scene
+  const steady = !st.on && src.info.zoom !== "yes" && src.info.view !== "3d" && !cWide.scene.attrs.only3d;
+  const fixed = steady && still;
+  const cWhole = useMemo(() => (whole ? wholeLayout(cWide, wpx) : null), [wpx, whole]);
+  const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : "wide";
+  const cPhone = useMemo(() => (whole || pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey, whole]);
+  const c = cWhole ?? cPhone ?? cWide;
+  // a still or static drawing that cannot show whole with words at the least size is never shrunk under it and never
+  // cut: it keeps the least size and scrolls sideways in its own box, as a table does. Print still fits the paper
+  const oneS = (st.on || fixed) && c.frames.length ? oneStep(c, st.on ? st.i : 0) : null;
+  const leastS = oneS && px0 ? Math.max(...oneS.frames.map((f) => leastScale(f, px0))) : 0;
+  const natS = oneS ? wholeSize(oneS) : null;
+  const swipeW = natS && leastS && !st.print && natS.w * leastS > px0 + 1 ? Math.ceil(natS.w * leastS) : 0;
+  const [swipeMore, setSwipeMore] = useState("r");
+  const stageAr = swipeW ? px0 / (natS!.h * leastS) : st.on && c.frames.length ? wholeAspect(oneStep(c, st.i), px0) : whole ? wholeAspect(c, px0) : c.aspect;
+  // on a phone, a stage a little taller where that, and only that, keeps the camera still between two zooms (core/calm.ts)
+  const tall = useMemo(() => (!whole && phone && c.frames.length && typeof window !== "undefined" ? calmHeight(c, px0, window.innerHeight) : null), [c, px0, whole]);
   const Z = tokens(c.scene.attrs.phone);
   const n = c.frames.length;
-  const [i, setI] = useState(0);
-  const [from, setFrom] = useState(0);
-  const [t, setT] = useState(1);
+  const [liveI, setI] = useState(0);
+  const [liveFrom, setFrom] = useState(0);
+  const [liveT, setT] = useState(1);
+  const i = st.on ? st.i : liveI, from = st.on ? st.i : liveFrom, t = st.on ? 1 : liveT;
   const [howOpen, setHowOpen] = useState(false); // the ? button under the stage: the whole "how to move" text
   const [playing, setPlaying] = useState(false);
   const [user, setUser] = useState<Rect | null>(null);   // the reader's own camera; null follows the story
   const [sel, setSel] = useState<number | null>(null);    // the entity whose note is open
   const [ar, setAr] = useState(c.aspect);                  // the stage's real shape (it has a minimum height on phones)
   const [px, setPx] = useState(0);                         // the stage's width in pixels
-  const [mode, setMode] = useState<"2d" | "3d">("2d");     // the server draws 2D; the browser may switch
+  const [liveMode, setMode] = useState<"2d" | "3d">("2d"); // the server draws 2D; the browser may switch
+  const mode = st.on ? "2d" : liveMode;
   const [ok3d, setOk3d] = useState(false);
   const [loading3d, setLoading3d] = useState(false);
   const [user3, setUser3] = useState(false);               // the reader moved the 3D camera
@@ -142,7 +190,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   // (or a trackpad's two-finger scroll) moves the view once the reader has taken the stage; before that it scrolls the
   // page, so a reader scrolling past the stage is never caught by it. Shift + wheel moves sideways
   useEffect(() => {
-    const el = svg.current; if (!el) return;
+    const el = svg.current; if (!el || st.on || steady) return;
     const wheel = (e: WheelEvent) => {
       const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       if (e.ctrlKey || e.metaKey) {
@@ -157,7 +205,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     };
     el.addEventListener("wheel", wheel, { passive: false });
     return () => el.removeEventListener("wheel", wheel);
-  }, [mode]);
+  }, [mode, st.on]);
   // a step's length: longer with sends (or a token that moves or is dropped); each beat (a "then" line) is that long again; pace slow or fast (format version 9)
   const PACE: Record<string, number> = { slow: 1.8, normal: 1, fast: 0.55 };
   const dur = (k: number) => (c.nest?.via[k] ? 1700 : c.fx[k]?.sends.length || c.fx[k]?.moved?.length || c.fx[k]?.dropped?.length ? 1500 : 850) * (c.fx[k]?.beats ?? 1) * (PACE[c.fx[k]?.pace && c.fx[k]?.pace !== "normal" ? c.fx[k]!.pace! : src.info.pace ?? "normal"] ?? 1);
@@ -171,7 +219,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     if (reducedMotion()) { setT(1); return; }
     setT(0);
     const start = performance.now(), d = dur(to);
-    const tick = (now: number) => { const p = Math.min(1, (now - start) / d); setT(p); if (p < 1) raf.current = requestAnimationFrame(tick); };
+    // (format version 11) a frame's time can be a little before the click: clamped, so a step never runs back first
+    const tick = (now: number) => { const p = stepT(now, start, d); setT(p); if (p < 1) raf.current = requestAnimationFrame(tick); };
     raf.current = requestAnimationFrame(tick);
   };
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
@@ -196,11 +245,11 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     return () => document.removeEventListener("pointerdown", out, true);
   }, [active]);
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || st.on) return;
     if (i >= n - 1) { setPlaying(false); return; }
     const tm = setTimeout(() => go(i + 1), dur(i) + 1700);
     return () => clearTimeout(tm);
-  }, [playing, i]);
+  }, [playing, i, st.on]);
   // the stage keeps its shape from the scene, but has a minimum height; read the real shape for the camera
   useEffect(() => {
     const el = stage.current; if (!el) return;
@@ -209,7 +258,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     return () => ro.disconnect();
   }, []);
 
-  if (!n) return <div className="cw-error">This animation has no steps.</div>;
+  if (!n) return <div className="cw-error">This animation has nothing to draw.</div>;
+  // format version 11: a still scene has the stage and the notes, and no player; its words for a screen reader are its setup
+  const stageWords = still ? sceneLlm(c) : src.steps[i]?.title ?? "";
   // a step into or out of a scene inside the scene (format version 10): the stage shows one scene at a time, the one
   // left in the first half and the next in the second; nothing tweens between two scenes, the camera zooms through
   const mv = sceneMove(c, from, i, t);
@@ -222,7 +273,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const NB = forward ? Math.max(1, fx.beats ?? 1) : 1;
   const local = (b: number) => Math.max(0, Math.min(1, t * NB - b));
   // the beat now: things move from the frame at the end of the beat before to the frame at the end of this one
-  const seg = NB < 2 ? 0 : Math.min(NB - 1, Math.floor(t * NB));
+  const seg = NB < 2 ? 0 : Math.max(0, Math.min(NB - 1, Math.floor(t * NB)));
   const beatF = forward ? c.beats?.[i] ?? [] : [];
   const SA = NB < 2 || seg === 0 ? A : beatF[seg - 1] ?? A, SB = NB < 2 || seg === NB - 1 ? B : beatF[seg] ?? B;
   const tSeg = NB < 2 ? te : ease(local(seg));
@@ -246,6 +297,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const cur = new Map(B.boxes.map((b) => [b.key, b]));
   const curSeg = new Map(SB.boxes.map((b) => [b.key, b]));
   const shown: Shown[] = [];
+  // (format version 11) only items that pass another of their row travel on an arc; a queue that moves up goes straight
+  const pass = passing(SA.boxes, SB.boxes);
+  const slabsA = slabsOf(SA.boxes), slabsB = SA === SB ? slabsA : slabsOf(SB.boxes);
   for (const b of SB.boxes) {
     const p = prev.get(b.key);
     if (p) {
@@ -254,14 +308,18 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       // move ... path=arc: it travels over an arc, not straight (format version 9)
       if (arc.has(b.id) && (Math.abs(b.x - p.x) > 4 || Math.abs(b.y - p.y) > 4)) r.y -= Math.sin(Math.PI * tb) * Math.max(40, Math.hypot(b.x - p.x, b.y - p.y) * 0.35);
       // items of an array, list, stack or queue that trade places pass each other on an arc, not through each other
-      if (b.parentKind && ["array", "list", "stack", "queue", "bucket"].includes(b.parentKind) && Math.abs(b.x - p.x) > 4 && b.parentKind !== "stack") r.y += Math.sin(Math.PI * te) * b.h * 0.75 * (b.x > p.x ? -1 : 1);
-      shown.push({ box: b, r, o: fo(b, p) * dimOf(b) * lerp(visOf(p), visOf(b), tb), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), tb), L: lerp(p.layer, b.layer, tb), g: lerp(gOf(p), gOf(b), tb), lift: lerp(liftOf(p), liftOf(b), tb) });
+      // (format version 11) on the beat's own clock, so an arc never runs ahead of the move it rides on
+      if (pass.has(b.key)) r.y += Math.sin(Math.PI * tb) * b.h * 0.75 * (b.x > p.x ? -1 : 1);
+      // (format version 11) in 3D, how many slabs it stands on, from where it starts and where it ends: worked out live from
+      // the tween, a thing that moved to another floor or parent dropped a slab or gained one half way, and hopped
+      const nA = slabsA.get(b.key), nB = slabsB.get(b.key), moves = (p.ent.parent ?? p.ent.anchor) !== (b.ent.parent ?? b.ent.anchor) || p.layer !== b.layer || nA !== nB;
+      shown.push({ box: b, r, ...(moves && nA != null && nB != null ? { slab: lerp(nA, nB, tb) } : {}), o: fo(b, p) * dimOf(b) * lerp(visOf(p), visOf(b), tb), enter: false, ly: r.y - lerp(bandOff(p), bandOff(b), tb), L: lerp(p.layer, b.layer, tb), g: lerp(gOfS(p), gOfS(b), tb), lift: lerp(liftOf(p), liftOf(b), tb) });
       continue;
     }
     const src0 = forward ? prev.get(fx.spawn[b.key]) : undefined;
     const tb = teOf(b);
-    if (src0) { const r = lerpR(src0, b, tb); shown.push({ box: b, r, o: Math.min(1, tb * 2) * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), tb), L: lerp(src0.layer, b.layer, tb), g: gOf(b) }); }
-    else { const s = lerp(0.85, 1, tb); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: tb * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - bandOff(b), L: b.layer, g: gOf(b), lift: liftOf(b) }); }
+    if (src0) { const r = lerpR(src0, b, tb); shown.push({ box: b, r, o: Math.min(1, tb * 2) * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - lerp(bandOff(src0), bandOff(b), tb), L: lerp(src0.layer, b.layer, tb), g: gOfS(b) }); }
+    else { const s = lerp(0.85, 1, tb); const cc = center(b); const r = { x: cc.x - (b.w * s) / 2, y: cc.y - (b.h * s) / 2, w: b.w * s, h: b.h * s }; shown.push({ box: b, r, o: tb * fo(b) * dimOf(b) * visOf(b), enter: true, ly: r.y - bandOff(b), L: b.layer, g: gOfS(b), lift: liftOf(b) }); }
   }
   if (t < 1) for (const p of SA.boxes) {
     if (curSeg.has(p.key)) continue;
@@ -269,9 +327,9 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     const tp = teOf(p);
     // a dropped token (format version 9) travels to where it is lost, turns red, is crossed out and fades
     const dr = forward ? c.fx[i].dropped?.find((d) => d.key === p.key) : undefined;
-    if (dr) { const s = droppedAt(p, dr.at != null ? cur.get(dr.at) ?? prev.get(dr.at) : undefined, tp); shown.push({ ...s, ly: s.r.y - bandOff(p), L: p.layer, g: gOf(p), o: s.o * fo(p) * visOf(p) }); continue; }
+    if (dr) { const s = droppedAt(p, dr.at != null ? cur.get(dr.at) ?? prev.get(dr.at) : undefined, tp); shown.push({ ...s, ly: s.r.y - bandOff(p), L: p.layer, g: gOfS(p), o: s.o * fo(p) * visOf(p) }); continue; }
     const r = into ? lerpR(p, into, tp) : p;
-    shown.push({ box: p, r, o: (1 - tp) * fo(p) * visOf(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer, g: gOf(p) });
+    shown.push({ box: p, r, o: (1 - tp) * fo(p) * visOf(p), enter: false, ly: r.y - bandOff(into ?? p), L: into ? lerp(p.layer, into.layer, te) : p.layer, g: gOfS(p) });
   }
   for (const s of shown) if (s.box.kind === "pointer") s.anchorY = B.boxes.find((x) => x.id === s.box.ent.anchor)?.y;
   for (const s of shown) if (s.box.ent.level != null) { const p = prev.get(s.box.key)?.ent.level; s.lv = lerp(p ?? s.box.ent.level, s.box.ent.level, te); }
@@ -283,13 +341,28 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const litEdge = (e: Edge) => { if (!spot.size) return 1; const a = at.get(e.from), b = at.get(e.to); return a && b && lit(a.box) && lit(b.box) ? 1 : dimOf(a?.box ?? b!.box); };
   // a connector that stays keeps sliding its ends to their new places along the step (format version 10)
   const prevEdge = new Map(SA.edges.map((e) => [e.key, e]));
-  for (const e of SB.edges) { const ea = t < 1 ? prevEdge.get(e.key) : undefined; edgesNow.push({ e: ea && ea.rt && e.rt ? { ...e, rt: lerpRoute(ea.rt, e.rt, te) } : e, o: (prevEdges.has(e.key) ? 1 : teEdge(e)) * litEdge(e) }); }
+  for (const e of SB.edges) { const ea = t < 1 ? prevEdge.get(e.key) : undefined; edgesNow.push({ e: ea && ea.rt && e.rt ? { ...e, rt: lerpRoute(ea.rt, e.rt, tSeg) } : e, o: (prevEdges.has(e.key) ? 1 : teEdge(e)) * litEdge(e) }); }
   if (t < 1) for (const e of SA.edges) if (!curEdges.has(e.key)) edgesNow.push({ e, o: 1 - teEdge(e) });
 
   // ---- the camera: the story's, unless the reader moved it
   // the story's camera (tools/scene.ts storyView): what the author framed plus everything this step touches, in frame
-  const vB = storyView(B, ar, px), story = mv ? moveCam(mv, vB, ar) : user ? vB : lerpR(storyView(A, ar, px), vB, te);
-  const cam = user && !mv ? fitAspect(user, ar) : story;
+  const whV = whole ? wholeView(c, ar, px) : null;
+  // (format version 11, one focus at a time) at rest only the token the step is about keeps its words; the others keep
+  // their pills (core/calm.ts tokenSubject)
+  const tokIds = tokenIds(c);
+  const tokS = tokenSubject(B, src.steps[i]?.raw ?? "", tokIds), tokMute = (s: Shown) => !!tokS && s.box.kind === "token" && !tokS.includes(s.box.key);
+  // a step the author zoomed says so under its caption ("Zoomed in: router"), so the closer view does not read as a jump
+  const zoomCue = (k: number) => {
+    const f = c.frames[k], names = (f?.look ?? []).map((q) => f.boxes.find((b) => b.key === q)?.label).filter(Boolean);
+    return names.length ? <em className="scn-zoomed">{(ui as any).zoomedIn ?? "Zoomed in"}: {names.join(", ")}</em> : null;
+  };
+  // (format version 11) one held view from one camera word to the next (core/calm.ts heldViews): the steps between share
+  // one view of all they touch, so the camera moves only at a zoom in or out. The held view also holds in the second half
+  // of a move between scenes
+  const held = whole || (mv && mv.half === 0) ? null : heldViews(c, ar, px), hB = held?.[i], hA = held?.[from];
+  const vB = whV ?? storyView(hB?.frame ?? B, ar, px), story = mv ? moveCam(mv, vB, ar) : user || (hB && hA === hB) ? vB : lerpR(whV ?? storyView(hA?.frame ?? A, ar, px), vB, te);
+  const swipeB = swipeW ? union(oneS!.frames.map((f) => f.bounds)) : null;
+  const cam = swipeB ? { x: swipeB.x - (natS!.w - swipeB.w) / 2, y: swipeB.y - (natS!.h - swipeB.h) / 2, w: natS!.w, h: natS!.h } : st.on || fixed ? staticView(oneStep(c, i), px ? ar : stageAr, px) : user && !mv ? fitAspect(user, ar) : story;
   const all = fitAspect(pad(union(sceneFrames(c, i).map((f) => f.bounds)), 24), ar);
   const stageO = moveO(mv);
   const toWorld = (dx: number, dy: number) => { const r = svg.current!.getBoundingClientRect(); return { x: (dx / r.width) * cam.w, y: (dy / r.height) * cam.h }; };
@@ -307,7 +380,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   cam0.current = cam;
   const onDown = (e: React.PointerEvent) => {
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    if (!steady) (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const ps = [...ptrs.current.values()];
     // the entity under the finger, read now: after pointer capture the release is aimed at the stage itself
     const key = (e.target as Element).closest?.("[data-key]")?.getAttribute("data-key") ?? null;
@@ -315,6 +388,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   };
   const onMove = (e: React.PointerEvent) => {
     const d = drag.current; if (!d || !ptrs.current.has(e.pointerId)) return;
+    if (steady) { if (Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 5) d.moved = true; return; }
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const ps = [...ptrs.current.values()];
     if (ps.length === 2 && d.dist) {
@@ -346,6 +420,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     if (!ptrs.current.size) drag.current = null;
     if (d && !d.moved) {
       const k = d.key;
+      if (steady) { setSel(k && +k > 0 ? +k : null); return; } // a tap reads a note, and moves nothing
       if (k && +k < 0) { const b = cur.get(+k); setPickL(-(+k) - 1); setSel(null); if (b) setUser(readable(fitAspect(pad(b, 20), ar))); }
       else if (k) { const key = +k; setSel(key); setPickL(null); const b = cur.get(key); if (b) setUser(readable(fitAspect(pad(b, Math.max(40, b.w * 0.6)), ar))); }
       else { setSel(null); setPickL(null); }
@@ -377,6 +452,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   // walk over the ground as well. (The steps keep their keys on the rest of the part: arrows there, PageUp/PageDown here)
   const onStageKey = (e: React.KeyboardEvent) => {
     const k = e.key, step = 60;
+    if (fixed && k !== "Enter") { if (k === "Escape") { setSel(null); e.stopPropagation(); } return; }
+    if (steady && !["Enter", "Escape", "PageUp", "PageDown"].includes(k)) return; // no camera keys: the steps keep theirs
     const pan = (dx: number, dy: number) => { if (mode === "3d") s3.current?.pan(-dx, -dy); else panBy(dx, dy); };
     const walk = (f: number, sd: number) => s3.current?.walk(f, sd);
     let done = true;
@@ -394,7 +471,7 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const toggle = () => { if (only3d) return; backToStory(); setMode(mode === "3d" ? "2d" : "3d"); };
   // in 3D, while a step plays (and until the reader pauses at its end), only who takes part shows a label
   // a 3D-only scene without 3D: its steps as a list stand in for the stage (no camera buttons, no "how to move")
-  const listOnly = only3d && mode !== "3d";
+  const listOnly = only3d && !st.on && mode !== "3d";
   const quiet = mode === "3d" && !labelsAll && !user3 && (t < 1 || playing || !rest);
   const layerName = (L: number) => B.layers[L]?.label ?? `${ui.layer ?? "layer"} ${L + 1}`;
   // ---- the same moment, for the 3D stage
@@ -413,11 +490,35 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   const endingStreams = t < 1 && A !== B ? A.sends.filter((g) => isStream(g) && !curStreams.has(streamKey(g))) : [];
   if (mode === "3d") {
     const keyOf = new Map<string, number>([...A.boxes, ...B.boxes].map((b) => [b.id, b.key]));
-    const items: Item3[] = shown.map((s) => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, ...(s.g != null && s.g < 1 ? { faint: s.g } : {}), size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth, ...(s.lift ? { lift: s.lift } : {}), ...(s.lv != null ? { lv: s.lv } : {}) }));
+    const item3 = (s: Shown, keyOf: Map<string, number>): Item3 => ({ key: s.box.key, id: s.box.id, kind: s.box.kind, label: s.box.label, ...(s.g != null && s.g < 1 ? { faint: s.g } : {}), size: s.box.size, cc: s.box.cc, fill: s.box.fill, pcc: s.box.pcc, container: s.box.container, bare: ["array", "list"].includes(s.box.kind), parent: s.box.ent.parent ? keyOf.get(s.box.ent.parent) ?? null : s.box.ent.anchor ? keyOf.get(s.box.ent.anchor) ?? null : null, tone: s.box.ent.tone, dim: s.box.ent.dim, down: s.box.ent.down, x: s.r.x, y: s.ly, w: s.r.w, h: s.r.h, L: s.L, o: s.o, depth: s.box.depth, ...(s.slab != null && !mv ? { slab: s.slab } : {}), ...(s.lift ? { lift: s.lift } : {}), ...(s.lv != null ? { lv: s.lv } : {}) });
+    const items = shown.map((s) => item3(s, keyOf));
     if (mv) for (const it of items) it.o *= stageO;
+    // (format version 11) inside a zoom, a thing outside what is zoomed into, and not touched in the held span, leaves the
+    // stage: no thing stands half cut at the stage's edge. What holds the zoomed thing stays, and so does what the span
+    // touches; the links to the rest stay too
+    if (B.look?.length && !mv) {
+      const byId = new Map(B.boxes.map((b) => [b.id, b])), upOf = (b: Box) => (b.ent.parent ?? b.ent.anchor ?? null) as string | null;
+      const look = new Set(B.look.map((k) => B.boxes.find((b) => b.key === k)?.id).filter((x): x is string => !!x)), keep = new Set<string>(look);
+      for (const id of look) for (let u = upOf(byId.get(id)!), m = 0; u && m < 64; u = byId.get(u) ? upOf(byId.get(u)!) : null, m++) keep.add(u);
+      const touched = new Set(hB ? hB.steps.flatMap((k) => c.frames[k].touched) : B.touched);
+      const inside = (b: Box) => { for (let x: Box | undefined = b, m = 0; x && m < 64; x = upOf(x) ? byId.get(upOf(x)!) : undefined, m++) if (look.has(x.id)) return true; return false; };
+      const ctx = new Set(B.boxes.filter((b) => b.kind !== "layer" && !keep.has(b.id) && !touched.has(b.key) && !inside(b)).map((b) => b.key));
+      for (const it of items) if (ctx.has(it.key)) it.faint = 0.001;
+    }
+    // the held view's things, each where its step ends: the 3D camera is worked out from these, never from a tween
+    const hold = hB && {
+      frames: hB.steps.map((k) => {
+        const f = c.frames[k], ids = new Map(f.boxes.map((b) => [b.id, b.key]));
+        return f.boxes.map((b) => item3({ box: b, r: b, o: visOf(b) * off(f, b.layer), enter: false, ly: b.y - bandOff(b), L: b.layer, g: gOfS(b), lift: liftOf(b) }, ids));
+      }),
+      touched: [...new Set(hB.steps.flatMap((k) => c.frames[k].touched))],
+      least: Math.max(...hB.steps.map((k) => MIN_PX / minFont(c.frames[k]))),
+      spread: c.frames[hB.steps[0]].spread ? 1 : 0,
+    };
     // going in, the first half looks at the thing entered from, close
     const into = mv && mv.half === 0 && mv.dir === "in" && mv.viaKey != null ? mv : null;
     view3.current = {
+      ...(hold ? { hold } : {}),
       items, edges: edgesNow.map(({ e, o }) => ({ ...e, o: o * stageO })),
       sends: (mv ? [] : B.sends).map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k), offs: g.offs, bends: g.bends, rts: g.rts })),
       says: fx.says.map((sy, k) => ({ key: sy.key, text: sy.text, o: sayO(k) })),
@@ -425,7 +526,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
       layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
       cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
       part: quiet && B.part ? B.part : null,
-      least: MIN_PX / minFont(B),
+      toks: tokS, // (format version 11) only the token the step is about keeps its label
+      least: hold?.least ?? MIN_PX / minFont(B),
       // format version 10: the scene shown; going in, the first half flies into the thing entered from; the second
       // half starts far (going in) or at that thing (going out)
       scene: mv ? mv.scene : sceneNow, sceneDir: mv?.dir, ...(mv ? { fade: stageO } : {}), sceneVia: mv && mv.half === 1 && mv.dir === "out" ? mv.viaKey : null,
@@ -437,6 +539,8 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
   // on a phone the line under the stage says so
   // (format version 10, tools/edge10.ts: a side where the view cuts a thing is shaded too)
   const more: ("l" | "r" | "t" | "b")[] = mode === "2d" ? moreSides(B, cam) : [];
+  // (format version 11) a scene taller than its frame says so in words, where it is cut
+  const downMore = more.includes("b") ? "b" : more.includes("t") ? "t" : null;
   const U = ui as any;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
@@ -457,50 +561,54 @@ export function Animation({ src, ui, srText }: { src: SceneSrc; ui: Ui; srText: 
     </div>
   );
   return (
-    <div ref={root} className={cx("scn", active && "is-active")} data-variant={pKey} tabIndex={0} onKeyDown={onKey} aria-roledescription="animation">
+    <div ref={root} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
+      tabIndex={st.on || fixed ? undefined : 0} onKeyDown={st.on || fixed ? undefined : onKey} aria-roledescription={st.on ? undefined : "animation"}>
       {srText && <p className="sr-only">{srText}</p>}
       {/* the controls sit in a bar above the stage, so they never cover what the story shows */}
-      <div className="scn-bar">
+      {/* SPEC 4.1: static has no control row; a steady scene keeps the bar only for its colour key */}
+      {((!st.on && !steady) || families.length > 0) && <div className="scn-bar">
         {legend}
-        {!listOnly && tools}
-      </div>
-      <div className="scn-stage" ref={stage} style={{ ["--ar" as any]: c.aspect.toFixed(3) }} tabIndex={0} aria-label={(ui as any).stageLabel ?? "The stage: drag, scroll or use the arrow keys to move"}
-        onKeyDown={onStageKey} onPointerDownCapture={() => setActive(true)} onFocus={() => setActive(true)}
+        {!listOnly && !st.on && !steady && tools}
+      </div>}
+      <div className="scn-stage" ref={stage} data-more={swipeW ? swipeMore || undefined : undefined} onScroll={swipeW ? (e) => { const w = e.currentTarget; setSwipeMore((w.scrollLeft > 2 ? "l" : "") + (w.scrollLeft + w.clientWidth < w.scrollWidth - 2 ? "r" : "")); } : undefined} style={{ ["--ar" as any]: (tall ? px0 / tall : stageAr).toFixed(3), ...(swipeW ? { ["--swipe-w" as any]: `${swipeW}px` } : {}) }} tabIndex={(st.on || fixed) && !swipeW ? undefined : 0} aria-label={(ui as any).stageLabel ?? "The stage: drag, scroll or use the arrow keys to move"}
+        onKeyDown={st.on ? undefined : onStageKey} onPointerDownCapture={st.on || fixed ? undefined : () => setActive(true)} onFocus={st.on || fixed ? undefined : () => setActive(true)}
         onBlur={(e) => { if (!e.currentTarget.closest(".scn")?.contains(e.relatedTarget as Node | null)) setActive(false); }}>
-        {mode === "3d" ? <div ref={host3} className="scn3" aria-label={src.steps[i]?.title} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div>
-        : only3d ? <div className="scn-only3d" role="note"><p>{U.only3d ?? "This scene is drawn in 3D only. Without 3D (WebGL), here are its steps:"}</p><ol>{src.steps.map((s, k) => <li key={k} className={cx(k === i && "is-cur")} aria-current={k === i ? "step" : undefined}>{s.title}</li>)}</ol></div>
+        {mode === "3d" ? <div ref={host3} className="scn3" aria-label={stageWords} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div>
+        : only3d && !st.on ? <div className="scn-only3d" role="note"><p>{still ? stageWords : U.only3d ?? "This scene is drawn in 3D only. Without 3D (WebGL), here are its steps:"}</p><ol>{src.steps.map((s, k) => <li key={k} className={cx(k === i && "is-cur")} aria-current={k === i ? "step" : undefined}>{s.title}</li>)}</ol></div>
         : <svg ref={svg} className="scn-svg" viewBox={`${cam.x.toFixed(1)} ${cam.y.toFixed(1)} ${cam.w.toFixed(1)} ${cam.h.toFixed(1)}`} preserveAspectRatio="xMidYMid meet"
-          onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); drag.current = null; }} role="img" aria-label={src.steps[i]?.title} style={stageO < 1 ? { opacity: stageO } : undefined}>
+          onPointerDown={st.on ? undefined : onDown} onPointerMove={st.on ? undefined : onMove} onPointerUp={st.on ? undefined : onUp} onPointerCancel={(e) => { ptrs.current.delete(e.pointerId); drag.current = null; }} role="img" aria-label={stageWords} style={stageO < 1 ? { opacity: stageO } : undefined}>
           <defs>
             <marker id={mk} className="scn-mk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>
             {families.map((_, k) => <marker key={k} id={`${mk}-c${k + 1}`} className={`scn-mk cc cc-${k + 1}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>)}
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
-          {conts.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
-          {leaves.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} />)}
+          {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} still={st.on} />)}
           {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
-          {overlays.map((s) => <Shape key={s.box.key} s={s} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {overlays.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
-        {more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}</div>}
-        {selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{selBox.kind}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
-        {!selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note">{B.layers[pickL].note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
+        {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{downMore === "b" ? "↓" : "↑"} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
+        {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{selBox.kind}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
+        {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note">{B.layers[pickL].note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>
       {/* how to move: always shown, under the stage, so it never covers the scene */}
       {/* format version 9: one line; on a phone a short one; the ? button shows the whole of it */}
-      {!listOnly && <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>}
-      {howOpen && !listOnly && <p className="scn-how-full" role="note">{hint}</p>}
-      <div className="scn-caps" aria-live="polite">
-        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} />{s.title}</span></div>)}
+      {swipeW > 0 && <p className="table-more scn-swipe-more">{U.hintSwipe ?? "↔ Swipe to see all of it"}</p>}
+      {!listOnly && !st.on && !steady && <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>}
+      {howOpen && !listOnly && !st.on && !steady && <p className="scn-how-full" role="note">{hint}</p>}
+      {st.on && <StaticSteps titles={src.steps.map((s) => s.title)} i={i} label={ui.allSteps} print={st.print} />}
+      {!still && !st.on && <><div className="scn-caps" aria-live="polite">
+        {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} />{s.title}{zoomCue(k)}</span></div>)}
       </div>
       <Controls ui={ui} i={i} n={n} bands={sceneBands(c)} onGo={(k) => go(k)} playing={playing} onPlay={() => { if (!playing) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }} />
       <details className="scn-steps">
         <summary>{ui.allSteps ?? "All steps"} ({n})</summary>
         {c.nest ? <StepList c={c} titles={src.steps.map((s) => s.title)} i={i} go={(k) => go(k)} /> : <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}>{s.title}</button></li>)}</ol>}
-      </details>
+      </details></>}
     </div>
   );
 }
@@ -513,7 +621,7 @@ function Words({ lines, x, y, z, cls = "scn-label", font }: { lines: string[]; x
   const y0 = y - ((lines.length - 1) * lh) / 2;
   return <text x={x} y={y0} className={cls} dominantBaseline="central" textAnchor="middle" style={{ fontSize: font ?? z.font }}>{lines.map((l, k) => <tspan key={k} x={x} y={y0 + k * lh}>{l}</tspan>)}</text>;
 }
-function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok> }) {
+function Shape({ s, hl, sel, sh, Z = DESIGN, mute }: { s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
   const { box: b, r } = s;
   const o = s.o * (s.g ?? 1), wo = wordsO(s.g);
   const e = b.ent;
@@ -556,7 +664,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN }: { s: Shown; hl?: string; sel: boo
     case "text": body = <Words lines={b.lines} x={tx} y={ty} z={z} cls="scn-label scn-text" />; break;
     case "dot": body = <><circle className="scn-shape scn-dot" cx={tx} cy={r.y + 8} r={6} />{words}</>; break;
     // a token is small: a dot and a short word, next to what it sits on
-    case "token": body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} />{wo > 0.02 && <text x={r.x + 10 + (r.w - 10) / 2} y={ty} className="scn-chip-t" textAnchor="middle" dominantBaseline="central" style={wo < 1 ? { opacity: wo } : undefined}>{b.lines[0] ?? b.label}</text>}</>; break;
+    case "token": body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} />{wo > 0.02 && <text x={r.x + 10 + (r.w - 10) / 2} y={ty} className={mute ? "scn-chip-t is-mute" : "scn-chip-t"} textAnchor="middle" dominantBaseline="central" style={wo < 1 ? { opacity: wo } : undefined}>{b.lines[0] ?? b.label}</text>}</>; break;
     case "pointer": {
       // above its anchor it points down; below it, up
       const up = s.anchorY != null && r.y > s.anchorY;
@@ -603,7 +711,7 @@ function behind(g: Geom, t: number, d: number) {
 }
 // a send: an arrow that draws itself from source to target, a small token that travels the same way, or both. The
 // curves are the connectors' own (beside a connector when there is one); the label sits where the engine placed it
-function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Shown>; fin: Map<number, Box>; marks: Mark[]; p: number; o?: number }) {
+function Send({ g, at, fin, marks, p, o = 1, still }: { g: SendGeom; at: Map<number, Shown>; fin: Map<number, Box>; marks: Mark[]; p: number; o?: number; still?: boolean }) {
   const rs = g.path.map((k) => at.get(k));
   if (rs.some((x) => !x) || rs.length < 2) return null;
   const geo: Geom[] = rs.slice(1).map((b, k) => connGeom(endRect(rs[k]!), endRect(b!), rs[k]!.box.kind, b!.box.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null));
@@ -615,7 +723,7 @@ function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Sh
     // ends slide keeps its pace (a change of pace would make the browser jump every dot)
     const fb = g.path.map((k) => fin.get(k));
     const lenGeo = fb.every(Boolean) ? fb.slice(1).map((b, k) => connGeom(fb[k]!, b!, fb[k]!.kind, b!.kind, false, g.offs[k], g.bends[k] ?? 0, g.rts?.[k] ?? null)) : geo;
-    return <Stream g={g} geo={geo} lenGeo={lenGeo} marks={marks} p={p} o={o} />;
+    return <Stream g={g} geo={geo} lenGeo={lenGeo} marks={marks} p={p} o={o} still={still} />;
   }
   const arrow = g.show !== "token", token = g.show !== "arrow";
   // format version 10: shown both ways, the dot rides a little behind the arrow's head, so it never covers a head (its
@@ -643,11 +751,11 @@ function Send({ g, at, fin, marks, p, o = 1 }: { g: SendGeom; at: Map<number, Sh
 }
 // a stream: dots flow along the path for the whole step, on a faint track; the browser moves them (animateMotion),
 // so nothing re-renders per frame. With reduced motion they stand still, spread along the path
-function Stream({ g, geo, lenGeo, marks, p, o = 1 }: { g: SendGeom; geo: Geom[]; lenGeo: Geom[]; marks: Mark[]; p: number; o?: number }) {
+function Stream({ g, geo, lenGeo, marks, p, o = 1, still: stands }: { g: SendGeom; geo: Geom[]; lenGeo: Geom[]; marks: Mark[]; p: number; o?: number; still?: boolean }) {
   const d = geo.map((gg, k) => (k ? bezPath(gg).replace(/^M/, "L") : bezPath(gg))).join("");
   const len = Math.round(lenGeo.reduce((a, gg) => a + Math.hypot(gg.Q.x - gg.P.x, gg.Q.y - gg.P.y) * 1.15, 0) / 8) * 8;
   const n = Math.max(4, Math.min(10, Math.round(len / 45))), dur = Math.max(1.4, Math.min(4, len / 80));
-  const still = reducedMotion();
+  const still = !!stands || reducedMotion();
   const al = g.alabel != null ? marks[g.alabel] : null;
   const alq = al ? bezAt(geo[g.seg], g.t) : null;
   return (

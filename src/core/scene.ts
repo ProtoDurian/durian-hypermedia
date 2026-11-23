@@ -122,7 +122,7 @@ export interface SceneStep { caption: string; line: number; ops: Op[]; beat?: nu
 // phone: the phone's spacing (PHONE: the same type sizes, tighter padding, gaps and wrap widths), so more of a scene
 // fits a phone at a size where its words stay readable; the narrow layout always uses it
 // only3d (format version 10): the scene has no flat form; labels: the 3D labels rule, part (default) or all
-export interface Scene { attrs: { layout: string; dir: string; view: string; size: string; fill?: string; narrow?: boolean; phone?: boolean; only3d?: boolean; labels?: string }; setup: Op[]; steps: SceneStep[]; texts: string[]; subs?: SubScene[] }
+export interface Scene { attrs: { layout: string; dir: string; view: string; size: string; fill?: string; narrow?: boolean; phone?: boolean; only3d?: boolean; still?: boolean; labels?: string }; setup: Op[]; steps: SceneStep[]; texts: string[]; subs?: SubScene[] }
 
 // ---------------------------------------------------------------- lexing one line
 type Tok = { t: "str" | "arrow" | "kv" | "word"; v: string; k?: string };
@@ -201,7 +201,11 @@ export function parseScene(head: string, steps: { title: string; raw: string; li
     if (b > 0 && beat[beat.length - 1] !== b) errors.push({ line: thenLine, msg: "then starts the next beat of a step: put at least one change after it" });
     scene.steps.push({ caption: s.title, line: s.line, ops, beat, beats: b + 1, pace });
   }
-  if (steps.length < 2) errors.push({ line: base - 1, msg: "an animation needs at least 2 @step lines" });
+  // format version 11: no @step at all is a still scene: the setup, drawn once
+  if (!steps.length && !scene.subs?.length) {
+    scene.attrs.still = true;
+    if (!scene.setup.some((o) => o.op === "add") && !errors.length) errors.push({ line: base - 1, msg: 'a still scene needs something to draw: box api "API", or add 2 or more @step lines for a story' });
+  } else if (steps.length < 2) errors.push({ line: base - 1, msg: "an animation needs at least 2 @step lines (or none, for a still scene)" });
   return { scene, errors };
 }
 
@@ -559,6 +563,8 @@ export function play(scene: Scene): { states: State[]; fx: Fx[]; errors: SceneEr
     subs.push(sub);
     fx.push(f);
   }
+  // format version 11: a still scene is its setup, as one frame in which nothing moves
+  if (!scene.steps.length && scene.attrs.still) { states.push(clone(s)); subs.push([]); fx.push({ highlights: [], says: [], sends: [], spawn: {}, merge: {}, enter: [], touched: [], beats: 1 }); }
   return { states, fx, errors, subs };
 }
 
@@ -1511,7 +1517,11 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; size
     boxes.set(e.id, { key: e.key, id: e.id, kind: e.kind, label: e.label, ...r, depth: 99, container: false, parentKind: null, index: null, ent: e, head: 0, layer: lay(e.anchor), ly: r.y - bandY(e.anchor), size: "s", lines: [text], lbl: faint ? null : r, cc: ccOf(e.id), fill: fillOf(e.id), pcc: 0, ...(faint ? { faint } : {}), ...(hidden ? { hidden } : {}) });
   }
   const all = [...bandBoxes, ...boxes.values()];
-  const bounds = all.length ? union(all) : { x: 0, y: 0, w: Math.max(rw, 100), h: Math.max(rh, 60) };
+  // (format version 11) an arrow's label belongs to the scene too: one that sticks out of every box made the camera,
+  // which keeps within the scene, clip it to a letter
+  const shownKey = new Set([...boxes.values()].filter((b) => !b.hidden).map((b) => b.key));
+  const edgeWords = edges.filter((e) => e.lr && e.label && shownKey.has(e.from) && shownKey.has(e.to)).map((e) => e.lr as Rect);
+  const bounds = all.length ? union([...all, ...edgeWords]) : { x: 0, y: 0, w: Math.max(rw, 100), h: Math.max(rh, 60) };
   const focus = s.focus ? s.layers.findIndex((l) => l.id === s.focus) : -1;
   const onFocus = focus < 0 ? [] : banded ? bandBoxes.filter((b) => b.layer === focus) : all.filter((b) => b.layer === focus);
   const cam = s.camera ? union(s.camera.map((id) => boxes.get(id)).filter(Boolean) as Rect[]) : onFocus.length ? union(onFocus) : bounds;
@@ -1831,6 +1841,10 @@ export function cutBy(f: Frame, v: Rect): Rect[] {
     // (not in a close-up, camera close or zoom into: there its neighbours may be cut)
     if (!f.view?.close && b.container && b.w <= v.w && b.h <= v.h && hit(b, v, -1) && !inside(b, v)) rs.push(b);
   }
+  // (format version 11) an arrow's label, a send's label and speech are words too: the view takes them in whole or leaves them out
+  const drawn = new Set(f.boxes.filter((b) => !b.hidden && !b.faint).map((b) => b.key));
+  for (const e of f.edges) if (e.lr && e.label && drawn.has(e.from) && drawn.has(e.to) && hit(e.lr, v, -1) && !inside(e.lr, v)) rs.push(e.lr);
+  for (const m of f.marks) if ((m.kind === "say" || m.kind === "alabel") && hit(m.r, v, -1) && !inside(m.r, v)) rs.push(m.r);
   return rs.sort((p, q) => q.w * q.h - p.w * p.h);
 }
 const inside = (r: Rect, v: Rect) => r.x >= v.x - 0.5 && r.y >= v.y - 0.5 && r.x + r.w <= v.x + v.w + 0.5 && r.y + r.h <= v.y + v.h + 0.5;
@@ -2224,7 +2238,7 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
   // fix-edge) so may the phone layout, so a tall scene gets a tall phone stage instead of losing its top or bottom
   const aspect = Math.min(layered ? 1.5 : 2.4, Math.max(scene.attrs.narrow || scene.attrs.phone ? 0.62 : 1.25, all.w / Math.max(all.h, 1)));
   // an entity off-stage (a tree node whose parent is not in the tree) is caught here
-  for (const [i, st] of r.states.entries()) for (const e of Object.values(st.ents)) if (e.under && !st.ents[e.under]) errors.push({ line: scene.steps[i].line, msg: `${e.id} hangs under ${e.under}, which is gone` });
+  for (const [i, st] of r.states.entries()) for (const e of Object.values(st.ents)) if (e.under && !st.ents[e.under]) errors.push({ line: scene.steps[i]?.line ?? scene.setup[0]?.line ?? 1, msg: `${e.id} hangs under ${e.under}, which is gone` });
   // a token's chip is small: a long label is cut on the stage; say it in the caption or a note, or send an arrow
   const warnings: SceneError[] = [];
   const longTok = (label: string, line: number, what: string) => { if ([...label].length > TOKEN_CHARS) warnings.push({ line, msg: `${what} "${label}" is ${[...label].length} characters; a token shows at most about ${TOKEN_CHARS}, so the stage cuts it. Put the detail in the caption or a note, or write send arrow "..." (an arrow's label may be longer)` }); };
@@ -2293,6 +2307,8 @@ export function sceneLlm(c: Compiled): string {
     const of = (id: string) => [...Object.values(first.ents).filter((e) => e.family === id).map((e) => e.id), ...first.conns.filter((x) => x.family === id).map((x) => `${x.from} -> ${x.to}`)];
     lines.push(`Families, one colour each: ${first.families.map((k) => `${k.id}${k.label !== k.id ? ` "${k.label}"` : ""}${of(k.id).length ? ` (${of(k.id).join(", ")})` : ""}`).join("; ")}.`);
   }
+  // format version 11: a still scene is only what is there
+  if (c.scene.attrs.still) return lines.join(" ");
   // what moves in each step: sends, then (format version 9) what tokens do: move, split, merge, drop, and a zoom
   const r = play(c.scene);
   const before = (k: number) => (k ? r.states[k - 1] : first);

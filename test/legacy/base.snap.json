@@ -1186,7 +1186,7 @@
    "error 26 [part data] tier list: tier \"S\": the name \"<img src=x onerror=alert(1)>\" holds a bracket; put the whole name in quotes (\"<img src=x onerror=alert(1)>\") or move the bracket's text into a (note)",
    "error 33 [part data] codewalk has one @step; steps need at least 2 (or none; an editor may have one edit)",
    "error 41 [part data] animation has one @step; steps need at least 2 (or none; an editor may have one edit)",
-   "error 37 [part data] animation: an animation needs at least 2 @step lines",
+   "error 37 [part data] animation: an animation needs at least 2 @step lines (or none, for a still scene)",
    "warn 42 [part data] animation: the token's label \"<svg onload=alert(3)>\" is 21 characters; a token shows at most about 18, so the stage cuts it. Put the detail in the caption or a note, or write send arrow \"...\" (an arrow's label may be longer)"
   ],
   "charts": [

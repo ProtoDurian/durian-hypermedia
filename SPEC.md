@@ -1348,6 +1348,23 @@ light u1                                                   (a card takes the foc
 - **Caps:** 8 bands, 16 lanes, 12 items a cell, 120 items; reading and layout charge the document's work budget.
 
 
+### 6.14 Still scenes and a calm story (format version 11, graph engine)
+
+**A still scene** is an `animation` with no `@step`: its setup, drawn once. It has the stage and the design system, and no player, no toolbar, no camera, no pan and no zoom. A thing's note still opens by a tap: that is reading, not a control. The word `zoom` on the fence (`animation zoom`) gives it pan and zoom, and `3d` the 3D stage with its controls. A colour key stays. It shows whole: when it is too wide it runs top to bottom; when it is still too wide for its words at the least size (11 px), it keeps that size and scrolls sideways in its own box, with a fade on the side that has more and a "Swipe to see all of it" line (as a wide table does). A tall one is as tall as it is (the page scrolls); a short one is as short as its drawing and its margin. Its LLM view is its setup lines. One `@step` is refused (a story needs two or more); a still scene with nothing to draw is refused.
+
+**The reader's camera comes only when asked.** An animation with steps shows the 3D button, zoom in and out, show everything, drag and wheel to move, and the line that tells how, only when its fence says `zoom` or `3d`. Without them its own camera still follows the story, the steps keep their player and keys, and a note still opens by a tap.
+
+**A calm story.** On every scene:
+- A thing that takes no part in a step keeps its place to the pixel. Items of an array, list, queue or bucket travel on an arc only when they pass another item of their row (a queue that moves up when one leaves goes straight; two that trade places arc), on the step's own beat.
+- A step's first frame is its start: a step never runs back first, and a step with beats never flashes its end.
+- **One held view from one camera word to the next** (`zoom`, `camera`, `focus`, `enter`, a split): the steps in between share one view of everything they touch, so the camera moves only at a zoom in or out. Only where that view would draw words under the least size does it give way: it holds for as many steps as fit, then moves once. A zoomed step says so under its caption ("Zoomed in: router"). On a phone the stage grows a little (at most 680 px, and at most 82% of the window) where that, and only that, keeps the camera still between two zooms.
+- In 3D a thing that moves to another parent or floor rises along its way, with no hop; inside a zoom a thing outside what is zoomed into, and not touched in the held span, leaves the stage (nothing stands half cut at the stage's edge), and so does the layer plane.
+- **One focus at a time:** at rest only the tokens a step is about keep their words (the tokens its last line names, a split's pieces, else the tokens that take part); every other token keeps its pill. One token or none on the stage changes nothing.
+- A story whose view cuts the scene says so in words at that edge ("more beyond the edge"), as well as the shaded edge.
+- **Words are cut whole or not at all:** an arrow's label belongs to the scene's bounds, and a view that cuts an arrow's label, a send's label or speech counts it as cut, as it counts a thing's words.
+
+**Static** (SPEC 4.1) on the graph engine: `static`, `static=<n or title>` on the fence, or the page's or host's static, draws one step whole and flat, with no player, camera, hint or motion, a closed thing's inside in full, the step's caption and every caption in a closed list (open in print). Print and reduced motion switch it on. Its root carries `data-dh-static`.
+
 ## 7. Charts
 
 - **Kinds.** `bar`, `line`, `area` (a line with its fill): `x` lists the categories and each series' `data` holds one number per category (`null` leaves a gap). `scatter`: no category list; `data` is points `[x, y]`. `bubble`: points `[x, y, size]`; the bubble's area follows the size. `radar`: `x` names the axes (at least three), each series is one outline. `pie`, `doughnut`, `polar` (polar area): `x` names the slices, values are 0 or more, and the slice colours follow the default colour order. `candlestick` (format version 10): `x` lists the periods and the series with no `kind` holds one `[open, high, low, close]` per period (`null` leaves a gap). `x` is always the category (or point-x) axis and `y` always the value axis, also when `horizontal: true` turns them on their side.

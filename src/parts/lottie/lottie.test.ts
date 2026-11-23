@@ -5,8 +5,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, BudgetError, partLimitsOf } from "../../core/budget";
-import lottie, { parseLottie, lottieLlm } from "./part";
-import { checkLottieData, lottieNames, recolourLottie } from "./check";
+import lottie, { parseLottie, lottieLlm, lottieFiles } from "./part";
+import { checkLottieData, lottieForDrawing, lottieNames, recolourLottie } from "./check";
 
 const fence = (body: string, info = "") => `# Page\n\n\`\`\`lottie${info ? " " + info : ""}\n${body}\n\`\`\`\n`;
 const big = () => new Budget({ steps: 1e12, values: 1e12, chars: 1e12 });
@@ -155,4 +155,71 @@ test("the definition matches its folder", () => {
   expect(lottie.name).toBe("lottie");
   expect(lottie.steps).toBe(false);
   expect(lottie.dependencies).toEqual(["lottie-web"]);
+});
+
+describe("lottie: kept inside the part", () => {
+  const base = (over: any = {}) => ({ v: "5.7.0", fr: 30, ip: 0, op: 30, w: 100, h: 100, layers: [], assets: [], ...over });
+  const glyph = { ch: "A", size: 40, style: "Regular", w: 60, fFamily: "F", data: { shapes: [{ ty: "gr", it: [{ ty: "sh", ks: { a: 0, k: { c: true, i: [[0, 0], [0, 0], [0, 0]], o: [[0, 0], [0, 0], [0, 0]], v: [[0, 0], [30, -70], [60, 0]] } } }, { ty: "fl", c: { a: 0, k: [0, 0, 0, 1] }, o: { a: 0, k: 100 } }, { ty: "tr", p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 } }] }] } };
+  const font = (over: any = {}) => ({ fName: "F", fFamily: "F", fStyle: "Regular", ascent: 75, origin: 0, fPath: "", fClass: "", ...over });
+  const textLayer = { ddd: 0, ind: 1, ty: 5, nm: "t", ks: { o: { a: 0, k: 100 }, p: { a: 0, k: [20, 80, 0] }, a: { a: 0, k: [0, 0, 0] }, s: { a: 0, k: [100, 100, 100] }, r: { a: 0, k: 0 } }, ip: 0, op: 30, st: 0, t: { d: { k: [{ s: { s: 40, f: "F", t: "A", j: 0, tr: 0, lh: 48, ls: 0, fc: [0, 0, 0] }, t: 0 }] }, p: {}, m: { g: 1, a: { a: 0, k: [0, 0] } }, a: [] } };
+  const good = () => base({ fonts: { list: [font()] }, chars: [glyph], layers: [textLayer] });
+  const why = (j: any) => checkLottieData(j, 100, big(), CAPS);
+  test("kept: text the file draws itself", () => { expect(why(good())).toBeNull(); expect(why(base({ fonts: { list: [font({ fOrigin: "n" })] }, chars: [glyph], layers: [textLayer] }))).toBeNull(); });
+  test("refused (1)", () => {
+    for (const f of [font({ fOrigin: "g", fPath: "https://fonts.example/a.css" }), font({ fOrigin: "t", fPath: "https://fonts.example/a.js" }), font({ fOrigin: "p", fPath: "a.ttf" }), font({ origin: 1, fPath: "a.css" }), font({ fPath: "a.css" })]) {
+      expect(why(base({ fonts: { list: [f] }, chars: [glyph] }))).toMatch(/^fonts: font 1 .*\(fPath\)/);
+      expect(why(base({ fonts: { list: [f] } }))).toMatch(/^fonts: /);
+    }
+  });
+  test("refused (2)", () => {
+    for (const f of [font({ fOrigin: "g" }), font({ fOrigin: "p" }), font({ fOrigin: "t" }), font({ origin: 3 }), font({ origin: 2 }), font({ fOrigin: "x" })]) expect(why(base({ fonts: { list: [f] }, chars: [glyph] }))).toMatch(/^fonts: font 1 .*\((fOrigin|origin)\)/);
+    expect(why(base({ fonts: { list: [font({ fClass: "fixed inset-0" })] }, chars: [glyph] }))).toMatch(/^fonts: font 1 .*\(fClass\)/);
+  });
+  test("refused (3)", () => {
+    expect(why(base({ fonts: { list: [font()] } }))).toMatch(/^fonts: .*\(chars\)/);
+    expect(why(base({ layers: [textLayer] }))).toMatch(/text layer .*\(chars\)/);
+    expect(why(base({ fonts: 1 }))).toMatch(/^fonts: /);
+    expect(why(base({ fonts: { list: [1] }, chars: [glyph] }))).toMatch(/^fonts: /);
+    expect(why(base({ fonts: { list: [] } }))).toBeNull();
+  });
+  test("refused (4)", () => {
+    expect(why(base({ segments: [{ time: 1 }] }))).toMatch(/^segments: /);
+    expect(why(base({ layers: [{ ty: 6, ind: 1, ks: {}, refId: "a" }] }))).toMatch(/sound layer/);
+    expect(why(base({ layers: [{ ty: 15, ind: 1, ks: {}, refId: "a" }] }))).toMatch(/footage/);
+    expect(why(base({ assets: [{ id: "a", t: 3, e: 1, p: "data:image/png;base64,AAAA" }] }))).toMatch(/footage/);
+  });
+  test("checked: every asset the player would load", () => {
+    for (const layers of [null, 0, false, ""]) expect(why(base({ assets: [{ id: "a", layers, u: "", p: "https://img.example/a.png" }] }))).toMatch(/loads an image/);
+    expect(why(base({ assets: [{ id: "a" }] }))).toMatch(/loads an image/);
+    expect(why(base({ assets: [{ id: "a", layers: {} }] }))).toMatch(/^assets: /);
+    expect(why(base({ assets: [{ id: "c", layers: [] }] }))).toBeNull();
+  });
+  test("checked: the whole file", () => {
+    const expr = { a: 0, k: 1, x: "var $bm_rt = 1;" };
+    expect(why(base({ chars: [{ ...glyph, data: { shapes: [{ ty: "gr", it: [{ ty: "fl", c: { a: 0, k: [0, 0, 0, 1] }, o: expr }] }] } }] }))).toMatch(/expression/);
+    expect(why(base({ slots: { s: { p: expr } } }))).toMatch(/expression/);
+    expect(why(base({ chars: [{ ch: "B", t: 1, data: { refId: "c", layers: [{ ty: 6, ind: 1, ks: {} }] } }] }))).toMatch(/sound layer/);
+  });
+  test("kept inside the part: the copy the player draws", () => {
+    const j: any = good();
+    j.layers[0].ln = "dh-config"; j.layers[0].cl = "fixed"; j.fonts.list[0].fClass = ""; j.fonts.list[0].extra = "x";
+    j.layers.push({ ty: 4, ind: 2, ks: {}, shapes: [{ ty: "gr", ln: "x", cl: "y", it: [] }], masksProperties: [{ cl: false, mode: "a", pt: { a: 0, k: {} } }] });
+    j.segments = [];
+    const out: any = lottieForDrawing(j, big());
+    expect(JSON.stringify(out)).not.toMatch(/"(ln|cl|fPath|fClass|fOrigin|origin|extra|segments)":"/);
+    expect(out.segments).toBeUndefined();
+    expect(out.fonts.list).toEqual([{ fName: "F", fFamily: "F", fStyle: "Regular", ascent: 75 }]);
+    expect(out.layers[1].masksProperties[0].cl).toBe(false);
+    expect(out.chars).toEqual([glyph]);
+  });
+  test("the part check names what it refused", () => {
+    const l = p("alt: x", { src: "a.json" });
+    const [ref] = lottieFiles(l, 3);
+    const bad = base({ fonts: { list: [font({ fOrigin: "g", fPath: "https://fonts.example/a.css" })] }, chars: [glyph] });
+    expect(ref.check!({ size: 100, json: bad } as any)).toEqual([expect.stringMatching(/^a\.json: fonts: font 1 .*refused.*\(fPath\)/)]);
+  });
+  test("the copy the player draws: twice the file costs at most about twice", () => {
+    const cost = (n: number) => { const b = big(); lottieForDrawing(base({ layers: Array.from({ length: n }, (_, i) => ({ ty: 4, ind: i, ks: {}, ln: "a", shapes: [] })) }), b); return b.steps + b.values; };
+    for (const n of [50, 200, 800]) { const r = cost(2 * n) / cost(n); expect(r).toBeGreaterThan(1.5); expect(r).toBeLessThan(2.3); }
+  });
 });

@@ -20,6 +20,7 @@ const lottie = { v: "5.7.0", fr: 30, ip: 0, op: 60, w: 100, h: 100, assets: [], 
 writeFileSync(join(root, "docs/media/data.csv"), csv);
 writeFileSync(join(root, "docs/media/ok.json"), JSON.stringify(lottie));
 writeFileSync(join(root, "docs/media/expr.json"), JSON.stringify({ ...lottie, layers: [{ ty: 4, ks: { o: { a: 0, k: 1, x: "var $bm_rt = 1;" } } }] }));
+writeFileSync(join(root, "docs/media/fonts.json"), JSON.stringify({ ...lottie, fonts: { list: [{ fName: "A", fFamily: "A", fStyle: "Regular", fOrigin: "g", fPath: "https://fonts.example/a.css" }] }, chars: [] }));
 writeFileSync(join(root, "docs/media/broken.json"), "{ not json");
 writeFileSync(join(root, "docs/media/talk.mp3"), "ID3");
 writeFileSync(join(root, "docs/media/poster.jpg"), "jpg");
@@ -114,6 +115,7 @@ describe("every refusal names the line and the fix", () => {
   test("a Lottie that is not JSON, has an expression, or lacks a colour slot", () => {
     expect(msgs(lot("media/broken.json"))).toEqual(["lottie: media/broken.json is not valid JSON"]);
     expect(has(msgs(lot("media/expr.json")), /lottie: media\/expr\.json: the file has an expression/)).toBe(true);
+    expect(has(msgs(lot("media/fonts.json")), /^lottie: media\/fonts\.json: fonts: font 1 is refused: .*\(fPath\)/)).toBe(true);
     expect(has(msgs(lot("media/ok.json", "alt: A box.\ncolours: dh-nope = c1")), /lottie: colours: media\/ok\.json has no layer or shape named "dh-nope" \(names it has: dh-c1, dh-warn\)/)).toBe(true);
   });
   test("audio and video: a missing poster, caption file, thumbs file or peaks file", () => {

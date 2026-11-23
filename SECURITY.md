@@ -219,6 +219,8 @@ Measured doubling ratios for counted work: response copying 2.15, address policy
 `test/media-fetch.test.ts` and `test/media-loads.test.tsx` check these costs and caps.
 Importing the package leaves the host's Lottie globals and timers alone; the Lottie player initializes when drawn
 (`test/media-imports.test.ts`). Browser-managed audio and video playback use the browser's streaming loader.
+A Lottie file is kept inside its part: what the check refuses is named, and the page outside the part is unchanged
+(`test/lottie-host.test.ts`, in a browser under strict Trusted Types).
 
 ## Content-Security-Policy
 

@@ -58,6 +58,7 @@ read the same text and draw the same things.
 - The Node entry checks the paths it is given more strictly, and its checksum message says only that the checksum differs.
 - A glossary meaning's links go through the host's `urlPolicy`.
 - Media parts cap the bytes they read while reading and ask the host's `image` policy for their addresses (download cards use its `link` policy); new caps for captions, thumbnails and transcripts (SECURITY.md, Media).
+- A Lottie file is kept inside its part (SECURITY.md, Media).
 - A backslash-quote inside a double-quoted attribute is a quote, read by one linear scan.
 - The CSP check and part-check serve on a port the system says is free, stop when their page server did not start, and
   their headless browser never outlives its runner and removes its own profile and temporary folders.

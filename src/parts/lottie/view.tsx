@@ -1,13 +1,14 @@
 // The Lottie part (format version 11): lottie-web's light build (no expressions, so no eval), loaded when the part scrolls
 // near. Our own controls (play, pause, a slider, speed, replay). It plays while on screen and stops off it; with reduced
 // motion (or start=paused) it shows a still frame. The file is checked at load against the caps (size, frames, layers,
-// no expressions, no remote assets) before the library is even fetched. Colour slots named dh-c1 ... take the theme.
+// no expressions, nothing loaded from outside the file) before the library is even fetched; the player draws only inside
+// the part. Colour slots named dh-c1 ... take the theme.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Budget } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, Menu, STR, cssVar, toneVar, useMediaUrl, useNear, useReducedMotion, useThemeTick } from "../downloads/media-ui";
 import { mediaText } from "../downloads/media-fetch";
-import { checkLottieData, recolourLottie } from "./check";
+import { checkLottieData, lottieForDrawing, recolourLottie } from "./check";
 import type { LottieSpec } from "./part";
 
 const H = { s: 160, m: 260, l: 380 } as const;
@@ -33,14 +34,15 @@ export default function LottieView({ data: spec }: PartViewProps<LottieSpec>) {
   const build = useCallback(async (resume: number | null) => {
     const h = holder.current, r = root.current; if (!h || !r || !raw.current) return;
     const lottie = (await import("lottie-web/build/player/lottie_light")).default as any;
-    const data = JSON.parse(raw.current);
+    // kept inside the part
+    const data = lottieForDrawing(JSON.parse(raw.current), scratch(caps.nodes));
     if (spec.colours.length) {
       const map: Record<string, [number, number, number]> = {};
       for (const c of spec.colours) { const rgb = cssToRgb(cssVar(r, toneVar(c.tone))); if (rgb) map[c.name] = rgb; }
       recolourLottie(data, map, scratch(caps.nodes));
     }
     anim.current?.destroy(); h.textContent = "";
-    const a = lottie.loadAnimation({ container: h, renderer: "svg", loop: spec.loop, autoplay: false, animationData: data, rendererSettings: { preserveAspectRatio: "xMidYMid meet", progressiveLoad: false } });
+    const a = lottie.loadAnimation({ container: h, renderer: "svg", loop: spec.loop, autoplay: false, autoloadSegments: false, animationData: data, rendererSettings: { preserveAspectRatio: "xMidYMid meet", progressiveLoad: false } });
     anim.current = a; total.current = a.totalFrames || Math.max(1, (data.op ?? 0) - (data.ip ?? 0));
     a.setSpeed(speed);
     if (slider.current) { slider.current.max = String(Math.max(1, Math.round(total.current) - 1)); }

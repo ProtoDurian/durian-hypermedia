@@ -7,6 +7,14 @@ import { rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { buildCss } from "./build-css";
 
+// Bun builds the server and node entries with development JSX when NODE_ENV is unset or "development" as Bun starts,
+// whatever `jsx.development` says, and setting it from inside is too late: so the build runs itself again as production
+// (a test runner sets NODE_ENV=test, which hid this).
+if (process.env.NODE_ENV !== "production") {
+  const again = Bun.spawnSync([process.execPath, ...process.argv.slice(1)], { env: { ...process.env, NODE_ENV: "production" }, stdout: "inherit", stderr: "inherit" });
+  process.exit(again.exitCode ?? 1);
+}
+
 const PKG = resolve(import.meta.dir, "..");
 const pkg = await Bun.file(join(PKG, "package.json")).json();
 const entries = Object.entries(pkg.exports as Record<string, any>).filter(([, v]) => typeof v === "object" && v.bun && !(v.bun as string).startsWith("./src/node/")).map(([, v]) => join(PKG, v.bun as string));

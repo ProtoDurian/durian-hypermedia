@@ -13,7 +13,7 @@ const heads = (...t: string[]) => t.map((x) => `## ${x}`).join("\n\n");
 
 describe("slug()", () => {
   // VERSION equals package.json and the CHANGELOG (pure.test.ts); here only that it is a version
-  test("is exported from the package entry", () => { expect(typeof slug).toBe("function"); expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/); });
+  test("is exported from the package entry", () => { expect(typeof slug).toBe("function"); expect(VERSION).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$/); });
   test("punctuation is dropped, not turned into a dash", () => {
     expect(slug("cyan.yaml")).toBe("cyanyaml");
     expect(slug("Case: big file")).toBe("case-big-file");

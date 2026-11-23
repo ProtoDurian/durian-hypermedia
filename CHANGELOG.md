@@ -4,10 +4,34 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
-## Unreleased (0.7.0)
+## 0.7.0-rc.1
+
+A release candidate of 0.7.0. It holds what has passed review so far; 0.7.0 itself may still change before it is final,
+and the package's new name comes with 0.7.0, not with this candidate. The format number (`FORMAT_VERSION`,
+`doc.format`) stays 10 in this candidate; it becomes 11 with 0.7.0, when SPEC.md is renumbered (the additions marked
+"format version 11" below and in SPEC.md are already here). Every format 10 page, fixture
+and sample parses, checks and renders as in 0.6.2, apart from the parts that moved into folders (listed below), which
+read the same text and draw the same things.
 
 ### Added
 
+- **One folder per part.** A part is a folder under `src/parts/<name>/` with its parser, its view, its LLM view, its
+  doccheck rules, its tests and its own sample; `bun run parts` generates the lists that load them, and `bun run
+  part-check <name>` builds its sample and checks it in a browser (1280 and 390, light and dark, strict Trusted Types).
+  A part's parse context carries the page's front matter (read-only); a part may claim more fences, chart kinds and
+  bare-word flags, may name the local files its data refers to, and may be exempt from the 400-token rule. The
+  generator refuses a folder named `svg` or `interactive` (they exist only as references).
+- **Parts in folders:** fishbone, sankey, timeline, venn, sequence, gantt, wardley, flame, trace, stacktrace, log,
+  explore, compare, compare-image, gallery, downloads, audio, video, lottie, pdf, and `chart-kinds` (histogram,
+  boxplot, violin, funnel, waterfall, treemap, sunburst, calendar). The core chart gains steps, a time axis with time
+  zones, annotations, number formats, a heatmap, line styles, a scale switch and a calculator.
+- **Inline parts** on one hook in the Markdown core: the `:spark` sparkline in a sentence, and the **glossary**
+  (a block of terms; each term's first use in a section is marked and opens its card; `ParseOptions.glossary` lets a
+  host hand in a word list, which the page's own definition overrides).
+- **A Node-only entry** `durian-hypermedia/node` that checks the local files media parts name: sizes, checksums,
+  Lottie contents, PDF pages and that every path exists. `parse` and the browser never call it.
+- **A part budget can carry the part's name**, so a refusal says which part ran out; without a name the words stay the
+  same.
 - **References** (format version 11, SPEC.md section 8a): `[[<type>:<name> "label"]]` stands for a part the host keeps.
   On its own paragraph it is a block, in a sentence a chip, in code text. `parse(text, { resolveReference })` asks the
   host, which answers pending, ready (the part's source, read with the same caps and budgets as an inline part and drawn
@@ -20,6 +44,19 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 - **Caps** `maxReferences` (500; 100 in `UNTRUSTED_LIMITS`), `maxReferenceBytes` (1,000,000; 400,000),
   `maxSvgBytes` (200,000; 100,000), `maxInteractiveBytes` (204,800). Each reference charges the page budget.
 - **Block types** `ReferenceBlock`, `SvgBlock`, `InteractiveBlock`; inline `{ t: "reference" }`; tokens `--ref-*`, `--ix-*`.
+
+### Changed
+
+- **New dependencies**, pinned: `lottie-web` 5.13.0 (light build), `pdfjs-dist` 6.5.438 and `chartjs-chart-matrix`
+  3.1.0. Each is loaded only by the part that needs it; the Markdown renderer loads only the inline parts' views.
+- The sankey fits its card, keeps room for its end labels and no longer changes height when it loads.
+
+### Fixed
+
+- A backslash-quote inside a double-quoted attribute is a quote, read by one linear scan.
+- The CSP check and part-check serve on a port the system says is free, stop when their page server did not start, and
+  their headless browser never outlives its runner and removes its own profile and temporary folders.
+- An interactive frame reports its body's height, so it also shrinks to fit.
 
 ## 0.6.2
 

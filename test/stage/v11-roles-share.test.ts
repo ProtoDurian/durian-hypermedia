@@ -65,6 +65,7 @@ describe("roles may share a colour across a page", () => {
 });
 
 describe("two parts on one page, dark: every role resolves and each part's panel words keep their contrast", () => {
+  beginDocument(); // its own page budget: this runs when the file loads, after whatever the file before it spent
   const d = page(SCENE_A + "\n\nSome words between the scenes.\n\n" + SCENE_B);
   const stages = jsonOf(d).blocks.filter((b: any) => b.type === "animation").map((b: any) => b.stage);
   test("both parts are stages that carry the whole page's roles", () => {

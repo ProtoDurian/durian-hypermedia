@@ -31,6 +31,8 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 | `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; mermaid drawn by your `Mermaid` slot; no mermaid, no DOMPurify, no HTML-string sink |
 | `durian-hypermedia/react/document` | React | `DocumentView`: the document with only the parts you pass |
 | `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `mermaid-host` (no library), `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
+| `durian-hypermedia/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
+| `durian-hypermedia/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
 | `durian-hypermedia/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
 | `durian-hypermedia/styles.css` | CSS | every rule under `.dh-doc` |
 
@@ -243,6 +245,39 @@ const doc = parse(text, { blocks: [taskBlock], inlines: [fileRef] });
 - The host's `parse` gets untrusted text: keep it pure, and keep `match` simple (it runs over all prose).
 - The example site and the tests use exactly this: `example/host-block.tsx`, `fixtures/host-block.dh.md`,
   `test/host.test.tsx`.
+
+## 8a. References: parts the host keeps (format version 11)
+
+A page may hold `[[<type>:<name> "label"]]` instead of a part (SPEC.md section 8a): on its own paragraph a block, in a
+sentence a chip. `svg` and `interactive` exist only as references, so raw SVG and HTML never sit in a conversation.
+The package never fetches: the host keeps the parts and answers for them.
+
+```ts
+const answer: ResolveReference = ({ type, name }) => {
+  const p = store.get(`${type}:${name}`);           // the host's own store; nothing is fetched here
+  if (!p) return { state: "failed", reason: "no such part" };
+  if (!p.done) return { state: "pending" };          // a helper is still making it
+  return { state: "ready", part: p.source };         // the part as written inline, or only its body
+};
+const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
+```
+
+- **Pending, then ready.** Answer pending while the part is being made; when it is ready, parse the same text again and
+  render the new Document. A server can resolve before it sends the page (pre-render); the browser only draws.
+- **The same caps as inline.** A ready part is read by the same part reader, with the page's caps and budgets, on the
+  reference's line. A host may lower `maxReferences`, `maxReferenceBytes`, `maxSvgBytes` and `maxInteractiveBytes`.
+- **The LLM view keeps the reference as written** (`[[chart:sales "Sales"]]`), resolved or not: an agent that reads
+  the conversation sees the label and the reference, never the part's code.
+- **svg** is drawn only through an `<img>` with a `data:` address; a host CSP needs `img-src data:` for it.
+- **interactive** is off unless the host turns it on:
+  `<DhDocument doc={doc} interactive="on" components={{ interactive: InteractivePart }} />` with
+  `InteractivePart` from `durian-hypermedia/react/interactive` (`"static"` draws it with no script). Under Trusted
+  Types add `dh-interactive` to the page's `trusted-types` list. **Set `frame-src 'none'`** in the page's CSP: the
+  frame still loads, and a script that navigates it can make no request (without it, one request leaves before the
+  frame is stopped; SECURITY.md). The frame keeps the page's CSP: with no
+  `'unsafe-inline'` for scripts the part stops at its 5 second check and the still stays.
+- **Looks.** Tokens `--ref-chip-*`, `--ref-pending-*`, `--ref-failed-*`, `--ref-refused-*`, `--ix-*`
+  (`src/ui/refs.css`); words `refPending`, `refFailed`, `refRefused`, `ixOff` in `ui`.
 
 ## 9. Fixtures for a visual matrix
 

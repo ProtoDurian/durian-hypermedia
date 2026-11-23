@@ -1,0 +1,81 @@
+/* References (format version 11): the chip, the pending and failed cards, an SVG drawn through an <img>, an interactive
+   part's frame and still. Colours, radii and sizes are tokens (each defaults to a base token, so a host's base theme
+   carries them); a host sets these to change references only. */
+:root {
+  --ref-chip-bg: var(--surface-2);
+  --ref-chip-ink: var(--ink-2);
+  --ref-chip-border: var(--line);
+  --ref-type-ink: var(--muted);
+  --ref-pending-bg: var(--info-soft);
+  --ref-pending-ink: var(--info-ink);
+  --ref-pending-border: var(--info);
+  --ref-failed-bg: var(--warn-soft);
+  --ref-failed-ink: var(--warn-ink);
+  --ref-failed-border: var(--warn);
+  --ref-refused-bg: var(--bad-soft);
+  --ref-refused-ink: var(--bad-ink);
+  --ref-refused-border: var(--bad);
+  --ref-radius: var(--r-pill);
+  --ref-card-radius: var(--r-s);
+  --ref-card-pad: var(--s-3);
+  --svg-max-h: 80vh;
+  --ix-frame-border: var(--line);
+  --ix-frame-radius: var(--r-m);
+  --ix-off-chip: var(--surface-2);
+  --ix-off-ink: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ref-chip-bg: var(--surface-3);
+    --ref-chip-border: var(--line-2);
+    --ix-off-chip: var(--surface-3);
+  }
+}
+:root[data-theme="dark"] {
+  --ref-chip-bg: var(--surface-3);
+  --ref-chip-border: var(--line-2);
+  --ix-off-chip: var(--surface-3);
+}
+
+.dh-xref {
+  display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%;
+  padding: 1px 9px; border: 1px solid var(--ref-chip-border); border-radius: var(--ref-radius);
+  background: var(--ref-chip-bg); color: var(--ref-chip-ink); font-size: .92em; line-height: 1.5; vertical-align: baseline;
+}
+.dh-xref-type { font: 600 11px/1.2 var(--font-mono); color: var(--ref-type-ink); letter-spacing: .02em; }
+.dh-xref-label { overflow-wrap: anywhere; min-width: 0; }
+.dh-xref-state { font-size: 12px; font-weight: 600; }
+.dh-xref[data-state="pending"] { border-style: dashed; border-color: var(--ref-pending-border); background: var(--ref-pending-bg); color: var(--ref-pending-ink); }
+.dh-xref[data-state="failed"] { border-color: var(--ref-failed-border); background: var(--ref-failed-bg); color: var(--ref-failed-ink); }
+.dh-xref[data-state="refused"] { border-color: var(--ref-refused-border); background: var(--ref-refused-bg); color: var(--ref-refused-ink); }
+.dh-xref[data-state="pending"] .dh-xref-type, .dh-xref[data-state="failed"] .dh-xref-type, .dh-xref[data-state="refused"] .dh-xref-type { color: inherit; opacity: .8; }
+.dh-xref-line { margin: var(--s-3) 0; }
+.dh-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.dh-xref-card {
+  display: flex; gap: var(--s-3); align-items: flex-start; margin: var(--s-4) 0; padding: var(--ref-card-pad);
+  border: 1px solid var(--ref-pending-border); border-radius: var(--ref-card-radius);
+  background: var(--ref-pending-bg); color: var(--ref-pending-ink); font-size: var(--fs-s); line-height: 1.45;
+}
+.dh-xref-card[data-state="pending"] { border-style: dashed; }
+.dh-xref-card[data-state="failed"] { border-color: var(--ref-failed-border); background: var(--ref-failed-bg); color: var(--ref-failed-ink); }
+.dh-xref-card .dh-xref-type { color: inherit; opacity: .8; }
+.dh-xref-card .dh-xref-label { color: var(--ink); font-weight: var(--w-strong); }
+.dh-xref-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dh-xref-note { overflow-wrap: anywhere; }
+.dh-xref-mark { flex: none; width: 10px; height: 10px; margin-top: .4em; border-radius: 50%; background: currentColor; }
+.dh-xref-card[data-state="pending"] .dh-xref-mark { animation: dh-ref-pulse 1.2s ease-in-out infinite; }
+.dh-xref-card[data-state="failed"] .dh-xref-mark { border-radius: 2px; }
+@keyframes dh-ref-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .dh-xref-card[data-state="pending"] .dh-xref-mark { animation: none; } }
+
+.dh-svg { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); }
+.dh-svg-img { display: block; max-width: 100%; height: auto; max-height: var(--svg-max-h); }
+.dh-svg-title { font-size: var(--fs-xs); color: var(--muted); }
+
+.dh-ix { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-3); border: 1px solid var(--ix-frame-border); border-radius: var(--ix-frame-radius); min-width: 0; }
+.dh-ix-title { font-weight: var(--w-strong); color: var(--ink); }
+.dh-ix-frame { display: block; width: 100%; border: 0; background: transparent; }
+.dh-ix-fallback > :first-child { margin-top: 0; }
+.dh-ix-fallback > :last-child { margin-bottom: 0; }
+.dh-ix-chip { align-self: flex-start; display: inline-flex; align-items: center; min-height: 24px; padding: 0 10px; border-radius: var(--r-pill); background: var(--ix-off-chip); border: 1px solid var(--line); color: var(--ix-off-ink); font-size: 12px; }

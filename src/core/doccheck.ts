@@ -155,7 +155,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   for (const ref of (doc.fm?.code ?? []) as string[]) { const e = checkCodeRef(doc, ref, src); if (e) err(1, "code references", `front matter code: ${e}`); }
   visit(doc.body, "page");
   const isDh = doc.path.endsWith(".dh.md");
-  if (isDh && !partsSeen) err(1, "parts known", `a .dh.md page with no part and no human-only segment; name it .md`);
+  if (isDh && !partsSeen && !doc.refs) err(1, "parts known", `a .dh.md page with no part and no human-only segment; name it .md`);
   if (!isDh && partsSeen) err(1, "parts known", `a .md page holds a part; name it .dh.md`);
 }
 function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: number, m: string) => void): void {

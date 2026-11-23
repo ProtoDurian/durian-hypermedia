@@ -86,6 +86,7 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | `frontMatter` | `true` | `false`: a leading `---` block is Markdown (a rule and text the reader sees), not front matter |
 | `marks` | none | own file tree marks for every page, as the front matter `marks:` writes them (ADOPT.md); a page's own entry wins |
 | `prefixes` | none | own terminal prompts for every page, as the front matter `prefixes:` writes them |
+| `resolveReference({ type, name })` | none | answers for the page's references, `[[chart:sales "Sales"]]` (format version 11): `{ state: "pending" }`, `{ state: "ready", part }` (the part's source, read with the same caps as an inline part) or `{ state: "failed", reason }`; it never fetches. Without it a reference shows its label as a chip (SPEC.md section 8a, ADOPT.md) |
 
 **Time and memory grow linearly with the input**, for plain Markdown and for every part: twice the text takes about
 twice as long, whatever it holds. A typical 10 KB reply parses in about 2 ms and a 100 KB one in about 20 ms on a server

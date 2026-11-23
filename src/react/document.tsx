@@ -13,6 +13,7 @@ import type { Block, Document, HostBlock } from "../types";
 import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type Slots, cx } from "./context";
 import { Md } from "./markdown";
 import { Turn } from "./turn";
+import { ReferencePart } from "./reference";
 
 export interface DocumentProps {
   doc: Document;
@@ -41,6 +42,9 @@ export interface DocumentProps {
   llmPeek?: boolean;
   /** draw every folder part that steps or moves static: "" the finished state, "<n>" step n, or a step's title */
   static?: import("../parts/types").StaticProp;
+  /** an interactive part a reference resolved to: "off" (the default) shows its still; "static" draws its HTML and CSS
+   *  in a sandboxed frame with no script; "on" runs it there. Needs InteractivePart from durian-hypermedia/react/interactive */
+  interactive?: "off" | "static" | "on";
   className?: string;
 }
 
@@ -64,6 +68,8 @@ export function Blocks({ blocks }: { blocks: Block[] }): React.ReactElement {
   return <>{blocks.map((b, i) => {
     if (b.type === "markdown") return <Md key={i} blocks={b.md} />;
     if (b.type === "error") return <slots.Error key={i} block={b} />;
+    // a reference (format version 11): when ready, its part through this same dispatch; else its chip or card
+    if (b.type === "reference") return b.state === "ready" && b.blocks?.length ? <div key={i} className="dh-xref-part" data-dh-ref-type={b.ref.type} data-dh-ref-name={b.ref.name}><Blocks blocks={b.blocks} /></div> : <ReferencePart key={i} block={b} />;
     if (b.type === "toc") return b.items.length ? <nav key={i} className={`toc-block toc-${b.scope}`} aria-label="Contents"><ol>{b.items.map((h, k) => <li key={k} className={`toc-${h.depth}`}><a href={`#${h.id}`}>{h.text}</a></li>)}</ol></nav> : null;
     if (b.type === "human") { const C = components.human; return C ? <C key={i} block={b} /> : <Fallback key={i} block={b} />; }
     const C = (b.type === "host" ? HostPart : components[b.type]) as React.ComponentType<{ block: Block }> | undefined;
@@ -83,7 +89,8 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     llmPeek: !!p.llmPeek,
     demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
     static: p.static,
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static]);
+    interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive]);
   const { doc } = p;
   return (
     <DhContext.Provider value={settings}>

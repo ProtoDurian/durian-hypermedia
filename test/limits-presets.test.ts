@@ -18,8 +18,8 @@ function chartOf(nodes: number, chars: number): { text: string; yaml: string } {
 const yamlRefused = (d: ReturnType<typeof parse>) => d.problems.filter((p) => /YAML/.test(p.message)).length + d.blocks.filter((b: any) => /YAML/.test(String(b.initial?.error ?? (b.type === "error" ? b.message : "")))).length;
 
 describe("the two sets of caps", () => {
-  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML and animation caps", () => {
-    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork", "maxChartAnnotations", "maxChartSteps", "maxChartHeatCells", "maxCalcRows", "maxCalcInputs"] as const;
+  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML, animation, chart and reference caps", () => {
+    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork", "maxChartAnnotations", "maxChartSteps", "maxChartHeatCells", "maxCalcRows", "maxCalcInputs", "maxReferences", "maxReferenceBytes", "maxSvgBytes"] as const;
     for (const k of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
       if (k in PART_LIMITS) continue; // a folder part's own caps: test/parts.test.ts checks the strict one is no higher
       if ((smaller as readonly string[]).includes(k)) expect(UNTRUSTED_LIMITS[k]).toBeLessThan(LIMITS[k]);

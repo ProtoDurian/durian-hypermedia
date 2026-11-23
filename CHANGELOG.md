@@ -4,6 +4,23 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## Unreleased (0.7.0)
+
+### Added
+
+- **References** (format version 11, SPEC.md section 8a): `[[<type>:<name> "label"]]` stands for a part the host keeps.
+  On its own paragraph it is a block, in a sentence a chip, in code text. `parse(text, { resolveReference })` asks the
+  host, which answers pending, ready (the part's source, read with the same caps and budgets as an inline part and drawn
+  by the same part dispatch) or failed. No resolver: the label as a chip. The LLM view keeps the reference as written.
+- **`svg` and `interactive` exist only as references.** An SVG is drawn only through an `<img>`. An interactive part
+  runs in a sandboxed frame with an empty origin, no network and no storage, only when the host turns it on
+  (`interactive="on"` and `InteractivePart` from the new entry `durian-hypermedia/react/interactive`, the only module
+  with a Trusted Types policy, `dh-interactive`). A fenced ```` ```svg ```` or ```` ```interactive ```` is refused, naming the
+  reference form.
+- **Caps** `maxReferences` (500; 100 in `UNTRUSTED_LIMITS`), `maxReferenceBytes` (1,000,000; 400,000),
+  `maxSvgBytes` (200,000; 100,000), `maxInteractiveBytes` (204,800). Each reference charges the page budget.
+- **Block types** `ReferenceBlock`, `SvgBlock`, `InteractiveBlock`; inline `{ t: "reference" }`; tokens `--ref-*`, `--ix-*`.
+
 ## 0.6.2
 
 A security fix: the text of a page is read in time linear in its length, and the work that cannot be (a YAML parser's,

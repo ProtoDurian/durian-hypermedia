@@ -11,6 +11,8 @@ export { defineBlock, registerBlock, unregisterBlock, type BlockDef, type BlockI
 export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";
 export { setYamlParser } from "./host/yaml";
 export { CALLOUT_WORDS, inlineText, slug, type InlineDef } from "./markdown";
+export { REFERENCE_ONLY, REF_NAME_MAX, isReferenceType, nameProblem as referenceNameProblem, refText as referenceText } from "./core/refs";
+export { answerOf as referenceAnswer, type ResolveReference, type ReferenceQuery, type ReferenceAnswer } from "./refs";
 import type { InlineDef } from "./markdown";
 import { FOLDER_PART_NAMES } from "./parts/generated/registry";
 /** Make an inline reference definition (type help; checks the name when first used). */

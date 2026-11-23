@@ -11,6 +11,7 @@ import MarkdownIt, { type MarkdownIt as Reader, type Token as Tok } from "./vend
 import { KEY_GLYPHS, MOUSE_PRESS } from "./core/dh-lib";
 import { applyUrlPolicy, decodeRefs, LIMITS, type UrlPolicy } from "./safety";
 import { inlineSection, prepareInlines, scanRun, type InlineRun } from "./parts/inline-runtime";
+import { referenceRule } from "./core/refs";
 
 
 export type MdInline =
@@ -23,7 +24,8 @@ export type MdInline =
   | { t: "coderef"; ref: string; c: MdInline[] }
   | { t: "kbd"; label: string; chords: string[][] }
   | { t: "mouse"; act: string; press: "l" | "r" | "w" | ""; badge: string; target: string }
-  | { t: "ref"; name: string; text: string; data: unknown };          // a host's inline reference (InlineDef)
+  | { t: "ref"; name: string; text: string; data: unknown }           // a host's inline reference (InlineDef)
+  | { t: "reference"; type: string; name: string; label: string | null; text: string; error?: string; state?: "pending" | "ready" | "failed"; reason?: string };   // [[type:name "label"]] in a sentence (core/refs.ts)
 export type CalloutKind = "note" | "tip" | "important" | "warn" | "security";
 export type MdBlock =
   | { t: "p"; c: MdInline[] }
@@ -463,6 +465,7 @@ function makeReader(defs: InlineDef<any, any>[] | undefined, lazyInline = false)
   let last = "dh-mouse";
   if (finders.length) { md.inline.ruler.after("dh-mouse", "dh-ref", refRule(finders)); last = "dh-ref"; }
   md.inline.ruler.after(last, "dh-autolit", autolinkLiteral);
+  md.inline.ruler.before("link", "dh-reference", referenceRule);
   md.inline.ruler.before("emphasis", "dh-strike", strikeTokenize);
   md.inline.ruler2.before("emphasis", "dh-strike", strikePost);
   md.block.ruler.before("list", "dh-sublist", subList, { alt: ["paragraph"] });
@@ -527,7 +530,7 @@ export function headingId(text: string, ctx: MdContext): string {
   return ctx.idPrefix + ctx.slugger.slug(text) || "S";
 }
 /** The plain text of an inline tree (what a heading's id is made from; a table cell's label). */
-export const inlineText = (c: MdInline[]): string => c.map((x) => (x.t === "ref" ? x.text : "v" in x ? x.v : "c" in x ? inlineText(x.c) : x.t === "kbd" ? x.label : x.t === "mouse" ? `${x.act} ${x.target}`.trim() : x.t === "img" ? x.alt : "")).join("");
+export const inlineText = (c: MdInline[]): string => c.map((x) => (x.t === "ref" ? x.text : x.t === "reference" ? (x.label ?? x.name) : "v" in x ? x.v : "c" in x ? inlineText(x.c) : x.t === "kbd" ? x.label : x.t === "mouse" ? `${x.act} ${x.target}`.trim() : x.t === "img" ? x.alt : "")).join("");
 const plain = inlineText;
 /** The text github.com reads a heading's anchor from: the rendered text content. Code spans, links, emphasis and escapes give their text;
  *  an image, a line break and the tags of raw HTML give nothing; numeric character references and amp, lt, gt, quot, apos, nbsp are decoded
@@ -558,7 +561,7 @@ function ghText(toks: Tok[] | null | undefined): string {
       case "code_inline": out += t.content; break;
       case "image": case "hardbreak": break;
       case "html_inline": out += htmlText(t.content); break;
-      case "kbd": case "mouse": case "dh-ref": out += ghRefs(t.markup); break;
+      case "kbd": case "mouse": case "dh-ref": case "dh-reference": out += ghRefs(t.markup); break;
       default: break;   // the open and close tokens of strong, em, s and links: their text comes in between
     }
   }
@@ -804,6 +807,7 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
         break;
       }
       case "dh-ref": flush(); out.push({ t: "ref", name: (t.meta as any).name, text: t.content, data: (t.meta as any).data }); break;
+      case "dh-reference": { flush(); const m = t.meta as { type: string; name: string; label: string | null; bad: string | null }; out.push({ t: "reference", type: m.type, name: m.name, label: m.label, text: t.content, ...(m.bad ? { error: m.bad } : {}) }); break; }
       case "html_inline": flush(); out.push({ t: "text", v: t.content }); break;   // inline HTML: shown as the text it is
       default:
         if (t.nesting === 1) { flush(); const e = closeOf(toks, i, to); out.push(...inlines(toks, i + 1, e, ctx, depth + 1, inLink)); i = e; }

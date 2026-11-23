@@ -88,6 +88,8 @@ export interface DhSettings {
   demoteHeadings: number;
   /** draw every part that steps or moves static (src/parts/types.ts StaticProp); a fence's own static= wins */
   static?: import("../parts/types").StaticProp;
+  /** the host's setting for interactive parts (DocumentProps.interactive); "off" when not set */
+  interactive?: "off" | "static" | "on";
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

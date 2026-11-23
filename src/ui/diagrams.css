@@ -1,0 +1,49 @@
+/* line ends, records and the state, class and ER diagrams on the graph engine (SPEC 3.2 State, Class, ER). Colours are the base tokens; a host may set the --state-*, --class-* and --er-* tokens named here. */
+/* line ends and end labels (the part tokens fall back to the stage's own) */
+.scn { --scn-paper: var(--surface-2); }
+.scn-conn .scn-end { stroke: var(--muted); stroke-width: var(--dg-edge-w, 1.6px); stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: none; fill: none; }
+.scn-conn .scn-end.is-ink { fill: var(--muted); }
+.scn-conn .scn-end.is-paper { fill: var(--scn-paper); }
+.scn-conn.cc .scn-end { stroke: var(--k); } .scn-conn.cc .scn-end.is-ink { fill: var(--k); }
+.scn-end-t { fill: var(--ink); font-weight: 500; stroke: var(--scn-paper); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke; }
+.scn3-wire.is-end { border: 0; padding: 0 3px; color: var(--ink); background: var(--scn-paper); }
+
+/* records */
+.scn .scn-rec { fill: var(--dg-node-bg, var(--surface)); stroke: none; }
+.scn-rec-head { fill: var(--class-head-bg, var(--surface-3)); }
+[data-record="entity"] .scn-rec-head { fill: var(--er-head-bg, var(--surface-3)); }
+.scn-rec-edge { fill: none; stroke: var(--dg-node-border, var(--line-2)); stroke-width: 1.25; pointer-events: none; }
+.scn-ent.cc .scn-rec-head { fill: var(--k-soft); } .scn-ent.cc .scn-rec-edge { stroke: var(--k); }
+.is-hl .scn-rec-edge, .scn-ent.k-record:hover .scn-rec-edge { stroke: var(--acc); stroke-width: 2; }
+.scn-rec-name { fill: var(--ink); font-family: var(--font-mono); font-weight: 600; pointer-events: none; }
+.scn-rec-name.is-i, .scn-field-t.is-i { font-style: italic; }
+.scn-rec-chip { fill: var(--surface); stroke: var(--line-2); }
+.scn-rec-st { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 500; }
+.scn-rec-rule { stroke: var(--dg-node-border, var(--line-2)); stroke-width: 1; }
+.scn-field { fill: transparent; stroke: none; }
+.k-field:hover .scn-field { fill: var(--surface-2); }
+.k-field.is-hl .scn-field { fill: var(--acc-soft); }
+.k-field.hl-good .scn-field { fill: var(--good-soft); } .k-field.hl-warn .scn-field { fill: var(--warn-soft); } .k-field.hl-hot .scn-field { fill: var(--hot-soft); }
+.scn-field-t { font-family: var(--font-mono); font-weight: 500; fill: var(--class-member, var(--ink)); pointer-events: none; }
+.scn-field-t.is-sign, .scn-field-t.is-type { fill: var(--muted); }
+.scn-field-t.is-u { text-decoration: underline; text-underline-offset: 2px; fill: var(--class-static, var(--ink)); }
+.scn-key { fill: color-mix(in srgb, var(--er-key-ink, var(--acc-ink)) 12%, transparent); }
+.scn-key-t { fill: var(--er-key-ink, var(--acc-ink)); font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+.scn .scn3-l.k-field, .scn .scn3-l.k-record { font-family: var(--font-mono); }
+
+/* state, class and ER parts on the engine */
+.scn-ttl { font-size: var(--fs-s); font-weight: var(--w-strong); color: var(--ink); align-self: center; }
+.k-initial .scn-dot-fill { fill: var(--state-dot, var(--ink)); stroke: none; }
+.k-final .scn-ring-out { fill: none; stroke: var(--state-dot, var(--ink)); stroke-width: 1.75; }
+.k-final .scn-dot-fill { fill: var(--state-dot, var(--ink)); stroke: none; }
+[data-dh-part="state"] .k-box .scn-shape { fill: var(--state-bg, var(--surface)); stroke: var(--state-border, var(--line-2)); rx: 14px; }
+[data-dh-part="state"] .k-box.cc .scn-shape { fill: var(--k-soft); stroke: var(--k); }
+[data-dh-part="state"] .tone-acc .scn-shape { fill: var(--acc-soft); stroke: var(--state-current, var(--acc)); stroke-width: 2.2; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--state-current, var(--acc)) 55%, transparent)) !important; }
+[data-dh-part="state"] .scn-conn-t { fill: var(--state-event, var(--ink)); }
+[data-dh-part="state"] .scn-conn path, [data-dh-part="class"] .scn-conn path, [data-dh-part="er"] .scn-conn path { stroke-width: var(--dg-edge-w, 1.6px); }
+/* every key needs a ring: also after Esc, with the stage still in focus */
+.scn .scn-stage:focus-visible { box-shadow: inset 0 0 0 2px var(--acc); }
+/* an end's shape is never dashed, whatever its line is */
+.scn-conn.is-dashed .scn-ends * { stroke-dasharray: none; }
+/* a diagram that cannot be drawn: the reason, then its source as text that wraps (a long line never widens the page) */
+.part-plain { margin: 8px 0 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-s, 8px); background: var(--surface-2); color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-s); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }

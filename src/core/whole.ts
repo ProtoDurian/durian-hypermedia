@@ -2,7 +2,8 @@
 // The story camera of a story follows its steps; here nothing would move it to what is off the stage, so the layout
 // gives way instead of the view: as written, else top to bottom. Words never go under the least size; a drawing still
 // too wide for that scrolls sideways in its own box (src/ui/anim.tsx), and the stage takes the height that this needs.
-import { MARGIN, NARROW, union, type Compiled } from "./scene";
+import { compileScene, MARGIN, NARROW, union, type Compiled } from "./scene";
+import { BudgetError } from "./budget";
 import { leastScale, phoneScene } from "./readable";
 
 export const STAGE = 700; // the stage's width in the server's HTML, before the page knows it
@@ -22,12 +23,20 @@ export function fitsWide(c: Compiled, px: number): boolean {
 /** the layout that shows the scene whole at a stage px wide: as written (with the phone's spacing under NARROW), else
  *  top to bottom. Each layout is compiled once per scene, on its own work budget (core/readable.ts phoneScene): one over
  *  its budget keeps the layout before it */
-export function wholeLayout(wide: Compiled, px: number): Compiled {
+export function wholeLayout(wide: Compiled, px: number, rows = false): Compiled {
   if (!px || !wide.frames.length) return wide;
   let c = px < NARROW ? phoneScene(wide, false) ?? wide : wide;
   if (fitsWide(c, px)) return c;
   const narrow = phoneScene(wide, true);
-  return narrow?.frames.length ? narrow : c;
+  c = narrow?.frames.length ? narrow : c;
+  // a diagram (state, class, ER): a rank still too wide for the least word is taken over several rows (fit=)
+  if (!rows || fitsWide(c, px) || !wide.src) return c;
+  const least = Math.max(...c.frames.map((f) => leastScale(f, px)));
+  const src = wide.src;
+  try {
+    const fit = compileScene(src.head, src.steps, src.base, { ...src.info, ...(px < NARROW ? { phone: "1" } : {}), narrow: "1", fit: String(Math.max(120, Math.floor(px / least - 4 * MARGIN))) });
+    return fit.frames.length ? fit : c;
+  } catch (e) { if (!(e instanceof BudgetError)) throw e; return c; }
 }
 // the page lays out for a width a little under its stage's, so a drag of the window's edge does not lay out on each pixel
 export const layoutWidth = (px: number) => Math.floor(px / 16) * 16;

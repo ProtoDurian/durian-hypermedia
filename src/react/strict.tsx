@@ -14,6 +14,7 @@ import { EditorPart } from "./editor";
 import { CodeWalkPart } from "./codewalk";
 import { ChartPart } from "./chart";
 import { AnimationPart } from "./animation";
+import { DiagramPart } from "./diagram";
 import { TierListPart } from "./tierlist";
 import { AlignmentPart } from "./alignment";
 import { TabsPart, AccordionPart, HumanPart } from "./containers";
@@ -23,7 +24,7 @@ import { FOLDER_PART_COMPONENTS } from "../parts/generated/react";
 
 export const STRICT_PARTS: Components = {
   terminal: TerminalPart, filetree: FileTreePart, editor: EditorPart, codewalk: CodeWalkPart, chart: ChartPart,
-  animation: AnimationPart, tierlist: TierListPart, alignment: AlignmentPart, tabs: TabsPart, accordion: AccordionPart, human: HumanPart,
+  animation: AnimationPart, state: DiagramPart, class: DiagramPart, er: DiagramPart, tierlist: TierListPart, alignment: AlignmentPart, tabs: TabsPart, accordion: AccordionPart, human: HumanPart,
   svg: SvgPart, interactive: InteractiveStill,
   // the parts in their own folders (src/parts/<name>/): none sets an HTML string (test/parts.test.ts)
   ...(FOLDER_PART_COMPONENTS as Components),
@@ -31,7 +32,7 @@ export const STRICT_PARTS: Components = {
 /** A Document with every part, under Trusted Types. */
 export function DhDocument(p: DocumentProps) { return <DocumentView {...p} components={{ ...STRICT_PARTS, ...(p.components ?? {}) }} />; }
 export default DhDocument;
-export { DocumentView, Blocks, MarkdownPart, TerminalPart, FileTreePart, EditorPart, CodeWalkPart, ChartPart, AnimationPart, TierListPart, AlignmentPart, TabsPart, AccordionPart, HumanPart };
+export { DocumentView, Blocks, MarkdownPart, TerminalPart, FileTreePart, EditorPart, CodeWalkPart, ChartPart, AnimationPart, DiagramPart, TierListPart, AlignmentPart, TabsPart, AccordionPart, HumanPart };
 export { DEFAULT_SLOTS, plainCode, useDh, type Slots, type Components, type PartComponent, type CodeSlotProps, type InlineCodeSlotProps, type LinkSlotProps, type TableSlotProps, type HeadingSlotProps } from "./context";
 export { UI, type Ui } from "../ui/ui";
 export type { DocumentProps };

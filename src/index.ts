@@ -20,7 +20,7 @@ export function defineInline<D = unknown, C = unknown>(def: InlineDef<D, C>): In
 export type * from "./types";
 /** This package's version (package.json); a consumer can check the one it pinned. */
 export const VERSION = "0.7.0-rc.2";
-export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "llm", ...FOLDER_PART_NAMES] as const;
+export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "animation", "state", "class", "er", "tierlist", "alignment", "tabs", "accordion", "human", "llm", ...FOLDER_PART_NAMES] as const;
 // the parts in their own folders (src/parts/<name>/, format version 11): their definitions, for tools and hosts
 export { FOLDER_PART_NAMES, FOLDER_PARTS } from "./parts/generated/registry";
 export { definePart, type PartDef, type PartInput, type PartContext, type PartIssue, type PartViewProps, type PartStage, type StaticProp } from "./parts/types";

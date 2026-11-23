@@ -18,6 +18,7 @@ import { chartTable11, evalChart11, usesChart11 } from "./chart11";
 import { currentBudget, BudgetError } from "./budget";
 import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
+import { diagramOf, isDiagram } from "./diagrams"; // state, class and ER diagrams: each compiles to a scene
 import { isStagePart, setStageRoles, stagePartJson, stagePartLlm, stagePartTexts } from "./stage-part"; // the composed stage (0.7.0)
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
@@ -40,6 +41,10 @@ export const PARTS: Record<string, PartDef> = {
   codewalk: { form: "fenced", llm: "as-is", steps: true },
   chart: { form: "fenced", llm: "data", steps: false },
   animation: { form: "fenced", llm: "steps", steps: true },
+  // state, class and ER diagrams (core/diagrams.ts): their own small languages, drawn by the animation engine
+  state: { form: "fenced", llm: "lines", steps: true },
+  class: { form: "fenced", llm: "lines", steps: true },
+  er: { form: "fenced", llm: "lines", steps: true },
   tierlist: { form: "fenced", llm: "lines", steps: false },
   alignment: { form: "fenced", llm: "data", steps: false },
   tabs: { form: "container", llm: "unwrap", steps: false },
@@ -801,7 +806,7 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
   switch (def.llm) {
     case "as-is": if (p.defs && (p.name === "filetree" || p.name === "terminal")) { const t = ownAsIs(p); if (t) return t; } { const fence = p.open.match(FENCE_RE)![2]; const text = `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}`; return p.name === "codewalk" ? text.split("\n").map((l, i) => (i === 0 || /^@step\b/.test(l) ? dropAnimate(l) : l)).join("\n") : text; }
     case "data": return p.name === "alignment" ? alignLlm(parseAlign(p.body, p.bodyLine, p.attrs.title ?? "")) : chartLlm(p);
-    case "lines": return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
+    case "lines": if (isDiagram(p.name)) return diagramOf(p).llm; return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
     case "steps": return animLlm(p);
     case "part": { const t = folderLlm(p); if (t != null) return t; const fence = p.open.match(FENCE_RE)![2]; return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}`; }
     case "unwrap": return p.items.map((it) => `${it.heading.trim()}\n\n${llmOfNodes(it.nodes, publicView)}`).join("\n\n");
@@ -883,6 +888,7 @@ export function humanText(doc: Doc, src?: string): string {
       else if (n.kind === "part") {
         if (n.name === "llm") continue;
         if (n.name === "animation") out.push(...(isStagePart(n) ? stagePartTexts(n) : animOf(n).scene.texts));
+        else if (isDiagram(n.name)) out.push(...diagramOf(n).texts);
         else if (n.name === "chart") out.push(yamlTexts(chartYaml(n)).join("\n"));
         else if (n.name === "codewalk") { out.push(...n.steps.map((s) => s.raw)); if (src) codewalkRefs(doc, n).forEach((r) => { const t = readRange(doc, r, src); if (t.text) out.push(t.text); }); }
         else if (PARTS[n.name]?.form === "fenced") out.push(n.body);
@@ -1032,6 +1038,7 @@ export function structureOf(doc: Doc) {
         const a = { ...n.attrs }; delete a.title;
         let data = "";
         if (n.name === "chart") data = JSON.stringify(stripTexts(chartYaml(n)));
+        if (isDiagram(n.name)) data = diagramOf(n).shape; // what a translation must keep of a state, class or ER diagram
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
         if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t, 0, n.defs).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
@@ -1090,6 +1097,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
     const base: any = { type: n.name, id: n.attrs.id ?? null, attrs: n.attrs, line: n.line, source: n.source + (n.llm ? "\n\n" + n.llm.source : ""), llm: llmOfPart(n, publicView) || null, llmKind: llmKindOf(n), size: tok(llmOfPart(n, publicView)) };
     switch (n.name) {
       case "animation": base.anim = animSrc(n); if (isStagePart(n)) base.stage = stagePartJson(n); break; // a composed stage also carries its stage source
+      case "state": case "class": case "er": { const d = diagramOf(n); base.anim = d.src; base.refused = d.errors; base.body = n.body; break; }
       case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;

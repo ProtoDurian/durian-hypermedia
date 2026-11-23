@@ -68,6 +68,7 @@ export function moveToken(s: State, e: Ent, to: Ent, into: boolean, place: Place
   if (into) {
     if (e.kind !== "token") throw c.refuse(`a pointer sits at a thing: move ${e.id} to ${to.id}`);
     if (!c.isContainer(to.kind)) throw c.refuse(`"into" goes into a container (a group, a queue ...), and ${to.id} is a ${to.kind}; to sit at it, write move ${e.id} to ${to.id}`);
+    if (to.kind === "record") throw c.refuse(`a token cannot wait in a record; to sit at it, write move ${e.id} to ${to.id}`);
     if (to.kind === "table" || to.kind === "buckets") throw c.refuse(`a token cannot wait in a ${to.kind}; put it in one ${to.kind === "buckets" ? `bucket (${to.id}.0)` : "group or queue"}`);
   }
   if (e.parent) { const l = c.kidsOf(s, e.parent), i = l.indexOf(e.id); if (i >= 0) l.splice(i, 1); }

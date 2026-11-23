@@ -56,6 +56,8 @@ export interface AnimationBlock extends PartBase { type: "animation"; anim: { he
   stage?: { src: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> }; roles: Record<string, number> };
   /** what a reader sees as text in this animation, in story order: quoted labels, captions, say and note texts (animationTexts(block)) */
   texts: string[] }
+/** A state, class or ER diagram (core/diagrams.ts): its own small language, compiled to a scene the animation engine draws. `refused` holds what stops it being drawn; then `body` (its source) is shown plain. */
+export interface DiagramBlock extends PartBase { type: "state" | "class" | "er"; anim: AnimationBlock["anim"] & { part: "state" | "class" | "er"; title: string }; refused: { line: number; msg: string }[]; body: string; texts: string[] }
 export interface TierListBlock extends PartBase { type: "tierlist"; tier: TierSpec }
 export interface AlignmentBlock extends PartBase { type: "alignment"; align: AlignSpec }
 
@@ -91,7 +93,7 @@ export type { FolderPartName, FolderPartData, PartBlock };
 
 export type Block =
   | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock
-  | AnimationBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock | FolderBlock
+  | AnimationBlock | DiagramBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock | FolderBlock
   | ReferenceBlock | SvgBlock | InteractiveBlock;
 export type BlockType = Block["type"];
 

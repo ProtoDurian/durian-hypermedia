@@ -25,6 +25,18 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Added
 
+- **`state`, `class` and `er` parts (SPEC.md 3.3, 6.15).** Three diagrams, each in a small language of its own, drawn by
+  the animation engine instead of a diagram library: a state machine that its steps walk (`at`, `fire`), a class
+  diagram from members and relations written in words (`extends`, `implements`, `owns`, `has`, `uses`, `->`), and an
+  ER diagram with crow's-foot lines from key to key (`highlight` lights a table or a column). Each has its own LLM
+  view and its own doccheck rules (every refusal names its line and the fix); a diagram that cannot be drawn shows its
+  reason and its source as text. Caps: 60 boxes, 120 lines, 40 steps, 1500 lines of source, 300 characters a line; the
+  layout is charged to the page's animation budget. Three Format fixtures (live and `static=true`) and a hostile one.
+- **The graph engine gains records, line ends and end labels:** a box with a row per field where a line may end
+  (`record order "Order" as=entity: id: uuid [pk]`), UML and crow's-foot shapes at either end (`start=`, `end=`), a
+  word by an end (`start-label=`, `end-label=`), a second line between two things or a loop (`also=yes`), and the
+  `initial` and `final` shapes.
+
 - **The example site shows each fixture's source and LLM view:** every fixture page (the hand-written ones, the
   Format page samples, the composed stage samples, the folder parts and the hostile pages) opens with two closed
   toggles, `Source` (the fixture as written) and `LLM view` (what `llmView` returns, or a line saying an LLM reads

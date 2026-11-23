@@ -732,6 +732,103 @@ evolve kettle 0.65 "smart kettle"
 
 <!-- parts:end -->
 
+### 3.3 State, class and ER diagrams (format version 11)
+
+Three parts with a small language each. Every one compiles to a scene that the animation engine draws (section 6.15), so its layout, line router, step player, notes and colours are the engine's. They are flat (no 3D button), show whole at 11 pixels or more, and never need a library.
+
+#### State machine
+
+A `state` part is a state machine that its steps can walk.
+
+````
+```state title="An order"
+[start] -> cart
+cart -> paying "check out"
+paying -> cart "card declined"
+paying -> [end]
+state paying "Paying" note="waits up to 10 minutes for the bank"
+@step A shopper fills the cart.
+at cart
+@step They check out.
+fire check out
+```
+````
+
+| Line | What it is |
+| --- | --- |
+| `a -> b "event"` | a transition; the event may be left out; several events between the same two share a line |
+| `[start] -> a`, `a -> [end]` | where it starts (one place) and where it ends (several allowed) |
+| `state a "Label" note="..." [c2]` | a state's label, note and colour (a state needs no declaring) |
+| `choice ok` | a diamond; the transitions out of it carry the condition: `ok -> paid "[amount > 0]"` |
+| `group g "Label": a, b` | a composite state; a transition to it enters `a`, one from it leaves any state in it |
+| `at a` (a step) | the walk is in `a`, which is lit |
+| `fire check out` (a step) | takes the one transition with that event from where the walk is; one to a step |
+
+Any other line under a step appears in that step. The diagram runs left to right, and top to bottom on a phone (`dir=down` says so everywhere).
+
+**An LLM reads** where it starts and ends, a table `from | on | to`, the labels and notes as a list, and the walk as numbered captions with `cart -> paying (check out)` under each.
+
+#### Class diagram
+
+A `class` part is classes and how they relate, parents above children.
+
+````
+```class title="Orders"
+class Order
+  + id: OrderId
+  + total(): Money
+interface Payable
+enum Status: open, paid, shipped
+Order implements Payable
+Order owns 1..* Line
+Order 0..* -> 1 Customer "placed by"
+```
+````
+
+| Line | What it is |
+| --- | --- |
+| `class`, `abstract class`, `interface`, `record` `<Name>` | a class; `"Label"`, `note="..."` and a `[colour]` may follow |
+| `enum Status: open, paid` | an enum with its values |
+| an indented line | a member of the class above: `+` public, `-` private, `#` protected, `~` package; `static` underlines it; a `(` makes it a method |
+| `A extends B`, `A implements B` | an open triangle at B; dashed for `implements` |
+| `A owns 1..* B`, `A has 1 B` | a filled diamond at A (composition), an open one (aggregation) |
+| `A uses B` | a dashed arrow (dependency) |
+| `A 0..* -> 1 B "label"` | an association, with how many by each end |
+
+How many is `1`, `0..1`, `*`, `0..*`, `1..*` or `n..m`. A class that is used and never declared is a box with its name. What is under a step appears in that step.
+
+**An LLM reads** one line per class with its members, then the relations as sentences.
+
+#### ER diagram
+
+An `er` part is tables, their keys, and the lines between them in crow's-foot notation.
+
+````
+```er title="Shop"
+entity customer "Customer" [c1]
+  id uuid pk
+entity order "Order"
+  id uuid pk
+  customer_id uuid fk -> customer.id
+customer 1 -- 0..* order "places"
+@step Each order keeps the customer's key.
+highlight customer.id order.customer_id
+```
+````
+
+| Line | What it is |
+| --- | --- |
+| `entity order "Order"` | a table; `note="..."` and a `[colour]` may follow |
+| an indented line | a column: `name type [pk] [fk -> entity.column] [unique] [null]`; a type of two words is in quotes; a key of two columns is `pk` on each |
+| `a 1 -- 0..* b "verb"` | a relationship: `1`, `0..1`, `1..*` or `0..*` at each end |
+| `highlight order.customer_id` (a step) | lights a table or a column for that step |
+
+A line joins the key to the column it points at. A key with no relationship line is drawn many-to-one, and doccheck warns.
+
+**An LLM reads** one line per table, then each relationship both ways.
+
+**All three diagrams** take `#id`, `title=`, `static=` and `dir=right` or `dir=down`. They take at most 60 boxes, 120 lines, 40 steps, 1500 lines of source and 300 characters a line. Their layout is charged to the page's animation work budget. A refused one shows its source as plain text with the reason. A host may restyle what a diagram draws by the hooks `data-dh-slot` names: `state`, `current`, `start`, `end`, `choice`, `group`, `transition`, `event` (state); `relation`, `relation-label`, `multiplicity` (class); `relation`, `verb`, `cardinality` (ER); and the tokens `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--class-head-bg`, `--class-member`, `--class-static`, `--er-head-bg` and `--er-key-ink`. Backticks in a caption are plain text in this release.
+
 ## 4. Steps are an attachment
 
 - **One marker:** a line `@step <title>` inside a fenced part. The text up to the next `@step` belongs to that step.
@@ -1412,6 +1509,28 @@ light u1                                                   (a card takes the foc
 
 **Static** (SPEC 4.1) on the graph engine: `static`, `static=<n or title>` on the fence, or the page's or host's static, draws one step whole and flat, with no player, camera, hint or motion, a closed thing's inside in full, the step's caption and every caption in a closed list (open in print). Print and reduced motion switch it on. Its root carries `data-dh-static`.
 
+### 6.15 Records and line ends (format version 11, graph engine)
+
+The state, class and ER parts (section 3.3) stand on three words of the graph engine, which an `animation layout=graph` may use too.
+
+**A record** is a box with a title and one row for each field. A row is `<id>.<field>`, and a line may end on it:
+
+```
+record order "Order" as=entity: id: uuid [pk], customer_id: uuid [fk]
+record shape "Shape" as=class: + id: Id, ---, + area(): number
+customer.id -- order.customer_id start=one end=zero-or-many "places"
+```
+
+`as=` is `class`, `abstract`, `interface`, `enum`, `data` or `entity`. A field's tags are `pk`, `fk`, `unique`, `null`, `static` and `abstract`. `---` starts a new band, and quotes keep a comma inside a field. A record holds at most 60 fields of 200 characters.
+
+| On a line | What it draws |
+| --- | --- |
+| `start=`, `end=` | the shape at that end: `none`, `arrow`, `open`, `triangle`, `diamond`, `hollow`, `one`, `many`, `zero-or-one`, `one-or-many`, `zero-or-many` |
+| `start-label="1"`, `end-label="0..*"` | a word by that end |
+| `also=yes` | a second line between the same two, or a line from a thing to itself |
+
+A layout follows a line from its first end, so inheritance is written parent first: `shape -- circle start=triangle`. Two more shapes for a scene: `initial` and `final` (a filled dot, and a ring round one), which the state part uses for `[start]` and `[end]`. An end's shape is never dashed, whatever its line is.
+
 ## 7. Charts
 
 - **Kinds.** `bar`, `line`, `area` (a line with its fill): `x` lists the categories and each series' `data` holds one number per category (`null` leaves a gap). `scatter`: no category list; `data` is points `[x, y]`. `bubble`: points `[x, y, size]`; the bubble's area follows the size. `radar`: `x` names the axes (at least three), each series is one outline. `pie`, `doughnut`, `polar` (polar area): `x` names the slices, values are 0 or more, and the slice colours follow the default colour order. `candlestick` (format version 10): `x` lists the periods and the series with no `kind` holds one `[open, high, low, close]` per period (`null` leaves a gap). `x` is always the category (or point-x) axis and `y` always the value axis, also when `horizontal: true` turns them on their side.
@@ -1517,6 +1636,10 @@ Revenue grows 20% a year: year 5 is about 2.07 times year 1.
 | fence partner | a `:::human` with neither `:::llm` after it nor `llm=none` |
 | LLM text placed | an empty `:::llm`; warns above 160 words |
 | part data | each part's own rules (sections 3, 4, 6, 7, 8; the tier list and alignment grid rules are in section 3, own marks and prefixes in section 3.1, candlesticks in section 7), a front matter `banner:` (removed in version 10), a bad `marks:` or `prefixes:` definition, duplicate ids; an animation is replayed step by step (section 6.7), with one hop per step; a code walk's `animate=` is on, off or auto, and not on step 1 |
+| state | two transitions with one event from one state; `fire` with no such event there (it lists those that are), or before any `at` or `[start]`, or twice in a step; `[end] -> x`, `x -> [start]`, two starts, `[*]`; a group naming an unknown state. Warns: a state `[start]` cannot reach |
+| class | an unknown relation word (it lists the six); a cycle of `extends` and `implements`; a class declared twice; a member under no class; a wrong multiplicity |
+| er | a key to an unknown table or column; a relationship naming an unknown table; an unknown cardinality (it lists the four); an unknown column key; a `pk` line of its own; a table declared twice. Warns: a key with no relationship line |
+| the three diagrams | an unknown key or colour word (it lists them); a step with no caption; an unclosed backtick in a caption or note; more than the caps of section 3.3; more layout work than the page's animation budget has left |
 | code walk ranges, code references | a range past the end of the file, a focus or mark outside it, a missing file or symbol at the pin |
 | watch-out blocks, security blocks | as in version 2 |
 | translation behind, translation shape | as in version 2; the shape now compares parts by order |
@@ -1535,6 +1658,12 @@ Revenue grows 20% a year: year 5 is about 2.07 times year 1.
 A translation keeps every part, attribute, code reference and code block of its source, in order; doccheck's "translation shape" compares them. Translated: prose, headings, list items, table cells, callout text, front matter `title`, `description` and the `label` and `means` of own marks and prefixes, `:::llm` texts, terminal and file tree step titles, code walk notes, chart `title`/`label`/`name` (a second axis's `label` too; the category names in `x` stay as they are), a tier list's title, tier names, item names and notes, an alignment grid's title, axis names, cell and region labels, item names and notes (translate a tier or axis name the same way everywhere it is written, on the `tiers:` line and in the tier lines, on the axis lines, the `region:` lines and the cell lines; never the colours in square brackets, the keys `tiers:`, `x:`, `y:`, `region:`, `arrows:` or the `@ x, y` numbers), and an animation's captions, its quoted labels and its say and note texts (never its ids, entity kinds or change words). No native speaker has read the five translations yet.
 
 ## What changed from version 10
+
+### State, class and ER diagrams (sections 3.3 and 6.15)
+
+- Three new parts in their own small languages, drawn by the animation engine: `state`, `class` and `er`. Each compiles to a scene, so the layout, the line router, the step player and the notes are the engine's, and each has an LLM view of its own (a table of transitions, a line per class, a line per table).
+- The graph engine gains records (a box with a row per field, where a line may end), UML and crow's-foot line ends, a word by a line's end, a second line between two things, a line from a thing to itself, and `initial` and `final` shapes.
+- **Caps:** 60 boxes, 120 lines, 40 steps, 1500 lines of source, 300 characters a line; the layout is charged to the page's animation budget.
 
 ### The composed stage (section 6.13)
 

@@ -17,6 +17,7 @@ import { BudgetError as StageBudgetError } from "./core/stage-budget";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
+import { diagramOf } from "./core/diagrams";
 import { folderBlock, withIdPrefix } from "./parts/runtime";
 import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
@@ -307,6 +308,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       const blk: Record<string, any> = { type: p.name, ...base(p), ...j };
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
+        case "state": case "class": case "er": blk.texts = diagramOf(p).texts; break;
         case "filetree": {
           // each row carries its whole path: deep rows under long folder names carry the square of the tree
           const n = (blk.trees ?? []).reduce((a: number, t: any) => a + t.rows.reduce((b: number, r: any) => b + r.path.length, 0), 0);

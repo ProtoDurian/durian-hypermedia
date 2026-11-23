@@ -16,6 +16,7 @@ import { isStagePart, stagePartCheck } from "./stage-part"; // the composed stag
 import { BudgetError as StageBudgetError } from "./stage-budget";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
+import { diagramOf, isDiagram } from "./diagrams";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
 import { folderPart, folderCheck, folderLlmExempt } from "../parts/runtime";
 import { staticIssues, frontMatterStaticIssue } from "./static"; // static (SPEC 4.1)
@@ -147,6 +148,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     }
     checkPartData(doc, p, (l, m) => err(l, "part data", m), src, (l, m) => warn(l, "part data", m));
     // an animation's warnings (format version 6): a token's label too long for its small chip
+    if (isDiagram(p.name)) for (const w of diagramOf(p).warnings) warn(w.line, "part data", `${p.name}: ${w.msg}`);
     if (p.name === "animation") for (const w of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
     if (def.form === "container") visit(p.nodes, p.name === "human" || ctx === "segment" ? "segment" : "part");
     if (p.name === "codewalk") codewalkRefs(doc, p).forEach((r, i) => {
@@ -199,6 +201,7 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
   // a part in its own folder (src/parts/<name>/, format version 11) has its checks there
   if (folderPart(p.name)) { folderCheck(p, err, warn); return; }
   switch (p.name) {
+    case "state": case "class": case "er": for (const e of diagramOf(p).errors) err(e.line < p.line ? p.line : e.line, `${p.name}: ${e.msg}`); break;
     case "animation": for (const e of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;
     case "chart": {

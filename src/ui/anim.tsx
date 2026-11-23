@@ -25,6 +25,9 @@ import { visOf, REST_MS } from "../core/depth";
 import { sceneMove, sceneFrames, stepScene } from "../core/scenes";
 import { moveCam, moveO, SceneChip, StepList, sceneBands } from "./anim-scenes";
 import { hasWebGL } from "./gl";
+import { EndLabels, LineEnds } from "./line-ends";
+import { FieldRow, RecordBox } from "./record";
+import { lineSlots, slotOf, wordOf, type LineSlots } from "./diagram-slots";
 
 // 3D needs WebGL and motion; without either, the reader gets the 2D stage and no toggle. A 3D-only scene (format
 // version 10) needs only WebGL: with reduced motion it shows still 3D frames, one per step
@@ -52,7 +55,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const lerpR = (a: Rect, b: Rect, t: number): Rect => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), w: lerp(a.w, b.w, t), h: lerp(a.h, b.h, t) });
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export type SceneSrc = { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
+export type SceneSrc = { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string>; part?: "state" | "class" | "er"; title?: string };
 // ly: its y inside its layer's band; L: its layer (both tweened, for the 3D stage)
 // anchorY: a pointer's anchor top (a pointer below its anchor points up)
 // lv: its meter (level=) at this moment, tweened
@@ -97,13 +100,13 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const gOfS = st.on ? (_b?: Box) => 1 : gOf;
   // format version 11: a still scene (no steps) and a static one show whole, laid out for the width of the stage
   const still = !!cWide.scene.attrs.still;
-  const whole = st.on || still, wpx = layoutWidth(px0 || STAGE);
+  const whole = st.on || still || !!src.part, wpx = layoutWidth(px0 || STAGE);
   // SPEC 6.14: the reader's camera (the 3D button, zoom, show everything, drag and wheel to move, and the line that says
   // how) comes only when the fence says zoom or 3d: steady. The story's own camera still follows the steps; a tap or
   // Enter still reads a note. fixed: a steady still scene
   const steady = !st.on && src.info.zoom !== "yes" && src.info.view !== "3d" && !cWide.scene.attrs.only3d;
   const fixed = steady && still;
-  const cWhole = useMemo(() => (whole ? wholeLayout(cWide, wpx) : null), [wpx, whole]);
+  const cWhole = useMemo(() => (whole ? wholeLayout(cWide, wpx, !!src.part) : null), [wpx, whole]);
   const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : "wide";
   const cPhone = useMemo(() => (whole || pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey, whole]);
   const c = cWhole ?? cPhone ?? cWide;
@@ -260,7 +263,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
 
   if (!n) return <div className="cw-error">This animation has nothing to draw.</div>;
   // format version 11: a still scene has the stage and the notes, and no player; its words for a screen reader are its setup
-  const stageWords = still ? sceneLlm(c) : src.steps[i]?.title ?? "";
+  const stageWords = still ? (src.part ? srText ?? src.title ?? "" : sceneLlm(c)) : src.steps[i]?.title ?? "";
   // a step into or out of a scene inside the scene (format version 10): the stage shows one scene at a time, the one
   // left in the first half and the next in the second; nothing tweens between two scenes, the camera zooms through
   const mv = sceneMove(c, from, i, t);
@@ -533,7 +536,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       scene: mv ? mv.scene : sceneNow, sceneDir: mv?.dir, ...(mv ? { fade: stageO } : {}), sceneVia: mv && mv.half === 1 && mv.dir === "out" ? mv.viaKey : null,
     };
   }
-  const legend = families.length > 0 ? <ul className="scn-legend" aria-label={(ui as any).legend ?? "Colours"}>{families.map((k, n) => <li key={k.id} className={`scn-key cc cc-${n + 1}`}>{k.label}</li>)}</ul> : <span className="scn-legend" />;
+  const legend = src.part ? <span className="scn-legend scn-ttl" data-dh-slot="title">{src.title}</span> : families.length > 0 ? <ul className="scn-legend" aria-label={(ui as any).legend ?? "Colours"}>{families.map((k, n) => <li key={k.id} className={`scn-key cc cc-${n + 1}`}>{k.label}</li>)}</ul> : <span className="scn-legend" />;
   // the story camera keeps words readable, so a big scene can run past the stage: each edge with more of it beyond is
   // shaded, with a small arrow (format version 8 on a phone; format version 10 on every screen, tools/readable.ts), and
   // on a phone the line under the stage says so
@@ -554,19 +557,19 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
     <div className="scn-tools" role="group" aria-label={ui.camera ?? "Camera"}>
       {moved && <button type="button" className="scn-back" onClick={backToStory}>{ui.backToStory ?? "Back to the story"}</button>}
       <button type="button" className="scn-reset" onClick={backToStory} disabled={!moved} aria-label={(ui as any).resetView ?? "Reset the view"} title={(ui as any).resetView ?? "Reset the view"}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8a4.5 4.5 0 1 0 1.4-3.3M3.2 2.6v2.6h2.6" /></svg></button>
-      {ok3d && !only3d && <button type="button" className="scn-mode" onClick={toggle} aria-pressed={mode === "3d"} aria-label={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"} title={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"}>{mode === "3d" ? "2D" : "3D"}</button>}
+      {ok3d && !only3d && !src.part && <button type="button" className="scn-mode" onClick={toggle} aria-pressed={mode === "3d"} aria-label={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"} title={mode === "3d" ? ui.show2d ?? "Show flat (2D)" : ui.show3d ?? "Show in 3D"}>{mode === "3d" ? "2D" : "3D"}</button>}
       <button type="button" onClick={zoomOut} aria-label={ui.zoomOut ?? "Zoom out"} title={ui.zoomOut ?? "Zoom out"}>−</button>
       <button type="button" onClick={zoomIn} aria-label={ui.zoomIn ?? "Zoom in"} title={ui.zoomIn ?? "Zoom in"}>+</button>
       <button type="button" onClick={fitAll} aria-label={ui.fitAll ?? "Show everything"} title={ui.fitAll ?? "Show everything"} className="scn-fit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" /></svg></button>
     </div>
   );
   return (
-    <div ref={root} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
+    <div ref={root} data-dh-part={src.part} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
       tabIndex={st.on || fixed ? undefined : 0} onKeyDown={st.on || fixed ? undefined : onKey} aria-roledescription={st.on ? undefined : "animation"}>
       {srText && <p className="sr-only">{srText}</p>}
       {/* the controls sit in a bar above the stage, so they never cover what the story shows */}
       {/* SPEC 4.1: static has no control row; a steady scene keeps the bar only for its colour key */}
-      {((!st.on && !steady) || families.length > 0) && <div className="scn-bar">
+      {((!st.on && !steady) || (src.part ? !!src.title : families.length > 0)) && <div className="scn-bar">
         {legend}
         {!listOnly && !st.on && !steady && tools}
       </div>}
@@ -582,17 +585,17 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
             {families.map((_, k) => <marker key={k} id={`${mk}-c${k + 1}`} className={`scn-mk cc cc-${k + 1}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>)}
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
-          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
-          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
-          {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector sl={lineSlots(src.part)} key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
+          {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} still={st.on} />)}
-          {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
+          {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector sl={lineSlots(src.part)} key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
           {overlays.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
         {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{downMore === "b" ? "↓" : "↑"} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
-        {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{selBox.kind}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
+        {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{wordOf(src.part, selBox)}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note">{selBox.ent.note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
         {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note">{B.layers[pickL].note}</span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>
       {/* how to move: always shown, under the stage, so it never covers the scene */}
@@ -621,7 +624,7 @@ function Words({ lines, x, y, z, cls = "scn-label", font }: { lines: string[]; x
   const y0 = y - ((lines.length - 1) * lh) / 2;
   return <text x={x} y={y0} className={cls} dominantBaseline="central" textAnchor="middle" style={{ fontSize: font ?? z.font }}>{lines.map((l, k) => <tspan key={k} x={x} y={y0 + k * lh}>{l}</tspan>)}</text>;
 }
-function Shape({ s, hl, sel, sh, Z = DESIGN, mute }: { s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
+function Shape({ s, hl, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
   const { box: b, r } = s;
   const o = s.o * (s.g ?? 1), wo = wordsO(s.g);
   const e = b.ent;
@@ -644,7 +647,8 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute }: { s: Shown; hl?: string; se
   if (b.kind === "layer") body = <><rect className="scn-band" x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 6} /><text x={r.x + 12} y={ty} className="scn-band-t" dominantBaseline="central" style={{ fontSize: z.head }}>{b.label}</text></>;
   else if (b.container) {
     const head = b.head && wo > 0.02 ? <text x={r.x + (b.lbl ? b.lbl.x - b.x : z.pad)} y={r.y + b.head / 2 + 2} className="scn-head" dominantBaseline="central" style={{ fontSize: z.head, ...(wo < 1 ? { opacity: wo } : {}) }}>{b.label}</text> : null;
-    if (b.kind === "array" || b.kind === "list") body = head;
+    if (b.kind === "record") body = <RecordBox b={b} r={r} o={wo} />;
+    else if (b.kind === "array" || b.kind === "list") body = head;
     else if (b.kind === "stack") body = <>{head}<path className="scn-frame scn-open" d={`M${r.x} ${r.y + b.head}V${r.y + r.h}H${r.x + r.w}V${r.y + b.head}`} /></>;
     else if (b.kind === "queue") body = <>{head}<path className="scn-frame scn-open" d={`M${r.x} ${r.y + b.head}H${r.x + r.w}M${r.x} ${r.y + r.h}H${r.x + r.w}`} /></>;
     else if (b.kind === "bucket") body = <><rect className="scn-frame scn-bucket" x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r} /><rect className="scn-idx-cell" x={r.x} y={r.y} width={30} height={r.h} rx={z.r} /><text x={r.x + 15} y={ty} className="scn-idx" textAnchor="middle" dominantBaseline="central">{b.label}</text></>;
@@ -661,6 +665,9 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute }: { s: Shown; hl?: string; se
     case "cloud": { const { x, y, w, h } = r; body = <><path className="scn-shape" style={shadow} d={`M${x + w * 0.22} ${y + h * 0.92}C${x - w * 0.02} ${y + h * 0.92} ${x - w * 0.02} ${y + h * 0.42} ${x + w * 0.2} ${y + h * 0.42}C${x + w * 0.22} ${y + h * 0.06} ${x + w * 0.56} ${y - h * 0.02} ${x + w * 0.64} ${y + h * 0.28}C${x + w * 0.8} ${y + h * 0.14} ${x + w * 1.02} ${y + h * 0.32} ${x + w * 0.9} ${y + h * 0.56}C${x + w * 1.04} ${y + h * 0.66} ${x + w * 0.98} ${y + h * 0.94} ${x + w * 0.8} ${y + h * 0.92}Z`} />{words}</>; break; }
     case "person": { const I = personIcon(z), hr = I * 0.24; body = <><g className="scn-person"><circle className="scn-shape" cx={tx} cy={r.y + hr + 1} r={hr} /><path className="scn-shape" d={`M${tx - I * 0.42} ${r.y + I}a${I * 0.42} ${I * 0.42} 0 0 1 ${I * 0.84} 0z`} /></g>{words}</>; break; }
     case "diamond": body = <><path className="scn-shape" style={shadow} d={`M${tx} ${r.y}L${r.x + r.w} ${ty}L${tx} ${r.y + r.h}L${r.x} ${ty}Z`} />{words}</>; break;
+    case "field": body = <FieldRow b={b} r={r} o={wo} />; break;
+    case "initial": body = <circle className="scn-dot-fill" cx={tx} cy={ty} r={r.w / 2 - 1} />; break;
+    case "final": body = <><circle className="scn-ring-out" cx={tx} cy={ty} r={r.w / 2 - 1} /><circle className="scn-dot-fill" cx={tx} cy={ty} r={r.w / 2 - 5.5} /></>; break;
     case "text": body = <Words lines={b.lines} x={tx} y={ty} z={z} cls="scn-label scn-text" />; break;
     case "dot": body = <><circle className="scn-shape scn-dot" cx={tx} cy={r.y + 8} r={6} />{words}</>; break;
     // a token is small: a dot and a short word, next to what it sits on
@@ -681,25 +688,28 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute }: { s: Shown; hl?: string; se
     }
     default: body = <><rect className="scn-shape" style={b.parentKind && ["array", "stack", "queue", "list", "bucket"].includes(b.parentKind) ? undefined : shadow} x={r.x} y={r.y} width={r.w} height={r.h} rx={b.parentKind && ["array", "stack", "queue", "list", "bucket"].includes(b.parentKind) ? Math.max(4, z.r - 3) : z.r} />{words}</>;
   }
-  const rr = b.kind === "circle" ? Math.min(r.w, r.h) / 2 + 4 : b.kind === "pill" ? Math.min((r.h + 8) / 2, 22) : z.r + 3;
+  const rr = b.kind === "field" ? 4 : b.kind === "circle" ? Math.min(r.w, r.h) / 2 + 4 : b.kind === "pill" ? Math.min((r.h + 8) / 2, 22) : z.r + 3;
   // cells of an array sit 4 apart: their rings hug them, so two lit neighbours do not run into each other
-  const rp = b.parentKind && ["array", "stack", "queue"].includes(b.parentKind) ? 1.5 : 4;
+  const rp = b.kind === "field" ? 0.5 : b.parentKind && ["array", "stack", "queue"].includes(b.parentKind) ? 1.5 : 4;
   const ring = (hl || sel) && !["text", "token", "pointer"].includes(b.kind) ? <rect className="scn-ring" x={r.x - rp} y={r.y - rp} width={r.w + 2 * rp} height={r.h + 2 * rp} rx={rr - 4 + rp} /> : null;
   const x = e.down ? <path className="scn-x" d={`M${r.x + 6} ${r.y + 6}L${r.x + r.w - 6} ${r.y + r.h - 6}M${r.x + r.w - 6} ${r.y + 6}L${r.x + 6} ${r.y + r.h - 6}`} /> : null;
   const idx = b.index != null && wo > 0.02 ? <text x={b.x + b.w / 2} y={b.y + b.h + 11} className="scn-idx" textAnchor="middle" dominantBaseline="central">{b.index}</text> : null;
-  return <g className={cls} data-key={b.key} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;
+  return <g className={cls} data-key={b.key} data-dh-slot={slot} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;
 }
 
 // labelOnly (format version 10): just the label, drawn again over a send that runs on this connector
-function Connector({ e, a, b, ak, bk, o, mk, labelOnly }: { e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string; labelOnly?: boolean }) {
+function Connector({ e, a, b, ak, bk, o, mk, labelOnly, sl = {} }: { sl?: LineSlots; e: Edge; a: Rect; b: Rect; ak: string; bk: string; o: number; mk: string; labelOnly?: boolean }) {
   const g = connGeom(a, b, ak, bk, e.implicit, 0, e.bend, e.rt ?? null);
-  const head = e.style === "->" || e.style === "-->" || e.style === "<->";
+  // (format version 11) a line with ends of its own draws them itself
+  const head = !e.ends && (e.style === "->" || e.style === "-->" || e.style === "<->");
   // the label sits where the engine placed it (t along the curve, o beside it), so it covers no label or shape
   const m = e.label ? bezOff(g, e.lt, e.lo) : null;
   return (
-    <g className={cx("scn-conn", e.implicit && "is-implicit", e.style === "-->" && "is-dashed", e.cc && `cc cc-${e.cc}`)} style={{ opacity: o }}>
-      {!labelOnly && <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />}
-      {m && <g className="scn-conn-l"><rect x={m.x - e.lw / 2} y={m.y - e.lh / 2} width={e.lw} height={e.lh} rx={Math.min(9, e.lh / 2)} /><Words lines={e.lines} x={m.x} y={m.y} z={DESIGN.s} cls="scn-conn-t" font={CHIP.font} /></g>}
+    <g data-dh-slot={sl.line} className={cx("scn-conn", e.implicit && "is-implicit", e.style === "-->" && "is-dashed", e.cc && `cc cc-${e.cc}`)} style={{ opacity: o }}>
+      {!labelOnly && <path d={bezPath(g)} markerEnd={head ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} markerStart={head && e.style === "<->" ? `url(#${mk}${e.cc ? `-c${e.cc}` : ""})` : undefined} />}
+      {!labelOnly && <LineEnds e={e} g={g} slot={sl.mark} />}
+      <EndLabels e={e} g={g} slot={sl.end} />
+      {m && <g className="scn-conn-l" data-dh-slot={sl.label}><rect x={m.x - e.lw / 2} y={m.y - e.lh / 2} width={e.lw} height={e.lh} rx={Math.min(9, e.lh / 2)} /><Words lines={e.lines} x={m.x} y={m.y} z={DESIGN.s} cls="scn-conn-t" font={CHIP.font} /></g>}
     </g>
   );
 }

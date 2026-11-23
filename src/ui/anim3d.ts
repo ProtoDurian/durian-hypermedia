@@ -17,6 +17,8 @@ import { floorCurve, footY, curveSig, tubeSegs, type Slab } from "./route3d";
 import { mkMeter, placeMeter, dropMeter, type Meter } from "./meter3d";
 import { leastGoal, edgeRows, planeAnchor, orderRows, lineHitsRect, type P2 } from "./least3d";
 import { keepInScene } from "./fit3d";
+import { endMeshes } from "./line-ends3d";
+import { markAt, type Ends } from "../core/line-ends";
 import { hasWebGL, NEAR_MARGIN, RESTORE_AFTER } from "./gl";
 
 export interface Item3 {
@@ -31,7 +33,7 @@ export interface Item3 {
 export interface View3 {
   items: Item3[];
   // bend, rt (format version 10): the 2D line's bow and route; a line between two things on one layer follows it
-  edges: { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; o: number; bend?: number; rt?: Route | null; part?: boolean }[];
+  edges: { key: string; from: number; to: number; style: string; label: string; implicit: boolean; cc: number; o: number; bend?: number; rt?: Route | null; part?: boolean; ends?: Ends; tags?: { end: "a" | "b"; text: string; t: number; o: number }[] }[];
   sends: { label: string; path: number[]; show: string; cc: number; p: number; offs?: number[]; bends?: number[]; rts?: (Route | null)[] }[];
   says: { key: number; text: string; o: number }[];
   hl: Map<number, string>; sel: number | null;
@@ -149,7 +151,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     const k = it.kind;
     if (it.container) {
       if (!it.bare) { const m = [basic(), basic(), basic(), basic(), basic(), basic()]; m.forEach((x) => (x.depthWrite = false)); body = new THREE.Mesh(UNIT_BOX, m); edge = new THREE.LineSegments(EDGE_BOX, lineMat()); mats.push(...m, edge.material as THREE.Material); }
-    } else if (k === "circle" || k === "cylinder" || k === "dot") {
+    } else if (k === "circle" || k === "cylinder" || k === "dot" || k === "initial" || k === "final") {
       const m = [basic(), basic(), basic()]; body = new THREE.Mesh(UNIT_CYL, m); edge = new THREE.LineSegments(EDGE_CYL, lineMat()); mats.push(...m, edge.material as THREE.Material);
     } else if (k === "cloud") {
       const m = basic(); body = new THREE.Mesh(UNIT_SPH, m); mats.push(m);
@@ -199,7 +201,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
 
   // ---------------------------------------------------------------- connectors: a tube along a curve, with a cone for the head
   // pts, ends, on (item 8, fix): points along the line, the keys it joins and how strongly it shows, so a name at rest can keep off it
-  type Wire = { mesh: THREE.Mesh; heads: THREE.Mesh[]; mat: THREE.MeshBasicMaterial; sig: string; label: HTMLDivElement | null; mid: THREE.Vector3; pts?: THREE.Vector3[]; ends?: [number, number]; on?: number };
+  type Wire = { mesh: THREE.Mesh; heads: THREE.Mesh[]; mat: THREE.MeshBasicMaterial; sig: string; label: HTMLDivElement | null; mid: THREE.Vector3; paper?: THREE.MeshBasicMaterial; tags?: { el: HTMLDivElement; at: THREE.Vector3 }[]; pts?: THREE.Vector3[]; ends?: [number, number]; on?: number };
   const wires = new Map<string, Wire>();
   // drops: a stream's dots, moved each frame along curves
   const tokens: { mesh: THREE.Mesh; label: HTMLDivElement; arrow: THREE.Group; head: THREE.Mesh; arrowMat: THREE.MeshBasicMaterial; sig: string; drops: THREE.Mesh[]; curves: THREE.Curve<THREE.Vector3>[] }[] = [];
@@ -437,7 +439,8 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       const t = tone(it.tone, it.container, it.depth, it.cc, it.fill === "none" || (!!it.cc && it.pcc === it.cc));
       const k = it.kind;
       if (o.body) {
-        if (k === "circle" || k === "dot") { const d = k === "dot" ? 14 : Math.min(it.w, it.h); o.body.scale.set(d, hgt, d); }
+        if (k === "initial" || k === "final") o.body.scale.set(it.w, hgt, it.h);
+        else if (k === "circle" || k === "dot") { const d = k === "dot" ? 14 : Math.min(it.w, it.h); o.body.scale.set(d, hgt, d); }
         else if (k === "cylinder") o.body.scale.set(it.w * 0.8, hgt, it.h * 0.8);
         else if (k === "cloud") o.body.scale.set(it.w * 0.9, hgt, it.h * 0.9);
         else if (k === "pill") o.body.scale.set(it.w, hgt, Math.min(it.h, 26));
@@ -510,15 +513,16 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       seen.add(e.key);
       const curve = wireCurve(e.from, e.to, a, b, { implicit: e.implicit, off: 0, bend: e.bend ?? 0, rt: e.rt ?? null }, 0, byKey, X0, Z0);
       const mid = curve.getPoint(0.5);
-      const sig = `${curveSig(curve)}|${e.style}`;
+      const sig = `${curveSig(curve)}|${e.style}${e.ends ? JSON.stringify([e.ends, e.tags]) : ""}`;
       let wv = wires.get(e.key);
       if (!wv) { const mat = basic(); wv = { mesh: new THREE.Mesh(new THREE.BufferGeometry(), mat), heads: [], mat, sig: "", label: null, mid }; root.add(wv.mesh); wires.set(e.key, wv); }
       if (wv.sig !== sig) {
         wv.sig = sig;
         wv.mesh.geometry.dispose();
         wv.mesh.geometry = tube(curve, e.style === "-->", e.implicit ? 0.9 : 1.3);
-        for (const h of wv.heads) root.remove(h);
-        wv.heads = [];
+        for (const h of wv.heads) { root.remove(h); if (h.userData.own) h.geometry.dispose(); }
+        for (const tg of wv.tags ?? []) tg.el.remove();
+        wv.heads = []; wv.tags = [];
         const head = (at: number, dir: number) => {
           const c = new THREE.Mesh(UNIT_CONE, wv!.mat); c.scale.set(7, 12, 7);
           const p = curve.getPointAt(at), tan = curve.getTangentAt(at).multiplyScalar(dir);
@@ -526,19 +530,33 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
           c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tan.normalize());
           root.add(c); wv!.heads.push(c);
         };
-        if (["->", "-->", "<->"].includes(e.style)) head(1, 1);
-        if (e.style === "<->") head(0, -1);
+        if (e.ends) {
+          // format version 11: the author's line ends, and the words near them
+          wv.paper ??= basic({ side: THREE.DoubleSide });
+          wv.mat.side = THREE.DoubleSide; wv.mat.needsUpdate = true;
+          for (const side of ["a", "b"] as const) { const m = markAt(e.style, e.ends, side); if (m) for (const x of endMeshes(curve, side, m, wv.mat, wv.paper)) { root.add(x); wv.heads.push(x); } }
+          for (const tg of e.tags ?? []) {
+            const tan = curve.getTangentAt(tg.t), across = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+            const el = document.createElement("div"); el.className = "scn3-wire is-end"; el.textContent = tg.text; labels.append(el);
+            wv.tags.push({ el, at: curve.getPointAt(tg.t).addScaledVector(across, tg.o).add(new THREE.Vector3(0, 3, 0)) });
+          }
+        } else {
+          if (["->", "-->", "<->"].includes(e.style)) head(1, 1);
+          if (e.style === "<->") head(0, -1);
+        }
         wv.mid = curve.getPointAt(0.5);
         wv.pts = curve.getSpacedPoints(16);
       }
       wv.ends = [e.from, e.to]; wv.on = opac;
       wv.mat.color.copy(e.cc ? C[`c${e.cc}`] : e.implicit ? C["line-2"] : C.muted); wv.mat.opacity = opac;
+      if (wv.paper) { wv.paper.color.copy(C["surface-2"]); wv.paper.opacity = opac; }
+      for (const tg of wv.tags ?? []) tg.el.dataset.o = String(opac);
       if (e.label) {
         if (!wv.label) { wv.label = document.createElement("div"); wv.label.className = "scn3-wire"; labels.append(wv.label); }
         wv.label.textContent = e.label; wv.label.dataset.o = String(opac);
       } else if (wv.label) { wv.label.remove(); wv.label = null; }
     }
-    for (const [k, wv] of wires) if (!seen.has(k)) { root.remove(wv.mesh, ...wv.heads); wv.mesh.geometry.dispose(); wv.mat.dispose(); wv.label?.remove(); wires.delete(k); }
+    for (const [k, wv] of wires) if (!seen.has(k)) { root.remove(wv.mesh, ...wv.heads); wv.mesh.geometry.dispose(); wv.mat.dispose(); wv.label?.remove(); for (const h of wv.heads) if (h.userData.own) h.geometry.dispose(); for (const tg of wv.tags ?? []) tg.el.remove(); wv.paper?.dispose(); wires.delete(k); }
     // sends this step: a small token travels the curves between the things on its path, an arrow draws itself along
     // them (beside a connector when there is one), or both; the words sit in a small chip
     while (tokens.length > v.sends.length) { const t = tokens.pop()!; root.remove(t.mesh, t.arrow, t.head); (t.mesh.material as THREE.Material).dispose(); t.arrowMat.dispose(); t.arrow.children.forEach((c) => (c as THREE.Mesh).geometry.dispose()); t.label.remove(); t.drops.forEach((d) => { root.remove(d); (d.material as THREE.Material).dispose(); }); }
@@ -837,6 +855,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     const x0 = Math.min(W.w, ...ats.map((a) => a?.x ?? W.w)); // a name with no plane on the stage lines up with the others
     planes.forEach((pl, L) => { const a = ats[L], at = { x: a ? a.x : x0 < W.w ? x0 : 0, y: ys[L] }; pl.label.dataset.off = offOf(L); project(pl.label, lx, floorY(L, g), lz, keepName(L) ? +(pl.label.dataset.o ?? 1) : 0, true, undefined, at); });
     for (const [key, wv] of wires) if (wv.label) { const e = view.edges.find((x) => x.key === key); const on = wireLabelOn(e, partSet); wv.label.dataset.on = on ? "1" : "0"; project(wv.label, wv.mid.x, wv.mid.y, wv.mid.z, +(wv.label.dataset.o ?? 1) * ease(wv.label, still && on)); }
+    for (const [key, wv] of wires) if (wv.tags?.length) { const on = wireLabelOn(view.edges.find((x) => x.key === key), partSet); for (const tg of wv.tags) project(tg.el, tg.at.x, tg.at.y, tg.at.z, +(tg.el.dataset.o ?? 1) * ease(tg.el, still && on)); }
     for (const t of tokens) project(t.label, +(t.label.dataset.x ?? 0), +(t.label.dataset.y ?? 0), +(t.label.dataset.z ?? 0), +(t.label.dataset.o ?? 0) * ease(t.label, still));
     for (const b of bubbles) project(b, +(b.dataset.x ?? 0), +(b.dataset.y ?? 0), +(b.dataset.z ?? 0), +(b.dataset.o ?? 0) * ease(b, still));
     // the lines on the screen, for names at rest to keep off (item 8, fix)
@@ -1076,7 +1095,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     dispose: () => {
       cancelAnimationFrame(raf); ro.disconnect(); io.disconnect(); nio.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); canvas.removeEventListener("webglcontextrestored", onRestored); mo.disconnect(); mq.removeEventListener?.("change", onMq); document.removeEventListener("dh-theme", onTheme);
       for (const [k, o] of objs) dropObj(k, o);
-      for (const w of wires.values()) { w.mesh.geometry.dispose(); w.mat.dispose(); }
+      for (const w of wires.values()) { w.mesh.geometry.dispose(); w.mat.dispose(); w.paper?.dispose(); for (const h of w.heads) if (h.userData.own) h.geometry.dispose(); }
       if (renderer) { renderer.forceContextLoss(); renderer.dispose(); } canvas.remove(); labels.remove();
     },
   };

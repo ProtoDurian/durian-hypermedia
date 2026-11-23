@@ -69,7 +69,7 @@ describe("glossary: the block", () => {
     const doc = parse(fence(GOOD + "\nterm \"Z\": a [l](https://example.com)", 'title="Words"'), { path: "p.dh.md" });
     const b = doc.blocks.find((x) => x.type === "glossary") as any;
     const h = renderToStaticMarkup(React.createElement(GlossaryView, { data: b.data, block: b, ui: {} as any, static: undefined, stage: { width: 600, theme: "light", motion: "on", report() {} } }));
-    expect(h).toContain('id="term-ul"'); expect(h).toContain("Words"); expect(h).toContain("also ubiquitous language"); expect(h).toContain('<a href="https://example.com"');
+    expect(h).toContain('id="dh-term-ul"'); expect(h).toContain("Words"); expect(h).toContain("also ubiquitous language"); expect(h).toContain('<a href="https://example.com"');
   });
 });
 
@@ -139,7 +139,7 @@ describe("glossary: terms in the text", () => {
     expect(m.map((x: any) => [x.text, x.data.id, x.data.link, x.data.plain])).toEqual([["SLO", "slo", "", "a target"]]);
     expect(check(doc)).toEqual([]);
     const withBlock = parse(page("UL"), { path: "p.dh.md" });
-    expect((withBlock.blocks.find((b) => b.type === "markdown" && (b as any).md.some((x: any) => x.t === "p")) as any).md[0].c[0].data.link).toBe("#term-ul");
+    expect((withBlock.blocks.find((b) => b.type === "markdown" && (b as any).md.some((x: any) => x.t === "p")) as any).md[0].c[0].data.link).toBe("#dh-term-ul");
   });
   test("the LLM view: front matter terms stay at the top, the block lists them once, the marks are plain text", () => {
     const doc = parse(`---\ntitle: T\nglossary:\n  SLO: a target\n---\n# P\n\n\`\`\`glossary\nterm "UL": words\n\`\`\`\n\nUL and SLO.\n`, { path: "p.dh.md" });
@@ -148,7 +148,7 @@ describe("glossary: terms in the text", () => {
     expect(doc.llm).toContain("UL and SLO.");
   });
   test("a page with no term is not offered any text", () => {
-    expect(inline.prepare!({ frontMatter: {}, blocks: [], limits: L, budget: big() })).toBeNull();
+    expect(inline.prepare!({ frontMatter: {}, blocks: [], limits: L, budget: big(), idPrefix: "dh-", options: {} })).toBeNull();
   });
   test("over the page's work budget: the text stays plain, the page says so, no hang", () => {
     const doc = parse(page(`${"filler words ".repeat(300)}\n\nUL`), { path: "p.dh.md", limits: { maxPageEvalSteps: 800 } as any });
@@ -277,4 +277,82 @@ test("the definition matches its folder", () => {
   expect(glossary.name).toBe("glossary");
   expect(glossary.steps).toBe(false);
   expect(inline.name).toBe("glossary");
+});
+
+describe("glossary: a host's word list (ParseOptions.glossary)", () => {
+  const HOST = [{ term: "SLA", aliases: ["service level agreement"], def: "what we promise a customer" }, { term: "UL", def: "the host's meaning" }];
+  const page = (text: string, block = "") => `# Page\n\n${block ? `\`\`\`glossary\n${block}\n\`\`\`\n\n` : ""}${text}\n`;
+  test("the host's terms are marked in the text, the page's own definition wins, and a host-only page has no link", () => {
+    const doc = parse(page("The SLA and a service level agreement; UL too.", 'term "UL": the page\'s meaning'), { path: "p.dh.md", glossary: HOST });
+    expect(marks(doc)).toEqual([{ text: "SLA", id: "sla" }, { text: "UL", id: "ul" }]);
+    const refs: any[] = []; for (const b of (doc.blocks.find((x) => x.type === "markdown" && (x as any).md.some((m: any) => m.t === "p")) as any).md[0].c) if (b.t === "ref") refs.push(b.data);
+    expect(refs.map((d) => [d.id, d.plain, d.link])).toEqual([["sla", "what we promise a customer", ""], ["ul", "the page's meaning", "#dh-term-ul"]]);
+    expect(check(doc).filter((p) => p.level === "error")).toEqual([]);
+  });
+  test("a host term that meets a page term by an other name is left out without a problem", () => {
+    const doc = parse(page("SLA and UL", 'term x "SLA": the page'), { path: "p.dh.md", glossary: [{ term: "Other", aliases: ["sla"], def: "host" }] });
+    expect(marks(doc)).toEqual([{ text: "SLA", id: "x" }]);
+    expect(check(doc).filter((p) => p.level === "error")).toEqual([]);
+  });
+  test("the LLM view lists the host's terms once, after the front matter, and not the ones the page defines", () => {
+    const doc = parse(`---\ntitle: T\n---\n${page("SLA UL", 'term "UL": mine')}`, { path: "p.dh.md", glossary: HOST });
+    expect(doc.llm.match(/- \*\*SLA\*\*/g)?.length).toBe(1);
+    expect(doc.llm).toContain("Glossary (from the site):\n- **SLA** (also: service level agreement): what we promise a customer");
+    expect(doc.llm).not.toContain("the host's meaning");
+    expect(doc.llm.indexOf("Glossary (from the site)")).toBeLessThan(doc.llm.indexOf("# Page"));
+    expect(doc.llm.match(/- \*\*UL\*\*/g)?.length).toBe(1);
+    expect(parse("# P\n\nno list", { path: "p.md" }).llm).not.toContain("from the site");
+  });
+  test("an unused host term is no warning (a site list is long)", () => {
+    expect(check(parse("# P\n\nSLA only\n", { path: "p.md", glossary: HOST })).filter((p) => p.level === "warn")).toEqual([]);
+  });
+  const errs = (g: unknown, limits: any = LIMITS) => check(parse("# P\n\nSLA\n", { path: "p.md", glossary: g as any, limits })).filter((p) => p.level === "error").map((p) => p.message);
+  test("checked like the page's own terms, with the same caps; each refusal names the fix", () => {
+    expect(errs("x").some((m) => /the host's glossary: is a list of \{ term, aliases, def \}/.test(m))).toBe(true);
+    expect(errs([3]).some((m) => /entry 1 is not/.test(m))).toBe(true);
+    expect(errs([{ def: "x" }]).some((m) => /entry 1 needs a term as text/.test(m))).toBe(true);
+    expect(errs([{ term: "A" }]).some((m) => /"A" needs its meaning as text/.test(m))).toBe(true);
+    expect(errs([{ term: "n".repeat(61), def: "x" }]).some((m) => /at most 60 characters/.test(m))).toBe(true);
+    expect(errs([{ term: "A", def: "x".repeat(601) }]).some((m) => /at most 600 characters/.test(m))).toBe(true);
+    expect(errs([{ term: "A", def: "x".repeat(401) }], UNTRUSTED_LIMITS).some((m) => /at most 400 characters/.test(m))).toBe(true);
+    expect(errs([{ term: "A", aliases: "b", def: "x" }]).some((m) => /other names of "A" are a list of text/.test(m))).toBe(true);
+    expect(errs([{ term: "A", aliases: ["a", "b", "c", "d", "e", "f"], def: "x" }]).some((m) => /more than 5 other names/.test(m))).toBe(true);
+    expect(errs([{ term: "A", def: "x" }, { term: "a", def: "y" }]).some((m) => /the term "a" is defined twice/.test(m))).toBe(true);
+    const many = Array.from({ length: 30 }, (_, i) => ({ term: `T${i}`, def: "m" }));
+    expect(check(parse("# P\n\nT1\n", { path: "p.md", glossary: many, limits: { glossaryTerms: 20 } as any })).some((p) => /more than 20 terms/.test(p.message))).toBe(true);
+    expect(errs(many, UNTRUSTED_LIMITS)).toEqual([]);
+    expect(errs(Array.from({ length: 120 }, (_, i) => ({ term: `T${i}`, def: "m" })), UNTRUSTED_LIMITS).some((m) => /more than 100 terms/.test(m))).toBe(true);
+  });
+  test("the host's list is part of the work: a spent budget stops the glossary, not the page", () => {
+    const many = Array.from({ length: 150 }, (_, i) => ({ term: `Term number ${i}`, def: "m" }));
+    const doc = parse("# P\n\ntext\n", { path: "p.md", glossary: many, limits: { maxEvalSteps: 50 } as any });
+    expect(doc.problems.some((p) => /^glossary: the glossary part does too much work/.test(p.message))).toBe(true);
+  });
+});
+
+describe("glossary: anchors carry the page's id prefix", () => {
+  const src = `# Page\n\n\`\`\`glossary\nterm "UL": the words\n\`\`\`\n\nUL here\n`;
+  const html = (idPrefix: string) => {
+    const doc = parse(src, { path: "p.dh.md", idPrefix });
+    const b = doc.blocks.find((x) => x.type === "glossary") as any;
+    const list = renderToStaticMarkup(React.createElement(GlossaryView, { data: b.data, block: b, ui: {} as any, static: undefined, stage: { width: 600, theme: "light", motion: "on", report() {} } }));
+    const m = marks(doc); expect(m.length).toBe(1);
+    const ref = (doc.blocks.find((x) => x.type === "markdown" && (x as any).md.some((y: any) => y.t === "p")) as any).md.find((y: any) => y.t === "p").c.find((y: any) => y.t === "ref");
+    return { list, link: ref.data.link as string };
+  };
+  test("two documents on one page, each with its own prefix, share no anchor id, and the card's link points at its own", () => {
+    const a = html("a-"), b = html("b-");
+    expect(a.list).toContain('id="a-term-ul"'); expect(b.list).toContain('id="b-term-ul"');
+    expect(a.list).not.toContain("b-term"); expect(b.list).not.toContain("a-term");
+    expect([a.link, b.link]).toEqual(["#a-term-ul", "#b-term-ul"]);
+  });
+  test("the default prefix is dh-, an empty one is allowed", () => {
+    expect(html("dh-").link).toBe("#dh-term-ul");
+    expect(html("").link).toBe("#term-ul");
+  });
+  test("check() reads the same prefix as parse()", () => {
+    const doc = parse(src, { path: "p.dh.md", idPrefix: "z-" });
+    expect(check(doc).filter((p) => p.level === "error")).toEqual([]);
+    expect((doc.blocks.find((x) => x.type === "glossary") as any).data.idPrefix).toBe("z-");
+  });
 });

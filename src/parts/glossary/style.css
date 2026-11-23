@@ -25,6 +25,7 @@
 @media (pointer: coarse) { .glossary-term::after { height: max(40px, 100%); } }
 
 /* the card (the kit's popover look): it is drawn at the reader's screen, a sheet at the bottom of a phone */
-.glossary-card { width: min(var(--glossary-card-w), calc(100vw - 16px)); box-sizing: border-box; }
+.glossary-card { box-sizing: border-box; }
+.glossary-card:not(.dh-pop-sheet) { width: min(var(--glossary-card-w), calc(100vw - 16px)); }
 .glossary-card .glossary-def { margin: 6px 0 0; }
 .glossary-card .dh-pop-act { min-height: 32px; }

@@ -35,6 +35,11 @@ export interface InlinePage {
   limits: Limits;
   /** a budget for the work of `prepare` (named "the <name> part"); draws from the page's */
   budget: Budget;
+  /** the page's id prefix (ParseOptions.idPrefix, default "dh-"): put it before every id the part makes, so two documents on one
+   *  page never share one; "" in the LLM view */
+  idPrefix: string;
+  /** the host's options of this parse() call (ParseOptions): a part reads the key it owns (the glossary's `glossary`); {} when none */
+  options: Readonly<Record<string, unknown>>;
 }
 
 /** One range of one text run that is this part's. `from` and `to` are offsets in the text `scan` was given, `to` exclusive. */
@@ -66,6 +71,8 @@ export interface InlineDef<S = unknown, D = unknown> {
   llm?(data: D, text: string): string;
   /** once per page, after all its text was read: problems about the whole page (a term never used) */
   check?(state: S): PartIssue[];
+  /** text for the top of the page's LLM view, after the front matter (a host's word list that no block on the page lists); "" for none */
+  llmHead?(state: S): string;
 }
 
 /** Make an inline part definition (type help; the generator checks the folder). */

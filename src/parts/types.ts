@@ -46,6 +46,9 @@ export interface PartContext {
   budget: Budget;
   /** the page's front matter, read-only (a code reference's pins, a page-wide setting); {} when the page has none */
   frontMatter?: Readonly<Record<string, unknown>>;
+  /** the page's id prefix (ParseOptions.idPrefix, default "dh-"): put it before an id the part's view makes (an anchor), so two
+   *  documents on one page never share one */
+  idPrefix?: string;
 }
 
 /** A problem a part's check reports; the line defaults to the fence's line, the level to "error". */

@@ -40,7 +40,7 @@ function blocksNamed(nodes: Node[], name: string, out: PartNode[] = []): PartNod
 const ORDER: InlineDef<any, any>[] = [...INLINE_PARTS].sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
 
 /** Run every part's `prepare` for a page. `nodes` are the page's nodes (for the blocks of each part), `frontMatter` its front matter. */
-export function prepareInlines(frontMatter: Record<string, unknown>, nodes: Node[], limits: Limits = LIMITS): InlineRun {
+export function prepareInlines(frontMatter: Record<string, unknown>, nodes: Node[], limits: Limits = LIMITS, idPrefix = "", options: Readonly<Record<string, unknown>> = {}): InlineRun {
   const run: InlineRun = { active: [], problems: [], limits, reported: 0 };
   for (const def of ORDER) {
     try {
@@ -48,7 +48,7 @@ export function prepareInlines(frontMatter: Record<string, unknown>, nodes: Node
       const fenced = Object.hasOwn(FOLDER_PART_DEFS, def.name) ? FOLDER_PART_DEFS[def.name] : undefined;
       if (fenced) for (const p of blocksNamed(nodes, def.name)) blocks.push(inputOf(p, fenced));
       const budget = partBudget(`the ${def.name} part`);
-      const state = def.prepare ? def.prepare({ frontMatter, blocks, limits, budget }) : {};
+      const state = def.prepare ? def.prepare({ frontMatter, blocks, limits, budget, idPrefix, options }) : {};
       if (state !== null && state !== undefined) run.active.push({ def, state, stopped: false });
     } catch (e) {
       run.problems.push({ line: 1, level: "error", message: `${def.name}: ${e instanceof BudgetError ? e.message : `could not be read (${e instanceof Error ? e.message : String(e)})`}; its marks in the text are not made` });
@@ -133,6 +133,13 @@ export function finishInlines(run: InlineRun): InlineProblem[] {
 
 // ---------------------------------------------------------------- the LLM view
 
+/** The text the parts want at the top of the page's LLM view (their `llmHead`), joined; "" when none. */
+export function inlineLlmHead(run: InlineRun): string {
+  const out: string[] = [];
+  for (const a of run.active) { if (!a.def.llmHead || a.stopped) continue; try { const t = a.def.llmHead(a.state); if (t) out.push(t); } catch { /* left out */ } }
+  return out.join("\n\n");
+}
+
 const LLM_PARTS: InlineDef<any, any>[] = ORDER.filter((d) => d.llm);
 
 /** Markdown text with every range a part's `llm` rewrites replaced by what an LLM reads (core/dh-lib.ts inlineToLlm calls it for each
@@ -143,7 +150,7 @@ export function inlineLlmText(t: string): string {
   const parts: Active[] = [];
   for (const def of LLM_PARTS) {
     try {
-      const state = def.prepare ? def.prepare({ frontMatter: {}, blocks: [], limits, budget: new Budget({ steps: INLINE_STEPS_FLAT, values: 256, chars: INLINE_STEPS_FLAT }, null, null, `the ${def.name} part`) }) : {};
+      const state = def.prepare ? def.prepare({ frontMatter: {}, blocks: [], limits, idPrefix: "", options: {}, budget: new Budget({ steps: INLINE_STEPS_FLAT, values: 256, chars: INLINE_STEPS_FLAT }, null, null, `the ${def.name} part`) }) : {};
       if (state !== null && state !== undefined) parts.push({ def, state, stopped: false });
     } catch { /* a part that cannot prepare is read as written */ }
   }

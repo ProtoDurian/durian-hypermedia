@@ -226,7 +226,7 @@ export default defineInline<{ cap: number }, Spark>({
 });
 ```
 
-- **`prepare(page)`** runs once per page: `page.frontMatter`, `page.blocks` (the page's own blocks of this part: a
+- **`prepare(page)`** runs once per page: `page.idPrefix` (the page's id prefix, to put before any id you make), `page.options` (the host's ParseOptions; read the key your part owns), `page.frontMatter`, `page.blocks` (the page's own blocks of this part: a
   ```` ```glossary ```` fence, `input.body` and so on, tabs included), `page.limits` and `page.budget`. It returns the part's
   state, or `null` when the page has nothing for it.
 - **`scan(text, state, budget)`** is called once per **plain text run** of a paragraph, list item, quote, callout or table cell,
@@ -237,6 +237,7 @@ export default defineInline<{ cap: number }, Spark>({
   `problem: "..."` on a hit (and `level: "warn"`) reports a wrong use with its line; the text stays as written and no other part reads it.
 - **`section(state, depth)`** (optional) is called at every heading with its depth (1 to 6): a part that marks only the first
   use in a section starts again at depth 1 or 2.
+- **`llmHead(state)`** (optional): text for the top of the page's LLM view, after the front matter. A fenced part's `parse` gets `ctx.idPrefix` too.
 - **`check(state)`** (optional) is called once after the page's text was read: problems about the whole page (a term the text never uses).
 - **`llm(data, text)`** (optional): the LLM view reads `llm(...)` in place of the range. It runs on the Markdown source, with the state of an empty page.
 - **The work.** The core charges the page's budget **one step per character offered** to your part, and gives `scan` a budget of its

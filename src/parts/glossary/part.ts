@@ -10,7 +10,8 @@
 import { definePart } from "../types";
 import { GLOSS_KEYS, glossaryLlm, parseGlossaryBlock, type GlossError, type Term } from "./terms";
 
-export interface GlossaryData { title: string | null; terms: Term[]; errors: GlossError[] }
+/** idPrefix: the page's id prefix, put before each term's anchor (`<idPrefix>term-<id>`) */
+export interface GlossaryData { title: string | null; idPrefix: string; terms: Term[]; errors: GlossError[] }
 
 export default definePart<GlossaryData>({
   name: "glossary",
@@ -22,7 +23,7 @@ export default definePart<GlossaryData>({
     const errors = [...r.errors];
     for (const k of Object.keys(input.attrs)) if (!GLOSS_KEYS.includes(k)) errors.push({ line: input.line, msg: `unknown key "${k.slice(0, 30)}"; the keys are ${GLOSS_KEYS.join(", ")}` });
     const title = input.attrs.title ? input.attrs.title.slice(0, 120) : null;
-    return { title, terms: r.terms, errors };
+    return { title, idPrefix: ctx.idPrefix ?? "dh-", terms: r.terms, errors };
   },
   llm: (data) => glossaryLlm(data.terms),
   check: (data) => data.errors.map((e) => ({ line: e.line, message: e.msg })),

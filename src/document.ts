@@ -14,8 +14,8 @@ import { compileScene } from "./core/scene";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
-import { folderBlock } from "./parts/runtime";
-import { finishInlines, prepareInlines } from "./parts/inline-runtime";
+import { folderBlock, withIdPrefix } from "./parts/runtime";
+import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 
 export const FORMAT_VERSION = 10;
@@ -48,6 +48,9 @@ export interface ParseOptions {
   blocks?: BlockDef<any, any>[];
   /** host inline references in prose (@src/a.ts, &T-12 ...); pass the same array each time (it is cached by identity) */
   inlines?: InlineDef<any, any>[];
+  /** a host's word list for the glossary (a site-wide list of terms): `{ term, aliases?, def }`, marked in the text like a page's own terms. A term the page
+   *  defines itself (front matter or a `glossary` block) wins. Checked with the glossary's caps; listed once in the LLM view, after the front matter. */
+  glossary?: { term: string; aliases?: string[]; def: string }[];
   /** drop "> **Security finding:**" callouts from the LLM view (a public render) */
   publicView?: boolean;
   /** false: a leading "---" block is Markdown (a rule and text the reader sees), not front matter (default true) */
@@ -62,6 +65,7 @@ export interface ParseOptions {
 interface Kept { dh: DhDoc | null; refused: Set<PartNode>; hosts: Map<PartNode, { def: BlockDef<any, any>; data: unknown; input: BlockInput }>; opts: ParseOptions }
 const kept = new WeakMap<Document, Kept>();
 
+const LLM_MARK = "<!-- Made by dh llm from the source; nobody edits this file. -->\n\n";
 const YAML_ALIAS = /(^|[\s\[{,:-])[&*][A-Za-z0-9_-]+/gm;
 const tooManyAliases = (y: string) => (y.match(YAML_ALIAS)?.length ?? 0) > 16;
 
@@ -104,7 +108,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
   // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
   // layout budget that every animation draws from (core/work.ts)
-  return withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
+  return withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     const fmOn = opts.frontMatter !== false;
@@ -143,7 +147,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       dh = d;
       const fm = (dh.fm && typeof dh.fm === "object" && !Array.isArray(dh.fm) ? dh.fm : {}) as Record<string, any>;
       // the parts of a sentence (parts/inline.ts): each reads the page's facts once, then every plain text run of its Markdown
-      ctx.inlineParts = prepareInlines(fm, dh.body, lim);
+      ctx.inlineParts = prepareInlines(fm, dh.body, lim, idPrefix, opts as Record<string, unknown>);
       const blocks = walk(dh.body);
       // a heading id and a part id (or a tab or accordion item id) share one namespace on the page: name a clash
       const partIds = new Map<string, number>();
@@ -159,6 +163,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       dh.path = path;
       let llm = "";
       try { llm = dhLlmView(dh, path, !!opts.publicView); } catch (e) { problems.push({ line: 1, level: "error", message: `the LLM view could not be made: ${(e as Error).message}` }); }
+      // what the parts of a sentence want at the top of the LLM view (a host's glossary)
+      const head = inlineLlmHead(ctx.inlineParts);
+      if (head && llm.includes(LLM_MARK)) llm = llm.replace(LLM_MARK, () => `${LLM_MARK}${head}\n\n`);
       const doc: Document = { ast: 1, format: FORMAT_VERSION, source: clean, path, frontMatter: fm, title: typeof fm.title === "string" ? fm.title : null, blocks, headings: ctx.heads, problems, highlighted: false, llm } as Document;
       kept.set(doc, { dh, refused, hosts, opts });
       return doc;
@@ -299,7 +306,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  })));
+  }))));
 }
 
 // all the tables of contents of one page together list at most this many headings (each lists the page's headings
@@ -381,7 +388,7 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
   // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
+  withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }))));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

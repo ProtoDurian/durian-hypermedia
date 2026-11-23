@@ -100,8 +100,16 @@ try {
       // a part of a sentence: put a real mouse over the first one, as a reader does, and take the page again (a card opens). The
       // browser page has no focus in this headless run, so a card that opens on :focus is seen only by a pointer here.
       const at = await p.eval<number[] | null>(`(() => { const e = document.querySelector('[data-dh-inline="${name}"] button, [data-dh-inline="${name}"] [tabindex]'); if (!e) return null; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()`);
-      if (at) await p.mouse("mouseMoved", at[0], at[1]);
+      // on the phone view a real tap (touch start and end, as a finger does); at 1280 a mouse over it
+      if (at && mobile) { await p.touch("touchStart", [{ x: at[0], y: at[1] }]); await p.sleep(80); await p.touch("touchEnd", []); }
+      else if (at) await p.mouse("mouseMoved", at[0], at[1]);
       await p.sleep(500);
+      // a term (or any inline part with aria-expanded) must be open after the tap, and its card must be on screen
+      if (at && mobile) {
+        const st = await p.eval<{ expanded: string | null; card: number[] | null }>(`(() => { const e = document.querySelector('[data-dh-inline="${name}"] [aria-expanded]'); const c = document.querySelector('[data-dh-slot="popover"]'); const r = c ? c.getBoundingClientRect() : null; return { expanded: e ? e.getAttribute("aria-expanded") : null, card: r ? [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)] : null }; })()`);
+        if (st.expanded === "false" || (st.expanded === "true" && (!st.card || st.card[0] < 0 || st.card[2] > w || st.card[3] > h))) fails.push(`${tag}: a tap on a ${name} did not open its card on screen (${JSON.stringify(st)})`);
+        views.push({ view: `${tag} tap`, ...st });
+      }
       const o = await p.eval<{ csp: string[]; errors: string[] }>(`window.__dh`);
       await p.shot(join(OUT, "shots", `${name}-${tag}-open.png`), { x: 0, y: 0, width: w, height: Math.min(await p.eval<number>(`Math.ceil(document.documentElement.scrollHeight)`), 6000) });
       if (o.csp.length > s.csp.length) fails.push(`${tag}: opening a ${name} gave policy violations`);

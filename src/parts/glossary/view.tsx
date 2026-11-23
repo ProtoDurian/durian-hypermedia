@@ -15,7 +15,7 @@ export default function GlossaryView({ data }: PartViewProps<GlossaryData>) {
       {data.terms.length ? (
         <dl className="glossary-list" data-dh-slot="list">
           {data.terms.map((t) => (
-            <div className="glossary-item" key={t.id} id={`term-${t.id}`} data-dh-slot="term">
+            <div className="glossary-item" key={t.id} id={`${data.idPrefix}term-${t.id}`} data-dh-slot="term">
               <dt>{t.label}{t.also.length > 0 && <span className="glossary-also"> · {W.also} {t.also.join(", ")}</span>}</dt>
               <dd><Segs segs={t.segs} /></dd>
             </div>

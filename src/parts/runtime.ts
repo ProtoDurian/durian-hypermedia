@@ -54,6 +54,15 @@ export function inputOf(p: PartNode, def: PartDef<any>): PartInput {
   };
 }
 
+// the id prefix of the parse() or check() call running now (both are synchronous, like the page budget they sit beside)
+let ambientPrefix = "dh-";
+/** Run fn with this id prefix known to the folder parts' parse (PartContext.idPrefix). */
+export function withIdPrefix<T>(prefix: string, fn: () => T): T {
+  const before = ambientPrefix;
+  ambientPrefix = prefix;
+  try { return fn(); } finally { ambientPrefix = before; }
+}
+
 type Read = { ok: true; data: unknown; input: PartInput } | { ok: false; message: string; budget: boolean; input: PartInput };
 // a part is read once per node: parse(), its LLM view and its checks reuse it (and charge the budget once)
 const reads = new WeakMap<PartNode, Read>();
@@ -68,7 +77,7 @@ export function readPart(p: PartNode, def: PartDef<any>): Read {
   try {
     const budget = partBudget(`the ${def.name} part`);
     const limits = currentBudget()?.lim ?? LIMITS;
-    r = { ok: true, data: def.parse(input, { limits, budget, frontMatter: p.fm ?? {} }), input };
+    r = { ok: true, data: def.parse(input, { limits, budget, frontMatter: p.fm ?? {}, idPrefix: ambientPrefix }), input };
   } catch (e) {
     r = { ok: false, message: e instanceof Error ? e.message : String(e), budget: e instanceof BudgetError, input };
   }

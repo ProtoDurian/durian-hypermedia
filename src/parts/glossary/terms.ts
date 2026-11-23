@@ -169,24 +169,55 @@ export function parseGlossaryFront(fm: unknown, lim: GlossLimits, budget?: Budge
   return { terms, errors };
 }
 
-/** Every term of the page: front matter, then the blocks (then a host's list: a host term the page defines is replaced by the page's). */
+/** A host's word list (ParseOptions.glossary): `{ term, aliases?, def }` each. Checked like the front matter, with the same caps; the first problem of an
+ *  entry drops the entry. The terms are `from: "host"`, on line 1. */
+export function parseGlossaryHost(host: unknown, lim: GlossLimits, budget?: Budget): { terms: Term[]; errors: GlossError[] } {
+  const terms: Term[] = [], errors: GlossError[] = [];
+  if (host == null) return { terms, errors };
+  const bad = (msg: string) => errors.push({ line: 1, msg: `the host's glossary: ${msg}` });
+  if (!Array.isArray(host)) { bad("is a list of { term, aliases, def }"); return { terms, errors }; }
+  for (let i = 0; i < host.length; i++) {
+    budget?.charge(4, 0, 0);
+    if (terms.length >= lim.glossaryTerms) { bad(`more than ${lim.glossaryTerms} terms; the rest are not marked`); break; }
+    const e = host[i] as { term?: unknown; aliases?: unknown; def?: unknown } | null;
+    const at = `entry ${i + 1}`;
+    if (!e || typeof e !== "object") { bad(`${at} is not { term, aliases, def }`); continue; }
+    if (typeof e.term !== "string" || !e.term.trim()) { bad(`${at} needs a term as text`); continue; }
+    const label = e.term.trim();
+    if (label.length > lim.glossaryLabel) { bad(`a term is at most ${lim.glossaryLabel} characters (${at})`); continue; }
+    if (typeof e.def !== "string" || !e.def.trim()) { bad(`"${label.slice(0, 30)}" needs its meaning as text`); continue; }
+    const def = e.def.trim();
+    if (def.length > lim.glossaryDef) { bad(`the meaning of "${label.slice(0, 30)}" is at most ${lim.glossaryDef} characters`); continue; }
+    let also: string[] = [];
+    if (e.aliases !== undefined) {
+      if (!Array.isArray(e.aliases) || e.aliases.some((x) => typeof x !== "string")) { bad(`the other names of "${label.slice(0, 30)}" are a list of text`); continue; }
+      also = (e.aliases as string[]).map((x) => x.trim()).filter(Boolean);
+      if (also.length > lim.glossaryAliases || also.some((x) => x.length > lim.glossaryLabel)) { bad(`"${label.slice(0, 30)}" has more than ${lim.glossaryAliases} other names, or one over ${lim.glossaryLabel} characters`); continue; }
+    }
+    terms.push({ id: slug(label) || label, label, also, def, segs: defSegs(def, budget), line: 1, from: "host" });
+  }
+  return { terms, errors };
+}
+
+/** Every term of the page: front matter, then the blocks (then a host's list: a host term the page defines, by name or id, is left out: the page's wins). */
 export function allTerms(front: Term[], blocks: Term[], host: Term[] = []): { terms: Term[]; dups: { term: Term; first: Term; why: string }[] } {
   const terms: Term[] = [], dups: { term: Term; first: Term; why: string }[] = [];
   const names = new Map<string, Term>(), ids = new Map<string, Term>();
   const add = (t: Term, local: boolean) => {
     const keys = [t.label, ...t.also].map((x) => x.toLowerCase());
+    // a host term that meets a page term is left out without a word (the page's wins); two host terms that meet are a problem
     for (const k of keys) {
       const f = names.get(k);
-      if (f && (local || f.from !== "host")) { dups.push({ term: t, first: f, why: `"${k}" is already defined` }); return; }
+      if (f) { if (local || f.from === "host") dups.push({ term: t, first: f, why: `"${k}" is already defined` }); return; }
     }
     const idf = ids.get(t.id);
-    if (idf && (local || idf.from !== "host")) { dups.push({ term: t, first: idf, why: `the id "${t.id}" is already used` }); return; }
+    if (idf) { if (local || idf.from === "host") dups.push({ term: t, first: idf, why: `the id "${t.id}" is already used` }); return; }
     for (const k of keys) names.set(k, t);
     ids.set(t.id, t);
     terms.push(t);
   };
   for (const t of [...front, ...blocks]) add(t, true);
-  for (const t of host) if (!names.has(t.label.toLowerCase())) add({ ...t, from: "host" }, false);
+  for (const t of host) add({ ...t, from: "host" }, false);
   return { terms, dups };
 }
 

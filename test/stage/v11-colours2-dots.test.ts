@@ -19,8 +19,9 @@ describe("column dots: 'dot' and 'dot-new' paints", () => {
     expect(paint("acc:dot", {})).toBe("var(--acc-dot, var(--acc-soft))");
     expect(paint("acc:dot-new", {})).toBe("var(--acc-dot-new, var(--acc))");
   });
-  test("light sets neither (pale plain dots, border-coloured lit dots); both dark blocks set them to the role colour and its ink", () => {
-    expect(block(":root {")).not.toContain("--c1-dot");
+  test("light: plain dots the role colour, lit dots darker (rc.2 MUST 8); both dark blocks: the role colour and its ink", () => {
+    // the package's light palette: the role's colour, or its ink where the colour is under 3:1 (theme-dots.ts)
+    for (const k of [1, 2, 3, 4, 5, 6, 7, 8]) { const p = new RegExp(`--c${k}-dot: (var\\(--c${k}(?:-ink)?\\));`).exec(block(":root {"))?.[1]; expect(p).toBeDefined(); expect(block(":root {")).toContain(`--c${k}-dot-new: color-mix(in oklab, ${p} 70%, #000);`); }
     for (const b of [block("@media (prefers-color-scheme: dark)"), block(':root[data-theme="dark"]')]) for (const k of [1, 2, 3, 4, 5, 6, 7, 8]) {
       expect(b).toContain(`--c${k}-dot: var(--c${k});`); expect(b).toContain(`--c${k}-dot-new: var(--c${k}-ink);`);
     }

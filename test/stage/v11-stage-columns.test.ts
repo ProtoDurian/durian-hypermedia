@@ -26,7 +26,7 @@ const dots = (items: Item[], k: number) => items.filter((i) => i.k === "box" && 
 test("parses columns, keeps counts until changed and lists the facts", () => {
   const c = compile(); expect(c.errors).toEqual([]);
   const llm = stageLlm(c);
-  for (const s of ["Columns: books returned each month, one dot each (one dot per book), up to 12 columns.", "6 columns, 135 books in all (12 to 31 a column): Jan 24, Feb 19", "12 columns, 274 books in all", "New: Jul, Aug, Sep, Oct, Nov, Dec (139 in them).", "New: Dec."]) expect(llm).toContain(s);
+  for (const s of ["Columns: books returned each month, one dot each (one dot per book), up to 12 columns.", "6 columns, 135 books in all (12 to 31 a column): Jan 24, Feb 19", "12 columns, 274 books in all", "New: Jul, Aug, Sep, Oct, Nov, Dec (139 in them).", "Lit, unchanged since the step before: Dec 35."]) expect(llm).toContain(s);
 });
 for (const w of [1000, 340]) test(`columns lay out inside ${w}, one dot per counted thing, places kept for every step`, () => {
   const plan = layoutStage(compile().model, w); bounded(plan.items, w, plan.h);

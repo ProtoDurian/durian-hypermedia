@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { Stage, SSR_W } from "../../src/ui/stage";
+import { Stage, SSR_W, PRINT_FLOOR } from "../../src/ui/stage";
 import { UI } from "../../src/ui/ui";
 import { beginDocument, BudgetError, docBudget, newBudget } from "../../src/core/stage-budget";
 
@@ -97,4 +97,13 @@ test("a phone's stage buttons are 32 px tall, the control buttons and the step b
   const base = css.indexOf("\n.stg-stepbtn {"), step = css.indexOf("@media (max-width: 720px) { .stg-stepbtn {");
   expect(base).toBeGreaterThan(0); expect(step).toBeGreaterThan(base);
   expect(h(css.slice(step, css.indexOf("}", step + 30)))).toBeGreaterThanOrEqual(32);
+});
+
+test("print: a stage's drawing shrinks to fit its sheet no further than PRINT_FLOOR, which keeps an 11 px word at 8 pt (23 Nov); its box floor and its one-sheet need use it", () => {
+  expect(11 * 0.75 * PRINT_FLOOR).toBeGreaterThanOrEqual(8);
+  expect(PRINT_FLOOR).toBe(0.97);
+  const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
+  expect(tsx).toContain('"--stg-boxmin": `${Math.ceil(plans[0].h * PRINT_FLOOR)}px`');
+  expect(tsx).toContain('"--stg-need": `${Math.ceil(plans[0].h * PRINT_FLOOR) + 160}px`');
+  expect(tsx).not.toContain("h * 0.935");
 });

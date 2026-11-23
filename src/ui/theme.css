@@ -39,6 +39,11 @@
   /* --- accents ------------------------------------------------------------- */
   --acc: #555FFF;           /* primary accent: links, focus, "the answer" */
   --acc-ink: #3039C8;       /* accent as text (>= 7:1 on surface) */
+  /* a column's unlit dot looks the same in both themes: the role's colour where it is 3:1 on the stage and the page,
+     else the role's ink (this palette's c2, c3, c5, c6, c8); a lit column's dots are stronger: darker in light (the
+     brighter ink in dark, below) */
+  --c1-dot: var(--c1); --c2-dot: var(--c2-ink); --c3-dot: var(--c3-ink); --c4-dot: var(--c4); --c5-dot: var(--c5-ink); --c6-dot: var(--c6-ink); --c7-dot: var(--c7); --c8-dot: var(--c8-ink); --acc-dot: var(--acc);
+  --c1-dot-new: color-mix(in oklab, var(--c1) 70%, #000); --c2-dot-new: color-mix(in oklab, var(--c2-ink) 70%, #000); --c3-dot-new: color-mix(in oklab, var(--c3-ink) 70%, #000); --c4-dot-new: color-mix(in oklab, var(--c4) 70%, #000); --c5-dot-new: color-mix(in oklab, var(--c5-ink) 70%, #000); --c6-dot-new: color-mix(in oklab, var(--c6-ink) 70%, #000); --c7-dot-new: color-mix(in oklab, var(--c7) 70%, #000); --c8-dot-new: color-mix(in oklab, var(--c8-ink) 70%, #000); --acc-dot-new: color-mix(in oklab, var(--acc) 70%, #000);
   --acc-2: #7F87FF;
   --acc-soft: #DEE0FF;
   --acc-softer: #EEEFFF;

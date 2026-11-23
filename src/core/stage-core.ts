@@ -27,7 +27,7 @@ export const LINE_H: Record<Font, number> = { title: 18, body: 17, sub: 16, lane
 /** When an item shows, and (bar) the measurement hooks it carries: written as data-bar-<key> attributes (kind, id, label, role, edge, from, to, edge-label, column, axis, min, max, value). */
 export type When = { from?: number; to?: number; on?: number[]; hot?: number[]; dim?: number[]; bar?: Record<string, string | number | undefined> };
 export type Item = When & ({ k: "box"; x: number; y: number; w: number; h: number; fill: Paint; stroke: Paint; r?: number; dash?: boolean; thick?: boolean; cls?: string; id?: string; role?: string }
-  | { k: "text"; x: number; y: number; s: string; f: Font; ink: Paint; anchor?: "start" | "middle" | "end"; tip?: string; strike?: boolean; rotate?: 90; breaks?: number[]; pitch?: number; halo?: boolean }
+  | { k: "text"; x: number; y: number; s: string; f: Font; ink: Paint; anchor?: "start" | "middle" | "end"; tip?: string; strike?: boolean; rotate?: 90; breaks?: number[]; pitch?: number; halo?: boolean; size?: number }
   | { k: "path"; pts: [number, number][]; curve?: "h" | "v" | "round" | "line"; ink: Paint; dash?: boolean; arrow?: boolean; w?: number; flow?: boolean; id?: string; dot?: boolean; head?: number }
   | { k: "badge"; x: number; y: number; s: string; role: string }
   | { k: "tri"; x: number; y: number; ink: Paint });
@@ -164,7 +164,7 @@ export type BlockInput = { word: string; arg: string; body: Line[]; line: number
 export type StepOp = BlockInput & { step: number; keep?: boolean; shared?: boolean };
 export type ParseCtx = { roles: Set<string>; problem: (line: number, msg: string) => void; ids: Set<string>; steps: number; caption?: (step: number, text: string, keep?: boolean) => void; lanes?: string[] }; // lanes: the lane titles, for check
 /** `beside`: the block is one of a step's panels laid side by side (its box is its share of the row, not the stage) */
-export type Box = { w: number; narrow: boolean; steps: number; stepTitles: string[]; beside?: boolean; /** the panels sit right of a lone card (wide): a card filling them is a card, not the stage's panel */ inset?: boolean; noteH?: (w: number) => number; theme?: Record<string, string>; aside?: { w: number; steps?: number[] }; footLeft?: number; lanes?: { title: string; x: number; w: number }[] }; // lanes: laid-out lane columns, x in the block's frame
+export type Box = { /** a note frame's least height ('height: N lines' after 'notes:') */ noteMin?: number; w: number; narrow: boolean; steps: number; stepTitles: string[]; beside?: boolean; /** the panels sit right of a lone card (wide): a card filling them is a card, not the stage's panel */ inset?: boolean; noteH?: (w: number) => number; theme?: Record<string, string>; aside?: { w: number; steps?: number[] }; footLeft?: number; lanes?: { title: string; x: number; w: number }[] }; // lanes: laid-out lane columns, x in the block's frame
 /** `slot`: a head block may offer a place for the step notes (its left column under its rows, beside a side column);
  * the stage puts the note region there instead of under everything. */
 /** `aside`: content for an empty peer-panel slot offered to the immediately following head; the stage owns its placement.

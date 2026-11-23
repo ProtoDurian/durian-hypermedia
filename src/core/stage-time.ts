@@ -24,16 +24,16 @@ const STYLE_PARSE=new Map<string,keyof typeof TIME_STYLES>(Object.entries(TIME_S
 
 const MARKER_FLAGS={guide:"[guide]",solid:"[solid]",below:"[below]",caption:"[caption]",beside:"[beside]",tick:"[tick]"} as const;
 const ROW_FLAGS={chip:"[chip]"} as const;
-type Seg = { name: string; a: number; b: number; on: boolean; from: number; to: number; tone?: string; wide: boolean; focus: boolean; dot?: boolean; numbered?: boolean; after?: boolean; soft?: boolean; role?: string };
+type Seg = { name: string; a: number; b: number; on: boolean; from: number; to: number; tone?: string; wide: boolean; focus: boolean; dot?: boolean; numbered?: boolean; after?: boolean; soft?: boolean; preview?:boolean; role?: string };
 type TRow = { role: string; id: string; label: string; segs: Seg[]; inset?: boolean; boxed?: boolean; chip?: boolean };
-type Mark = { step: number; kind: "at" | "span" | "dot"; row?: string; a: number; b: number; text: string; tone?: string; persist?: boolean; line?: boolean; bar?: boolean; edge?: boolean; solid?: boolean; below?: boolean; caption?: boolean; beside?: boolean; tick?: boolean; labelTo?: number };
+type Mark = { step: number; kind: "at" | "span" | "dot"; row?: string; a: number; b: number; text: string; tone?: string; persist?: boolean; line?: boolean; bar?: boolean; edge?: boolean; solid?: boolean; below?: boolean; caption?: boolean; beside?: boolean; tick?: boolean; above?:boolean; bare?:boolean; labelTo?: number };
 type Arrow = { from: string; to: string; at: number; text: string; step: number; dash: boolean; tone?: string };
 type TimeTag = {row:string;a:number;b:number;text:string;step:number};
 type DotPaint = {row:string;step:number;keep:boolean;off:boolean;range?:[number,number];tone?:string;at?:number};
-type Band = { role: string; id: string; title: string; first: string; last: string; line: number };
+type Band = { role: string; id: string; title: string; first: string; last: string; line: number; compact?: boolean };
 type Point = { role: string; id: string; time: number; value: number; label: string };
 type Axis = { a: number; b: number; unit: string; from?: number; to?: number; tone?:string };
-type Time = Axis & { key: string; name?: string; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; points: Point[]; hushes: {step:number;at:number;span?:string}[]; ids: Set<string>; last: Map<string, number> };
+type Time = Axis & { key: string; name?: string; captionBeside?: boolean; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; points: Point[]; hushes: {step:number;at:number;span?:string}[]; ids: Set<string>; last: Map<string, number> };
 type TimeScope = { names: Map<string, Time>; rows: Map<string, Time | null>; n: number };
 const scopes=new WeakMap<ParseCtx,TimeScope>();
 /** A phase strip accompanying numeric time is a set of separators, rather than a standalone journey. */
@@ -139,7 +139,9 @@ registerBlock({
     if(fields.slice(1).some(field=>field.startsWith("from ")))throw new StageError(inp.line,'name this time axis and write "show <axis name>" in its first visible step');
     const scope=scopes.get(ctx)||{names:new Map(),rows:new Map(),n:0};scopes.set(ctx,scope);
     if(name&&scope.names.has(name))throw new StageError(inp.line,`time axis "${name}" is declared twice; use distinct names`);
-    const node:Time={ ...axis(fields.join(" | "), inp.line, "time"),key:name?"time-axis-"+name:scope.n?"time-"+(scope.n+1):"time",name,from:1, rows: [], dotPaints: [], tags: [], marks: [], arrows: [], points: [], bands: [], hushes: [], tickLabels: new Map(), ids: new Set(), last: new Map() };
+    // "time: a..b | caption | beside" puts the caption on the tick-number line, in the gutter left of the axis
+    const beside=fields.length>=3&&fields[fields.length-1].trim()==="beside";if(beside)fields.pop();
+    const node:Time={ ...axis(fields.join(" | "), inp.line, "time"),...(beside?{captionBeside:true}:{}),key:name?"time-axis-"+name:scope.n?"time-"+(scope.n+1):"time",name,from:1, rows: [], dotPaints: [], tags: [], marks: [], arrows: [], points: [], bands: [], hushes: [], tickLabels: new Map(), ids: new Set(), last: new Map() };
     scope.n++;if(name)scope.names.set(name,node);return node;
   },
   claim(t: Time, l, body, ctx) {
@@ -153,13 +155,13 @@ registerBlock({
       t.lanes=[first,last];t.lanesLine=l.n;return true;
     }
     if(word==="band"){
-      const rest=l.t.slice(rawWord.length+1),q=rest.indexOf(' "'),end=q<0?-1:rest.indexOf('": ',q+2),head=q<0?[]:rest.slice(0,q).split(" "),title=end<0?"":rest.slice(q+2,end).trim(),range=end<0?"":rest.slice(end+3).trim(),k=range.indexOf("..");
+      const rest=l.t.slice(rawWord.length+1),q=rest.indexOf(' "'),end=q<0?-1:rest.indexOf('": ',q+2),head=q<0?[]:rest.slice(0,q).split(" "),title=end<0?"":rest.slice(q+2,end).trim(),range0=end<0?"":rest.slice(end+3).trim(),compactBand=/ \| compact$/.test(range0),range=compactBand?range0.replace(/ \| compact$/,"").trim():range0,k=range.indexOf("..");
       const first=k<0?"":range.slice(0,k).trim(),last=k<0?"":range.slice(k+2).trim();
-      if(head.length!==2||!ID_RE.test(head[1])||!title||!ID_RE.test(first)||!ID_RE.test(last))throw new StageError(l.n,'a band is: band role id "Title": first row..last row');
+      if(head.length!==2||!ID_RE.test(head[1])||!title||!ID_RE.test(first)||!ID_RE.test(last))throw new StageError(l.n,'a band is: band role id "Title": first row..last row, optionally ending | compact');
       if(t.bands.length>=8)throw new StageError(l.n,"a time block holds at most 8 bands");
       if(t.bands.some(b=>b.id===head[1]))throw new StageError(l.n,`band id "${head[1]}" is declared twice; use a unique id`);
       if(!ctx.roles.has(head[0]))ctx.problem(l.n,`"${head[0]}" is not a role of this page; the page declares ${[...ctx.roles].join(", ")||"none"}`);
-      t.bands.push({role:head[0],id:head[1],title,first,last,line:l.n});return true;
+      t.bands.push({role:head[0],id:head[1],title,first,last,line:l.n,...(compactBand?{compact:true}:{})});return true;
     }
     // 'height: N lines' under a window: its dashed frame keeps at least N text lines (18 px each) of height, the ruler inside as before; the same spelling and range (1..12) as a card's height
     if(word==="height"){const m=/^height:\s*(\d+) lines?$/.exec(l.t.trim());const n=m?+m[1]:NaN;
@@ -273,7 +275,7 @@ registerBlock({
     const ranges = new Map<string, Seg[]>();
     const segs = parts(c[1], ";").map((x) => {
       charge("segments", x.length + 1, 1);
-      const tokens = x.split(" ").filter(Boolean); let from = 1, to = 0, tone: string | undefined, wide = false, focus = false, dot = false, numbered = false, after = false, soft = false, role: string | undefined;
+      const tokens = x.split(" ").filter(Boolean); let from = 1, to = 0, tone: string | undefined, wide = false, focus = false, dot = false, numbered = false, after = false, soft = false, dashed = false, role: string | undefined;
       while (tokens.length) {
         const last = tokens.at(-1)!;
         // a state takes its own role, spelled as on a connector: '+a 0..3 (a)'; one per state
@@ -290,7 +292,7 @@ registerBlock({
         if (last.startsWith("[") && last.endsWith("]")) {
           const token = STYLE_PARSE.get(last.slice(1, -1));
           if (token === "wide") wide = true; else if (token === "focus") focus = true; else if (token === "dot") dot = true; else if(token==="numbered")numbered=true;else if(token==="after")after=true;else if(token==="soft")soft=true;
-          else if (token&&["plain", "idle", "good", "warn", "bad", "acc"].includes(token)) tone = token;
+          else if(token==="idle")dashed=true;else if (token&&["plain", "good", "warn", "bad", "acc"].includes(token)) tone = token;
           else throw new StageError(l.n, "cell styles are "+Object.values(TIME_STYLES).map(v=>`[${v}]`).join(", "));
           tokens.pop(); continue;
         }
@@ -306,8 +308,10 @@ registerBlock({
         if (!old.to) old.to = from - 1;
       }
       if(after&&(t.cells&&!wide||dot||numbered))throw new StageError(l.n,"[after] labels one bar; use [wide] with cells, without [dot] or [numbered]");
+      if(dashed&&(!tone||tone==="plain"))tone="idle";
+      const preview=dashed&&!!tone&&["good","warn","bad","acc"].includes(tone);
       if(soft&&(!tone||!["good","warn","bad","acc"].includes(tone)))throw new StageError(l.n,"[soft] needs a tone: [good], [warn], [bad] or [accent]");
-      const seg: Seg = { name: text === "_" ? "" : text, a: s[0], b: s[1], on: name.startsWith("+")||!!role, from, to, tone, wide, focus, dot, numbered, after, soft, ...(role?{role}:{}) };
+      const seg: Seg = { name: text === "_" ? "" : text, a: s[0], b: s[1], on: name.startsWith("+")||!!role, from, to, tone, wide, focus, dot, numbered, after, soft, ...(preview?{preview:true}:{}),...(role?{role}:{}) };
       if (t.cells) { const n = wide ? 1 : Math.ceil((seg.b - seg.a) / t.cells); charge("cell expansion", n, n * 8); }
       charge("state versions",1,1);if(versions)versions.push(seg);else ranges.set(key,[seg]);return seg;
     });
@@ -415,12 +419,14 @@ registerBlock({
       if (style.length > 1 || !within(v, t)) { ctx.problem(op.line, `at names a point on the axis, ${t.a} to ${t.b}: at 31: build done`); return; }
       t.marks.push({ step: op.step, kind: op.word === "dot" ? "dot" : "at", a: v, b: v, text: c[1], tone: markPaint(style[0], ctx.roles, op.line), persist: !!op.keep, edge:!tokens.includes(MARKER_FLAGS.guide),solid:tokens.includes(MARKER_FLAGS.solid),tick:tokens.includes(MARKER_FLAGS.tick),below:tokens.includes(MARKER_FLAGS.below),caption:tokens.includes(MARKER_FLAGS.caption),beside:tokens.includes(MARKER_FLAGS.beside) });if(tokens.includes(MARKER_FLAGS.caption))ctx.caption?.(op.step,c[1],!!op.keep); return;
     }
-    const tokens = c[0].split(" "), id = tokens[0], r = tokens[1], style = tokens.slice(2).filter(x=>x!=="[line]"&&x!=="[bar]"), colour = style[0], extra = style[1], s = r ? span(r) : null;
+    const tokens = c[0].split(" "), id = tokens[0], r = tokens[1], style = tokens.slice(2).filter(x=>x!=="[line]"&&x!=="[bar]"&&x!=="[above]"&&x!=="[bare]"), colour = style[0], extra = style[1], s = r ? span(r) : null;
     if (id!=="axis"&&!t.rows.some((x) => x.id === id)) { if(op.shared)return false;ctx.problem(op.line, `"${id}" is not a row of the time block (${t.rows.map((x) => x.id).join(", ")}; or axis)`); return; }
     const domain=t.rows.find(r=>r.id===id)?.inset?t.zoom!:t;
     if (extra || !s || s[0] < domain.a || s[1] > domain.b) { ctx.problem(op.line, `span names a row and a range on the axis: span ${id} 4..31: text`); return; }
+    if(tokens.includes("[bare]")&&(tokens.includes("[line]")||tokens.includes("[bar]"))){ctx.problem(op.line,"[bare] draws the span's words without a stroke; do not combine it with [line] or [bar]");return;}
+    if(tokens.includes("[above]")&&(id==="axis"||tokens.includes("[bar]"))){ctx.problem(op.line,"[above] places a row span caption above its stroke; use it on a row without [bar]");return;}
     if (tokens.includes("[bar]") && (id === "axis" || tokens.includes("[line]"))) { ctx.problem(op.line, "[bar] draws a row's span as a filled bar: use it on a row, without [line]"); return; }
-    t.marks.push({ step: op.step, kind: "span", row: id, a: s[0], b: s[1], text: c[1], tone: tokens.includes("[bar]")&&!colour?undefined:markPaint(colour, ctx.roles, op.line), persist: !!op.keep, line: tokens.includes("[line]"), bar: tokens.includes("[bar]") });
+    t.marks.push({ step: op.step, kind: "span", row: id, a: s[0], b: s[1], text: c[1], tone: tokens.includes("[bar]")&&!colour?undefined:markPaint(colour, ctx.roles, op.line), persist: !!op.keep, line: tokens.includes("[line]"), bar: tokens.includes("[bar]"),...(tokens.includes("[above]")?{above:true}:{}),...(tokens.includes("[bare]")?{bare:true}:{}) });
   },
   layout(t: Time, box: Box): LayoutOut {
     charge("layout", t.rows.length + t.points.length + t.marks.length + t.arrows.length + 1);
@@ -442,6 +448,7 @@ registerBlock({
       const items: Item[] = [], under: Item[] = [], markerStrokes:Item[]=[], prefix = t.key+(inset?"-inset":"")+suffix, pad = 8, RM = box.narrow ? 8 : 18;
       const onlyInset=inset&&t.rows.some(r=>r.inset),rows=t.rows.filter(r=>onlyInset?!!r.inset:!r.inset),values=onlyInset?undefined:t.values;
       const narrowRows=(box.narrow||t.labelsAbove)&&!t.labelsBeside&&!onlyInset;
+      const previewSteps=rows.some(r=>r.segs.some(s=>s.preview))?Array.from({length:box.steps},(_,i)=>i+1):[];
       const panelMarks=t.marks.filter(m=>!onlyInset||m.kind==="span"&&rows.some(r=>r.id===m.row));
       const headerCells=!!t.headers&&!inset&&!t.rulerNone;
       const denseHeaders=headerCells&&!box.narrow&&!!t.cells&&Math.ceil((a.b-a.a)/t.cells)>=24;
@@ -451,16 +458,23 @@ registerBlock({
       const wideCardRows=!!t.roomy&&!!t.cells&&!box.narrow&&!narrowRows&&!onlyInset&&rows.some(r=>r.boxed||r.label.includes(" | ")||/^\([A-Za-z0-9]\) /.test(r.label));
       const headingWidth=(r:TRow)=>{const parts=r.label.split(" | "),badge=/^\([A-Za-z0-9]\) /.test(parts[0]);if(badge)parts[0]=parts[0].slice(4);return Math.max(0,...parts.map(s=>measure(s,"sub")*1.1))+(badge?44:16);};
       const labCap=wideCardRows?Math.min(240,w*.28):box.w<480&&!narrowRows?Math.max(110,w*.4):denseHeaders?150:110;
-      const labW = onlyInset||narrowRows||!rows.some(r=>r.label)&&!values?(values?36:0):Math.min(labCap, Math.max(36, ...rows.map((r) => wideCardRows?headingWidth(r):measure(r.label, "sub") + 10)));
-      const bandW=t.bands.length&&!narrowRows&&!onlyInset?Math.min(120,Math.max(...t.bands.map(b=>{charge("band titles");return measure(b.title,"sub")+14;}))):0; // band titles beside their regions
+      // "band... | compact": its rows pack as one tight group under the band's title (split at " · " into name and sub), without their own labels
+      const quietRows=new Set<string>();{let open:Band|undefined;for(const r of rows){charge("compact band rows");open??=t.bands.find(b=>b.first===r.id);if(open?.compact)quietRows.add(r.id);if(open&&r.id===open.last)open=undefined;}}
+      const bandParts=(b:Band)=>b.compact?b.title.split(" · "):[b.title];
+      const bandLines=(b:Band,room:number)=>bandParts(b).flatMap((p,i)=>wrap(p,room,"sub",Infinity).map(s2=>({s:s2,ink:i?"muted":`role:${b.role}:ink`})));
+      const labRows=rows.filter(r=>!quietRows.has(r.id));
+      const labW = onlyInset||narrowRows||!labRows.some(r=>r.label)&&!values?(values?36:0):Math.min(labCap, Math.max(36, ...labRows.map((r) => wideCardRows?headingWidth(r):measure(r.label, "sub") + 10)));
+      const bandW=t.bands.length&&!narrowRows&&!onlyInset?Math.min(120,Math.max(...t.bands.flatMap(b=>{charge("band titles");return bandParts(b).map(p=>measure(p,"sub")+14);}))):0; // band titles beside their regions
       const afterW=Math.min(w*.4,Math.max(0,...rows.flatMap(r=>r.segs.filter(s=>s.after&&s.name).map(s=>measure(s.name,"sub")+12))));
       // Roomy phone grids borrow eight pixels of the stage's 14-pixel margin on each side.
       const roomyPhone=box.narrow&&t.roomy&&!inset,cellGap=(cw:number)=>t.apart?Math.min(8,cw*.12):Math.min(t.roomy?(roomyPhone?4:8):1.5,cw*.25);
       // "axis: A..B": 0 under lane A's left edge, the end under lane B's right edge; row labels stay at its left
       const laneA=!inset&&!box.narrow&&w===box.w&&t.lanes?box.lanes?.find(l=>l.title===t.lanes![0]):undefined,laneB=laneA?box.lanes?.find(l=>l.title===t.lanes![1]):undefined;
-      const x0 = laneA&&laneB?Math.max(labW+bandW+8,laneA.x):labW + bandW + (roomyPhone?-8:8), x1 = laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
+      const samplePad=box.narrow&&t.rulerBelow&&!t.cells&&rows.some(r=>{charge("sample edge room",r.segs.length+1);return new Set(r.segs.filter(s=>s.dot&&s.b>a.a&&s.a<a.b).map(s=>(Math.max(a.a,s.a)+Math.min(a.b,s.b))/2)).size>1;})?6:0;
+      // Repeated samples have room for their radius and stroke inside the frame; ticks and markers use the same inset axis.
+      const x0 = (laneA&&laneB?Math.max(labW+bandW+8,laneA.x):labW + bandW + (roomyPhone?-8:8))+samplePad, x1 = (laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW)-samplePad, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
       /** with "apart" a tick names the cell that starts at it, so its label is centred above that cell */
-      const labelX=(v:number,a:Axis)=>t.apart&&t.cells&&v<a.b?X((v+Math.min(a.b,v+t.cells))/2):X(v);
+      const labelX=(v:number,a:Axis)=>t.apart&&t.cells&&v<a.b?X((v+Math.min(a.b,v+t.cells))/2):samplePad?x0-samplePad+(v-a.a)/(a.b-a.a)*(x1-x0+2*samplePad):X(v);
       /** on a phone a cell's word that does not fit level stands on end inside its cell (as numbers do), no footnote, when it is short (24 px; 54 in "apart" cells) */
       // once a row staggers, every plain word in it takes a stagger line sized for the widest, so a long word never runs into a short level one
       const staggerable=(label:string,cw:number,seg:{wide?:boolean;numbered?:boolean;after?:boolean;dot?:boolean})=>box.narrow&&!!t.cells&&!!label&&!seg.wide&&!seg.numbered&&!seg.after&&!seg.dot&&!/^[-+]?\d+(?:\.\d+)?$/.test(label)&&Math.ceil((measure(label,"chip")*1.2+4)/cw)<=3;
@@ -539,6 +553,8 @@ registerBlock({
       }
       const aboveRoom=wideCardRows?0:Math.max(20,...t.arrows.filter(e=>e.from==="above").map(e=>arrowLabels.get(e)!.lines.length*18+2));
       let y = 0;
+      // "| beside" puts the caption on the tick-number line, left of the axis, when it fits that gutter (else above, as before)
+      const captionBeside=!!t.captionBeside&&!!label&&!inset&&!box.narrow&&!t.rulerBelow&&!t.rulerNone&&!headerCells&&!t.window&&measure(label,"sub")*1.12+pad+8<=x0;
       if(inset&&t.zoomBracket&&a.unit){
         // the inset's caption bracket: its words, then a bracket over the inset's whole range; one stable time-bar, no marker edge
         const lines=wrap(a.unit,Math.max(40,x1-x0),"sub",Infinity),bw=Math.max(...lines.map(s=>measure(s,"sub"))),bx=Math.max(x0,Math.min(x1-bw,(x0+x1-bw)/2));
@@ -547,7 +563,7 @@ registerBlock({
         items.push({k:"path",pts:[[x0,y+7],[x0,y+1],[x1,y+1],[x1,y+7]],curve:"round",ink:"line-2",w:2,id:`${prefix}:bracket`,bar:{ignore:1}});
         y+=12;
       }
-      else if(label)for (const s of wrap(label, t.rulerBelow?x1-x0:w-pad*2, "sub", Infinity)) { items.push({ k: "text", x: t.rulerBelow?x0:pad, y: y + 12, s, f: "sub", ink: "muted" }); y += compactHeaders?14:18; }
+      else if(label&&!captionBeside)for (const s of wrap(label, t.rulerBelow?x1-x0+2*samplePad:w-pad*2, "sub", Infinity)) { items.push({ k: "text", x: t.rulerBelow?x0-samplePad:pad, y: y + 12, s, f: "sub", ink: "muted" }); y += compactHeaders?14:18; }
       const unitHeight=y,unitEnd=items.length;
       // A desktop card grid's incoming arrow is a short input stub above the tick labels.
       // It shares the unit-caption line when their words fit beside each other; all steps reserve that same band.
@@ -557,16 +573,23 @@ registerBlock({
         const baseline=unitHeight&&slot.x>=captionRight+12?unitHeight-6:y+12;aboveInputs.set(e,baseline);y=Math.max(y,baseline+(slot.lines.length-1)*18+6);
       }
       const above = new Map<Mark, { y: number; lines: string[]; right?: boolean; gap?: number; reach?: boolean }>();
-      const headings=panelMarks.filter(m=>{charge("marker headings");return m.kind==="at"&&!!m.text&&!m.caption&&!m.below&&!m.beside&&(m.persist||!m.step)&&within(m.a,a);});
-      let headingY=y,headingH=0,headingRight=-Infinity;
+      // a one-step marker's words are a heading by its own line too (they fell to a list at the block's bottom left, and one a point named was not drawn at all);
+      // a heading shares a shelf with the ones of other steps, and stacks under one shown in the same step at the same place
+      const headings=panelMarks.filter(m=>{charge("marker headings");return m.kind==="at"&&!!m.text&&!m.caption&&!m.below&&!m.beside&&within(m.a,a);});
+      const headingX=(v:number)=>samplePad?x0-samplePad+(v-a.a)/(a.b-a.a)*(x1-x0+2*samplePad):X(v);
+      const headingSpan=(m:Mark):[number,number]=>[m.step||1,m.persist||!m.step?box.steps:m.step];
+      const stepCount=new Map<number,number>();for(const m of headings){const [f,e]=headingSpan(m);for(let k=f;k<=e;k++){charge("heading steps");stepCount.set(k,(stepCount.get(k)||0)+1);}}
+      const pairedAll=[...stepCount.values()].some(n=>n>1)||t.rulerBelow;
+      let headingY=y,headingH=0,row:{right:number;f:number;e:number}[]=[];
       for(const m of headings){
-        const right=X(m.a)>(x0+x1)/2,paired=headings.length>1,room=paired?Math.max(24,right?X(m.a)-8:w-RM-X(m.a)):w-16;
-        const lines=wrap(m.text,room,"sub",Infinity),width=Math.max(...lines.map(s=>measure(s,"sub"))),left=Math.max(8,Math.min(w-RM-width,X(m.a)-(paired?(right?width:0):width/2)));
-        if(headingH&&left<headingRight+8){headingY+=headingH+4;headingH=0;headingRight=-Infinity;}
-        above.set(m,{y:headingY,lines,right:paired?right:undefined});headingH=Math.max(headingH,lines.length*18);headingRight=left+width;
+        const hx=headingX(m.a),right=t.rulerBelow?measure(m.text,"sub")+6>w-RM-hx:hx>(x0+x1)/2,paired=pairedAll,room=paired?Math.max(24,right?hx-8:w-RM-hx):w-16;
+        const lines=wrap(m.text,room,"sub",Infinity),width=Math.max(...lines.map(s=>measure(s,"sub"))),left=Math.max(8,Math.min(w-RM-width,hx-(paired?(right?width:0):width/2))),[f,e]=headingSpan(m);
+        const prior=row.filter(o=>{charge("heading row");return o.f<=e&&f<=o.e;}).at(-1);
+        if(headingH&&prior&&left<prior.right+8){headingY+=headingH+4;headingH=0;row=[];}
+        above.set(m,{y:headingY,lines,right:paired?right:undefined,...(t.rulerBelow?{gap:6,reach:true}:{})});headingH=Math.max(headingH,lines.length*18);row.push({right:left+width,f,e});
       }
       if(headingH)y=headingY+headingH+4;
-      if(t.rulerBelow&&unitHeight){for(const it of items.slice(0,unitEnd))if(it.k==="text")it.y+=y-unitHeight;for(const heading of above.values())heading.y-=unitHeight;}
+      // With a bottom ruler, keep the unit caption first and attach each heading to its own marker line below it.
       // a [beside] label sent back to the shelf has its own shelf under the block's caption, beside its line
       {let sy=y,sh=0,sr=-Infinity;const placed:{m:Mark;x:number;y:number}[]=[];
         for(const m of panelMarks){
@@ -606,14 +629,14 @@ registerBlock({
         const shelves:{right:number;y:number;h:number}[]=[];
         const byX=labelValues; // ticks are written in increasing order (doccheck)
         for(const [i,v] of byX.entries()){
-          const word=(inset?t.zoomLabels?.get(v):undefined)||t.tickLabels.get(v)||fmt(v),x=labelX(v,a),near=Math.min(i?x-X(byX[i-1]):Infinity,i+1<byX.length?X(byX[i+1])-x:Infinity),rotate=turnNumber(word,near);
-          const lines=rotate?[word]:wrap(word,Math.min(x1-x0,Math.max(64,near-6)),"sub",Infinity),width=rotate?fontSize("chip")*.8:captionWidth(lines),height=rotate?Math.ceil(measure(word,"chip")):lines.length*tickLeading;
+          const word=(inset?t.zoomLabels?.get(v):undefined)||t.tickLabels.get(v)||fmt(v),x=labelX(v,a),near=Math.min(i?x-(samplePad?labelX(byX[i-1],a):X(byX[i-1])):Infinity,i+1<byX.length?(samplePad?labelX(byX[i+1],a):X(byX[i+1]))-x:Infinity),rotate=turnNumber(word,near),labelLo=x0-samplePad,labelHi=x1+samplePad;
+          const lines=rotate?[word]:wrap(word,Math.min(labelHi-labelLo,Math.max(64,near-6)),"sub",Infinity),width=rotate?fontSize("chip")*.8:captionWidth(lines),height=rotate?Math.ceil(measure(word,"chip")):lines.length*tickLeading;
           // End labels may use the ruler margins; their ticks stay at the exact axis endpoints.
-          let left=rotate?Math.max(0,Math.min(w-width,x-width/2)):Math.max(x0,Math.min(x1-width,x-width/2));
+          let left=rotate?Math.max(0,Math.min(w-width,x-width/2)):Math.max(labelLo,Math.min(labelHi-width,x-width/2));
           if(t.window&&!onlyInset){if(v===t.window.a)left=Math.max(left,X(v)+4);if(v===t.window.b)left=Math.min(left,X(v)-width-4);}
           let shelf=shelves.find(s=>{charge("phone label shelves");return s.right+(rotate?1:5)<=left;});
           // a label that misses the first row by a little slides right, at most half its width, when it still clears the next label
-          if(!shelf&&shelves.length&&!rotate){const s0=shelves[0],slid=s0.right+5,nv=byX[i+1],nw=nv===undefined?0:captionWidth([(inset?t.zoomLabels?.get(nv):undefined)||t.tickLabels.get(nv)||fmt(nv)]),nextLeft=nv===undefined?x1:labelX(nv,a)-nw/2;if(slid-left<=width/2&&slid+width+5<=nextLeft&&slid+width<=x1){left=slid;shelf=s0;}}
+          if(!shelf&&shelves.length&&!rotate){const s0=shelves[0],slid=s0.right+5,nv=byX[i+1],nw=nv===undefined?0:captionWidth([(inset?t.zoomLabels?.get(nv):undefined)||t.tickLabels.get(nv)||fmt(nv)]),nextLeft=nv===undefined?labelHi:labelX(nv,a)-nw/2;if(slid-left<=width/2&&slid+width+5<=nextLeft&&slid+width<=labelHi){left=slid;shelf=s0;}}
           if(!shelf){shelf={right:-Infinity,y:shelves.reduce((h,s)=>h+s.h+4,0),h:height};shelves.push(shelf);}
           shelf.right=left+width;shelf.h=Math.max(shelf.h,height);
           phoneLabels.set(v,{x:left,y:shelf.y,lines,rotate,shelf:shelves.indexOf(shelf)});
@@ -654,6 +677,7 @@ registerBlock({
           else phone.lines.forEach((s,i)=>items.push({k:"text",x:phone.x,y:top-6-phoneLabelH+phone.y+11+i*tickLeading,s,f:"sub",ink:"muted",from,...tickReveal(v,from),...(inset&&t.zoomLabels?.has(v)?{id:`${prefix}:label:${v}`}:{})}));
         }else if (tickX > textRight + 5) { items.push({ k: "text", x: tickX, y: top - 10, s, f: "sub", ink: "muted",from,...tickReveal(v,from),...(inset&&t.zoomLabels?.has(v)?{id:`${prefix}:label:${v}`}:{}) }); textRight = tickX + tw; }
       }
+      if(captionBeside)items.push({k:"text",x:pad,y:top-10,s:label,f:"sub",ink:"muted"});
       const rulerItems=items.slice(rulerStart);
       let dotLabelH = 0;
       for (const m of panelMarks) if (m.kind==="dot" && within(m.a,a) && m.text) dotLabelH += wrap(m.text, w-16,"sub",Infinity).length*18;
@@ -662,7 +686,7 @@ registerBlock({
       let axisSpanH=0;const axisLanes:{y:number;h:number;spans:[number,number][]}[]=[]; // axis spans whose lines and one-line words never meet share a row
       for(const m of panelMarks){
         charge("axis span slots");if(m.kind!=="span"||m.row!=="axis"||m.b<a.a||m.a>a.b)continue;
-        charge("axis span key",m.text.length+1);const key=JSON.stringify([m.a,m.b,m.text,m.tone||"acc",!!m.line]),previous=axisGroups.get(key);
+        charge("axis span key",m.text.length+1);const key=JSON.stringify([m.a,m.b,m.text,m.tone||"acc",!!m.line,!!m.bare]),previous=axisGroups.get(key);
         if(previous){previous.marks.push(m);axisGroupOf.set(m,previous);spanSlots.set(m,spanSlots.get(previous.owner)!);continue;}
         const group={owner:m,marks:[m]};axisGroups.set(key,group);axisGroupOf.set(m,group);
         const lines=wrap(m.text||`${fmt(m.a)}..${fmt(m.b)}`,w-16,"sub",Infinity),h=m.line?lines.length*18:lines.length*18+10;
@@ -692,13 +716,14 @@ registerBlock({
       const rowYs = new Map<string, number>();
       let lastSpans:{start:number;end:number;marks:Mark[]}|undefined; // the last row's span slots, for an apart grid's marker words
       const rowRects = new Map<string,{top:number;bottom:number;headingTop:number;captionBottom:number}>();
-      const rowsTop=y,frameLeft=t.rulerBelow&&!t.roomy?x0:roomyPhone?-8:0,frameWidth=t.rulerBelow&&!t.roomy?x1-x0:roomyPhone?w+20:w;
+      const rowsTop=y,frameLeft=t.rulerBelow&&!t.roomy?x0-samplePad:roomyPhone?-8:0,frameWidth=t.rulerBelow&&!t.roomy?x1-x0+2*samplePad:roomyPhone?w+20:w;
       const laneSpans:{from:number;to:number;w:number}[]=[];let laneMin=8;const rowsStart=items.length;
       for (const r of rows) {
         const opens=bandStart.get(r.id);
         let bandTitleH=0;
-        if(opens&&bandW){bandTop=y;y+=4;const lines=wrap(opens.title,bandW-10,"sub",Infinity);lines.forEach((s,i)=>bandItems.push({k:"text",x:6,y:y+12+i*18,s,f:"sub",ink:`role:${opens.role}:ink`}));bandTitleH=lines.length*18+8;}
-        else if(opens){bandTop=y;y+=4;for(const s of wrap(opens.title,frameWidth-16,"sub",Infinity)){bandItems.push({k:"text",x:frameLeft+8,y:y+12,s,f:"sub",ink:`role:${opens.role}:ink`});y+=18;}y+=2;}
+        if(opens&&bandW){bandTop=y;y+=opens.compact?2:4;const lines=bandLines(opens,bandW-10);lines.forEach((l,i)=>bandItems.push({k:"text",x:6,y:y+12+i*18,s:l.s,f:"sub",ink:l.ink}));bandTitleH=lines.length*18+8;}
+        else if(opens){bandTop=y;y+=4;for(const l of bandLines(opens,frameWidth-16)){bandItems.push({k:"text",x:frameLeft+8,y:y+12,s:l.s,f:"sub",ink:l.ink});y+=18;}y+=2;}
+        const quiet=quietRows.has(r.id);
         charge("row layout"); rowYs.set(r.id, y);
         const rowTop=y;
         if(onlyInset&&!r.chip&&r.label&&r.label!=="_")for(const s of wrap(r.label,w-16,"sub",Infinity)){items.push({k:"text",x:8,y:y+12,s,f:"sub",ink:"ink"});y+=18;}
@@ -708,7 +733,7 @@ registerBlock({
         const labelId=`${prefix}:row-label:${r.id}`,labelBar=r.chip?{kind:"chip",id:labelId,label:r.label,role:r.role}:{ignore:1};
         const labelWord=(word:Extract<Item,{k:"text"}>,fill:string)=>{if(r.chip)items.push(word);else backedWord(word,fill);};
         let headingW=0;
-        if((narrowRows||onlyInset&&r.chip)&&r.label){
+        if((narrowRows||onlyInset&&r.chip)&&r.label&&!quiet){
           const text=wrap(labelText,w-(badge?44:16),"sub",Infinity),extra=cardParts.slice(1).flatMap(s=>wrap(s,w-(badge?44:16),"sub",Infinity)),h=Math.max(18,(text.length+extra.length)*18);
           headingW=Math.min(w-frameLeft,Math.max(...[...text,...extra].map(s=>measure(s,"sub")))*(r.chip?1.12:1)+(badge?44:r.chip?6:16))+frameLeft;
           if(badge||t.roomy||r.boxed||r.chip||cardParts.length>1)items.push({k:"box",x:frameLeft,y,w:headingW-frameLeft,h,fill:`role:${r.role}:soft`,stroke:`role:${r.role}:line`,r:r.chip?9:5,...(r.chip?{id:labelId,role:r.role}:{}),bar:labelBar});
@@ -722,15 +747,15 @@ registerBlock({
           let lane=tagLanes.find(l=>l.labels.every(other=>{charge("tag collisions");return left+width+6<=other.left||other.left+other.width+6<=left;}));if(!lane){lane={h:0,labels:[]};tagLanes.push(lane);}lane.h=Math.max(lane.h,lines.length*14+6);lane.labels.push({tag,left,width,lines});
         }
         for(const lane of tagLanes){for(const {tag,left,width,lines}of lane.labels){const id=prefix+":tag:"+r.id+":"+t.tags.indexOf(tag),when={from:tag.step,to:0};items.push({k:"box",x:left,y,w:width,h:lane.h,fill:"role:"+r.role+":soft",stroke:"role:"+r.role+":line",r:9,id,bar:{kind:"chip",id,label:tag.text,role:r.role},...when});lines.forEach((s,i)=>items.push({k:"text",x:left+width/2,y:y+14+i*14,s,f:"chip",ink:"role:"+r.role+":ink",anchor:"middle",...when}));}y+=lane.h+4;}
-        const labels = onlyInset||narrowRows||!r.label?[]:wrap(labelText, labW - (r.chip?(badge?44:6):wideCardRows?(badge?44:16):card?16:2), "sub", wideCardRows||r.chip?Infinity:2);
+        const labels = onlyInset||narrowRows||!r.label||quiet?[]:wrap(labelText, labW - (r.chip?(badge?44:6):wideCardRows?(badge?44:16):card?16:2), "sub", wideCardRows||r.chip?Infinity:2);
         const dotCenters=[...new Set(r.segs.filter(s=>s.dot&&s.b>a.a&&s.a<a.b).map(s=>X((Math.max(a.a,s.a)+Math.min(a.b,s.b))/2)))].sort((a,b)=>a-b);
-        charge("dot spacing",dotCenters.length*Math.max(1,Math.ceil(Math.log2(dotCenters.length+1))));let dotRadius=t.rulerBelow?8:3;
+        charge("dot spacing",dotCenters.length*Math.max(1,Math.ceil(Math.log2(dotCenters.length+1))));let dotRadius=t.rulerBelow?samplePad?4:8:3;
         // Leave room for both strokes as well as the visible gap between dense phone samples.
         if(box.narrow)for(let i=1;i<dotCenters.length;i++)dotRadius=Math.min(dotRadius,Math.max(.5,(dotCenters[i]-dotCenters[i-1]-5)/2));
         const thin=!t.cells&&r.segs.some(s=>s.after),dotRow=r.segs.every(s=>s.dot),lineH=18;
         const compact=!!t.cells&&!t.roomy;
         const emptyChipCells=!!r.chip&&narrowRows&&!!t.cells&&!t.roomy&&!t.apart&&r.segs.every(s=>!s.name&&!s.dot&&!s.numbered&&!s.wide&&!s.after);
-        let rowH = Math.max(thin?14:dotRow?18:t.roomy ? box.narrow?48:56 : t.apart ? box.narrow?36:44 : emptyChipCells?20:compact||box.narrow?22:onlyInset?24:28, labels.length * (thin?14:18) + (thin?0:4));
+        let rowH = Math.max(thin?14:dotRow?18:t.roomy ? box.narrow?48:56 : t.apart ? box.narrow?36:44 : emptyChipCells?20:compact||box.narrow||quiet?22:onlyInset?24:28, labels.length * (thin?14:18) + (thin?0:4));
         // a dot's words too long for one line beside it wrap there (up to 2 lines, left of the next marker line that shows with them); the row grows; else under the row as before
         const dotSide=new Map<Seg,string[]>();
         if(dotRow)for(const s of r.segs){
@@ -740,7 +765,7 @@ registerBlock({
           const room=fence-start-3;if(room<60)continue;const lines=wrap(s.name,room/1.2,"sub",Infinity);if(lines.length>2)continue;
           dotSide.set(s,lines);rowH=Math.max(rowH,lines.length*14+4);
         }
-        const sublines=onlyInset||narrowRows?[]:cardParts.slice(1).flatMap(s=>wrap(s,labW-(wideCardRows&&badge?44:16),"sub",wideCardRows?Infinity:2));
+        const sublines=onlyInset||narrowRows||quiet?[]:cardParts.slice(1).flatMap(s=>wrap(s,labW-(wideCardRows&&badge?44:16),"sub",wideCardRows?Infinity:2));
         if(card)rowH=Math.max(rowH,labels.length*18+sublines.length*18+(badge&&!wideCardRows?25:r.chip?0:8));
         const numName=(s:Seg)=>!s.numbered&&!s.after&&/^[-+]?\d+(?:\.\d+)?$/.test(s.name),cellNumber=(s:Seg,v:number)=>s.numbered?numberWord(v):s.name;
         const numSegs=box.narrow&&t.cells?r.segs.filter(s=>(s.numbered||numName(s))&&!s.wide&&s.b>a.a&&s.a<a.b):[];
@@ -830,9 +855,9 @@ registerBlock({
         if(card){const h=r.chip?Math.max(18,(labels.length+sublines.length)*18+(badge?25:0)):rowH,width=r.chip?Math.min(labW-3,Math.max(0,...[...labels,...sublines].map(s=>measure(s,"sub")))*1.12+(badge?44:6)):labW-3;items.push({k:"box",x:bandW,y:r.chip?y:y+(rowH-h)/2,w:width,h,fill:`role:${r.role}:soft`,stroke:`role:${r.role}:line`,r:r.chip?9:7,cls:"scn-shape",role:r.role,id:labelId,bar:labelBar});}
         const labelY=y+(r.chip&&!badge?13:wideCardRows?(rowH-(labels.length+sublines.length)*18)/2+13:badge?37:card?(rowH-(labels.length+sublines.length)*18)/2+13:13);
         if(badge&&!narrowRows)items.push({k:"badge",x:bandW+6,y:wideCardRows?labelY-13:y+5,s:badge[1],role:r.role});
-        labels.forEach((s, i) => labelWord({ k: "text", x: wideCardRows&&badge?bandW+34:t.rulerBelow&&!card?x0-8:bandW+(r.chip&&!badge?3:card?6:4), y: labelY + i * 18, s, f: "sub", ink: r.chip?`role:${r.role}:ink`:"ink", tip: r.label,...(t.rulerBelow&&!card?{anchor:"end" as const}:{}) },headingFill));
+        labels.forEach((s, i) => labelWord({ k: "text", x: wideCardRows&&badge?bandW+34:t.rulerBelow&&!card?x0-samplePad-8:bandW+(r.chip&&!badge?3:card?6:4), y: labelY + i * 18, s, f: "sub", ink: r.chip?`role:${r.role}:ink`:"ink", tip: r.label,...(t.rulerBelow&&!card?{anchor:"end" as const}:{}) },headingFill));
         sublines.forEach((s,i)=>labelWord({k:"text",x:bandW+(wideCardRows&&badge?34:6),y:labelY+(labels.length+i)*18,s,f:"sub",ink:"muted"},headingFill));
-        let legendY = y + rowH + (dotRow||compact||box.narrow?0:5);
+        let legendY = y + rowH + (dotRow||compact||box.narrow||quiet?0:5);
         // staggered words stand on lines right under their row, each centred under its own cell, so they never cross a box
         const staggerY=legendY+2;if(stagger>1)legendY+=stagger*14+4;
         const cellLegends:{ref:string;label:string;ink:string;from:number;to:number}[]=[],rangeCaptions:{label:string;from:number;to:number}[]=[],laterNums:{hw?:number;min?:number;mask:Item;word:Item}[]=[];
@@ -841,7 +866,7 @@ registerBlock({
           const lo = Math.max(a.a, s.a), hi = Math.min(a.b, s.b); if (hi <= lo) continue;
           const left = X(lo), width = X(hi) - left;
           const token = inset&&a.tone&&!s.tone?a.tone:s.tone && !["plain", "idle"].includes(s.tone) ? s.tone : !s.tone && s.on ? `role:${s.role||r.role}` : "";
-          const paint = { fill: token ? `${token}:soft` : "surface-2", stroke: token&&!s.soft ? `${token}:${inset&&a.tone&&!s.tone?"ink":"line"}` : "line", dash: s.tone === "idle", thick: s.tone==="bad"&&!s.soft, from: s.from, to: s.to, ...(!s.soft&&(s.focus || s.tone === "bad") ? { hot: [Math.max(1, s.from)] } : {}) }; // [soft] limits the tone to the fill; ordinary bad cells retain their cross and first-step emphasis.
+          const paint = { fill: token ? `${token}:soft` : "surface-2", stroke: token&&!s.soft ? `${token}:${inset&&a.tone&&!s.tone?"ink":"line"}` : "line", dash: s.tone === "idle"||!!s.preview,...(s.preview?{dim:previewSteps}:{}), thick: s.tone==="bad"&&!s.soft, from: s.from, to: s.to, ...(!s.soft&&(s.focus || s.tone === "bad") ? { hot: [Math.max(1, s.from)] } : {}) }; // [soft] limits the tone to the fill; ordinary bad cells retain their cross and first-step emphasis.
           const words = (cx: number, cw: number, override?:string) => {
             const label=override??s.name,f=cellFont(label,cw),leading=f==="big"?28:lineH;
             const putWord=(word:Extract<Item,{k:"text"}>)=>backedWord(word,paint.fill);
@@ -987,8 +1012,8 @@ registerBlock({
         if(spanLanes.length)y=Math.max(y,sy);
         if(r===rows[rows.length-1]&&spanLanes.length)lastSpans={start:sy0,end:sy,marks:spanLanes.flatMap(l=>l.marks.map(x=>x.m))};
         const closes=bandStop.get(r.id);
-        if(closes&&bandStart.has(closes.first)){y+=4;if(bandW)y=Math.max(y,bandTop+t.bands.filter(b=>b===closes).map(b=>wrap(b.title,bandW-10,"sub",Infinity).length*18+8)[0]);bandItems.unshift({k:"box",x:2,y:bandTop,w:Math.max(8,w-4),h:y-bandTop,fill:`role:${closes.role}:soft`,stroke:`role:${closes.role}:line`,r:6,cls:"scn-frame stg-time-band",id:`${prefix}:band:${closes.id}`,bar:{kind:"band",label:closes.title}});}
-        y += wideCardRows?(rows.indexOf(r)<rows.length-1?evenGap:8):gapRoom[rows.indexOf(r)] ? gapRoom[rows.indexOf(r)] : compact&&box.narrow?(t.cells&&(x1-x0)*t.cells/(a.b-a.a)<16?1:3):compact||box.narrow?4:8;
+        if(closes&&bandStart.has(closes.first)){y+=closes.compact?2:4;if(bandW)y=Math.max(y,bandTop+bandLines(closes,bandW-10).length*18+(closes.compact?4:8));bandItems.unshift({k:"box",x:2,y:bandTop,w:Math.max(8,w-4),h:y-bandTop,fill:`role:${closes.role}:soft`,stroke:`role:${closes.role}:line`,r:6,cls:"scn-frame stg-time-band",id:`${prefix}:band:${closes.id}`,bar:{kind:"band",label:closes.title}});}
+        y += quiet&&!closes&&!gapRoom[rows.indexOf(r)]?2:wideCardRows?(rows.indexOf(r)<rows.length-1?evenGap:8):gapRoom[rows.indexOf(r)] ? gapRoom[rows.indexOf(r)] : compact&&box.narrow?(t.cells&&(x1-x0)*t.cells/(a.b-a.a)<16?1:3):compact||box.narrow?4:8;
       }
       under.unshift(...bandItems);
       if(rows.length>1)under.unshift(...revealedFrames({k:"box",x:frameLeft,y:rowsTop-4,w:frameWidth,h:y-rowsTop+4,fill:t.roomy||t.apart?"none":"surface-2",stroke:t.roomy||t.apart?"none":"line",r:7,cls:"scn-frame stg-time-rows",id:`${prefix}:rows`,bar:{kind:"lane",label:"Time rows"}},laneSpans,laneMin,box.steps));
@@ -1178,23 +1203,28 @@ registerBlock({
         }
         else if(m.kind === "span") {
           const slot=spanSlots.get(m);if(!slot)continue;
-          const sy=slot.y;
-          its.push({k:"path",pts:m.line?[[X(lo),sy],[X(hi),sy]]:[[X(lo),sy-3],[X(lo),sy+3],[X(hi),sy+3],[X(hi),sy-3]],curve:"round",ink:`${tone}:line`,w:2,id,bar:m.row==="axis"||m.line?{...(m.row==="axis"?{kind:"time-bar",label:m.text,id}:{}),...(m.line?{edge:id,from:rowId(m.row!),to:rowId(m.row!)}:{})}:undefined});
+          const sy=slot.y+(m.above?slot.lines.length*18+3:0);
+          if(!m.bare)its.push({k:"path",pts:m.line?[[X(lo),sy],[X(hi),sy]]:[[X(lo),sy-3],[X(lo),sy+3],[X(hi),sy+3],[X(hi),sy-3]],curve:"round",ink:`${tone}:line`,w:2,id,bar:m.row==="axis"||m.line?{...(m.row==="axis"?{kind:"time-bar",label:m.text,id}:{}),...(m.line?{edge:id,from:rowId(m.row!),to:rowId(m.row!)}:{})}:undefined});
           for(const [i,text] of slot.lines.entries()){
             const tw=measure(text,"sub"),beside=m.row==="axis"&&slot.lines.length===1; // a row span's caption sits centred under its own line (the originals; a caption beside the end read as the next cells')
+            const inside=samplePad&&m.row!=="axis",captionLeft=inside?frameLeft+4:8,captionRight=inside?frameLeft+frameWidth-4:w-RM;
             const right=beside&&X(hi)+10+tw<=x1,left=beside&&X(lo)-10-tw>=x0;
-            const x=right?X(hi)+10:left?X(lo)-10-tw:Math.max(8,Math.min(w-RM-tw,(X(lo)+X(hi)-tw)/2));
+            const x=m.above?Math.max(captionLeft,Math.min(captionRight-tw*1.2,X(lo))):right?X(hi)+10:left?X(lo)-10-tw:Math.max(captionLeft,Math.min(captionRight-tw,(X(lo)+X(hi)-tw)/2));
             const inline=m.row==="axis";
-            const baseline=sy+(inline?4:right||left?10:17)+i*18;
-            // a caption left of its line ends at the line's gap, anchored there, and its backing grows leftwards, so neither covers the line's start
+            const baseline=(m.above?slot.y+12:sy+(inline?4:right||left?10:17))+i*18;
             if(left&&!right){const end=X(lo)-10,mask=captionMask(end-measure(text,"sub")*1.2,baseline,text,"surface");if(mask.k==="box"){mask.w=Math.max(0,Math.min(mask.x+mask.w,end+3)-mask.x);}its.push(mask);its.push({k:"text",x:end,y:baseline,s:text,f:"sub",ink:`${tone}:ink`,anchor:"end"});continue;}
-            its.push(captionMask(x,baseline,text,m.row!=="axis"&&rows.length>1&&!t.roomy&&!t.apart?"surface-2":"surface"));
+            const mask=captionMask(x,baseline,text,m.row!=="axis"&&rows.length>1&&!t.roomy&&!t.apart?"surface-2":"surface");if(m.above&&mask.k==="box"){mask.y-=4;mask.h+=5;}its.push(mask);
+            if(inside&&mask.k==="box"){const end=Math.min(mask.x+mask.w,frameLeft+frameWidth-2);mask.x=Math.max(mask.x,frameLeft+2);mask.w=Math.max(0,end-mask.x);}
             its.push({k:"text",x,y:baseline,s:text,f:"sub",ink:`${tone}:ink`});
           }
         }
         const heading=above.get(m);
-        if(heading?.reach&&heading.right&&X(m.a)-(heading.gap??0)-Math.max(...heading.lines.map(s=>measure(s,"sub")))>=8)heading.lines.forEach((s,i)=>its.push({k:"text",x:X(m.a)-(heading.gap??0),y:heading.y+12+i*18,s,f:"sub",ink:`${tone}:ink`,anchor:"end"})); // right-aligned to its line, so no font runs into it
-        else if(heading)heading.lines.forEach((s,i)=>its.push({k:"text",x:Math.max(8,Math.min(w-RM-measure(s,"sub"),X(m.a)-(heading.right===undefined?measure(s,"sub")/2:heading.right?measure(s,"sub")+(heading.gap??0):-(heading.gap??0)))),y:heading.y+12+i*18,s,f:"sub",ink:`${tone}:ink`}));
+        const headingWord=(s:string,x:number,y:number,anchor?:"end")=>{
+          if(t.rulerBelow&&!m.beside)its.push(captionMask(anchor?x-measure(s,"sub")*1.2:x,y,s,"surface"));
+          its.push({k:"text",x,y,s,f:"sub",ink:`${tone}:ink`,...(anchor?{anchor}:{})});
+        };
+        if(heading?.reach&&heading.right&&X(m.a)-(heading.gap??0)-Math.max(...heading.lines.map(s=>measure(s,"sub")))>=8)heading.lines.forEach((s,i)=>headingWord(s,X(m.a)-(heading.gap??0),heading.y+12+i*18,"end")); // right-aligned to its line, so no font runs into it
+        else if(heading)heading.lines.forEach((s,i)=>headingWord(s,Math.max(8,Math.min(w-RM-measure(s,"sub"),X(m.a)-(heading.right===undefined?measure(s,"sub")/2:heading.right?measure(s,"sub")+(heading.gap??0):-(heading.gap??0)))),heading.y+12+i*18));
         const lowLabel=below.get(m);
         const side=besideAt.get(m);
         if(side)side.lines.forEach((s,i)=>its.push({k:"text",x:side.xs[i],y:side.y+12+i*18,s,f:"sub",ink:`${tone}:ink`}));
@@ -1226,7 +1256,10 @@ registerBlock({
   facts(t: Time, step) {
     charge("facts", t.rows.length + t.points.length + t.marks.length + t.arrows.length + 1);
     const zoomState=step&&t.zoom?.from&&(step===t.zoom.from||t.zoom.to&&step===t.zoom.to+1)?[step===t.zoom.from?"Inset shown.":"Inset hidden."]:[];
-    if (step === 0) return [`Time from ${t.a} to ${t.b}${t.unit ? " " + t.unit : ""}${t.from>1?` (from step ${t.from})`:""}:`, ...t.rows.map((r) => { charge("state facts", r.segs.length); return `  ${r.label||r.id}: ${r.segs.map((s) => `${s.name || (s.numbered ? "numbered cells" : "empty")}${s.numbered && s.name ? " (numbered cells)" : ""} ${s.a} to ${s.b}${s.from > 1 || s.to ? ` (steps ${s.from}${s.to ? " to " + s.to : " onward"})` : ""}${s.tone ? " [" + (TIME_STYLES[s.tone as keyof typeof TIME_STYLES] || s.tone) + "]" : ""}${s.soft ? " [soft]" : ""}`).join(", ")}`; }), ...(t.cells ? [`State cells every ${t.cells}${t.unit ? " " + t.unit : ""}${t.apart ? ", drawn apart" : ""}.`] : []), ...(t.ticks ? [`Ticks: ${t.ticks.map((v) => `${v}${tickNote(t.tickLabels.get(v),t.tickWhen?.get(v),t.tickTone?.get(v))}`).join(", ")}.`] : []), ...(t.window ? [`Window ${t.window.a} to ${t.window.b}: ${t.window.unit}.`] : []), ...(t.zoom ? [`Zoom ${t.zoom.a} to ${t.zoom.b}${t.zoom.unit ? ": " + t.zoom.unit : ""}${t.zoomBracket ? " (a bracket over the inset)" : ""}.`] : []), ...(t.zoomTicks ? [`Zoom ticks: ${t.zoomTicks.map(v=>`${fmt(v)}${t.tickLabels.has(v)?" ("+t.tickLabels.get(v)+")":""}`).join(", ")}.`] : []), ...(t.zoomLabels ? [`Zoom labels: ${[...t.zoomLabels].map(([v,label])=>`${fmt(v)} (${label})`).join(", ")}.`] : []), ...(t.values ? [`Values from ${t.values.a} to ${t.values.b} ${t.values.unit}.`, ...t.points.map((p) => `${p.label || p.id}: ${p.value} at ${p.time}.`)] : []), ...(t.lanes ? [`Axis under the lanes ${t.lanes[0]} to ${t.lanes[1]}.`] : []), ...t.bands.map((b) => `Band "${b.title}": ${t.rows.find((r) => r.id === b.first)?.label || b.first} to ${t.rows.find((r) => r.id === b.last)?.label || b.last}.`), ...t.marks.filter((m) => m.step === 0).map((m) => `${m.kind === "dot" ? "Dot" : "Marker"} ${m.a}: ${endStop(m.text)}`)];
+    // a [dot] interval is drawn as one dot (open, or filled by fill), never as an empty run; an inset-only row ("zoom row") is drawn
+    // in the inset alone, so it is listed under the inset's range, not under the overview's
+    const rowFact = (r: TRow) => { charge("state facts", r.segs.length); return `  ${r.label||r.id}: ${r.segs.map((s) => `${s.name || (s.numbered ? "numbered cells" : s.dot ? "dot" : "empty")}${s.numbered && s.name ? " (numbered cells)" : ""}${s.dot && s.name ? " (a dot)" : ""} ${s.a} to ${s.b}${s.from > 1 || s.to ? ` (steps ${s.from}${s.to ? " to " + s.to : " onward"})` : ""}${s.tone ? " [" + (TIME_STYLES[s.tone as keyof typeof TIME_STYLES] || s.tone) + "]" : ""}${s.soft ? " [soft]" : ""}${s.preview?" [dashed]":""}`).join(", ")}`; };
+    if (step === 0) return [`Time from ${t.a} to ${t.b}${t.unit ? " " + t.unit : ""}${t.from>1?` (from step ${t.from})`:""}:`, ...t.rows.filter((r) => !r.inset).map(rowFact), ...(t.cells ? [`State cells every ${t.cells}${t.unit ? " " + t.unit : ""}${t.apart ? ", drawn apart" : ""}.`] : []), ...(t.ticks ? [`Ticks: ${t.ticks.map((v) => `${v}${tickNote(t.tickLabels.get(v),t.tickWhen?.get(v),t.tickTone?.get(v))}`).join(", ")}.`] : []), ...(t.window ? [`Window ${t.window.a} to ${t.window.b}: ${t.window.unit}.`] : []), ...(t.zoom ? [`Zoom ${t.zoom.a} to ${t.zoom.b}${t.zoom.unit ? ": " + t.zoom.unit : ""}${t.zoomBracket ? " (a bracket over the inset)" : ""}.`] : []), ...(t.zoom && t.rows.some((r) => r.inset) ? [`In the inset only (${t.zoom.a} to ${t.zoom.b}):`, ...t.rows.filter((r) => r.inset).map(rowFact)] : []), ...(t.zoomTicks ? [`Zoom ticks: ${t.zoomTicks.map(v=>`${fmt(v)}${t.tickLabels.has(v)?" ("+t.tickLabels.get(v)+")":""}`).join(", ")}.`] : []), ...(t.zoomLabels ? [`Zoom labels: ${[...t.zoomLabels].map(([v,label])=>`${fmt(v)} (${label})`).join(", ")}.`] : []), ...(t.values ? [`Values from ${t.values.a} to ${t.values.b} ${t.values.unit}.`, ...t.points.map((p) => `${p.label || p.id}: ${p.value} at ${p.time}.`)] : []), ...(t.lanes ? [`Axis under the lanes ${t.lanes[0]} to ${t.lanes[1]}.`] : []), ...t.bands.map((b) => `Band "${b.title}": ${t.rows.find((r) => r.id === b.first)?.label || b.first} to ${t.rows.find((r) => r.id === b.last)?.label || b.last}.`), ...t.marks.filter((m) => m.step === 0).map((m) => `${m.kind === "dot" ? "Dot" : "Marker"} ${m.a}: ${endStop(m.text)}`)];
     const dotFacts=t.dotPaints.filter(f=>f.step===step).map(f=>f.tone?`${f.row}: dots starting ${f.range?`${fmt(f.range[0])} to ${fmt(f.range[1])}`:fmt(f.at!)} painted ${f.tone.startsWith("role:")?f.tone.slice(5):TIME_STYLES[f.tone as keyof typeof TIME_STYLES]||f.tone}${f.keep?" from this step onward":" this step only"}.`:`${f.row}: dots${f.range?` from ${fmt(f.range[0])} to ${fmt(f.range[1])}`:""} ${f.off?"restored to their declared paint":f.keep?"filled from this step onward":"filled this step only"}.`);
     const tickFacts=[...(t.tickWhen||[])].filter(([,r])=>r.from===step).map(([v,r])=>`Tick ${fmt(v)} label shown: ${endStop(t.tickLabels.get(v)||fmt(v))}${r.to?` Until step ${r.to}.`:""}`);
     return tickFacts.concat(t.marks.filter((m) => m.step === step).map((m) => (m.kind !== "span" ? `${m.kind === "dot" ? "Dot at" : "At"} ${m.a}${t.unit ? " " + t.unit : ""}: ${endStop(m.text)}${m.persist ? " From this step onward." : ""}` : `${t.rows.find((r) => r.id === m.row)?.label || m.row}, ${m.a} to ${m.b}${m.text ? ": " + m.text : ""}.${m.persist ? " From this step onward." : ""}`)).concat(t.arrows.filter(e=>e.step===step).map(e=>`${e.text}: ${e.from} to ${e.to} at ${e.at}.`)).concat(t.tags.filter(tag=>tag.step===step).map(tag=>`${t.rows.find(r=>r.id===tag.row)?.label||tag.row}, tag ${tag.a} to ${tag.b}: ${tag.text}. From this step onward.`)).concat(t.hushes.filter(h=>h.step===step).map(h=>h.span?`Span caption ${h.span} hidden; its line stays.`:`Marker label at ${h.at} hidden; its line stays.`)).concat(dotFacts).concat(zoomState));

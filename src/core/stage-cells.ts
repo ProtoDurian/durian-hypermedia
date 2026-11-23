@@ -8,7 +8,7 @@
 import { type Item, type StageBlock, StageError, registerBlock, colon, parts, measure, fontSize } from "./stage-core";
 import { docBudget } from "./stage-budget";
 
-type Group = { n: number; accent: boolean; word: string };
+type Group = { n: number; accent: boolean; word: string; role?:string };
 type Label = { a: string; b?: string } | null;
 type Row = { badge: string; role: string; groups: Group[]; total: number; labels?: Label[] };
 type Cells = { rows: Row[] };
@@ -26,11 +26,14 @@ function parseRow(arg: string, body: { n: number; t: string }[], line: number, r
   const groups: Group[] = []; let total = 0;
   for (const g of raw) {
     docBudget().charge("cells groups", g.length + 1, 1);
-    const accent = g.startsWith("+"), s = accent ? g.slice(1) : g, sp = s.indexOf(" "), num = sp < 0 ? s : s.slice(0, sp);
+    const tint=/\s+\(([^)]+)\)$/.exec(g),role=tint?.[1],raw=tint?g.slice(0,tint.index):g;
+    if(role&&!roles.has(role))throw new StageError(line,`"${role}" is not a declared role of this page`);
+    if(tint&&/\s+\([^)]+\)$/.test(raw))throw new StageError(line,"a cell group takes one role");
+    const accent = raw.startsWith("+"), s = accent ? raw.slice(1) : raw, sp = s.indexOf(" "), num = sp < 0 ? s : s.slice(0, sp);
     if (!/^\d{1,4}$/.test(num) || +num < 1) throw new StageError(line, `a cell group is a positive whole count ("32", or "+4 new" for 4 cells in the accent tone): "${g}"`);
     total += +num;
     if (total > MAX_CELLS) throw new StageError(line, `a cell row holds at most ${MAX_CELLS} cells; this one asks for more`);
-    groups.push({ n: +num, accent, word: sp < 0 ? "" : s.slice(sp + 1).trim() });
+    groups.push({ n: +num, accent, word: sp < 0 ? "" : s.slice(sp + 1).trim(),...(role?{role}:{}) });
   }
   docBudget().charge("cells row", total, total); // before any cell is made
   let labels: Label[] | undefined;
@@ -72,7 +75,7 @@ registerBlock({
       type L = { s: string; x: number; left: number; w: number; line: number; anchor: "start" | "middle" | "end"; ink: string; band?: number };
       const ls: L[] = []; let at = 0;
       for (const [gi, g] of r.groups.entries()) {
-        const lab = r.labels?.[gi], first = at, last = at + g.n - 1, ink = g.accent ? "acc:ink" : "muted"; at += g.n;
+        const lab = r.labels?.[gi], first = at, last = at + g.n - 1, ink = g.role?`role:${g.role}:ink`:g.accent ? "acc:ink" : "muted"; at += g.n;
         if (!lab) continue;
         const put = (s: string, line: number, anchor: L["anchor"], x0: number) => {
           const w = measure(s, "sub"), x = anchor === "start" ? Math.max(0, Math.min(x0, box.w - w)) : anchor === "end" ? Math.min(box.w, Math.max(x0, w)) : Math.min(box.w - w / 2, Math.max(x0, w / 2));
@@ -97,7 +100,7 @@ registerBlock({
       let i = 0;
       for (const g of r.groups) for (let q = 0; q < g.n; q++, i++) {
         const id = `cells:${ri}:${i}`;
-        items.push({ k: "box", x: cx(i), y: top[ln(i)], w: cw, h: ch, r: 3, fill: g.accent ? "acc:soft" : "surface-2", stroke: g.accent ? "acc:line" : "stg-cell-line", ...(g.accent ? { thick: true } : {}), cls: "scn-shape stg-cell", id, bar: { kind: "chip", id, ...(g.accent ? { tone: "accent" } : {}) } });
+        items.push({ k: "box", x: cx(i), y: top[ln(i)], w: cw, h: ch, r: 3, fill: g.role?`role:${g.role}:soft`:g.accent ? "acc:soft" : "surface-2", stroke: g.role?`role:${g.role}:line`:g.accent ? "acc:line" : "stg-cell-line", ...(g.accent ? { thick: true } : {}), cls: "scn-shape stg-cell", id, bar: { kind: "chip", id, ...(g.role?{role:g.role}:g.accent ? { tone: "accent" } : {}) } });
       }
       for (const l of ls) items.push({ k: "text", x: l.x, y: top[l.line] + ch + 2 + l.band! * band + fs, s: l.s, f: "sub", ink: l.ink, anchor: l.anchor });
       y = yy + 2;
@@ -110,7 +113,7 @@ registerBlock({
       // said once: "Row a: 32 cells (0 to 31), then 4 new cells (32-35 new)."; an accent group's word names it, else "accent"
       const gs = r.groups.map((g, i) => {
         const l = r.labels?.[i], lab = l ? ` (${l.b ? `${l.a} to ${l.b}` : l.a})` : "", word = g.word || (g.accent ? "accent" : "");
-        return `${g.n}${word ? " " + word : ""} ${g.n === 1 ? "cell" : "cells"}${lab}`;
+        return `${g.n}${word ? " " + word : ""} ${g.n === 1 ? "cell" : "cells"}${g.role?` (${g.role})`:""}${lab}`;
       });
       return `Row${r.badge ? " " + r.badge : ""}: ${gs.join(", then ")}.`;
     });

@@ -19,7 +19,7 @@ none of the package's own animations changes (checked on every fixture and the e
   - **Scene and steps:** `title:`, lanes (`## Lane`, left to right), bands under or over lanes (`## Band under A..B`,
     `## X above A..B`), `@step Title: caption`; per step `show`, `hide` (cards, and `hide ## Title` for a heading),
     `light` (`light none` for no card), `dim`, `dashed`, `cross` (and `cross ids corner`), `text id:`, `state id:`,
-    `tone ids`, a key (`key role [tone]: words`); `notes: above`, `flow: off`, `lines: straight`, `layout: row`.
+    `tone ids`, a key (`key role [tone]: words`, `[dashed]` for a state not reached yet); `notes: above`, `flow: off`, `lines: straight`, `layout: row`.
   - **Cards and panels:** a card `role ids: title | line | line` (a box tone after the role: `card job [bad]: title`),
     cards inside a card (one level), pills that move,
     token chips, records, badges (`+ (a) words`, `badges: stacked`), lines in a tone or role (`(good) words`) and the
@@ -28,15 +28,18 @@ none of the package's own animations changes (checked on every fixture and the e
   - **Connectors:** `a, b -> c: label` (`-->` dashed, `<-` from the right side), ends at a pill or a badge (`id.a`),
     a label in a tone (`(bad)`), `keep a -> b: words` (the words stay while the line does), `x2` (two per pair;
     `x2: first | second` labels each copy), a chain `a1, a2 --> b --> c` (each hop as if on its own line).
-  - **Head blocks:** a phase track (`track:`, `at phase`; `form: chips`, `form: chips | arrows`, `place: beside
-    where`), a worksheet (`sheet:`, `fill`, `mark`, `sum`, `pass`, an outcome column), bins, counted columns and a
+  - **Head blocks:** a phase track (`track:`, `at phase`; `form: chips`, `form: chips | arrows`, `form: chips | roles`,
+    `place: beside where`; only the current phase is drawn as current), a worksheet (`sheet:`, `fill`, `mark`, `sum`, `pass`, an outcome column), bins, counted columns and a
     bar chart in a scene (`columns`, `bars`), and a swimlane matrix (`matrix:`).
   - **Time block:** `time: a..b | unit`, rows of states (`row role id "Label": a 0..3; b 3..7`), a state in its own
     role (`b 3..7 (server)`), `[soft]`, `[dot]` and `[dot] [plain]`, markers (`at`, `keep at`, `[beside]`, `[below]`,
     `[tick]`, `[caption]`), `ticks:` with words, a reveal step (`@3`) and a tone, `zoom:` (`| below`, `| bracket`),
     `window:` with `height: N lines`, `axis: First..Last` under the lanes, `band role id "Title": first..last`, `span
     row a..b [bar]`, `tag row a..b: words`, `hush at`, `hush span`, `dot row a..b [tone]`, `fill row`, arrows between
-    rows (`arrow a -> b at 1.5`) with one tone, counted units, a row label as a chip (`row ... [chip]:`).
+    rows (`arrow a -> b at 1.5`) with one tone, counted units, a row label as a chip (`row ... [chip]:`), span words
+    `[above]` the stroke or `[bare]` without one, `[dashed]` with a tone (a faded preview), a band's `| compact`, and
+    the caption on the tick-number line (`time: a..b | caption | beside`); a marker's words sit above the rows by their
+    own line.
   - **Roles and colours:** `roles:` in the front matter names each role's colour (`c0` the neutral, `c1` to `c8`);
     several roles may share a colour on a page, never in one scene; `theme: { fill-c1: "#RRGGBB #RRGGBB" }` sets a
     colour's fill on the page's stages, light then dark.
@@ -51,6 +54,10 @@ none of the package's own animations changes (checked on every fixture and the e
     lane, phase, pill, token, key, sheet row or column, or time row (each lists the known ones), ids that do not match
     their titles or appear twice, a time axis, tick, zoom, window, band, span, tag or marker that does not read
     (SPEC.md section 9 lists them all), and a scene over its caps or over the page's stage budget.
+  - **LLM view:** a stage's words follow its drawing: a `[dot]` interval is a dot, a row drawn only in the zoom inset
+    is listed under the inset, a bar chart names its tabs and every lit bar and why it is lit (the peak, over the
+    limit, gives, takes, marked, lit), and a counted column lit again is "lit", with its change since the step before,
+    not "new".
 - **`AnimationBlock.stage`** (additive): a composed stage's block carries `stage: { src, roles }` beside `anim`, which
   every animation block still has; `animationTexts(block)` reads either. The React `AnimationPart` draws a stage with
   the stage's own view, and `dist/styles.css` holds its rules (`.stg*`).

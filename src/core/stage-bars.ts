@@ -31,6 +31,42 @@ import { docBudget } from "./stage-budget";
 
 const MAX_BARS = 64, MAX_LINES = 8;
 type Move = { from: number; to: number; k: number };
+// what is in force at each step: the values, peak, words and limit kept from the step that set them, and the authored
+// tones (the head's on every step, a step's from that step on); the layout and the LLM view read the same
+type At = { values: number[]; peak?: string; head?: string[]; big?: string[]; limit?: { v: number; s: string; from: number } };
+function inForce(b: Bars, steps: number): { at: At[]; toneAt: Map<number, string>[] } {
+  const at: At[] = []; let cur: At = { values: Array(b.n).fill(0) };
+  const started = [...b.steps.keys()].some((k) => k === 0) ? b.steps.get(0)!.values : undefined;
+  if (started) cur = { values: started };
+  for (let k = 1; k <= steps; k++) {
+    const s = b.steps.get(k);
+    cur = { ...cur, values: s?.values ?? cur.values, peak: s?.peak ?? cur.peak, head: s?.head ?? cur.head, big: s?.big ?? cur.big, limit: s?.limit ? { ...s.limit, from: k } : cur.limit };
+    at[k] = cur;
+  }
+  const toneAt: Map<number, string>[] = []; let tcur = new Map<number, string>(b.tones);
+  for (let k = 1; k <= steps; k++) { const st = b.steps.get(k)?.tone; if (st) { tcur = new Map(tcur); for (const [i, t] of st) t ? tcur.set(i, t) : tcur.delete(i); } toneAt[k] = tcur; }
+  return { at, toneAt };
+}
+// the LLM view asks step by step: work out what is in force once (to twice the step asked, so a long tail of steps
+// without bar words stays linear) and keep it with the block
+const factsMemo = new WeakMap<Bars, { n: number; at: At[]; toneAt: Map<number, string>[] }>();
+function factsInForce(b: Bars, step: number): { at: At[]; toneAt: Map<number, string>[] } {
+  let m = factsMemo.get(b);
+  if (!m || m.n < step) { const n = Math.max(2 * step, ...b.steps.keys()); docBudget().charge("stage bars", b.n * n + 1); m = { n, ...inForce(b, n) }; factsMemo.set(b, m); }
+  return m;
+}
+// one bar's paint in one step, and in words why it is lit ("" when it has the plain paint); the last rule that matches wins
+function barTone(b: Bars, at: At[], toneAt: Map<number, string>[], k: number, i: number): { tone: string; why: string } {
+  const a = at[k], s = b.steps.get(k), v = a.values[i], hi = Math.max(...a.values), mv = s?.moves ?? [];
+  let tone = b.role ? `role:${b.role}` : "acc", why = "";
+  if (a.peak && v === hi) { tone = "bad"; why = "the peak"; }
+  if (s?.limit && v > s.limit.v && v !== hi) { tone = "warn"; why = "over the limit"; }
+  if (mv.some((m) => m.from === i)) { tone = "warn"; why = "gives"; }
+  if (mv.some((m) => m.to === i)) { tone = "good"; why = "takes"; }
+  const byAuthor = toneAt[k].get(i); if (byAuthor) { tone = byAuthor === "accent" ? "acc" : byAuthor; why = `marked ${byAuthor}`; } // the author's tone wins over the worked-out ones
+  if (s?.bar?.i === i) { tone = "acc"; why = s.bar.s ? `lit: ${s.bar.s}` : "lit"; }
+  return { tone, why };
+}
 type Step = { values?: number[]; peak?: string; limit?: { v: number; s: string }; head?: string[]; big?: string[]; bar?: { i: number; s: string }; moves: Move[]; tone?: [number, string | null][] };
 type Bars = { n: number; role: string; title: string; unit: string; ticks: number[]; lines: { name: string; v: number }[]; every: number; labels: string[]; tabs: { name: string; a: number; b: number }[]; steps: Map<number, Step>; line: number; most: number; tones: [number, string][] };
 const num = (s: string) => (/^-?\d{1,9}(\.\d{1,9})?$/.test(s.trim()) ? +s.trim() : NaN);
@@ -165,19 +201,7 @@ registerBlock({
   layout(b: Bars, box: Box): LayoutOut {
     const items: Item[] = [], steps = Math.max(box.steps, ...b.steps.keys(), 1), W = box.w, nar = box.narrow;
     docBudget().charge("stage bars", b.n * steps * 3 + 50, b.n * steps);
-    // what is in force at each step
-    type At = { values: number[]; peak?: string; head?: string[]; big?: string[]; limit?: { v: number; s: string; from: number } };
-    const at: At[] = []; let cur: At = { values: Array(b.n).fill(0) };
-    const started = [...b.steps.keys()].some((k) => k === 0) ? b.steps.get(0)!.values : undefined;
-    if (started) cur = { values: started };
-    for (let k = 1; k <= steps; k++) {
-      const s = b.steps.get(k);
-      cur = { ...cur, values: s?.values ?? cur.values, peak: s?.peak ?? cur.peak, head: s?.head ?? cur.head, big: s?.big ?? cur.big, limit: s?.limit ? { ...s.limit, from: k } : cur.limit };
-      at[k] = cur;
-    }
-    // the authored tones in force at each step: the head's on every step, a step's from that step on
-    const toneAt: Map<number, string>[] = []; let tcur = new Map<number, string>(b.tones);
-    for (let k = 1; k <= steps; k++) { const st = b.steps.get(k)?.tone; if (st) { tcur = new Map(tcur); for (const [i, t] of st) t ? tcur.set(i, t) : tcur.delete(i); } toneAt[k] = tcur; }
+    const { at, toneAt } = inForce(b, steps);
     let y = 0;
     // the tabs: one lit per step
     if (b.tabs.length) {
@@ -231,15 +255,8 @@ registerBlock({
     for (let i = 0; i < b.n; i++) {
       const runs = new Map<string, number[]>();
       for (const k of all) {
-        const a = at[k], s = b.steps.get(k), v = a.values[i], hi = Math.max(...a.values);
-        let tone = b.role ? `role:${b.role}` : "acc";
-        const mv = s?.moves ?? [];
-        if (a.peak && v === hi) tone = "bad";
-        if (s?.limit && v > s.limit.v && v !== hi) tone = "warn";
-        if (mv.some((m) => m.from === i)) tone = "warn";
-        if (mv.some((m) => m.to === i)) tone = "good";
-        const byAuthor = toneAt[k].get(i); if (byAuthor) tone = byAuthor === "accent" ? "acc" : byAuthor; // the author's tone wins over the worked-out ones
-        if (s?.bar?.i === i) tone = "acc";
+        const a = at[k], s = b.steps.get(k), v = a.values[i], mv = s?.moves ?? [];
+        const tone = barTone(b, at, toneAt, k, i).tone;
         // a move's target: its old height, and the growth as stacked blocks
         const prev = k > 1 ? at[k - 1].values[i] : v, k2 = mv.filter((m) => m.to === i).reduce((a2, m) => a2 + m.k, 0);
         const key = `${v}|${tone}|${k2 ? prev : ""}|${k2}`;
@@ -315,19 +332,26 @@ registerBlock({
     return { h: h + 6, items };
   },
   facts(b: Bars, step) {
+    const tabSteps = (t: { a: number; b: number }) => (t.a === t.b ? `step ${t.a}` : `steps ${t.a} to ${t.b}`);
     if (step === 0) {
       const v0 = b.steps.get(0)?.values;
-      return [`Bars: ${b.title || "values"}${b.unit ? ` (${b.unit})` : ""}, ${b.n} bars${b.ticks.length ? `, axis ${b.ticks.map(fmt).join(", ")}` : ""}.`, ...b.lines.map((l) => `Line ${l.name} at ${fmt(l.v)}.`), ...(v0 ? [`Values: ${v0.map((v, i) => `${b.labels[i]} ${fmt(v)}`).join(", ")}.`] : [])];
+      return [`Bars: ${b.title || "values"}${b.unit ? ` (${b.unit})` : ""}, ${b.n} bars${b.ticks.length ? `, axis ${b.ticks.map(fmt).join(", ")}` : ""}.`, ...(b.tabs.length ? [`Tabs: ${b.tabs.map((t) => `${t.name} (${tabSteps(t)})`).join(", ")}.`] : []), ...b.lines.map((l) => `Line ${l.name} at ${fmt(l.v)}.`), ...(v0 ? [`Values: ${v0.map((v, i) => `${b.labels[i]} ${fmt(v)}`).join(", ")}.`] : [])];
     }
-    const s = b.steps.get(step); if (!s) return [];
+    // the drawing's paint: which bars are lit in this step and why, and the tab lit when it changes
+    const { at, toneAt } = factsInForce(b, step), lit: string[] = [];
+    for (let i = 0; i < b.n; i++) { const w = barTone(b, at, toneAt, step, i).why; if (w) lit.push(`${b.labels[i]} ${fmt(at[step].values[i])} (${w})`); }
+    const tabOn = (k: number) => b.tabs.findIndex((t) => k >= t.a && k <= t.b), tab = tabOn(step);
+    const s = b.steps.get(step);
     const out: string[] = [];
+    if (tab >= 0 && (step === 1 || tab !== tabOn(step - 1))) out.push(`Tab: ${b.tabs[tab].name}.`);
+    if (!s) return lit.length ? [...out, `Lit bars: ${lit.join(", ")}.`] : out;
     if (s.head) out.push(s.head.join(" · ") + ".");
     if (s.values) { docBudget().charge("stage bars", s.values.length + 1); out.push(`Values: ${s.values.map((v, i) => `${b.labels[i]} ${fmt(v)}`).join(", ")}.`); }
     if (s.peak) out.push(`Peak: ${s.peak}.`);
     if (s.big) out.push(s.big.join(": ") + ".");
     if (s.limit) out.push(`Limit ${fmt(s.limit.v)}${s.limit.s ? `: ${s.limit.s}` : ""}.`);
-    if (s.bar) out.push(`Bar ${b.labels[s.bar.i]}${s.bar.s ? `: ${s.bar.s}` : ""}.`);
     if (s.moves.length) out.push(`Moves: ${s.moves.map((m) => `${b.labels[m.from]} to ${b.labels[m.to]} (${m.k})`).join(", ")}.`);
+    if (lit.length) out.push(`Lit bars: ${lit.join(", ")}.`);
     return out;
   },
 } satisfies StageBlock<Bars>);

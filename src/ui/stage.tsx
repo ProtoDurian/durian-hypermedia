@@ -118,11 +118,11 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
           case "text": {
             if (it.breaks?.length) { // lines of one run, placed from measure here and from the browser's widths once painted (stage-lines effect)
               const L = textLayout(it.s, it.breaks, it.x, it.pitch ?? 16, (a, b) => measure(it.s.slice(a, b), it.f)), r = (n: number) => Math.round(n * 100) / 100;
-              return <g key={i} {...data} className={cls}><text className={`stg-t stg-f-${it.f} stg-lines`} x={r(L.x)} y={it.y} dx={L.dx.map(r).join(" ")} dy={L.dy.map(r).join(" ")} textAnchor="middle" data-cx={it.x} data-breaks={it.breaks.join(",")} data-pitch={it.pitch ?? 16} style={{ fill: paint(it.ink, roles) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text></g>;
+              return <g key={i} {...data} className={cls}><text className={`stg-t stg-f-${it.f} stg-lines`} x={r(L.x)} y={it.y} dx={L.dx.map(r).join(" ")} dy={L.dy.map(r).join(" ")} textAnchor="middle" data-cx={it.x} data-breaks={it.breaks.join(",")} data-pitch={it.pitch ?? 16} style={{ fill: paint(it.ink, roles), ...(it.size ? {fontSize:it.size} : {}) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text></g>;
             }
             return (
               <g key={i} {...data} className={cls} transform={it.rotate === 90 && /^[-+]?\d+(?:\.\d+)?$/.test(it.s) ? `rotate(-90 ${it.x} ${it.y})` : undefined}>
-                <text className={`stg-t stg-f-${it.f}${it.strike ? " stg-struck" : ""}${it.halo ? " stg-halo" : ""}`} x={it.x} y={it.y} textAnchor={it.anchor ?? "start"} style={{ fill: paint(it.ink, roles) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text>
+                <text className={`stg-t stg-f-${it.f}${it.strike ? " stg-struck" : ""}${it.halo ? " stg-halo" : ""}`} x={it.x} y={it.y} textAnchor={it.anchor ?? "start"} style={{ fill: paint(it.ink, roles), ...(it.size ? {fontSize:it.size} : {}) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text>
                 {it.strike && struckSlash(it, plan.phone)}
               </g>
             );
@@ -152,6 +152,10 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
  * of A4 with the usual margins (the narrowest common sheet), so words stay at 11 px (8 pt) on paper and a wider
  * sheet (Letter, landscape) only scales the drawing up. */
 export const PRINT_W = 620;
+/** In print a stage's drawing may shrink to fit its sheet down to this share of its size, no further: an 11 px word is
+ * 8.25 pt, so at 0.97 every word prints at 8 pt or more. A stage that would need more shrink splits between its blocks
+ * instead (23 Nov: it was 0.935; and a scene printed at 7.7 pt on a landscape A4 sheet) */
+export const PRINT_FLOOR = 0.97;
 /** The width the drawing has on an A4 sheet at that layout (the column less the stage's frame): the width a landscape sheet scales up from (stage.css, `--stg-hint`: the stage's height there, which sets how far it can scale up). */
 export const PRINT_BOX_W = 685;
 /** Print (SPEC 4.1): requestAnimationFrame and ResizeObserver do not run while a page prints, so the stage would keep
@@ -248,7 +252,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
   return (
-    <div className={`stg${st.on ? " stg-static" : ""}`} style={plans.length === 1 ? ({ "--stg-boxmin": `${Math.ceil(plans[0].h * 0.935)}px`, "--stg-need": `${Math.ceil(plans[0].h * 0.935) + 160}px`, "--stg-hint": `${Math.ceil((plans[0].h * PRINT_BOX_W) / plans[0].w) + 83 + 18 * n + 10}px` } as React.CSSProperties) : undefined} data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
+    <div className={`stg${st.on ? " stg-static" : ""}`} style={plans.length === 1 ? ({ "--stg-boxmin": `${Math.ceil(plans[0].h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(plans[0].h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((plans[0].h * PRINT_BOX_W) / plans[0].w) + 83 + 18 * n + 10}px` } as React.CSSProperties) : undefined} data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
       tabIndex={n && !st.on ? 0 : undefined} aria-label={m.title || undefined}
       onKeyDown={(e) => { if (st.on || !n) return; if ((e.target as HTMLElement).closest("button") && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; if (e.key === "ArrowRight") { go(k + 1); e.preventDefault(); } if (e.key === "ArrowLeft") { go(k - 1); e.preventDefault(); } }}>
       {(m.title || (n > 0 && !st.on)) && (

@@ -136,7 +136,7 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
   .stg .sr-only { margin: 0; }
   .stg .dh-static-steps details > summary { min-height: 0; }
   .stg > * { flex: 0 0 auto; }
-  .stg > .stg-box-wrap { flex: 0 1 auto; min-height: var(--stg-boxmin, 0px); position: relative; }   /* never below 0.935 of the drawing (its words stay at 8 pt or more: measured, the least word is 8.0 pt at 0.93)'s own size: its words stay at 8 pt; a stage that cannot fit a short sheet that way (--stg-need: the drawing at that size plus an allowance for title and steps) may split between its blocks */   /* its aspect-ratio (set from the plan) is the drawing's natural height; the box shrinks below it when the page is short */
+  .stg > .stg-box-wrap { flex: 0 1 auto; min-height: var(--stg-boxmin, 0px); position: relative; }   /* never below PRINT_FLOOR (0.97, site/src/stage.tsx) of the drawing (an 11 px word stays at 8 pt or more)'s own size: its words stay at 8 pt; a stage that cannot fit a short sheet that way (--stg-need: the drawing at that size plus an allowance for title and steps) may split between its blocks */   /* its aspect-ratio (set from the plan) is the drawing's natural height; the box shrinks below it when the page is short */
   .stg > .stg-box-wrap.stg-ratio > .stg-plan { position: absolute; inset: 0; }
   .stg > .stg-box-wrap.stg-ratio .stg-svg { height: 100%; }
 }

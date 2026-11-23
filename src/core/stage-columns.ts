@@ -176,8 +176,8 @@ registerBlock({
           const leaves = (s: number) => c.leaving && gone[s];
           const dark = on0.filter(leaves), on = on0.filter((s) => !leaves(s));
           if (dark.length) items.push({ k: "box", x: dx, y: dy, w: dot, h: dot, fill: `${dotPaint}:ink`, stroke: "none", r: 1, cls: "stg-dot-u", on: dark, bar: { kind: "unit" } });
-          // a plain dot is pale in light (the soft tone) and the role's own colour in dark ("dot"); in a lit column it is stronger:
-          // the border in light, the brighter ink in dark ("dot-new"), so the new shards stand out
+          // a plain dot is the role's own colour in both themes, 3:1 on the stage ("dot"; rc.2 MUST 8: light drew the pale fill);
+          // in a lit column it is stronger: darker in light, the brighter ink in dark ("dot-new")
           const onPlain = on.filter((s) => !lit.includes(s)), onLitCol = on.filter((s) => lit.includes(s));
           if (onPlain.length) items.push({ k: "box", x: dx, y: dy, w: dot, h: dot, fill: `${dotPaint}:dot`, stroke: "none", r: 1, cls: "stg-dot-u", on: onPlain, bar: { kind: "unit" } });
           if (onLitCol.length) items.push({ k: "box", x: dx, y: dy, w: dot, h: dot, fill: `${dotPaint}:dot-new`, stroke: "none", r: 1, cls: "stg-dot-u", on: onLitCol, bar: { kind: "unit" } });
@@ -205,7 +205,16 @@ registerBlock({
       out.push(`${xs.length} columns, ${tot}${c.unit ? " " + c.unit : ""} in all (${Math.min(...xs)} to ${Math.max(...xs)} a column): ${xs.map((x, i) => `${c.labels[i]} ${x}`).join(", ")}.`);
     }
     const f = c.fresh.get(step);
-    if (f?.length) out.push(`New: ${f.map((i) => c.labels[i]).join(", ")}${xs ? ` (${f.reduce((a, i) => a + (xs[i] ?? 0), 0)} in them)` : ""}.`);
+    if (f?.length) {
+      // the counts in force now and in the step before (a step without counts keeps the last ones)
+      let now: number[] = [], before: number[] = [];
+      for (let s = 1; s <= step; s++) { if (s === step) before = now; if (c.counts.has(s)) now = c.counts.get(s)!; }
+      const added = f.filter((i) => i >= before.length), again = f.filter((i) => i < before.length);
+      if (added.length) out.push(`New: ${added.map((i) => c.labels[i]).join(", ")}${xs ? ` (${added.reduce((a, i) => a + (xs[i] ?? 0), 0)} in them)` : ""}.`);
+      const moved = again.filter((i) => (now[i] ?? 0) !== before[i]), same = again.filter((i) => (now[i] ?? 0) === before[i]);
+      if (moved.length) out.push(`Lit: ${moved.map((i) => { const d = (now[i] ?? 0) - before[i]; return `${c.labels[i]} ${now[i] ?? 0} (${d > 0 ? `${d} new` : `${-d} fewer`} since the step before)`; }).join(", ")}.`);
+      if (same.length) out.push(`Lit, unchanged since the step before: ${same.map((i) => `${c.labels[i]} ${now[i] ?? 0}`).join(", ")}.`);
+    }
     return out;
   },
 } satisfies StageBlock<Cols>);

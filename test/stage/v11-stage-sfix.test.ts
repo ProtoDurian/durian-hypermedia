@@ -580,3 +580,50 @@ for (const w of [356, 360, 326]) test(`phone: a line keeps off a say under the c
       const along = Math.max(a[0], b[0]) > say.x && Math.min(a[0], b[0]) < say.x + say.w && a[1] > say.y - 4 && a[1] < say.y + say.h + 6;
       expect(along).toBe(false); }
 });
+
+// 33. phone: two lines into one card's top in one step never end side by side (read as one doubled
+// arrow); one routed under the card a straight drop comes from goes on into the card's side instead
+const termSrc = "title: Terms | x\n## Terms\na t1: crates term | ⌈96.4 M ÷ 6 M⌉ = 17 | apples of one farm, now\na t2: weight term | ⌈32 × 5.6 s ÷ 10 s ÷ 0.5⌉ = 36 | weight p90 5.6 s (farm now: 2.84 s)\na t3: biggest-share term | at 36: biggest share ≤ 6.2 M? | if not, it orders more crates\n## Bound\nb bd: biggest crate, capped | 36, inside the limits 32..64 | one move: +min(⌈25% × 32⌉, 8) = +8 | 36 ≤ 40: fine in one move\n## Yard\nc pl: the yard | order.size: 32 → 36 | Note Decided: | size 32 -> 36: weight\n";
+for (const w of [356]) test(`phone: two lines into one card's top end apart (${w})`, () => {
+  const { p } = lay(termSrc, steps("t1,t2,t3 --> bd --> pl", "clear\nlight pl"), w);
+  const into = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow && String(it.id).endsWith(">bd"));
+  expect(into.length).toBe(3);
+  const ends = into.map((q) => q.pts.at(-1)!);
+  for (const a of ends) for (const b of ends) if (a !== b) expect(Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1])).toBeGreaterThanOrEqual(16);
+  // the third term's line is not routed under the second term into the top: it comes in at the bound card's right side
+  const t3 = into.find((q) => q.id === "t3>bd")!, bd = boxOf(p, "bd"), [e, pre] = [t3.pts.at(-1)!, t3.pts.at(-2)!];
+  expect(Math.abs(e[1] - pre[1])).toBeLessThan(0.5); expect(e[0]).toBeCloseTo(bd.x + bd.w, 0); expect(pre[0]).toBeGreaterThan(e[0]);
+});
+
+// 34. phone: two lines of different cards down the side channel into one card's top never share
+// the level stretch: nested (the lower card's line on the inner lane, turning higher, ending left), heads 16 px apart,
+// turning above the lane headings, not squeezed between a heading and the card
+test("phone: two channel lines into one card's top are nested, apart, above the headings (326)", () => {
+  const { p } = lay(termSrc, steps("t1,t2,t3 --> bd --> pl", "clear\nlight pl"), 326);
+  const into = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow && String(it.id).endsWith(">bd") && (it.on ?? []).includes(1));
+  expect(into.length).toBe(3);
+  const ends = into.map((q) => q.pts.at(-1)![0]).sort((a, b) => a - b);
+  for (let k = 1; k < ends.length; k++) expect(ends[k] - ends[k - 1]).toBeGreaterThanOrEqual(16);
+  const bd = boxOf(p, "bd"), lane = p.items.filter((it) => it.k === "text" && it.f === "lane" && it.y < bd.y && it.y > bd.y - 30);
+  for (const q of into) {
+    const [a, b] = [q.pts.at(-2)!, q.pts.at(-1)!]; expect(b[1] - a[1]).toBeGreaterThanOrEqual(8);
+    for (const t of lane) expect(a[1]).toBeLessThan((t as any).y - 12);
+  }
+  for (const a of into) for (const b of into) if (a !== b) expect(shareStretch(a.pts, b.pts)).toBe(false);
+});
+
+// 35. wide: the copies of an "x2" pair across into a box of cards go level to the middle of their own
+// card in it, their heads on the box's edge (the box stays the end; spread on the box's side, the second ended level with
+// a card's top edge: its target unclear)
+for (const w of [1180, 1000]) test(`wide: each copy of an x2 pair into a box of cards ends on its own card (${w})`, () => {
+  const src = "title: Copies | x\n## Senders\na s: the sender | one stall for everyone | a lantern, off\n## Gate\nb g: the gate | many pens | one stall\n  c g1: lantern | accept is on, but the lantern is off | nothing matched\n  c g2: lottery | ** none | drawn: nobody\n## Stores\nd st: the stores (what reads see)\n  d k1: first batch | job=one · no barrow label | written by: the old tier\n  d k2: second batch | written by: the new tier | a different name\n  d k3: paired | two writers, one accepted | hold the deliveries\n";
+  const { p } = lay(src, steps("hide k3\ns --> g\ng --> st x2: _ | _", "show k3\nclear\ng --> st"), w);
+  const k1 = boxOf(p, "k1"), k2 = boxOf(p, "k2"), stb = boxOf(p, "st");
+  const cp = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "g>st" && (it.on ?? []).includes(1));
+  expect(cp.length).toBe(2);
+  const byY = cp.map((q) => q.pts).sort((a, b) => a[0][1] - b[0][1]);
+  for (const [k, kr] of [k1, k2].entries()) {
+    const pts = byY[k], e = pts.at(-1)!;
+    expect(e[0]).toBeCloseTo(stb.x, 0); expect(e[1]).toBeCloseTo(kr.y + kr.h / 2, 0); expect(pts[0][1]).toBeCloseTo(e[1], 0);
+  }
+});

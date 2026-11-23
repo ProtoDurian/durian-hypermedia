@@ -465,3 +465,54 @@ test("an inset with its own bracket draws no range box on the main axis; a plain
   expect(box("-3..1 | the last 3 minutes | bracket @1..2")).toBe(0);
   expect(box("-3..1 | the last 3 minutes @1..2")).toBe(1);
 });
+
+test("'height: N lines' right after 'notes:' gives every step's note one frame at least N text lines tall, room under its words; nothing changes without it", () => {
+  const steps = [{ title: "One", raw: "note: Today | two names, so the tiers never touch", line: 8 }, { title: "Two", raw: "note: Key | the office, not the server", line: 10 }, { title: "Three", raw: "note: Root | the only sender", line: 12 }];
+  const head = (extra: string) => `notes: above\n${extra}time: 0..10\nrow job a "A": +x 0..10`;
+  const notes = (src: string, w: number) => { const c = compile(src, 3, steps); expect(c.errors).toEqual([]); const p = layoutStage(c.model, w); return { p, n: p.items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.cls === "stg-note-strip") }; };
+  for (const w of [1178, 356]) {
+    const plain = notes(head(""), w), tall = notes(head("height: 8 lines\n"), w);
+    expect(tall.n.length).toBe(3);
+    for (const b of tall.n) { expect(b.h).toBeGreaterThanOrEqual(8 * 18); expect(b.y).toBe(tall.n[0].y); expect(b.h).toBe(tall.n[0].h); } // one frame for every step: nothing moves
+    const words = texts(tall.p, "two names, so the tiers never touch")[0]; expect(words.y).toBeLessThan(tall.n[0].y + 60); // words at the top, room under them
+    expect(tall.p.h - plain.p.h).toBe(tall.n[0].h - plain.n[0].h);
+  }
+  expect(compile(head("height: 13 lines\n"), 3, steps).errors[0].msg).toContain("1 to 12");
+  expect(compile(head("height: 8\n"), 3, steps).errors[0].msg).toContain("height: N lines");
+  // a time window's own height line is untouched
+  expect(compile(`time: -120..1\nwindow: -120..0 | rate\nheight: 4 lines`, 2).errors).toEqual([]);
+});
+
+test("a note's last part 'height: N lines' sizes its step's frame: the same frame in every step, words unchanged, refusals", () => {
+  const mk = (h: string) => [{ title: "One", raw: `note: Today | two names, so the tiers never touch${h}`, line: 8 }, { title: "Two", raw: `note: Key | the office, not the server${h}`, line: 10 }, { title: "Three", raw: `note: Root | the only sender${h}`, line: 12 }];
+  const head = `notes: above\ntime: 0..10\nrow job a "A": +x 0..10`;
+  const notes = (h: string, w: number) => { const c = compile(head, 3, mk(h)); expect(c.errors).toEqual([]); const p = layoutStage(c.model, w); return { p, n: p.items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.cls === "stg-note-strip") }; };
+  for (const w of [1178, 356]) {
+    const plain = notes("", w), tall = notes(" | height: 8 lines", w);
+    expect(tall.n.length).toBe(3);
+    for (const b of tall.n) { expect(b.h).toBeGreaterThanOrEqual(8 * 18); expect(b.y).toBe(tall.n[0].y); expect(b.h).toBe(tall.n[0].h); }
+    expect(texts(tall.p, "height: 8 lines")).toEqual([]); // the part is a size, never drawn
+    expect(texts(tall.p, "the only sender").length).toBe(texts(plain.p, "the only sender").length);
+    expect(tall.p.h - plain.p.h).toBe(tall.n[0].h - plain.n[0].h);
+  }
+  expect(compile(head, 3, mk(" | height: 13 lines")).errors[0].msg).toContain("1 to 12");
+  expect(compile(head, 3, mk(" | height: 8")).errors[0].msg).toContain("height: N lines");
+});
+
+test("rc.2 MUST 2, 3: a one-step marker's words sit by their own line (not the block's bottom left); one at a setup marker's time (even one a point names) draws too, stacked", () => {
+  const src = `time: 0..60 | seconds\nrow job j1 "build": queued 0..4; +running 4..31; done 31..60\nrow job j2 "test": queued 0..31; +running 31..52; done 52..60\nat 30: 30 s, review starts\nplot: 0..100 | percent complete\npoint job half at 30: 50 | Halfway`;
+  const steps = [{ title: "One", raw: "span j1 4..31: 27 s", line: 8 }, { title: "Two", raw: "at 30: halfway", line: 10 }, { title: "Three", raw: "at 52: tests pass", line: 12 }];
+  const c = compile(src, 3, steps); expect(c.errors).toEqual([]);
+  for (const w of [1178, 356]) {
+    const p = layoutStage(c.model, w), line = (step: number) => p.items.find((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.from === step && i.to === step && i.pts.length === 2 && i.pts[0][0] === i.pts[1][0])!;
+    const word = (s: string) => { const t = texts(p, s); expect(t.length).toBe(1); return t[0]; };
+    for (const [s, k] of [["tests pass", 3], ["halfway", 2]] as const) {
+      const t = word(s), x = line(k).pts[0][0], tw = measure(s, "sub");
+      expect(t.x).toBeLessThanOrEqual(x + 1); expect(t.x + tw).toBeGreaterThanOrEqual(x - 1); expect(t.x).toBeGreaterThan(x - tw - 2); // over its own line (centred, or clamped at the stage's edge)
+      expect(t.y).toBeLessThan(Math.min(...line(k).pts.map((q) => q[1]))); // above the rows its line crosses
+      expect(t.from).toBe(k); expect(t.to).toBe(k);
+    }
+    const setup = word("30 s, review starts"), half = word("halfway");
+    expect(half.y).toBeGreaterThanOrEqual(setup.y + 18); // stacked, both shown in step 2
+  }
+});

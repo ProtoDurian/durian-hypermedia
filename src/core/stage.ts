@@ -79,8 +79,9 @@ const TONE_F: Font = "title";
 const EDGE_TONES: Record<string, string> = { good: "good", bad: "bad", warn: "warn", accent: "acc" };
 const KEY_TONES: Record<string,string> = {"[good]":"good","[bad]":"bad","[warn]":"warn","[accent]":"acc","[plain]":"plain"};
 export type Step = {
+  /** 'note: T | line | height: N lines' (a note frame's least height, px) */ noteMin?: number;
   title: string; caption: string; line: number;
-  show: string[]; light: string[]; dark?: boolean; hide: string[]; heads: [number, boolean][] /* "hide ## Title" / "show ## Title" */; edges: Edge[]; cuts?: { from: string; to: string; line: number }[]; tags: [string[], string, string?][]; says: [string, string, string?][]; insides: [string, string][]; keys: [string, string, string?][];
+  show: string[]; light: string[]; dark?: boolean; hide: string[]; heads: [number, boolean][] /* "hide ## Title" / "show ## Title" */; edges: Edge[]; cuts?: { from: string; to: string; line: number }[]; tags: [string[], string, string?][]; says: [string, string, string?][]; insides: [string, string][]; keys: [string, string, string?, boolean?][];
   foot: string[]; footInk?: (string | undefined)[]; notes: string[][]; formula: string[]; panels: { block: StageBlock; node: any; line: number }[];
   clear?: boolean; all?: boolean; beside?: number[];
 };
@@ -88,7 +89,7 @@ export type Model = {
   /** hide: the steps a hidden card shows in (only cards a step hides) */
   shownOn?: Map<string, number[]>;
   title: string; note: string; lanes: Lane[]; steps: Step[]; head: { block: StageBlock; node: any; at: number }[]; lanesAt: number; panelsAt?: number;
-  roles: Record<string, number>; cards: Map<string, Card>; zoom: boolean; cx: Cards; notesAbove: boolean; notesRoomy?: boolean; headOn?: Map<number, number[]> /* lane headings shown only in some steps */; linesStraight?: boolean /* "lines: straight" */; flowOff?: boolean /* "flow: off": no moving dots on this scene's connectors */; theme?: Record<string, string>; keyTop?: boolean; keyAt?: "top right" | "bottom right";
+  roles: Record<string, number>; cards: Map<string, Card>; zoom: boolean; cx: Cards; notesAbove: boolean; notesRoomy?: boolean; /** 'height: N lines' right after 'notes:' */ notesLines?: number; headOn?: Map<number, number[]> /* lane headings shown only in some steps */; linesStraight?: boolean /* "lines: straight" */; flowOff?: boolean /* "flow: off": no moving dots on this scene's connectors */; theme?: Record<string, string>; keyTop?: boolean; keyAt?: "top right" | "bottom right";
 };
 export type Plan = { w: number; h: number; items: Item[]; narrow: boolean; phone?: boolean; fills?: Record<string, [string, string]> }; // fills: the page's role fills (theme fill-cN), light and dark // phone: drawn in the phone type sizes
 export type Compiled = { model: Model; errors: Problem[]; warnings: Problem[] };
@@ -138,6 +139,12 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
   for (let i = 0; i < hl.length; i++) {
     const l = hl[i]; checkText(l);
     const body: Line[] = []; while (i + 1 < hl.length && hl[i + 1].ind > l.ind) body.push(hl[++i]);
+    // "height: N lines" right after a "notes:" line gives every step's note one frame at least N text lines tall (18 px each), room under its words; the same spelling and range (1..12) as a time window's
+    if (/^height:/.test(l.t) && i > 0 && /^notes:/.test(hl[i - 1 - body.length]?.t ?? "")) {
+      const hm = /^height:\s*(\d+) lines?$/.exec(l.t.trim()), n = hm ? +hm[1] : NaN;
+      if (!hm || n < 1 || n > 12 || m.notesLines !== undefined) { problem(l.n, "write height: N lines once, N from 1 to 12, right after notes: (height: 8 lines)"); continue; }
+      m.notesLines = n; continue;
+    }
     // a renamed word (tools/stage-words.ts): say the new one
     // (the line is still read: a block that has not renamed yet still draws it)
     { const sc = scope(); const was = oldWord(l.t, "setup", sc); if (was) problem(l.n, was); for (const b of body) { const x = oldWord(b.t, "under", sc, l.t); if (x) problem(b.n, x); } }
@@ -315,13 +322,18 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
           else for (const id of ids) { st.insides.push([id, c[1]]); m.cards.get(id)!.inside = true; }
           continue;
         }
-        if (word === "key" && c) { const [r,flag,...extra]=c[0].slice(4).trim().split(/\s+/); if(extra.length||flag&&!Object.hasOwn(KEY_TONES,flag))throw new StageError(l.n,"a key takes one role and at most one tone: key job [warn]: words"); needRole(r,l.n); for(const t of parts(c[1],";"))st.keys.push(flag?[r,t,KEY_TONES[flag]]:[r,t]); continue; }
+        if (word === "key" && c) { const [r,...flags]=c[0].slice(4).trim().split(/\s+/), dash=flags.filter((x)=>x==="[dashed]").length, tones=flags.filter((x)=>x!=="[dashed]"); if(dash>1||tones.length>1||tones.some((x)=>!Object.hasOwn(KEY_TONES,x)))throw new StageError(l.n,"a key takes one role, at most one tone and [dashed] (a swatch drawn dashed: not yet, pending): key job [warn] [dashed]: words"); needRole(r,l.n); const flag=tones[0]; for(const t of parts(c[1],";"))st.keys.push(dash?[r,t,flag?KEY_TONES[flag]:undefined,true]:flag?[r,t,KEY_TONES[flag]]:[r,t]); continue; }
         if (word === "foot" && c) { // "foot (warn): words" / "foot (store): words": a tone or a role before the colon, as "say id (role): words"
           const fw = c[0].slice(4).trim(); let ink: string | undefined;
           if (fw) { const t = fw.startsWith("(") && fw.endsWith(")") ? fw.slice(1, -1).trim() : ""; if (!t || (!EDGE_TONES[t] && !roleSet.has(t))) { problem(l.n, `a foot line takes a tone (good, bad, warn, accent) or a role in brackets before the colon: "foot (warn): words"`); continue; } ink = EDGE_TONES[t] ? `${EDGE_TONES[t]}:ink` : `role:${t}:line`; }
           st.foot.push(c[1]); (st.footInk ??= [])[st.foot.length - 1] = ink; continue;
         }
-        if (word === "note" && c && c[0] === "note") { st.notes.push(parts(c[1], " | ")); continue; }
+        if (word === "note" && c && c[0] === "note") {
+          // a last part "height: N lines" on the note line itself sizes this step's note frame like the head line does
+          const ps = parts(c[1], " | "), hl0 = ps.length > 1 ? /^height:\s*(\d+)( lines?)?$/.exec(ps[ps.length - 1].trim()) : null;
+          if (hl0) { const n = +hl0[1]; if (!hl0[2] || n < 1 || n > 12) { problem(l.n, "a note's last part height: N lines takes N from 1 to 12 (note: Title | line | height: 8 lines)"); continue; } ps.pop(); st.noteMin = n * 18; }
+          st.notes.push(ps); continue;
+        }
         const pb = blockFor(word);
         if (pb && (pb.kind === "panel" || pb.panel)) { const arg = l.t.slice(word.length).trim(), node = pb.parse({ word, arg, body, line: l.n }, ctx), prev = st.panels.at(-1); if (prev && prev.block === pb && panelEnd === li && pb.join?.(prev.node, node)) { panelEnd = i + 1; continue; } st.panels.push({ block: pb, node, line: l.n }); panelEnd = i + 1; continue; } // a panel right under one of its word may join it
         const owners = m.head.filter((h) => h.block.ops?.includes(word));
@@ -468,7 +480,7 @@ function layoutAt(m: Model, w: number): Plan {
   moreW.clear();
   budget.charge("stage layout", 50 + m.cards.size * 8 + m.steps.length * 4, m.cards.size * 4);
   const items: Item[] = [], n = m.steps.length || 1;
-  const box: Box = { w: w - 2 * PAD, narrow: false, steps: n, stepTitles: m.steps.map((s) => s.title), theme: m.theme };
+  const box: Box = { w: w - 2 * PAD, narrow: false, steps: n, stepTitles: m.steps.map((s) => s.title), theme: m.theme, ...(m.notesLines ? { noteMin: m.notesLines * 18 } : {}) };
   box.noteH = (nw: number) => Math.max(0, ...m.steps.map((s) => stepBand(s, { ...box, w: nw }).h)); // a head block with a side column runs it down beside the notes
   const main = m.lanes.filter((l) => !l.span && l.cards.length + l.more.length > 0 || (!l.span && l.title));
   const minLanes = main.reduce((a, l) => a + Math.max(LANE_MIN, ...l.cards.map(cardMin(m))), 0) + Math.max(0, main.length - 1) * 56;
@@ -478,7 +490,7 @@ function layoutAt(m: Model, w: number): Plan {
   setPhone(box.narrow); setCardPad(box.narrow); setPhoneLines(box.narrow); setPhoneFont(box.narrow);
   let y = 8;
   // "key at: top right": the key as a legend at the top right, a small swatch and its words per entry, each from the step that writes it
-  if (m.keyAt === "top right") { const lg = drawLegend(m.steps.flatMap((s, si) => s.keys.map(([r, t, tone]) => ({ r, t, tone, k: si + 1 }))), box.w); if (lg.h) { items.push(...shift(lg.items, PAD, y)); y += lg.h + 10; } }
+  if (m.keyAt === "top right") { const lg = drawLegend(m.steps.flatMap((s, si) => s.keys.map(([r, t, tone, dash]) => ({ r, t, tone, dash, k: si + 1 }))), box.w); if (lg.h) { items.push(...shift(lg.items, PAD, y)); y += lg.h + 10; } }
   let slot: { x: number; y: number; w: number; grow?: string[]; under?: boolean } | undefined;
   let laneFoot = -1, laneTop = 0; // the lanes' foot and top
   let free: Rect | undefined;
@@ -719,7 +731,7 @@ function layoutAt(m: Model, w: number): Plan {
   // the key: shown from the step that writes it
   // "key at: bottom right": the legend right-aligned at the lanes' foot when nothing is drawn there, else under the stage
   if (m.keyAt === "bottom right") {
-    const lg = drawLegend(m.steps.flatMap((s, si) => s.keys.map(([r, t, tone]) => ({ r, t, tone, k: si + 1 }))), box.w);
+    const lg = drawLegend(m.steps.flatMap((s, si) => s.keys.map(([r, t, tone, dash]) => ({ r, t, tone, dash, k: si + 1 }))), box.w);
     if (lg.h) {
       const KEY_IN = 8, dx = PAD - KEY_IN; // 8 px in from the right edge, so its words never touch a frame's edge
       const xs = lg.items.map((it: any) => it.x), lx = dx + Math.min(...xs) - 8;
@@ -737,7 +749,7 @@ function layoutAt(m: Model, w: number): Plan {
       else { const ly = y - 8; items.push(...shift(lg.items, PAD, ly)); y = ly + lg.h + 6; } // under the stage, 4 px under its content (the stage grows by the legend, not by a second gap)
     }
   }
-  const keys = m.keyTop ? [] : m.steps.flatMap((s, si) => s.keys.map(([r, t, tone]) => ({ r, t, tone, k: si + 1 })));
+  const keys = m.keyTop ? [] : m.steps.flatMap((s, si) => s.keys.map(([r, t, tone, dash]) => ({ r, t, tone, dash, k: si + 1 })));
   // in the first lane's free space when it fits (one box, a line per entry), else a row of entries under the stage;
   // each entry is a small swatch in its role's colour and its words (kind chip)
   const kh = 10 + keys.length * 18;
@@ -791,7 +803,7 @@ function stepBand(s: Step, box: Box, fill = 0): LayoutOut {
     // the note's title wraps to the band
     const tl = wrap(t, inner, "title", 6), th = (tl.length - 1) * LINE_H.title;
     const body = textLines(14, 26 + th, inner, ls, "body", "ink");
-    const hh = lone ? Math.max(34 + th + body.h, fill) : 34 + th + body.h;
+    const hh = Math.max(lone ? Math.max(34 + th + body.h, fill) : 34 + th + body.h, box.noteMin ?? 0, s.noteMin ?? 0);
     items.push({ k: "box", x: 0, y: h, w: box.w, h: hh, fill: "surface-2", stroke: "stg-note-line", r: 10, cls: "stg-note-strip", bar: { kind: "band", label: t } }, ...tl.map((q, i) => ({ k: "text", x: 14, y: h + 20 + i * LINE_H.title, s: q, f: "title", ink: "ink", tip: tl.length > 1 ? t : undefined }) as Item), ...shift(body.items, 0, h));
     h += hh + 8;
   }
@@ -1588,6 +1600,101 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
       for (const it of items) if (it.k === "path") { const o = JSON.stringify(it.pts); if (it.id === near.id && o === olds[0]) it.pts = nn.map((p) => [...p] as [number, number]); else if (it.id === far.id && o === olds[1]) it.pts = nf.map((p) => [...p] as [number, number]); }
     }
   }
+  // two lines into one card's top in one step end 16 px apart or more, never side by
+  // side into one point (it read as one doubled arrow): a straight drop moves within where its source and the card
+  // overlap, a routed line's last upright within the card; neither crosses the other nor any line of its steps
+  {
+    type P = Extract<Item, { k: "path" }>;
+    const segX = (pts: [number, number][]) => pts.slice(1).map((q, i) => [pts[i], q] as const);
+    const hitHV = (a: [number, number][], b: [number, number][]) => segX(a).some(([o, p]) => segX(b).some(([u, v]) => {
+      const ah = Math.abs(o[1] - p[1]) < 0.5, bh = Math.abs(u[1] - v[1]) < 0.5;
+      const cut = (h0: [number, number], h1: [number, number], v0: [number, number], v1: [number, number]) => v0[0] > Math.min(h0[0], h1[0]) + 0.5 && v0[0] < Math.max(h0[0], h1[0]) - 0.5 && h0[1] > Math.min(v0[1], v1[1]) + 0.5 && h0[1] < Math.max(v0[1], v1[1]) - 0.5;
+      return (ah && !bh && cut(o, p, u, v)) || (!ah && bh && cut(u, v, o, p));
+    }));
+    // a down end into a card's top: its last stretch upright, downwards
+    const downEnd = (q: P) => { const p = q.pts, a = p.at(-2)!, b = p.at(-1)!; return p.length >= 2 && Math.abs(a[0] - b[0]) < 0.5 && b[1] > a[1] + 0.5 && (p.length === 2 || Math.abs(p.at(-3)![1] - a[1]) < 0.5); };
+    const ps = items.filter((it): it is P => it.k === "path" && !!it.arrow && downEnd(it as P));
+    // where its last upright may stand: a straight drop where source and card overlap, a routed one within the card, on
+    // the side of the level stretch it comes from (its turn stays a turn)
+    const range = (q: P): [number, number] | null => {
+      const [fid, tid] = String(q.id).split(">"), t = rects.get(tid), f = rects.get(fid); if (!t) return null;
+      if (q.pts.length === 2) { if (!f) return null; const lo = Math.max(f.x, t.x) + 8, hi = Math.min(f.x + f.w, t.x + t.w) - 8; return lo <= hi ? [lo, hi] : null; }
+      const px = q.pts.at(-3)![0], x = q.pts.at(-1)![0], lo = t.x + 8, hi = t.x + t.w - 8;
+      return px > x ? [lo, Math.min(hi, px - 8)] : [Math.max(lo, px + 8), hi];
+    };
+    const moved = (q: P, x: number): [number, number][] => q.pts.map((p, i) => (i >= q.pts.length - 2 ? [x, p[1]] : [...p]) as [number, number]);
+    // a routed line whose last level stretch runs just under the source card of a straight drop beside it, and ends under
+    // that card, reads as a second line of that card: it goes on, past the card's side, down the gap there and into the
+    // card's side instead (its own end, away from the top's)
+    const underSrc = (R: P, S: P, x: number) => { const f = rects.get(String(S.id).split(">")[0]), ly = R.pts.at(-2)![1]; return !!f && S.pts.length === 2 && R.pts.length >= 3 && ly >= f.y + f.h - 0.5 && ly <= f.y + f.h + 12 && x > f.x && x < f.x + f.w; };
+    const sideIn = (R: P, on: number[], others: P[]): [number, number][] | null => {
+      const t = rects.get(String(R.id).split(">")[1]); if (!t) return null;
+      const px = R.pts.at(-3)![0], ly = R.pts.at(-2)![1], dir = px > R.pts.at(-1)![0] ? 1 : -1, ex = dir > 0 ? t.x + t.w : t.x, ye = Math.round(t.y + Math.min(t.h * 0.35, 18));
+      // the gap beside that side: up to the nearest card the upright would pass
+      const near = [...rects.entries()].filter(([id, r]) => id !== String(R.id).split(">")[1] && r.y < ye + 4 && r.y + r.h > ly - 4 && (dir > 0 ? r.x >= ex - 0.5 : r.x + r.w <= ex + 0.5)).map(([, r]) => (dir > 0 ? r.x : r.x + r.w));
+      const gx = near.length ? (dir > 0 ? Math.min(...near) : Math.max(...near)) : ex + dir * 24;
+      if (Math.abs(gx - ex) < 16) return null;
+      const xs = Math.round((ex + gx) / 2); if (dir > 0 ? xs > px - 4 : xs < px + 4) return null;
+      // out of its source's foot (a short stub, then level): level in the middle of the gap, off the other card's foot
+      const stub = R.pts.length === 4 && Math.abs(R.pts[0][0] - R.pts[1][0]) < 0.5, my = stub ? Math.round((R.pts[0][1] + t.y) / 2) : ly;
+      const np: [number, number][] = stub ? [[...R.pts[0]] as [number, number], [R.pts[0][0], my], [xs, my], [xs, ye], [ex, ye]] : [...R.pts.slice(0, -2).map((p) => [...p] as [number, number]), [xs, ly], [xs, ye], [ex, ye]];
+      // no other end on that side within 12 px, no crossing
+      if (others.some((o) => [o.pts[0], o.pts.at(-1)!].some((p) => Math.abs(p[0] - ex) < 1 && Math.abs(p[1] - ye) < 12)) || others.some((o) => hitHV(np, o.pts))) return null;
+      return np;
+    };
+    const put = (q: P, np: [number, number][]) => { const o0 = JSON.stringify(q.pts); for (const it of items) if (it.k === "path" && it.id === q.id && JSON.stringify(it.pts) === o0) it.pts = np.map((p) => [...p] as [number, number]); };
+    // two lines of different cards down the side channel into one card's top on one level (a scene at 360: they shared
+    // the level stretch): nested, the inner lane turns 8 px higher and ends left of the outer one, 16 px apart; the line
+    // from the lower card takes the inner lane (its way out to the channel then crosses no lane)
+    const chan = (q: P) => { const p = q.pts; return p.length === 5 && Math.abs(p[0][1] - p[1][1]) < 0.5 && Math.abs(p[1][0] - p[2][0]) < 0.5 && Math.abs(p[2][1] - p[3][1]) < 0.5 && p[3][0] < p[2][0] && Math.abs(p[3][0] - p[4][0]) < 0.5 && p[4][1] > p[3][1]; };
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+      const A = ps[i], B = ps[j], on = (A.on ?? []).filter((k) => (B.on ?? []).includes(k));
+      if (!on.length || !chan(A) || !chan(B) || String(A.id).split(">")[1] !== String(B.id).split(">")[1] || Math.abs(A.pts[3][1] - B.pts[3][1]) > 3 || Math.abs(A.pts[1][0] - B.pts[1][0]) < 2) continue;
+      const t = rects.get(String(A.id).split(">")[1]); if (!t) continue;
+      const [I, O] = A.pts[0][1] > B.pts[0][1] ? [A, B] : [B, A], lx = Math.min(A.pts[1][0], B.pts[1][0]), ox = Math.max(A.pts[1][0], B.pts[1][0]);
+      const xi = Math.min(A.pts[4][0], B.pts[4][0]), xo = Math.max(Math.max(A.pts[4][0], B.pts[4][0]), xi + 16);
+      let yo = Math.max(A.pts[3][1], B.pts[3][1]);
+      // a level squeezed between a lane heading and the card (no room for the heads): in the gap above the headings
+      // instead, its ends dropping past the heading's words
+      if (t.y - yo < 8) {
+        const cb = Math.max(...[...rects.values()].filter((r) => r.y + r.h <= yo && r.x < ox && r.x + r.w > xi).map((r) => r.y + r.h), Math.max(I.pts[0][1], O.pts[0][1]));
+        const band = nav.laneTexts.filter((it) => it.y - 12 > cb && it.y - 12 < t.y);
+        if (band.length) yo = Math.round(Math.min(...band.map((it) => it.y - 12)) - 6);
+        if (band.some((it) => { const tw = measure(it.s, "lane"); return [xi, xo].some((x) => x > it.x - 3 && x < it.x + tw + 3); })) continue;
+        if (yo - 8 < cb + 4) continue;
+      }
+      const yi = yo - 8;
+      if (xo > t.x + t.w - 8 || t.y - yo < 8 || yi < Math.max(I.pts[0][1], O.pts[0][1]) + 4) continue;
+      // the higher level keeps off every card it passes under
+      if ([...rects.values()].some((r) => yi > r.y - 4 && yi < r.y + r.h + 4 && xi < r.x + r.w && lx > r.x)) continue;
+      const ni: [number, number][] = [[...I.pts[0]] as [number, number], [lx, I.pts[0][1]], [lx, yi], [xi, yi], [xi, I.pts[4][1]]];
+      const no: [number, number][] = [[...O.pts[0]] as [number, number], [ox, O.pts[0][1]], [ox, yo], [xo, yo], [xo, O.pts[4][1]]];
+      const others = items.filter((it): it is P => it.k === "path" && it !== A && it !== B && (it.on ?? []).some((k) => on.includes(k)));
+      if (hitHV(ni, no) || others.some((o) => hitHV(ni, o.pts) || hitHV(no, o.pts))) continue;
+      put(I, ni); put(O, no);
+    }
+    for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+      const A = ps[i], B = ps[j], on = (A.on ?? []).filter((k) => (B.on ?? []).includes(k));
+      if (!on.length || !downEnd(A) || !downEnd(B) || String(A.id).split(">")[1] !== String(B.id).split(">")[1]) continue;
+      const ax = A.pts.at(-1)![0], bx = B.pts.at(-1)![0];
+      if (Math.abs(A.pts.at(-1)![1] - B.pts.at(-1)![1]) > 0.5 || Math.abs(ax - bx) >= 16) continue;
+      const ra = range(A), rb = range(B); if (!ra || !rb) continue;
+      const others = items.filter((it): it is P => it.k === "path" && it !== A && it !== B && (it.on ?? []).some((k) => on.includes(k)));
+      let best: [number, number, number] | null = null;
+      for (let xa = Math.ceil(ra[0]); xa <= ra[1]; xa += 2) for (let xb = Math.ceil(rb[0]); xb <= rb[1]; xb += 2) {
+        if (Math.abs(xa - xb) < 16) continue;
+        const cost = Math.abs(xa - ax) + Math.abs(xb - bx); if (best && cost >= best[2]) continue;
+        const na = moved(A, xa), nb = moved(B, xb);
+        if (hitHV(na, nb) || others.some((o) => hitHV(na, o.pts) || hitHV(nb, o.pts))) continue;
+        best = [xa, xb, cost];
+      }
+      // the routed one still under the straight one's source card: into the card's side, if there is room
+      const [R, Sd, rx] = A.pts.length === 2 ? [B, A, best?.[1] ?? bx] : [A, B, best?.[0] ?? ax];
+      if (underSrc(R, Sd, rx)) { const np = sideIn(R, on, [...others, Sd]); if (np) { put(R, np); continue; } }
+      if (!best) continue;
+      const na = moved(A, best[0]), nb = moved(B, best[1]); put(A, na); put(B, nb);
+    }
+  }
   // labels: one per label and step in the gap between the two lanes, side by side; a line of one pair keeps its own
   const seen = new Set<string>();
   for (const e of es) {
@@ -1778,6 +1885,21 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
       const pt: [number, number] = side === "r" ? [r.x + r.w, r.y + r.h * (0.2 + 0.6 * f)] : side === "l" ? [r.x, r.y + r.h * (0.2 + 0.6 * f)] : side === "t" ? [r.x + r.w * (0.15 + 0.7 * f), r.y] : moreW.has(id) && !narrow ? [r.x + moreW.get(id)! + 16 + (r.w - moreW.get(id)! - 28) * f, r.y + r.h] : [r.x + r.w * (0.15 + 0.7 * f), r.y + r.h];
       it.p[it.end] = pt;
     }
+  }
+  // the copies of an "x2" pair across into a box of cards each go level to the
+  // middle of their own card in it (the first copy to the first card shown, and so on), their heads on the box's edge
+  // level with that card (the box stays the end, as the original's); spread on the box's side, the second ended level
+  // with a card's top edge and its target was unclear
+  for (const p of placed) {
+    if ((p as { labelOnly?: boolean }).labelOnly || (p.side !== "lr" && p.side !== "rl") || p.e.fromPill || p.e.toPill) continue;
+    const n = (copyN.get(p.e.from + ">" + p.e.to + "|" + p.e.step) ?? 0) + 1; if (n < 2) continue;
+    const ks = edgeSteps(m, p.e.step, p.e), shownK = (id: string) => { const s0 = m.shownOn?.get(id); return s0 ? ks.some((k) => s0.includes(k)) : ks.some((k) => k >= (m.cards.get(id)?.from ?? 1)); };
+    const kids = (m.cards.get(p.e.to)?.kids ?? []).filter(shownK), f = rects.get(p.e.from)!;
+    if (kids.length < n) continue;
+    const kr = pillBox(`card:${kids[p.copy ?? 0]}`, p.e.step); if (!kr) continue;
+    const y = Math.round(kr.y + kr.h / 2); if (y < f.y + 8 || y > f.y + f.h - 8) continue;
+    const lr = p.side === "lr";
+    const t = rects.get(p.e.to)!; p.a = [lr ? f.x + f.w : f.x, y]; p.b = [lr ? t.x : t.x + t.w, y];
   }
   // a straight climb from a band to the card right above it, when nothing is between; else up the gap beside the lane
   let live = rects;
@@ -1984,7 +2106,7 @@ export function stageLlm(c: Compiled): string {
     for (const n of s.notes) f.push(n.length > 1 ? `${n[0]}: ${n.slice(1).join(" ")}` : n[0]);
     if (s.formula.length) f.push(s.formula.join("; "));
     for (const t of s.foot) f.push(t);
-    for (const [r, t, tone] of s.keys) f.push(`Key (${r}${tone?", "+(tone==="acc"?"accent":tone):""}): ${t}.`);
+    for (const [r, t, tone, dash] of s.keys) f.push(`Key (${r}${tone?", "+(tone==="acc"?"accent":tone):""}${dash?", dashed":""}): ${t}.`);
     out.push(`${k}. ${s.title}: ${s.caption === s.title ? "" : s.caption}${f.length ? "\n   " + f.join("\n   ") : ""}`.replace(/: \n/, ":\n").replace(/: $/, ""));
   });
   return out.join("\n");

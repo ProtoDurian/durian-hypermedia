@@ -874,13 +874,15 @@ t2 --> bd
 t3 --> bd
 bd --> pl
 @step Two: y.`;
-  for (const w of [356, 390]) test(`at ${w}: the third term's line goes down, across the gap, down into the bound card, its head shown, off the pool card`, () => {
+  for (const w of [356, 390]) test(`at ${w}: the third term's line goes down, across the gap, into the bound card, its head shown, off the yard card`, () => {
     const c = scene(SRC); expect(c.errors).toEqual([]);
     const p = layoutStage(c.model, w), cards = boxes(p.items).filter((b) => b.bar?.kind === "card" && String(b.cls).includes("scn-"));
     const a = p.items.find((i) => i.k === "path" && (i as any).id === "t3>bd") as any, bd = cards.find((b) => b.id === "bd")!, pl = cards.find((b) => b.id === "pl")!;
     const last = a.pts.at(-1), prev = a.pts.at(-2);
     expect(Math.hypot(last[0] - prev[0], last[1] - prev[1])).toBeGreaterThanOrEqual(8);
-    expect(last[1]).toBe(bd.y);
+    // into its top, or into its right side where the tick term's line already ends
+    // under the tick term: never side by side with it into one point
+    expect(last[1] === bd.y || (Math.abs(last[0] - (bd.x + bd.w)) < 0.5 && last[1] > bd.y && last[1] < bd.y + bd.h)).toBe(true);
     for (const [x, y] of a.pts) expect(x > pl.x - 4 && x < pl.x + pl.w + 4 && y > pl.y - 4 && y < pl.y + pl.h + 4).toBe(false);
   });
 });

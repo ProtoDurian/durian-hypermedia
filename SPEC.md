@@ -1222,7 +1222,7 @@ Short cell rows use a compact default pitch on both screen sizes. Wrapped words 
 On a phone, a number too wide for its tick header or cell is drawn in full, bottom to top, at the 11.5 px chip font. Numbers that fit stay level; words and desktop drawings stay level. Authored tick labels wrap or stack rather than disappear. Phone words wrap at spaces or -. / _: only; a cell word too wide for its cell sits intact in a packed caption shelf below the row. `row labels: beside` keeps short row headings to the left of the cells on phones; `row labels: above` retains full-width rows with headings above.
 `ruler: below` puts the continuous ruler below its state rows, with tick labels under it and marker lines crossing down to it. In this form, state `[dot]` draws a 16 px role-coloured arrival dot with a fitting label beside it. A `[dot] [plain]` state is neutral filled grey; other dot rows use their role’s pale fill and coloured outline. The unit caption sits directly above the lanes, whose edges and vertical guides align with the ticks; `row labels: beside` right-aligns plain row headings to their left. Boxed `headers` keep their own form and cannot combine with `ruler: below`.
 
-Marker labels on the stage are the authored words only; their line already marks the time. To show a value, include it in the words: `at 31: 31 s, build done`.
+Marker labels on the stage are the authored words only; their line already marks the time. To show a value, include it in the words: `at 31: 31 s, build done`. A marker's words, a setup one or a one-step one, sit above the rows by their own line; markers shown in different steps share that row, and two shown in the same step at the same place stack.
 
 `at 31 [caption]: words` and `keep at 31 [caption]: words` retain the marker line and add the words to the existing step caption, without a stage label or numeric prefix; setup markers apply to every step. Doccheck refuses `[caption]` with `[below]`.
 
@@ -1238,7 +1238,7 @@ A marker's `[beside]` flag puts its words at the top of the time rows, level wit
 
 On a phone, a row of `[numbered]` cells, or of cells whose names are numbers, picks one way to show its numbers: level when each fits its cell; standing on end (bottom to top) only when the turned digits and a 3 px gap fit the cell; level in two to four staggered rows when they fit that many cells (sized with room for the browser's slightly wider digits, packed at the digits' height and 3 px); otherwise on end in two or three staggered rows. A number a marker line crosses gets a page-coloured backing, so the line passes behind it; staggered numbers are drawn after every cell of their row, on a backing in their cell's colour over the cell borders, and kept inside the row's last cell edge (a number held in pushes the ones before it on its staggered line left, 3 px apart). A `[wide]` cell whose number cannot keep 2 px each side on a phone shows it in the caption under the row. Every cell keeps its number drawn; only cells under about 4 px, where nothing fits, show fewer numbers (every few cells, keeping the first of each range). Numbers are never under 11 px and never closer than 3 px; a single digit never stands on end.
 
-`band role id "Title": first..last` (time setup) draws a titled region tinted in the role's colour behind the rows first to last, across the whole block width; on a desktop its title sits in a left gutter beside the region, level with its first row, and on a phone on its own line above the first row. Up to 8 bands; they never overlap. Example: `band job b0 "Node 0": r0..a0`.
+`band role id "Title": first..last` (time setup) draws a titled region tinted in the role's colour behind the rows first to last, across the whole block width; on a desktop its title sits in a left gutter beside the region, level with its first row, and on a phone on its own line above the first row. Up to 8 bands; they never overlap. Example: `band job b0 "Node 0": r0..a0`. Ending the line with `| compact` packs the band's rows as one tight group: its title splits at ` · ` into a name (in the role's ink) and a muted sub line, the rows inside draw no labels of their own, and they stand 2 px apart: `band job b0 "desk 0 · writer": r0..a0 | compact`. A time block's caption may sit beside the block instead of above it: `time: 0..60 | seconds | beside` puts it on the tick-number line, in the gutter left of the axis, when it fits there (a phone, a ruler below, no ruler or a window keep it above).
 
 In a step, `dot <row> <interval start or a..b> [tone]` recolours existing dots for that step; `(role)` may replace the tone, exactly one colour is required, `keep dot` persists and `off <row>` restores declared paint. A range selects declared interval starts inclusively; geometry and filled/hollow state stay unchanged.
 
@@ -1495,6 +1495,7 @@ Setup:
 - `+ (a)`: a letter chip before the card's title, on the title's row.
 - A card line starting with a tone or a role in brackets, `role id: title | (good) words`: those words in that ink, the rest of the card unchanged (also in `text id:...`). Refused: an unknown tone or role.
 - Card lines take the panel lines' marks: `. ` body size in plain ink, `> ` indented one step (repeat for deeper), `~ ` small and muted, `= ` body size in the card's colour.
+- `key role [dashed]: words` (alone or beside a tone flag, `key pen [dashed]: not counted`) draws the key's swatch dashed, same size and place: a pending or not-yet state, as the cells it names. In the chips track beside the where line a phase not yet reached is a dashed outline alone (its role chip is hidden on those steps).
 
 Steps:
 
@@ -1534,6 +1535,10 @@ Time blocks:
 - `cells: 1 | apart`: cells as separate rounded boxes, no ruler line, each tick's label above its cell; in this form a `[below]` marker is its words alone under its cell, with no line. Refused: a cells mode other than `roomy`, `headers` or `apart`.
 - `zoom: a..b | words | bracket`: the inset's words over a bracket across its range. Refused: `| bracket` without words.
 - `arrow a -> b at 1.5 [dashed] [plain]: words`: one optional tone (`[plain]`, `[accent]`, `[good]`, `[bad]` or `[warn]`) beside `[dashed]`; by default the source row's role colour.
+- A row span may use `[above]` to put its words above the stroke with a clear backing, in the same reserved slot; `[above]` does not combine with `axis` or `[bar]`. `form: chips | roles` keeps every track chip in its declared role from step 1 and marks only the active outline, without future/done tints.
+- Time states combining [dashed] with a tone retain that tone as a faded preview (fill and border faint, words readable); bare [dashed] stays neutral. A counted cell group may end with one declared role, e.g. `cells a: 32 (eval), +4 new (warm)`, including groups without +.
+- A span may use [bare] for words at its range in the same reserved slot, without a stroke; [bare] cannot combine with [line] or [bar]. Bottom-ruler marker captions follow the unit header and meet their own lines. Card body identifiers wrap at =, -, _,. and comma boundaries; a single part shrinks only when necessary, to no less than 11 px.
+- `band role id "Title": first..last | compact` packs the band's rows under a name and a sub title. `time: a..b | caption | beside`: the caption on the tick-number line.
 
 Phone rules (no new words):
 
@@ -1544,6 +1549,7 @@ Phone rules (no new words):
 - A connector chain, `a1,a2,a3 --> bd --> pl`, expands to the same connectors as each hop on its own line; each hop retains its arrow form, role/tone, copies and ordinary refusals, and `keep` applies to every hop. Quote literal arrow text inside a label.
 - A card or grid item takes its box tone after the role (`card job [bad]: title`, `job [good]: title`); a list takes it after the title (`list Replay [bad] | roomy`), and a value may start `(bad)`, `(good)`, `(warn)` or `(accent)`. A list row prefixed `(bad)` (or `(good)`, `(warn)`, `(accent)`) tones both key and value; `key: (bad) value` tones just the value. A list tone colours its fill and border only; its title and ordinary rows retain neutral ink, and value/kept/struck tones keep their own ink. A grid item ending `[dashed]` has a neutral unfilled dashed outline and muted words. `zoom: a..b [warn] | words` fills the inset and its otherwise untoned intervals. These flags change paint only.
 - `a -> b x2: first | second` gives each copy its own label (`_` leaves one unlabelled); one unsplit label still labels the bundle. Copies retain separate target ports on desktop and phones. This form does not change stage height.
+- On phones, repeated time samples use smaller dots inside an inset ruler, with caption backings contained by the same frame; single arrivals keep their larger dots. Assignment labels keep extra room before a card border. Role dots retain the page theme stroke for solid fills.
 
 ### References (section 8a)
 

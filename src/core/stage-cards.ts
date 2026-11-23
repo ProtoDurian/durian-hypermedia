@@ -19,7 +19,7 @@
 // Pure: no DOM. Hand-written linear scans; loops over author text charge docBudget.
 import { badgeGeo } from "./stage-phone"; // badge rows on a phone
 import { docBudget } from "./stage-budget";
-import { type Item, type Line, type ParseCtx, type Font, StageError, LINE_H, measure, wrap, wrapRoom, longestWord, parts, colon, verdict, range, expandIds, ID_RE } from "./stage-core";
+import { type Item, type Line, type ParseCtx, type Font, StageError, LINE_H, measure, drawnW, fontSize, wrap, wrapRoom, longestWord, parts, colon, verdict, range, expandIds, ID_RE } from "./stage-core";
 
 export let CARD_PX = 11;
 let CARD_PT = 10;
@@ -466,8 +466,11 @@ function tokenRows(h: CardHost, c: Card, inner: number) {
  * "** " the headline, "* " the card's colour, "= " body size in the card's colour, ". " body size in plain ink, "~ " small and
  * muted (the default look said out loud), "(tone) " / "(role) " that ink; anything else small and muted */
 const IND = 14;
-type SubStyle = { text: string; f: Font; head: boolean; hi: boolean; ink?: string; indent: number };
+type SubStyle = { text: string; f: Font; head: boolean; hi: boolean; ink?: string; indent: number; rule?: boolean };
+/** a line that is only "---" in a card body starts its notes: a small gap and a hairline, the lines under it as they are (small, muted) */
+const RULE_H = 12, RULE_RE = /^---\s*$/;
 function subStyle(t0: string): SubStyle {
+  if (RULE_RE.test(t0)) return { text: "", f: "sub", head: false, hi: false, indent: 0, rule: true };
   let t = t0, indent = 0; while (t.startsWith("> ")) { indent++; t = t.slice(2); }
   if (t.startsWith("** ")) return { text: t.slice(3), f: HEAD_F, head: true, hi: true, indent };
   if (t.startsWith("* ")) return { text: t.slice(2), f: "sub", head: false, hi: true, indent };
@@ -487,11 +490,52 @@ export function subToneProblem(x: string, roles: Set<string>): string | null {
   const q = SUB_TONE.exec(x); if (!q || TONE_INK[q[1]] || roles.has(q[1])) return null;
   return `"(${q[1]})" is not a tone or a role of this page: a card line takes (good), (bad), (warn), (accent) or a role in brackets before its words`;
 }
-function subLines(ss: string[], inner: number): { s: string; f: Font; h: number; hi: boolean; head: boolean; ink?: string; indent: number }[] {
-  const out: { s: string; f: Font; h: number; hi: boolean; head: boolean; ink?: string; indent: number }[] = [];
+/** Keep fitting card lines unchanged; repair an unsafe identifier at its punctuation, never inside a part. */
+function boxWords(text: string, room: number, f: Font, max: number): { lines: string[]; before: number; repaired?: boolean; size?: number } {
+  const old = wrapRoom(text, room, f, max, 5), source = text.trim().replace(/\s+/g, " ");
+  let at = 0, cuts = false;
+  for (const line of old) {
+    const start = source.indexOf(line, at);
+    if (start < 0) continue;
+    at = start + line.length;
+    if (at < source.length && source[at] !== " " && !/[=,._/:-]$/.test(line)) cuts = true;
+  }
+  const assignment = /[A-Za-z_]\w*=[\w=._-]+/, inset = PHONE_CARDS && assignment.test(text);
+  const safeRoom = Math.max(1, room - (inset ? 3 : 0));
+  const clipped = old.some(line => measure(line, f) + line.split(" ").reduce((extra, word) =>
+    /[A-Za-z_][\w]*[=_][\w=-]+/.test(word) ? extra + drawnW(word, f) - measure(word, f) : extra, 0) > (inset && assignment.test(line) ? safeRoom : room + 5));
+  if (!cuts && !clipped) return { lines: old, before: old.length };
+  docBudget().charge("card boundary words", text.length + 1, text.length);
+  const words = source.split(" "), chunks = words.map(word => word.match(/[^=,._/:-]+[=,._/:-]*|[=,._/:-]+/g) || [word]);
+  const base = fontSize(f), widest = Math.max(0, ...chunks.flat().map(part => drawnW(part, f)));
+  const size = widest > safeRoom ? Math.max(11, Math.min(base, base * safeRoom / widest)) : base;
+  const width = (s: string) => drawnW(s, f) * size / base;
+  const lines: string[] = []; let line = "";
+  for (const parts of chunks) for (const [i, part] of parts.entries()) {
+    const next = line + (i === 0 && line ? " " : "") + part;
+    if (line && width(next) > safeRoom) { lines.push(line); line = part; } else line = next;
+  }
+  if (line) lines.push(line);
+  return { lines, before: old.length, repaired: true, ...(size < base ? { size } : {}) };
+}
+function subLines(ss: string[], inner: number): { s: string; f: Font; h: number; hi: boolean; head: boolean; ink?: string; indent: number; rule?: boolean; size?: number; pad?: number }[] {
+  const out: { s: string; f: Font; h: number; hi: boolean; head: boolean; ink?: string; indent: number; rule?: boolean; size?: number; pad?: number }[] = [];
+  let before = 0, repaired = false;
   for (const t0 of ss) {
-    const { text, f, head, hi, ink, indent } = subStyle(t0);
-    for (const x of wrapRoom(text, inner - indent * IND, f, head ? 2 : SUB_MAX, 5)) out.push({ s: x, f, h: LINE_H[f], hi, head, ink, indent });
+    const { text, f, head, hi, ink, indent, rule } = subStyle(t0);
+    if (rule) { out.push({ s: "", f, h: RULE_H, hi, head, indent, rule }); before += RULE_H; continue; }
+    const words = boxWords(text, inner - indent * IND, f, head ? 2 : SUB_MAX);
+    before += words.before * LINE_H[f]; repaired ||= !!words.repaired;
+    for (const x of words.lines) out.push({ s: x, f, h: LINE_H[f], hi, head, ink, indent, ...(words.size ? { size: words.size } : {}) });
+  }
+  if (repaired && out.length) {
+    // Reuse the card's reserved text band: whole words take tighter leading only while their ink remains clear.
+    const extra = out.reduce((sum, line) => sum + line.h, 0) - before;
+    if (extra < 0) out[out.length - 1].pad = -extra;
+    else if (extra > 0) {
+      const body = out.filter(line => !line.head && !line.rule), room = body.reduce((sum, line) => sum + line.h, 0), ratio = (room - extra) / room;
+      if (body.every(line => line.h * ratio >= (line.size || fontSize(line.f)) + 1)) for (const line of body) line.h *= ratio;
+    }
   }
   return out;
 }
@@ -507,7 +551,7 @@ export function measureCard(h: CardHost, c: Card, w: number, tags: Set<string>, 
   const titleH = (t: string) => tl(t).length * LINE_H[titleFont(t)];
   const title = titleAt(h, c).map(tl).reduce((a, x) => (x.length > a.length ? x : a), tl(c.title));
   const tH = Math.max(titleH(c.title), ...titleAt(h, c).map(titleH));
-  const subH = Math.max(0, ...subsAt(h, c).map((ss) => subLines(ss, inner).reduce((a, l) => a + l.h, 0)));
+  const subH = Math.max(0, ...subsAt(h, c).map((ss) => subLines(ss, inner).reduce((a, l) => a + l.h + (l.pad || 0), 0)));
   const vw = inner - recCols(h, c, inner).kw - REC_GAP, vals = valuesAt(h, c);
   const kw0 = recCols(h, c, inner).kw, recH = c.keys.map((k) => Math.max(keyLines(k, kw0).length, ...vals.get(k)!.map((v) => valLines(v, vw).length)) * LINE_H.sub + (c.roomy ? ROOMY_GAP : 0)); // the row as tall as its taller side
   const tok = tokenRows(h, c, inner);
@@ -561,7 +605,7 @@ export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says:
     // a plain text card with a headline: the headline and its lines stand as one group, centred across the card
     const ls = subLines(ss, r.w - 2 * CARD_PX), group = ls.some((l) => l.head) && !c.kids.length && !c.pills.length && !c.tokens.length && !c.keys.length && !c.badges.length && !c.inside;
     // "* words": a line in the card's own colour; "** words": a headline, big and centred, in that colour
-    for (const l of ls) { yy += l.h; const mid = l.head || (group && !l.indent); out.push(when({ k: "text", x: mid ? r.x + r.w / 2 : r.x + CARD_PX + l.indent * IND, y: yy - (l.f === "big" ? 7 : l.f === "title" ? 4 : l.f === "body" ? 4 : 3), s: l.s, f: l.f, ink: l.ink ?? (l.hi ? `role:${c.role}:ink` : "muted"), anchor: mid ? "middle" : undefined }, a, b === n ? 0 : b)); }
+    for (const l of ls) { yy += l.h; if (l.rule) { out.push(when({ k: "path", pts: [[r.x + CARD_PX, yy - RULE_H / 2], [r.x + r.w - CARD_PX, yy - RULE_H / 2]], ink: "line", w: 1, bar: { ignore: 1 } } as Item, a, b === n ? 0 : b)); continue; } const mid = l.head || (group && !l.indent); out.push(when({ k: "text", x: mid ? r.x + r.w / 2 : r.x + CARD_PX + l.indent * IND, y: yy - (l.f === "big" ? 7 : l.f === "title" ? 4 : l.f === "body" ? 4 : 3), s: l.s, f: l.f, ...(l.size ? {size:l.size} : {}), ink: l.ink ?? (l.hi ? `role:${c.role}:ink` : "muted"), anchor: mid ? "middle" : undefined }, a, b === n ? 0 : b)); yy += l.pad || 0; }
   }
   y += M.subH;
   // the record: keys on the left, values ("..." until filled) in a column at their right
@@ -602,9 +646,11 @@ export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says:
       if (bare(t).length < t.length) out.push(when({ k: "text", x: tx + bw + 1, y: ty + 14, s: t.slice(bare(t).length), f: "chip", ink: "ink-2" }));
     });
     for (const rm of remarks) {
-      const p = M.tok.pos[rm.idx], rx = Math.min(r.x + CARD_PX + p.x, r.x + r.w - CARD_PX - Math.min(r.w - 2 * CARD_PX, measure(rm.s, "sub")));
+      // under its chip when it fits there; else it ends on the card's inner edge, aligned there (rc.2 MUST 5, 17 on a phone: a
+      // start x from the measured width left the browser's slightly wider words on the border), so the drawn width decides
+      const p = M.tok.pos[rm.idx], x0 = r.x + CARD_PX + p.x, inner = r.x + r.w - CARD_PX, fits = x0 + measure(rm.s, "sub") <= inner - 4;
       const on = remarkOn(rm); if (!on.length) continue;
-      const it = when({ k: "text", x: rx, y: rowY(p.row) + TOK_H + LINE_H.sub - 2, s: wrap(rm.s, r.w - 2 * CARD_PX, "sub", 1)[0], f: "sub", ink: `${paintOf(rm.tone)}:ink`, tip: rm.s, hot: [] }, rm.k, rm.keep ? on.at(-1)! : rm.k);
+      const it = when({ k: "text", x: fits ? x0 : inner, ...(fits ? {} : { anchor: "end" as const }), y: rowY(p.row) + TOK_H + LINE_H.sub - 2, s: wrap(rm.s, r.w - 2 * CARD_PX, "sub", 1)[0], f: "sub", ink: `${paintOf(rm.tone)}:ink`, tip: rm.s, hot: [] }, rm.k, rm.keep ? on.at(-1)! : rm.k);
       out.push(rm.keep ? { ...it, on } as Item : it);
     }
     y += M.tok.rows * (TOK_H + TOK_GAP) + M.tok.remarkRows.size * LINE_H.sub;
@@ -665,7 +711,7 @@ export function cardText(h: CardHost, c: Card): string {
   const bits: string[] = [];
   if (c.tag) bits.push(`(${c.tag})`); // a title-row letter chip
   if (c.state) bits.push(c.state.s);
-  if (c.subs.length) bits.push(c.subs.map(plainSub).join("; "));
+  if (c.subs.length) bits.push(c.subs.map(plainSub).filter(Boolean).join("; "));
   let s = c.title === "_" ? bits.join("; ") : `${c.title}${bits.length ? ` (${bits.join("; ")})` : ""}`;
   if (c.badges.length) s += ` [${c.badges.map((b) => (c.plainBadges ? b.s : `${b.b}: ${b.s}`)).join("; ")}]`;
   if (c.keys.length) s += ` {${c.keys.map((k) => `${k}: ${c.vals0?.[k] ?? "..."}`).join("; ")}}`;
@@ -680,7 +726,7 @@ export function cardFacts(h: CardHost, k: number): string[] {
   const st = h.cx.steps[k - 1]; if (!st) return [];
   const name = (id: string) => h.cards.get(id)?.title ?? id, pill = (id: string) => h.cx.pills.get(id)?.s ?? id, f: string[] = [];
   for (const [id, t] of st.title) f.push(`${name(id)} is now titled: ${t}.`);
-  for (const [id, ls] of st.text) f.push(`${name(id)} now reads: ${ls.map(plainSub).join("; ") || "(nothing)"}.`); // "* words" is drawn in the card's colour; the LLM view reads the words
+  for (const [id, ls] of st.text) f.push(`${name(id)} now reads: ${ls.map(plainSub).filter(Boolean).join("; ") || "(nothing)"}.`); // "* words" is drawn in the card's colour; the LLM view reads the words
   for (const [id, s] of st.state) f.push(s ? `${name(id)}: ${s.s}.` : `${name(id)}: no state.`);
   for (const [id, t] of st.tone) f.push(t ? `${name(id)} is ${t === "bad" ? "in trouble" : t === "good" ? "good" : t === "warn" ? "a warning" : "in focus"}.` : `${name(id)} is back to normal.`);
   for (const [id, x] of [...st.cross, ...st.crossC]) f.push(x ? `${name(id)} is crossed out.` : `${name(id)} is no longer crossed out.`);
@@ -707,7 +753,7 @@ export type { Font };
  * the step that writes it; its place is kept from the start, so nothing moves. An entry wider than the stage wraps its words
  * (up to 3 lines). Returns the items (relative to the stage's content box) and the height used. */
 export const KEY_SW = 16, KEY_GAP = 6, KEY_SEP = 18, KEY_ROW = 6;
-export function drawLegend(keys: { r: string; t: string; k: number; tone?: string }[], w: number): { items: Item[]; h: number } {
+export function drawLegend(keys: { r: string; t: string; k: number; tone?: string; dash?: boolean }[], w: number): { items: Item[]; h: number } {
   if (!keys.length) return { items: [], h: 0 };
   const lh = LINE_H.sub, room = Math.max(40, w - KEY_SW - KEY_GAP);
   const ents = keys.map((kk) => { const ls = measure(kk.t, "sub") <= room ? [kk.t] : wrap(kk.t, room, "sub", 3); return { ...kk, ls, w: KEY_SW + KEY_GAP + Math.max(...ls.map((l) => measure(l, "sub"))), h: Math.max(KEY_SW, ls.length * lh) }; });
@@ -732,8 +778,9 @@ export function drawLegend(keys: { r: string; t: string; k: number; tone?: strin
 /** One key entry on a text baseline: the swatch (kind chip, no label) and its words beside it. */
 export const keyEntryW = (t: string) => KEY_SW + KEY_GAP + measure(t, "sub");
 /** "chip": the swatch is a wordless chip (a corner legend, as a scene's original); false: inside a legend box, unstamped (the hero's) */
-const keyPaint=(key:{r:string;tone?:string})=>key.tone==="plain"?{fill:"surface-2",stroke:"muted"}:{fill:key.tone?`${key.tone}:soft`:`role:${key.r}:soft`,stroke:key.tone?`${key.tone}:line`:`role:${key.r}:line`};
-export function keyEntry(x: number, base: number, kk: { r: string; t: string; k: number; tone?: string }, chip = true): Item[] {
+// "[dashed]" on a key line: the same swatch, same size and place, its border dashed
+const keyPaint=(key:{r:string;tone?:string;dash?:boolean})=>({...(key.tone==="plain"?{fill:"surface-2",stroke:"muted"}:{fill:key.tone?`${key.tone}:soft`:`role:${key.r}:soft`,stroke:key.tone?`${key.tone}:line`:`role:${key.r}:line`}),...(key.dash?{dash:true}:{})});
+export function keyEntry(x: number, base: number, kk: { r: string; t: string; k: number; tone?: string; dash?: boolean }, chip = true): Item[] {
   const when = { from: kk.k };
   return [
     { k: "box", x, y: base - 12, w: KEY_SW, h: KEY_SW, ...keyPaint(kk), r: 3, cls: "stg-key", ...(chip ? { bar: { kind: "chip" } } : {}), ...when }, // wordless, as the originals stamp it

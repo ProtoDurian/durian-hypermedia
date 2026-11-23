@@ -40,7 +40,9 @@ test("done before the place, lit at it, not reached after (dashed); one place on
   const words = (i: number, k: number) => p.items.filter((t): t is Text => t.k === "text" && shownAt(t, k) && t.x > cs[i].x && t.x < cs[i].x + cs[i].w && t.y > cs[i].y && t.y < cs[i].y + cs[i].h);
   for (const t of words(3, 3)) expect(t.ink).toBe("muted"); for (const t of words(0, 1)) expect(t.ink).toBe("muted");
   expect(cs[4].hot?.includes(1)).toBe(false); // the last phase is not lit before its step
-  for (const b of cs) expect(b.on).toBeUndefined(); // the same chip on every step
+  // the same place on every step; the role chip shows only where the phase is reached (the review, a scene: no solid border
+  // under the dashes), the dashed outline on the other steps
+  for (const [i, b] of cs.entries()) expect(b.on ?? [1, 2, 3, 4]).toEqual([1, 2, 3, 4].filter((k) => !(later(i)?.on ?? []).includes(k)));
 });
 test("falls back to the usual place on a phone, when where and the chips do not fit, and without the line", () => {
   const plain = layoutStage(compile("").model, 1000), ph = layoutStage(compile().model, 340), tight = layoutStage(compile("place: beside where\n", WHERE + " · " + WHERE).model, 1000);

@@ -923,6 +923,31 @@ describe("card lines take the panel prefixes, one meaning per spelling", () => {
     const llm = stageLlm(scene(SRC)); expect(llm).toMatch(/toBaskets: 3/); expect(llm).not.toMatch(/> >|~ the|\. sorted/);
   });
 });
+describe("a '---' line in a card body starts the notes: a small gap and a hairline, the notes under it small and muted", () => {
+  const WITH = "## A\nshelf y: ledger | pickers: | > baskets: 2 | --- | tick = sun hours ÷ 15\n@step One: x\n@step Two: y";
+  const PLAIN = "## A\nshelf y: ledger | pickers: | > baskets: 2 | tick = sun hours ÷ 15\n@step One: x\n@step Two: y";
+  for (const w of [1000, 340]) test(`at ${w}: one hairline between the keys and the note, the card a gap taller, the note small and muted`, () => {
+    const c = scene(WITH), c0 = scene(PLAIN); expect(msgs(c)).toBe("");
+    const lay = (cc: Compiled) => { const p = layoutStage(cc.model, w) as any; return (p.narrow && p.narrow.items ? p.narrow : p).items as any[]; };
+    const items = lay(c), t = (s: string) => items.find((i) => i.k === "text" && i.s === s);
+    const rules = items.filter((i) => i.k === "path" && i.pts.length === 2 && i.pts[0][1] === i.pts[1][1] && i.ink === "line" && i.w === 1);
+    expect(rules.length).toBe(1);
+    const y = rules[0].pts[0][1], keyY = t("baskets: 2").y, noteY = t("tick = sun hours ÷ 15").y;
+    expect(y).toBeGreaterThan(keyY); expect(y).toBeLessThan(noteY);
+    expect(t("tick = sun hours ÷ 15")).toMatchObject({ f: "sub", ink: "muted" });
+    expect(items.some((i) => i.k === "text" && i.s.includes("---"))).toBe(false);
+    const hOf = (its: any[]) => its.find((i) => i.k === "box" && i.id === "y").h;
+    expect(hOf(items)).toBeGreaterThan(hOf(lay(c0)));
+  });
+  test("the LLM view reads the words without the rule", () => {
+    const llm = stageLlm(scene(WITH)); expect(llm).toMatch(/baskets: 2; tick = sun hours ÷ 15/); expect(llm).not.toMatch(/---/);
+  });
+  test("a '---' written with other words is just words", () => {
+    const c = scene("## A\nshelf y: ledger | --- not a rule\n@step One: x\n@step Two: y"); expect(msgs(c)).toBe("");
+    const p = layoutStage(c.model, 1000) as any; expect(p.items.some((i: any) => i.k === "text" && i.s === "--- not a rule")).toBe(true);
+    expect(p.items.some((i: any) => i.k === "path" && i.ink === "line" && i.pts.length === 2 && i.pts[0][1] === i.pts[1][1])).toBe(false);
+  });
+});
 describe("a plain text card with a headline centres its lines as one group", () => {
   test("in a taller row the headline and its lines are centred across the card and in the free height", () => {
     const c = scene("## A\nfarm a: shed | one | two | three | four | five | six\n## B\nshelf m: the packer | packs one crate | ** 318 | sealed at the door\n@step One: x\n@step Two: y"); expect(msgs(c)).toBe("");

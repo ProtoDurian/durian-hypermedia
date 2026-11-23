@@ -22,7 +22,7 @@ import "./stage-cells"; // a wordless cell row in a panel
 // form: chips (one row of two-line chips: the first word over the rest; no arrows)
 // place: beside where (wide stage: the where words at the left, the phases on the same line at the right)
 // in a step: at open (or at open..answer)
-type Track = { phases: { role: string; name: string }[]; carry: string; where: string; at: Map<number, [number, number]>; line: number; scope:ParseCtx; chips?: boolean; beside?: boolean; arrows?: boolean };
+type Track = { phases: { role: string; name: string }[]; carry: string; where: string; at: Map<number, [number, number]>; line: number; scope:ParseCtx; chips?: boolean; beside?: boolean; arrows?: boolean; roleChips?:boolean };
 registerBlock({
   word: "track", kind: "head", ops: ["at"], more: ["carry", "where", "form", "place"],
   parse(inp, ctx): Track {
@@ -39,7 +39,7 @@ registerBlock({
     if (op.word === "carry") { t.carry = op.arg; return; }
     if (op.word === "where") { t.where = op.arg; return; }
     if (op.word === "place") { if (op.arg.replace(/^:\s*/, "").trim() !== "beside where") { ctx.problem(op.line, `a track's place is "place: beside where" (the phases at the right of the where line)`); return; } t.beside = true; return; }
-    if (op.word === "form") { const v = op.arg.replace(/^:\s*/, "").trim(); if (v !== "chips" && v !== "chips | arrows") { ctx.problem(op.line, `a track has one other form: "form: chips" (one row of two-line chips, the first word over the rest, no arrows) or "form: chips | arrows" (the same, an arrow between neighbours)`); return; } t.chips = true; t.arrows = v === "chips | arrows" || undefined; return; } // "| arrows"
+    if (op.word === "form") { const v = op.arg.replace(/^:\s*/, "").trim(); if (v !== "chips" && v !== "chips | arrows" && v !== "chips | roles") { ctx.problem(op.line, `a track form is "form: chips" (one row of two-line chips, the first word over the rest, no arrows) or "form: chips | arrows" (the same, an arrow between neighbours), or form: chips | roles (declared colours with an active outline)`); return; } t.chips = true;if(v==="chips | roles")t.roleChips=true;else delete t.roleChips; t.arrows = v === "chips | arrows" || undefined; return; } // "| arrows"
     const [a, b] = op.arg.includes("..") ? op.arg.split("..").map((x) => x.trim()) : [op.arg.trim(), op.arg.trim()];
     const ia = t.phases.findIndex((p) => p.name === a), ib = t.phases.findIndex((p) => p.name === b);
     if (ia < 0 || ib < 0) { if (op.shared) return false; ctx.problem(op.line, `"${ia < 0 ? a : b}" is not a phase of the track (${t.phases.map((p) => p.name).join(", ")})`); return; }
@@ -61,10 +61,11 @@ registerBlock({
       const edge=i&&journey?{edge:`phase:${i-1}>phase:${i}`,from:`phase:${i-1}`,to:`phase:${i}`}:undefined;
       if (i % per) items.push({ k: "tri", x: x - gap / 2 - 3, y: y + 13, ink: "muted",bar:edge });
       else if(edge){const px=(per-1)*(w0+gap)+3,py=y-rowH+28;items.push({k:"path",pts:[[px,py],[px,y-8],[3,y-8],[3,y-2]],ink:"line-2",arrow:true,bar:edge});}
-      const last = i === n - 1;
-      items.push({ k: "box", x, y, w, h: 26, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 8, cls: "stg-phase", id: `phase:${i}`, bar: { kind: "track", id: `phase:${i}`, label: p.name, role: p.role }, hot, dim: [...t.at.keys()].filter((k) => !hot.includes(k) && !last), thick: last });
-      items.push({ k: "text", x: x + w / 2, y: y + 17, s: wrap(p.name, w - 8, "sub", 1)[0], f: "sub", ink: "ink", anchor: "middle", hot, dim: [...t.at.keys()].filter((k) => !hot.includes(k) && !last), tip: p.name });
-      if (t.carry) for (const [k, [a]] of t.at) if (a === i) items.push(...shift(chip(x + w / 2, y + 29, t.carry, "acc") /* the carried thing keeps one colour along the strip */.items, 0, 0, { from: k, to: k }));
+      // rc.2 MUST 4: only the step's place looks current; the last phase was thick and never faded, so two read as "now"
+      items.push({ k: "box", x, y, w, h: 26, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 8, cls: "stg-phase", id: `phase:${i}`, bar: { kind: "track", id: `phase:${i}`, label: p.name, role: p.role }, hot, dim: [...t.at.keys()].filter((k) => !hot.includes(k)) });
+      items.push({ k: "text", x: x + w / 2, y: y + 17, s: wrap(p.name, w - 8, "sub", 1)[0], f: "sub", ink: "ink", anchor: "middle", hot, dim: [...t.at.keys()].filter((k) => !hot.includes(k)), tip: p.name });
+      // rc.2 MUST 5: the carried chip is centred under its phase but never past the strip's ends (a phone's first phase is narrow)
+      if (t.carry) for (const [k, [a]] of t.at) if (a === i) items.push(...shift(chip(carryX(x + w / 2, t.carry, box.w), y + 29, t.carry, "acc") /* the carried thing keeps one colour along the strip */.items, 0, 0, { from: k, to: k }));
     });
     let h = rows * rowH;
     if (t.where) { const l = textLines(0, h, box.w, [t.where], "sub", "muted"); items.push(...l.items); h += l.h; }
@@ -82,6 +83,8 @@ registerBlock({
  * (a number, most often) in bold over the rest of its name, which wraps inside the chip (never cut); no arrows. A phone
  * (or any width too narrow for one row) wraps the row into as many rows as it needs, every chip as wide as the widest
  * word asks. The step's place lights its chips, the others go faint, as in the strip; one place for every step. */
+/** a carried chip's centre: under its phase, moved in so the whole chip stays inside the strip (0..w) */
+const carryX = (cx: number, s: string, w: number) => { const cw = chip(0, 0, s, "acc").w; return Math.max(cw / 2, Math.min(w - cw / 2, cx)); };
 function chipsTrack(t: Track, box: Box): LayoutOut {
   const items: Item[] = [], n = t.phases.length, gap = t.arrows ? 16 : 8, PADX = 8, journey = !hasTimeAxis(t.scope);
   const split = (s: string) => { const sp = s.indexOf(" "); return sp < 0 ? [s, ""] : [s.slice(0, sp), s.slice(sp + 1).trim()]; };
@@ -106,10 +109,10 @@ function chipsTrack(t: Track, box: Box): LayoutOut {
     for (const [k, [a, b]] of t.at) if (i >= a && i <= b) hot.push(k);
     // a phase before the step's place is done (a chip in the good tone over it, its words
     // in the good tone's ink), the place is lit, a later phase is faded; a step with no place leaves the strip plain
-    const done = [...t.at].filter(([, [a]]) => i < a).map(([k]) => k), dim = [...t.at].filter(([, [, b]]) => i > b).map(([k]) => k), when = { hot, dim };
+    const done = t.roleChips?[]:[...t.at].filter(([, [a]]) => i < a).map(([k]) => k), dim = t.roleChips?[]:[...t.at].filter(([, [, b]]) => i > b).map(([k]) => k), when = { hot, dim };
     // before the first place no phase is reached: every phase is future, a surface chip with a
     // dashed grey border and its words in ink (the role-filled chip is hidden then: its border would show through the dashes)
-    const all = Array.from({ length: Math.max(1, t.scope.steps) }, (_, k) => k + 1), first = Math.min(Infinity, ...t.at.keys()), future = all.filter((k) => k < first);
+    const all = Array.from({ length: Math.max(1, t.scope.steps) }, (_, k) => k + 1), first = Math.min(Infinity, ...t.at.keys()), future = t.roleChips?[]:all.filter((k) => k < first);
     // "form: chips | arrows": a small arrow in the gap before each chip that has a neighbour on its left in the same row
     if (t.arrows && i % per) items.push({ k: "tri", x: x - gap / 2 - 3, y: y + ch / 2, ink: "muted", ...(journey ? { bar: { edge: `phase:${i - 1}>phase:${i}`, from: `phase:${i - 1}`, to: `phase:${i}` } } : {}) });
     items.push({ k: "box", x, y, w: cw, h: ch, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 8, cls: "stg-phase", id: `phase:${i}`, bar: { kind: "track", id: `phase:${i}`, label: p.name, role: p.role }, ...when, ...(future.length ? { on: all.filter((k) => !future.includes(k)) } : {}) });
@@ -124,7 +127,7 @@ function chipsTrack(t: Track, box: Box): LayoutOut {
     let label = parts0[i][0]; const breaks: number[] = [], rest = parts0[i][1]; let at = 0;
     for (const l of lines[i]) { let sp = false; while (rest[at] === " ") { at++; sp = true; } if (sp || !breaks.length) label += " "; breaks.push(label.length); label += l; at += l.length; }
     items.push(...words({ k: "text", x: x + cw / 2, y: y + 6 + LINE_H["small-b"] - 3, s: label, f: "sub", ink: "ink", anchor: "middle", ...(breaks.length ? { breaks, pitch: LINE_H.sub } : {}) }));
-    if (t.carry) for (const [k, [a]] of t.at) if (a === i) items.push(...shift(chip(x + cw / 2, y + ch + 3, t.carry, "acc").items, 0, 0, { from: k, to: k }));
+    if (t.carry) for (const [k, [a]] of t.at) if (a === i) items.push(...shift(chip(carryX(x + cw / 2, t.carry, box.w), y + ch + 3, t.carry, "acc").items, 0, 0, { from: k, to: k }));
   });
   let h = rows * rowH - gap;
   if (t.where) { const l = textLines(0, h + 4, box.w, [t.where], "sub", "muted"); items.push(...l.items); h += l.h + 4; }
@@ -146,9 +149,10 @@ function besideWhere(t: Track, box: Box, parts0: string[][], cw: number, x0: num
     for (const [k, [a, b]] of t.at) if (i >= a && i <= b) hot.push(k);
     // a phase before the step's place is done (good), the place is lit, a later phase is not reached yet: a dashed outline
     // on the stage colour, its words muted (as the original rail); a step with no place has reached none
-    const done = [...t.at].filter(([, [a]]) => i < a).map(([k]) => k), dim = all.filter((k) => !t.at.has(k) || i > t.at.get(k)![1]), when = { hot };
-    items.push({ k: "box", x, y, w: cw, h: ch, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 8, cls: "stg-phase", id: `phase:${i}`, bar: { kind: "track", id: `phase:${i}`, label: p.name, role: p.role }, ...when });
-    if (dim.length) items.push({ k: "box", x, y, w: cw, h: ch, fill: "surface", stroke: "line-2", dash: true, r: 8, cls: "stg-phase stg-phase-later", on: dim, bar: { ignore: 1 } });
+    const done = t.roleChips?[]:[...t.at].filter(([, [a]]) => i < a).map(([k]) => k), dim = t.roleChips?[]:all.filter((k) => !t.at.has(k) || i > t.at.get(k)![1]), when = { hot };
+    // (the role chip is hidden on those steps: its solid border would show through the dashes)
+    items.push({ k: "box", x, y, w: cw, h: ch, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 8, cls: "stg-phase", id: `phase:${i}`, bar: { kind: "track", id: `phase:${i}`, label: p.name, role: p.role }, ...when, ...(dim.length ? { on: all.filter((k) => !dim.includes(k)) } : {}) });
+    if (dim.length) items.push({ k: "box", x, y, w: cw, h: ch, fill: "surface", stroke: "line-2", dash: true, r: 8, cls: "stg-phase stg-phase-later", on: dim, bar: { kind: "track", id: `phase:${i}`, label: p.name, tone: "future" } }); // the phase on those steps (its role chip is hidden)
     if (done.length) items.push({ k: "box", x, y, w: cw, h: ch, fill: "good:soft", stroke: "good:line", r: 8, cls: "stg-phase stg-phase-done", on: done, bar: { kind: "track", id: `phase:${i}`, label: p.name, tone: "good" } });
     const plain = all.filter((k) => !dim.includes(k) && !done.includes(k));
     const words = (it: Item): Item[] => (dim.length || done.length ? [{ ...it, hot, on: plain } as Item, { ...it, ink: "good:ink", on: done } as Item, { ...it, ink: "muted", on: dim } as Item] : [{ ...it, hot } as Item]).filter((q) => (q as any).on?.length !== 0);

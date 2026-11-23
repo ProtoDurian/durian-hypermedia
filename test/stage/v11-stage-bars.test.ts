@@ -29,7 +29,7 @@ const barsAt = (items: Item[], k: number) => items.filter((i) => i.k === "box" &
 test("parses bars and lists the facts per step", () => {
   const c = compile(); expect(c.errors).toEqual([]);
   const llm = stageLlm(c);
-  for (const s of ["Bars: day of the week · cups ÷ the average (×), 7 bars, axis 0, 0.5, 1, 1.5.", "Line average at 1.", "Values: Mon 0.7, Tue 0.8", "Peak: busiest 1.4×.", "1.4×: busiest ÷ average.", "Limit 1.2: cap 1.2×.", "Moves: Fri to Mon (2), Sat to Tue (1).", "Bar Sat: the busiest."]) expect(llm).toContain(s);
+  for (const s of ["Bars: day of the week · cups ÷ the average (×), 7 bars, axis 0, 0.5, 1, 1.5.", "Line average at 1.", "Values: Mon 0.7, Tue 0.8", "Peak: busiest 1.4×.", "1.4×: busiest ÷ average.", "Limit 1.2: cap 1.2×.", "Moves: Fri to Mon (2), Sat to Tue (1).", "Lit bars: Sat 1.2 (lit: the busiest)."]) expect(llm).toContain(s);
 });
 for (const w of [1000, 340]) test(`bars lay out inside ${w} with every data mark at its true value`, () => {
   const plan = layoutStage(compile().model, w); bounded(plan.items, w, plan.h);

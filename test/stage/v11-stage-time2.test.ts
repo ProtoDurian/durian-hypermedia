@@ -623,3 +623,57 @@ test("phone widths 326/341/356/380 (window - 34): staggered numbers stay inside 
   }
 });
 
+
+// ---- "time: a..b | caption | beside" and "band... | compact"
+const pairHead = (timeLine: string, compact: string) => `job s: sender | sends
+server r: receiver | counts
+${timeLine}
+ticks: 0, 5, 10, 15, 20
+row job a1 "first · leader": +go 0..4; +go 5..9
+row job a2 "first prints": +prints 2..12
+row server b1 "second · follower": _ 1..1.4 [dot]; _ 6..6.4 [dot]
+row server b2 "second waits": +waits 3..18
+row job z "after": +done 18..20
+band job ba "first · leader": a1..a2${compact}
+band server bb "second · follower": b1..b2${compact}`;
+const pairSteps = [{ title: "One", raw: "s --> r", line: 30 }, { title: "Two", raw: "", line: 31 }];
+const textsOf = (items: Item[]) => items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text");
+
+test("time: a..b | caption | beside: on desktop the caption sits on the tick-number line in the gutter left of the axis, and the block is one caption line shorter; a phone keeps it above", () => {
+  const plain = compileStage(pairHead("time: 0..20 | seconds", ""), pairSteps, 1, {}, roles), beside = compileStage(pairHead("time: 0..20 | seconds | beside", ""), pairSteps, 1, {}, roles);
+  expect(plain.errors).toEqual([]); expect(beside.errors).toEqual([]);
+  const p0 = layoutStage(plain.model, 1000), p1 = layoutStage(beside.model, 1000);
+  const cap = textsOf(p1.items).find((t) => t.s === "seconds")!, tick = textsOf(p1.items).find((t) => t.s === "5")!, axis = axisPath(p1.items);
+  expect(cap.y).toBe(tick.y); // on the tick-number line
+  expect(cap.x + measure("seconds", "sub") * 1.12).toBeLessThanOrEqual(axis.pts[0][0]); // left of the axis
+  expect(p1.h).toBe(p0.h - 18);
+  const rows0 = boxes(p0.items).filter((b) => b.bar?.kind === "band").map((b) => b.y), rows1 = boxes(p1.items).filter((b) => b.bar?.kind === "band").map((b) => b.y);
+  rows1.forEach((y, i) => expect(y).toBe(rows0[i] - 18));
+  // phone: no gutter for it, so the caption stays above, exactly as without the word
+  for (const w of [356, 390]) { beginDocument(); const a = layoutStage(compileStage(pairHead("time: 0..20 | seconds", ""), pairSteps, 1, {}, roles).model, w); beginDocument(); const b = layoutStage(compileStage(pairHead("time: 0..20 | seconds | beside", ""), pairSteps, 1, {}, roles).model, w); expect(JSON.stringify(b.items)).toBe(JSON.stringify(a.items)); }
+  // a caption is the second field; "beside" alone is a caption
+  beginDocument(); const lone = compileStage(pairHead("time: 0..20 | beside", ""), pairSteps, 1, {}, roles);
+  expect(textsOf(layoutStage(lone.model, 1000).items).some((t) => t.s === "beside")).toBe(true);
+});
+
+test("band... | compact: its rows pack under the band's title (name, then sub, split at ' · '), without their own labels and 2 px apart; rows outside keep theirs; nothing changes without the word", () => {
+  const plain = compileStage(pairHead("time: 0..20 | seconds", ""), pairSteps, 1, {}, roles), packed = compileStage(pairHead("time: 0..20 | seconds", " | compact"), pairSteps, 1, {}, roles);
+  expect(plain.errors).toEqual([]); expect(packed.errors).toEqual([]);
+  for (const w of [1000, 390]) {
+    beginDocument(); const p0 = layoutStage(compileStage(pairHead("time: 0..20 | seconds", ""), pairSteps, 1, {}, roles).model, w);
+    beginDocument(); const p1 = layoutStage(compileStage(pairHead("time: 0..20 | seconds", " | compact"), pairSteps, 1, {}, roles).model, w);
+    const T = textsOf(p1.items).map((t) => t.s);
+    for (const own of ["first prints", "second waits"]) { expect(textsOf(p0.items).some((t) => t.s === own)).toBe(true); expect(T).not.toContain(own); }
+    expect(T).toContain("after"); // a row outside the bands keeps its label
+    const name = textsOf(p1.items).find((t) => t.s === "first")!, sub = textsOf(p1.items).find((t) => t.s === "leader")!;
+    expect(name.ink).toBe("role:job:ink"); expect(sub.ink).toBe("muted"); expect(sub.y).toBeGreaterThan(name.y);
+    const band = (p: typeof p1, id: string) => boxes(p.items).find((b) => b.id?.endsWith(`:band:${id}`))!;
+    expect(band(p1, "ba").h).toBeLessThan(band(p0, "ba").h);
+    expect(band(p1, "ba").bar?.label).toBe("first · leader");
+    const rowsIn = boxes(p1.items).filter((b) => b.bar?.kind === "worksheet-row" && ["first · leader", "first prints"].includes(b.bar?.label ?? "")).sort((a, b) => a.y - b.y);
+    if (rowsIn.length === 2) expect(rowsIn[1].y - (rowsIn[0].y + rowsIn[0].h)).toBeLessThanOrEqual(2.01);
+    expect(p1.h).toBeLessThan(p0.h);
+  }
+  const bad = compileStage(pairHead("time: 0..20 | seconds", " | compacted"), pairSteps, 1, {}, roles);
+  expect(bad.errors.map((e) => e.msg).join(" ")).toContain("optionally ending | compact");
+});

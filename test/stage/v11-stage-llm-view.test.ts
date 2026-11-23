@@ -15,7 +15,7 @@ test("a [dot] interval is listed as a dot, never as an empty run (sample 35)", (
 row server receiver "Receiver": _ -150..-148 [dot]; _ -135..-133 [dot]; _ 45..47 [dot] @2
 row job storage "Storage": received 36..38 [dot] [plain]`, ["", "keep fill receiver", "off receiver"]);
   expect(v).toContain("Receiver: dot -150 to -148, dot -135 to -133, dot 45 to 47 (steps 2 onward)");
-  expect(v).toContain("Storage: received (a dot) 36 to 38 [plain]");
+  expect(v).toContain("Storage: received (a dot) 36 to 38 (neutral)");
   expect(v).not.toContain("empty");
 });
 

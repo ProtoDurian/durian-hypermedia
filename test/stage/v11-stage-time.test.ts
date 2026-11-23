@@ -93,7 +93,7 @@ test("time arrow tones override role colour and keep direction and dash",()=>{
 test("soft time cells show only the explicit tone's fill without changing geometry",()=>{
  const ss=[{title:"One",raw:"",line:10},{title:"Two",raw:"",line:12},{title:"Three",raw:"",line:14}];
  for(const tone of["bad","good","warn","accent"]){
-  const h=`time: 0..3\ncells: 1 | roomy\nrow job a "Draft": held 0..1 [${tone}] [lit]; held 1..2 @2 [soft] [${tone}] [lit]; held 2..3 @3 [${tone}] [soft]`,c=compile(h,ss),base=compile(h.replaceAll("[soft]",""),ss);expect(c.errors).toEqual([]);expect(stageLlm(c)).toContain("[soft]");
+  const h=`time: 0..3\ncells: 1 | roomy\nrow job a "Draft": held 0..1 [${tone}] [lit]; held 1..2 @2 [soft] [${tone}] [lit]; held 2..3 @3 [${tone}] [soft]`,c=compile(h,ss),base=compile(h.replaceAll("[soft]",""),ss);expect(c.errors).toEqual([]);expect(stageLlm(c)).toContain(", soft)");
   for(const w of[1000,356,326]){
    const p=layoutStage(c.model,w),b=layoutStage(base.model,w),cells=p.items.filter((i):i is Extract<Item,{k:"box"}>=>i.k==="box"&&!!i.cls?.includes("stg-time-cell"));
    expect(cells.length).toBe(3);expect(cells.slice(1).every(i=>i.fill===`${tone==="accent"?"acc":tone}:soft`&&i.stroke==="line"&&!i.thick&&!i.hot)).toBe(true);
@@ -398,7 +398,7 @@ test("phone row cards keep second lines and multiplied cell words above the font
  const archive=p.items.find(i=>i.k==="text"&&i.s==="Archive");expect(archive).toBeTruthy();expect(p.items.filter(i=>i.k==="badge").length).toBe(1);
  expect(p.items.filter(i=>i.k==="box"&&i.fill==="role:server:soft"&&i.bar?.ignore===1).length).toBe(1);
  const frame=p.items.find(i=>i.k==="box"&&i.bar?.id==="b"),subtitle=p.items.find(i=>i.k==="text"&&i.s==="saved copies for later");if(frame?.k!=="box"||subtitle?.k!=="text")throw Error("missing subtitle or row");expect(subtitle.x+measure(subtitle.s,subtitle.f)).toBeLessThanOrEqual(frame.x+frame.w);
- expect(stageLlm(c)).toContain("Archive | saved copies for later");expect(stageLlm(c)).not.toContain("| Archive");
+ expect(stageLlm(c)).toContain("Archive, saved copies for later");expect(stageLlm(c)).not.toContain("| Archive");
 });
 test("boxed row labels need visible words",()=>expect(compile('time: 0..4\nrow job a "|": x 0..4',[]).errors.length).toBeGreaterThan(0));
 test("inset labels retain their words and visibility without adding tick lines or edges",()=>{
@@ -539,7 +539,7 @@ test("time work doubles linearly", () => {
 test("multiple marker labels reserve distinct places and stable geometry", () => { const p = layoutStage(compile().model, 340); const labels = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && ["ready", "pass"].includes(i.s)); expect(labels.length).toBe(3); for (const a of labels) for (const b of labels) if (a !== b && a.y === b.y) expect(a.x + measure(a.s, "sub") <= b.x || b.x + measure(b.s, "sub") <= a.x).toBe(true); });
 test("per-tick state cells count independently and keep true positions", () => {
  const c = compile("time: 0..12 | hours\ncells: 1\nrow job batch: queued 0..3; +working 3..9; done 9..12", []); expect(c.errors).toEqual([]);
- expect(stageLlm(c)).toContain("State cells every 1 hours");
+ expect(stageLlm(c)).toContain("One state cell per hour.");
  for (const w of [1000, 340]) { const p = layoutStage(c.model, w), cells = p.items.filter((i) => i.k === "box" && i.cls?.includes("stg-time-cell")); expect(cells.length).toBe(12); expect(cells.filter((i) => i.bar?.label === "working").length).toBe(6); bounded(p.items, w, p.h); }
 });
 for (const value of ["0", "-1", "13", "no", "1\ncells: 1"]) test(`refuses cell interval ${value}`, () => expect(compile(`time: 0..12\ncells: ${value}`, []).errors.some((e) => e.msg.includes("positive interval"))).toBe(true));
@@ -724,7 +724,7 @@ test("numbered header tiles are bands and row-label paint is ignored as a second
  }
 });
 test("facts use canonical style spellings too",()=>{
- const llm=stageLlm(compile('time: 0..4\nrow job r: wait 0..2 [dashed]; ready 2..4 [accent]',[]));expect(llm).toContain("[dashed]");expect(llm).toContain("[accent]");expect(llm).not.toContain("[idle]");expect(llm).not.toContain("[acc]");
+ const llm=stageLlm(compile('time: 0..4\nrow job r: wait 0..2 [dashed]; ready 2..4 [accent]',[]));expect(llm).toContain("wait 0 to 2 (dashed)");expect(llm).toContain("ready 2 to 4 (accent)");expect(llm).not.toContain("[idle]");expect(llm).not.toContain("[acc]");
 });
 test("wide, after and cell-less bars are time-bars; single cells stay chips",()=>{
  const c=compile('time: 0..10 | seconds\ncells: 1\nrow job a "wide": +ten 0..10 [wide]\nrow job b "after": +half 0..5 [wide] [after]\nrow server s "cells": +x 0..2',[]);

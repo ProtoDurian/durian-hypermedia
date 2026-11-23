@@ -126,7 +126,7 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
   const total = hl.length + steps.reduce((a, s) => a + s.raw.split("\n").length + 1, 0);
   budget.charge("stage scene", total, total);
   if (total > MAX_LINES) problem(base, `a scene holds at most ${MAX_LINES} lines; this one has ${total}: split it`);
-  const checkText = (l: Line) => { const f = forbidden(l.t); if (f) problem(l.n, `no ${f}`); };
+  const checkText = (l: Line) => { const f = forbidden(l.t); if (f) problem(l.n, f.replace(/^an? /, "no ")); }; // "no colour value (#ff0000): ...", never "no a ..."
   const needRole = (r: string, line: number) => {
     if (roleSet.has(r)) return true;
     const known = [...roleSet];
@@ -2160,7 +2160,7 @@ export function stageLlm(c: Compiled): string {
     if (s.clear) f.push("The earlier connectors are gone.");
     if (s.all) f.push("Every connector of the scene shows.");
     for (const [ids, t] of s.tags) f.push(`${ids.map(name).join(", ")}: ${t}.`);
-    for (const [id, t] of s.says) f.push(`${name(id)} says: ${t}.`);
+    for (const [id, t] of s.says) f.push(`${name(id)} says: ${t.replace(/\s*\|\s*/g, "; ")}.`); // a "|" in a say is a line break when drawn
     f.push(...cardFacts(m, k));
     for (const [id, t] of s.insides) f.push(`${name(id)} holds: ${t}.`);
     for (const h of m.head) f.push(...h.block.facts(h.node, k));

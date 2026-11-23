@@ -92,7 +92,7 @@ registerBlock({
     if (!body.length) throw new StageError(l.n, `a lane lists its cells indented under it: columnid: [t1] card | line; + chip`);
     const lane: Lane = { role, id, title, note: rest.join(" | "), cells: [], line: l.n };
     for (const b of body) {
-      const bad = forbidden(b.t); if (bad) ctx.problem(b.n, `no ${bad}`); // the stage checks the lines it reads itself; a lane's cells are read here
+      const bad = forbidden(b.t); if (bad) ctx.problem(b.n, bad.replace(/^an? /, "no ")); // the stage checks the lines it reads itself; a lane's cells are read here
       const q = colon(b.t);
       if (!q || q[0].includes(" ")) throw new StageError(b.n, `a cell is "columnid: items": a column id, a colon, then cards and chips split by ";" (here: "${b.t.slice(0, 40)}")`);
       if (lane.cells.some((x) => x.band === q[0])) throw new StageError(b.n, `lane "${id}" holds column "${q[0]}" twice: put its items on one line, split by ";"`);

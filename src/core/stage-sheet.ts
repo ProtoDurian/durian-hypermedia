@@ -500,7 +500,7 @@ registerBlock({
       if (o.word === "dim") return o.cells.length ? `${o.who.map(name).join(", ")}: ${o.cells.length === 1 ? `value ${o.cells[0]} is` : `values ${o.cells.join(", ")} are`} left out.` : `${o.who.map(name).join(", ")}: every value counts again.`;
       if (o.word === "fill") { const vs = parts(o.arg, ","); return `${o.who.map((id, j) => `${name(id)} value ${o.cells[0]}: ${vs[j]}`).join(", ")}.`; }
       if (o.word === "value") { const [lab, vals] = [o.arg.split(" | ")[0], parts(o.arg.split(" | ")[1] ?? "", ",")]; return `${lab}: ${o.who.map((id, j) => { const r = result(vals[j] ?? ""); return `${name(id)} ${r.s}${r.strike ? " (struck out)" : r.tone !== "good" ? ` (${r.tone})` : ""}`; }).join(", ")}.`; }
-      if (o.word === "sum") { const g = s.groups.find((x) => x.id === o.who[0]); return `${g?.title ?? o.who[0]}: ${o.arg.replace(/ \| /g, "; ").replace(" -> ", ", sends ")}.`; }
+      if (o.word === "sum") { const g = s.groups.find((x) => x.id === o.who[0]), head = g?.title ?? o.who[0], ps = o.arg.split(" | "); if (ps.length > 1 && ps[0].trim() === head) ps.shift(); return `${head}: ${ps.join("; ").replace(" -> ", ", sends ")}.`; } // the card's own name is said once
       if (o.word === "pass") { const g = s.groups.find((x) => x.id === o.who[0]); return `${g?.title ?? o.who[0]} sends its partial to ${s.out?.title ?? "the outcome"}.`; }
       if (o.word === "tile") { const [t, v, l2] = parts(o.arg, " | "); return `${s.out?.title ?? "outcome"}, ${t}${v ? `: ${v}` : ""}${l2 ? ` (${l2})` : ""}.`; }
       if (o.word === "strip") { const st = s.strips.get(o.who[1])!; return `${st.head}: ${st.v.join(", ")}${st.ends[0] || st.ends[1] ? ` (${st.ends[0] || "first"} to ${st.ends[1] || "last"})` : ""}.`; }

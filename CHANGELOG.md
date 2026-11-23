@@ -96,6 +96,19 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **An issue in Markdown that follows a plain code block points at the Markdown's first line**, as every Markdown issue
   does, not at the line after the code block (a code reference above a ```` ```ts ```` block was reported 30 lines
   below itself).
+- **Stepping a composed stage never moves the page:** the caption under the steps keeps the room of the tallest
+  step's caption from the first step (every caption sits in one grid cell, the others hidden and `aria-hidden`), so
+  on a phone a caption that wraps to one more line no longer makes the stage 18 px taller on that step.
+- **A composed stage's LLM view reads as words, not source** (rc.2 reviews): a time row's look is said in words in
+  its brackets (`hold 1 to 2 (step 1 only, warning)`, not `(steps 1 to 1) [warn]`; `[plain]` reads `neutral`); a row
+  label's `|` reads as a comma (`(a) Draft, writes`); a row drawn without a label is named by its id when that is a
+  word, else as `the server row`; an unlabelled dot is `Dot 5.`; `cells: 1` reads `One state cell per shift.`; a
+  grid item whose chip is its own state says it once (`kept.`, not `kept, kept.`); a sheet's `sum` card names its
+  group once; a `say` with a `|` reads with `;`. The drawing does not change.
+- **doccheck wording:** a colour or pixel size in a stage reads `no colour value (#ff0000): ...` (it read `no a colour
+  value`); a composed stage with one `@step` is refused once, in the stage's own words (it was refused twice).
+- SPEC 6.13 names the package's stage files (`src/ui/stage.tsx`, `src/core/stage.ts`, `src/core/stage-core.ts`), not
+  the prototype's, and says the tick label's later-step reveal once.
 
 ### Added: static on the terminal, file tree, editor and code walk; a static page; print draws every part (SPEC 4.1)
 

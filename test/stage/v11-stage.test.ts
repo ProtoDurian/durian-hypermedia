@@ -422,7 +422,7 @@ card store: The store | holds
     const llm = stageLlm(c);
     expect(llm).toContain("Phases: fetch, build, publish.");
     expect(llm).toContain("At: build (carrying one package).");
-    expect(llm).toContain("ui-kit (3.2.0): kept, kept.");
+    expect(llm).toContain("ui-kit (3.2.0): kept.");
     expect(llm).toContain("router (1.9): field 2.");
     expect(llm).toContain("router, rename: kept name; dropped maps.");
   });

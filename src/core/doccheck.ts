@@ -126,8 +126,8 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     if (!def) { err(p.line, "parts known", `unknown container ":::${p.name}" (containers: tabs, accordion, human, llm; data parts are fenced blocks: \`\`\`terminal, \`\`\`filetree, \`\`\`editor, \`\`\`codewalk, \`\`\`chart, \`\`\`tierlist, \`\`\`alignment, \`\`\`animation)`); return; }
     if (p.attrs.id) { if (ids.has(p.attrs.id)) err(p.line, "part data", `id "${p.attrs.id}" is used twice (first at line ${ids.get(p.attrs.id)})`); else ids.set(p.attrs.id, p.line); }
     if (p.steps.length && !def.steps) err(p.steps[0].line, "part data", `${p.name} takes no @step lines`);
-    // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none
-    if (p.steps.length === 1 && p.name !== "editor") err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
+    // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none (a composed stage says so itself, once)
+    if (p.steps.length === 1 && p.name !== "editor" && !(p.name === "animation" && isStagePart(p))) err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
     // an animation over its layout budget is said once and not checked further (core/work.ts)
     if (p.name === "animation" && isStagePart(p)) { try { stagePartCheck(p); } catch (e) { if (!(e instanceof StageBudgetError)) throw e; err(p.line, "part data", `animation: ${e.message}`); return; } }
     else if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }

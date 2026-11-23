@@ -55,6 +55,7 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 .stg-stepbtn[aria-current="step"] { border-color: var(--stg-step-on); background: var(--stg-step-on-bg); color: var(--ink); }
 .stg-num { color: var(--acc-ink); font-weight: 600; }
 .stg-cap { margin: 8px 14px 0; font-size: 15px; color: var(--ink-2); min-height: 1.5em; }
+.stg-capbox { display: grid; } .stg-capbox > .stg-cap { grid-area: 1 / 1; } .stg-cap-room { visibility: hidden; }   /* the tallest caption keeps its room: stepping never moves the page */
 /* a stage over its budget: its still form in words (site/src/stage.tsx StageOver) */
 .stg-over-msg { margin: 8px 14px 0; font-size: 14px; color: var(--ink-2); }
 .stg-still { margin: 8px 14px 0; padding-left: 1.4em; font-size: 15px; color: var(--ink-2); }

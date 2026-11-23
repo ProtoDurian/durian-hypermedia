@@ -224,7 +224,7 @@ registerBlock({
     });
     return { h: y, items };
   },
-  facts: (g: Grid) => g.items.map((it) => `${it.title}${it.subs.length ? ` (${it.subs.join("; ")})` : ""}${it.v ? (it.chip ? `: ${it.v}` : `: ${it.ok ? "kept" : "dropped"}, ${it.v}`) : ""}.`),
+  facts: (g: Grid) => g.items.map((it) => `${it.title}${it.subs.length ? ` (${it.subs.join("; ")})` : ""}${it.v ? (it.chip ? `: ${it.v}` : `: ${it.ok ? "kept" : "dropped"}${it.v === (it.ok ? "kept" : "dropped") ? "" : ", " + it.v}`) : ""}.`),
 } satisfies StageBlock<Grid>);
 
 /** words of several pieces, each in its own ink, wrapped as one run of body text at width w (a word wider than w

@@ -2,13 +2,15 @@
 // Pass 11 "sphone": denser phone forms of the composed stage (tools/stage-phone.ts and its hooks in tools/stage.ts,
 // tools/stage-cards.ts, tools/stage-sheet.ts). Never by hiding a fact, never under 11 px: every word stays whole.
 import { beforeEach, describe, expect, test } from "bun:test";
-import { compileStage, layoutStage, type Compiled } from "../../src/core/stage";
+import { compileStage, layoutStage as layoutOnce, STAGE_WORK, STAGE_MEMORY, type Compiled } from "../../src/core/stage";
 import { FONT, PHONE_FONT, measure, setPhoneFont, type Item } from "../../src/core/stage-core";
 /** a word's width as a phone stage measures it (its phone type size) */
 const pmeasure = (s: string, f: Parameters<typeof measure>[1]) => { setPhoneFont(true); try { return measure(s, f); } finally { setPhoneFont(false); } };
 import { PHONE, phonePer, longestPiece, badgeGeo } from "../../src/core/stage-phone";
 import { badgeRows, type Card } from "../../src/core/stage-cards";
 import { beginDocument, newBudget } from "../../src/core/stage-budget";
+// one plan on a stage budget of its own, as the stage view lays it out (site/src/stage.tsx stageWork)
+const layoutStage = (m: Parameters<typeof layoutOnce>[0], w: number) => { beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY)); return layoutOnce(m, w); };
 import { checkDoc } from "../../src/core/doccheck";
 import { parseDoc } from "../../src/core/dh-lib";
 

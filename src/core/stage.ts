@@ -17,7 +17,7 @@
 // ```
 //
 // Pure: no DOM, no node modules. Parsing is one linear pass with hand-written scans; layout charges docBudget.
-import { docBudget, newBudget, withStageBudget } from "./stage-budget";
+import { docBudget } from "./stage-budget";
 import { rolesUsed, sameColourRoles } from "./stage-roles";
 import {
   type Line, type Item, type Problem, type Font, type StageBlock, type ParseCtx, type Box, type LayoutOut, StageError,
@@ -57,11 +57,17 @@ export function looksLikeGraph(head: string): boolean {
 export const WIDE_W = 1000;   // the design width a build lays out at; the browser lays out again at its column's width
 export const NARROW_W = 340;  // under this many pixels per lane the stage stacks lanes and bands
 export const MAX_LINES = 400, MAX_CARDS = 120, MAX_EDGES = 400;
-/** One stage's own budget for a compile, or for its plans at every width the server or the browser draws
- * (src/ui/stage.tsx): each stage gets a fresh one, so a page of many stages, resized again and again, never drains one
- * budget, and a runaway source is still refused. Measured: the heaviest real stage needs 770,018 work and
- * 728,240 memory for 7 server plans (the Format page's heaviest 104,351); the caps are about 4x that. */
-export const STAGE_WORK = 3_200_000, STAGE_MEMORY = 3_000_000;
+/** gridRoute's search state, kept between routes: an entry counts only when its stamp is this route's (no refill per route) */
+let routeDist = new Float64Array(0), routePrev = new Int32Array(0), routeStamp = new Uint32Array(0), routeGen = 0;
+/** the work one step of the router's search counts for (a pop and up to four pushes on its heap), so charged work tracks time */
+const ROUTE_STEP_WORK = 8;
+/** One stage's own budget for a compile, or for one plan at one width (site/src/stage.tsx stageWork): each gets a fresh
+ * one, so a page of many stages, resized again and again, never drains one budget, and a runaway source is refused (its
+ * still form) instead of keeping a page busy. Every part of a layout counts: the router's grid and search, the scans for
+ * a free place, each try of a wider gap. Measured on the 28-scene page and the Format page, all 7 widths: the
+ * heaviest real plan needs 9,453,090 work (about 0.5 s) and 5,752,560 memory; the caps are 4x that. A scene of 100 to 300
+ * connectors is refused in about 1.5 s. */
+export const STAGE_WORK = 38_000_000, STAGE_MEMORY = 24_000_000;
 
 // ---------------------------------------------------------------- the model
 /** a lane, or a band under lanes (span); an "across" band runs its cards left to right, one row per card line */
@@ -428,8 +434,9 @@ export function layoutStage(m: Model, w: number): Plan {
     // their gaps (fewest px on a tie); a gap no room helps stays as it was
     if (fellGaps.size) {
       const base = new Map(fellGaps), room = new Map<number, [number, number]>();
-      // the tries run on a budget of their own, so the page pays for the one layout it keeps
-      const tryRoom = (g: number, ab: [number, number]) => { bandRoom = new Map([[g, ab]]); withStageBudget(newBudget(), () => layoutAt(m, w)); return fellGaps.get(g) ?? 0; };
+      // every try is work the layout does: it counts on the stage's budget (STAGE_WORK), so a stage whose tries run long
+      // is refused (its still form) instead of keeping a page busy
+      const tryRoom = (g: number, ab: [number, number]) => { bandRoom = new Map([[g, ab]]); layoutAt(m, w); return fellGaps.get(g) ?? 0; };
       // per gap: the best gain for each px spent
       const menus = [...base].slice(0, BAND_GAPS).map(([g, n0]) => { const by = new Map<number, { ab: [number, number]; gain: number }>();
         for (let ra = 0; ra <= BAND_GAP_MAX; ra += 4) for (let rb = 0; ra + rb <= BAND_GAP_MAX; rb += 4) { if (!ra && !rb) continue; const gain = n0 - tryRoom(g, [ra, rb]), px = ra + rb, was = by.get(px); if (gain > 0 && (!was || gain > was.gain)) by.set(px, { ab: [ra, rb], gain }); }
@@ -1337,12 +1344,15 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
   // the last try before the channel: the shortest way with the fewest turns on a 2 px grid between the two cards' rows,
   // within the cards' span (never out in the channel), by the same rules
   // inner: the source is a card inside a box (its id); the box is then no obstacle, that card is the line's source
+  const MOVES = [[1, 0, 0], [-1, 0, 0], [0, 1, 1], [0, -1, 1]] as const;
   const gridRoute = (e: Edge, t: Rect, fx: number, fy: number, ty: number, down: boolean, on: number[], ok: (ps: [number, number][]) => boolean, inner?: { id: string; r: Rect; others: Rect[] }): [number, number][] | null => {
     const dir = down ? 1 : -1, cards = [...live].filter(([id]) => id !== e.from && id !== e.to && id !== inner?.id).map(([, r]): Rect => r).concat(inner?.others ?? []), ends2 = [inner ? inner.r : live.get(e.from)!, live.get(e.to)!];
     const xr = Math.max(...[...live.values()].map((r) => r.x + r.w)), xl = Math.min(...[...live.values()].map((r) => r.x));
     // on whole even px (the port moves under 1 px onto it), so a gap of 8 px holds two lines 4 px apart
     const x0 = 2 * Math.ceil(xl / 2), nx = Math.floor((xr - x0) / 2) + 1, y0 = Math.min(fy, ty), ny = Math.floor(Math.abs(ty - fy) / 2) + 1;
     if (nx * ny > 40000) return null;
+    // the router's work counts (stage budget): its grid up front, then every step of its search (charged in batches)
+    const routeBudget = docBudget(); routeBudget.charge("stage route grid", nx * ny, nx * ny);
     const X = (i: number) => x0 + 2 * i, Y = (j: number) => y0 + 2 * j;
     const inside = (x: number, y: number, r: Rect) => x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h;
     const near = (x: number, y: number, r: Rect, pad: number) => x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad;
@@ -1360,42 +1370,49 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     for (const [a, b] of labelRows) mark(hBad, -1e9, a, 1e9, b);
     for (const q of occH) mark(hBad, Math.min(q.a[0], q.b[0]) - 2, q.a[1] - 4, Math.max(q.a[0], q.b[0]) + 2, q.a[1] + 4);
     for (const q of occV) mark(vBad, q.a[0] - 4, Math.min(q.a[1], q.b[1]) - 2, q.a[0] + 4, Math.max(q.a[1], q.b[1]) + 2);
-    const hOk = hBad.map((v) => 1 - v), vOk = vBad.map((v) => 1 - v);
     const si = Math.round((fx - x0) / 2), sj = Math.round((fy - y0) / 2);
     if (si < 0 || si >= nx) return null;
     // the ends: a point over (or under) the target from which a clear straight run of 8 px or more goes into it
-    const goal = new Set<number>();
+    const goal = new Uint8Array(nx * ny); let goals = 0;
     for (let x = t.x + 12; x <= t.x + t.w - 12; x += 2) { const i = Math.round((x - x0) / 2); if (i < 0 || i >= nx || Math.abs(X(i) - fx) < 6) continue;
-      for (let j = Math.round((ty - y0) / 2) - dir; j >= 0 && j < ny && vOk[j * nx + i]; j -= dir) if ((ty - Y(j)) * dir >= 8) goal.add(j * nx + i); }
-    if (!goal.size) return null;
+      for (let j = Math.round((ty - y0) / 2) - dir; j >= 0 && j < ny && !vBad[j * nx + i]; j -= dir) if ((ty - Y(j)) * dir >= 8 && !goal[j * nx + i]) { goal[j * nx + i] = 1; goals++; } }
+    if (!goals) return null;
     // states: node * 2 + (0 level, 1 upright); a turn costs 24 px
-    const N = nx * ny, dist = new Float64Array(N * 2).fill(Infinity), prev = new Int32Array(N * 2).fill(-1), heap: [number, number][] = [];
-    const push = (d: number, st: number) => { heap.push([d, st]); let c = heap.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (heap[p][0] <= heap[c][0]) break; [heap[p], heap[c]] = [heap[c], heap[p]]; c = p; } };
-    const pop = () => { const top = heap[0], last = heap.pop()!; if (heap.length) { heap[0] = last; let c = 0; for (;;) { const l = 2 * c + 1, r = l + 1; let m2 = c; if (l < heap.length && heap[l][0] < heap[m2][0]) m2 = l; if (r < heap.length && heap[r][0] < heap[m2][0]) m2 = r; if (m2 === c) break; [heap[m2], heap[c]] = [heap[c], heap[m2]]; c = m2; } } return top; };
+    const N = nx * ny, hd: number[] = [], hs: number[] = [];
+    if (routeStamp.length < N * 2) { routeDist = new Float64Array(N * 2); routePrev = new Int32Array(N * 2); routeStamp = new Uint32Array(N * 2); routeGen = 0; }
+    if (++routeGen === 0xffffffff) { routeStamp.fill(0); routeGen = 1; }
+    const dist = routeDist, prev = routePrev, stamp = routeStamp, gen = routeGen;
+    const push = (d: number, st: number) => { hd.push(d); hs.push(st); let c = hd.length - 1; while (c > 0) { const p = (c - 1) >> 1; if (hd[p] <= hd[c]) break; const td = hd[p], ts = hs[p]; hd[p] = hd[c]; hs[p] = hs[c]; hd[c] = td; hs[c] = ts; c = p; } };
+    let popD = 0, popS = 0;
+    const pop = () => { popD = hd[0]; popS = hs[0]; const ld = hd.pop()!, ls = hs.pop()!; const n = hd.length; if (n) { hd[0] = ld; hs[0] = ls; let c = 0; for (;;) { const l = 2 * c + 1, r = l + 1; let m2 = c; if (l < n && hd[l] < hd[m2]) m2 = l; if (r < n && hd[r] < hd[m2]) m2 = r; if (m2 === c) break; const td = hd[m2], ts = hs[m2]; hd[m2] = hd[c]; hs[m2] = hs[c]; hd[c] = td; hs[c] = ts; c = m2; } } };
     // out of the source: 4 px straight (its first stretch may touch only its own card)
-    const s0 = (sj + 2 * dir) * nx + si; if (sj + 2 * dir < 0 || sj + 2 * dir >= ny || !vOk[s0]) return null;
-    dist[s0 * 2 + 1] = 4; push(4, s0 * 2 + 1);
-    let end = -1;
-    while (heap.length) {
-      const [d, st] = pop(); if (d > dist[st]) continue;
+    const s0 = (sj + 2 * dir) * nx + si; if (sj + 2 * dir < 0 || sj + 2 * dir >= ny || vBad[s0]) return null;
+    dist[s0 * 2 + 1] = 4; prev[s0 * 2 + 1] = -1; stamp[s0 * 2 + 1] = gen; push(4, s0 * 2 + 1);
+    let end = -1, steps = 0;
+    while (hd.length) {
+      if (++steps === 1024) { routeBudget.charge("stage route search", steps * ROUTE_STEP_WORK); steps = 0; }
+      pop(); const d = popD, st = popS; if (d > dist[st]) continue;
       const k = st >> 1, o = st & 1, i = k % nx, j = (k - i) / nx;
-      if (goal.has(k) && (o === 1 || vOk[k])) { end = st; break; }
-      for (const [di, dj, oo] of [[1, 0, 0], [-1, 0, 0], [0, 1, 1], [0, -1, 1]] as const) {
+      if (goal[k] && (o === 1 || !vBad[k])) { end = st; break; }
+      for (let q = 0; q < 4; q++) {
+        const di = MOVES[q][0], dj = MOVES[q][1], oo = MOVES[q][2];
         const ii = i + di, jj = j + dj; if (ii < 0 || ii >= nx || jj < 0 || jj >= ny) continue;
-        const kk = jj * nx + ii, g = oo ? vOk : hOk; if (!g[k] || !g[kk]) continue;
-        if (oo !== o && !(hOk[k] && vOk[k])) continue;
+        const kk = jj * nx + ii, bad = oo ? vBad : hBad; if (bad[k] || bad[kk]) continue;
+        if (oo !== o && (hBad[k] || vBad[k])) continue;
         // an upright beside something it keeps clear of costs less: lines pack to one side of a narrow gap, room for the next
         const hug = oo === 1 && ((ii > 0 && vBad[kk - 1]) || (ii < nx - 1 && vBad[kk + 1]));
-        const nd = d + 2 + (oo === 1 && !hug ? 0.5 : 0) + (oo !== o ? 24 : 0), ns = kk * 2 + oo; if (nd < dist[ns]) { dist[ns] = nd; prev[ns] = st; push(nd, ns); }
+        const nd = d + 2 + (oo === 1 && !hug ? 0.5 : 0) + (oo !== o ? 24 : 0), ns = kk * 2 + oo; if (stamp[ns] !== gen || nd < dist[ns]) { dist[ns] = nd; prev[ns] = st; stamp[ns] = gen; push(nd, ns); }
       }
     }
+    routeBudget.charge("stage route search", steps * ROUTE_STEP_WORK);
     if (end < 0) return null;
     const path: [number, number][] = []; for (let st = end; st >= 0; st = prev[st]) { const k = st >> 1, i = k % nx; path.push([X(i), Y((k - i) / nx)]); }
     path.push([X(si), fy]); path.reverse(); path.push([path.at(-1)![0], ty]);
     const ps: [number, number][] = [path[0]]; for (let q = 1; q < path.length; q++) { const a = ps.at(-1)!, b = path[q], c = path[q + 1]; if (c && ((a[0] === b[0] && b[0] === c[0]) || (a[1] === b[1] && b[1] === c[1]))) continue; ps.push(b); }
     return ok(ps) ? ps : null;
   };
-  const free = (x: number, y0: number, y1: number, skip: string[]) => ![...live].some(([id, r]) => !skip.includes(id) && x > r.x - 3 && x < r.x + r.w + 3 && Math.max(y0, y1) > r.y && Math.min(y0, y1) < r.y + r.h);
+  const scans = docBudget();
+  const free = (x: number, y0: number, y1: number, skip: string[]) => (scans.charge("stage route scan", live.size + 1), true) && ![...live].some(([id, r]) => !skip.includes(id) && x > r.x - 3 && x < r.x + r.w + 3 && Math.max(y0, y1) > r.y && Math.min(y0, y1) < r.y + r.h);
   // lane headings in the gaps: labels keep clear. A label keeps clear only of what is drawn in one of its
   // own steps (on: its steps; none: every step), so a later step reuses the places of labels no longer drawn
   const taken: (Rect & { on?: number[] })[] = [...nav.heads];
@@ -1490,7 +1507,7 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
         return ps.slice(1).some(([x2, y2], k) => { const [x1, y1] = ps[k]; return [...live].some(([id, r]) => id !== e.from && id !== e.to && (Math.abs(y1 - y2) < 0.5 ? Math.min(Math.max(x1, x2), r.x + r.w) - Math.max(Math.min(x1, x2), r.x) > 2 && y1 > r.y - 4 && y1 < r.y + r.h + 4 : Math.min(Math.max(y1, y2), r.y + r.h) - Math.max(Math.min(y1, y2), r.y) > 2 && x1 > r.x - 4 && x1 < r.x + r.w + 4)); });
       };
       if (down && !fc && !tc && !sideF && !sideT && ty - fy >= 30 && faulty(pts)) {
-        const level = (y: number, xa: number, xb: number) => ![...live].some(([, r]) => Math.max(xa, xb) > r.x - 4 && Math.min(xa, xb) < r.x + r.w + 4 && y > r.y - 4 && y < r.y + r.h + 4) && !nav.texts.some((r) => Math.max(xa, xb) > r.x - 3 && Math.min(xa, xb) < r.x + r.w + 3 && y > r.y - 3 && y < r.y + r.h + 3);
+        const level = (y: number, xa: number, xb: number) => (scans.charge("stage route scan", live.size + nav.texts.length + 1), true) && ![...live].some(([, r]) => Math.max(xa, xb) > r.x - 4 && Math.min(xa, xb) < r.x + r.w + 4 && y > r.y - 4 && y < r.y + r.h + 4) && !nav.texts.some((r) => Math.max(xa, xb) > r.x - 3 && Math.min(xa, xb) < r.x + r.w + 3 && y > r.y - 3 && y < r.y + r.h + 3);
         const ups = (x: number, ya: number, yb: number) => free(x, ya, yb, [e.from, e.to]) && !nav.texts.some((r) => x > r.x - 3 && x < r.x + r.w + 3 && Math.max(ya, yb) > r.y && Math.min(ya, yb) < r.y + r.h);
         const ys: number[] = []; for (let y = fy + 6; y <= ty - 8; y += 1) if (level(y, fx, cxT) && ups(fx, fy, y) && ups(cxT, y, ty)) ys.push(y); else if (ys.length) break;
         if (ys.length) { const ym = ys[Math.floor(ys.length / 2)]; pts = [[fx, fy], [fx, ym], [cxT, ym], [cxT, ty]]; }
@@ -1582,7 +1599,7 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     let gy = side ?? nav.gapY.get(gi) ?? (tr.y - 14); const cw = measure(e.label, "chip") + 18;
     let cx = side !== undefined && Math.abs(fr.y - tr.y) < 1 ? Math.max(NPAD + cw / 2, Math.min(w - NPAD - cw / 2, (Math.min(fr.x + fr.w, tr.x + tr.w) + Math.max(fr.x, tr.x)) / 2)) : NPAD + cw / 2;
     // the steps it is drawn in: a neutral connector's label for its steps, a data label its own step only (as wide; cecde04), a kept one its line's steps
-    const on = (m.roles[e.role ?? m.cards.get(e.from)!.role] ?? 0) === 0 || e.keep ? labelSteps(m, e) : [e.step], meets = (r: { on?: number[] }) => !r.on || r.on.some((k) => on.includes(k));
+    const on = (m.roles[e.role ?? m.cards.get(e.from)!.role] ?? 0) === 0 || e.keep ? labelSteps(m, e) : [e.step], meets = (r: { on?: number[] }) => (scans.charge("stage label scan", 1), true) && (!r.on || r.on.some((k) => on.includes(k)));
     // a box drawn before the connectors is in the way only when on screen in one of the label's steps (a card of
     // another group sharing the place is not; a scene at 390)
     const shownIn = (r: { on?: number[]; from?: number; to?: number }) => (r.on ? r.on.some((k) => on.includes(k)) : on.some((k) => k >= (r.from ?? 1) && (!r.to || k <= r.to)));

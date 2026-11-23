@@ -12,11 +12,16 @@ import { parseDoc, allParts } from "../../src/core/dh-lib";
 import { isStagePart, stageSrc } from "../../src/core/stage-part";
 import { beginDocument, newBudget } from "../../src/core/stage-budget";
 
-// just over one stage's budget: 120 cards of 8 lines (every card and line cap holds), 2 steps, no connectors; the
-// server's 7 plans need about 3,750,000 work (STAGE_WORK is 3,200,000) and take well under a second
-const head = ["title: Runaway | too much for one stage"];
-for (let l = 0; l < 8; l++) { head.push(`## Lane ${l}`); for (let i = 0; i < 15; i++) head.push(`client c${l}x${i}: card ${l} ${i}` + " | a line of words".repeat(8)); }
-const RUNAWAY: StageSrc = { head: head.join("\n"), base: 1, info: {}, steps: [1, 2].map((s) => ({ title: `Round ${s}: messages fly in round ${s}.`, line: 200 + s, raw: "" })) } as StageSrc;
+// a runaway: 90 cards and 200 connectors (every card and line cap holds), 4 steps; its first phone plan needs far more
+// than one plan's budget (STAGE_WORK) for routing and is refused in about a second
+const runaway = (connectors: number): StageSrc => {
+  const head = ["title: Runaway | too much for one stage"];
+  for (let l = 0; l < 6; l++) { head.push(`## Lane ${l}`); for (let i = 0; i < 15; i++) head.push(`client c${l}x${i}: card ${l} ${i} | a line`); }
+  const ids = Array.from({ length: 90 }, (_, k) => `c${Math.floor(k / 15)}x${k % 15}`), per = Math.ceil(connectors / 4);
+  return { head: head.join("\n"), base: 1, info: {}, steps: [1, 2, 3, 4].map((s) => ({ title: `Round ${s}: messages fly in round ${s}.`, line: 200 + s,
+    raw: Array.from({ length: per }, (_, e) => [ids[(s * 7 + e * 13) % 90], ids[(s * 11 + e * 17 + 5) % 90]]).filter(([x, y]) => x !== y).map(([x, y], e) => `${x} -> ${y}: m${e}`).join("\n") })) } as StageSrc;
+};
+const RUNAWAY = runaway(200);
 
 const island = (src: StageSrc, roles: Record<string, number>) => renderToStaticMarkup(React.createElement(Stage, { src, roles, ui: UI.en }));
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'").replace(/\s+/g, " ").trim();
@@ -39,9 +44,9 @@ describe("a stage over its budget", () => {
     expect(words).toContain("Runaway");
     expect(words).toContain(STAGE_OVER_MESSAGE);
     expect(STAGE_OVER_MESSAGE).toContain("stage layout budget");
-    expect(STAGE_OVER_MESSAGE).toContain("3,200,000");
-    expect((over[0].match(/<li>/g) ?? []).length).toBe(2);
+    expect(STAGE_OVER_MESSAGE).toContain("38,000,000");
+    expect((over[0].match(/<li>/g) ?? []).length).toBe(4);
     expect(words).toContain("Round 1: messages fly in round 1.");
-    expect(words).toContain("Round 2: messages fly in round 2.");
+    expect(words).toContain("Round 4: messages fly in round 4.");
   }, 60_000);
 });

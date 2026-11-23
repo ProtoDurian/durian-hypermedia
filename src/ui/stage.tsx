@@ -18,8 +18,8 @@ import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "..
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Ui } from "./ui";
 
-/** Each compile and each set of plans runs on a stage budget of its own (src/core/stage.ts STAGE_WORK, about 4x the heaviest
- * real stage's 7 server plans), on the server and in the browser: a page draws many stages and the browser lays them out
+/** Each compile and each plan (one width) runs on a stage budget of its own (src/core/stage.ts STAGE_WORK, 4x the heaviest
+ * real plan), on the server and in the browser: a page draws many stages and the browser lays them out
  * again on every resize, and none may spend another's room or the page's. Over the cap it throws BudgetError (refused). */
 export function stageWork<T>(run: () => T): T {
   return withStageBudget(newBudget(STAGE_WORK, STAGE_MEMORY), run);
@@ -236,7 +236,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   // plans as they are (hydration adopts them; one layout per stage, so 7 plans x 27 stages never charge the page's budget)
   const browser = false; // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
   // over one stage's budget (STAGE_WORK) the stage is refused: a note in its place, never an error out of render
-  const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return stageWork(() => (w ? [layoutStage(m, w)] : browser ? [] : SSR_W.map((x) => layoutStage(m, x)))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);
+  const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return w ? [stageWork(() => layoutStage(m, w))] : browser ? [] : SSR_W.map((x) => stageWork(() => layoutStage(m, x))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);
   const plans = laid ?? [];
   useEffect(() => {
     if (!playing || st.on) return;

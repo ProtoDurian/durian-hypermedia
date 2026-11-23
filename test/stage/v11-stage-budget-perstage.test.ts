@@ -47,7 +47,8 @@ describe("a runaway stage", () => {
     expect(docBudget().left().work).toBe(before);
   });
   test("the caps hold the heaviest measured stage four times over", () => {
-    expect(STAGE_WORK).toBeGreaterThanOrEqual(4 * 770_018);
-    expect(STAGE_MEMORY).toBeGreaterThanOrEqual(4 * 728_240);
+    // the heaviest real plan (one width; the 28-scene page and the Format page, measured )
+    expect(STAGE_WORK).toBeGreaterThanOrEqual(4 * 9_453_090);
+    expect(STAGE_MEMORY).toBeGreaterThanOrEqual(4 * 5_752_560);
   });
 });

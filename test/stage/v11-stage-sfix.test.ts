@@ -1,8 +1,10 @@
 // @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
 // stage faults found while rebuilding scenes (each test failed before its fix)
 import { beforeEach, expect, test } from "bun:test";
-import { compileStage, layoutStage } from "../../src/core/stage";
-import { beginDocument } from "../../src/core/stage-budget";
+import { compileStage, layoutStage as layoutOnce, STAGE_WORK, STAGE_MEMORY } from "../../src/core/stage";
+import { beginDocument, newBudget } from "../../src/core/stage-budget";
+// one plan on a stage budget of its own, as the stage view lays it out (site/src/stage.tsx stageWork)
+const layoutStage = (m: Parameters<typeof layoutOnce>[0], w: number) => { beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY)); return layoutOnce(m, w); };
 import type { Item } from "../../src/core/stage-core";
 
 const steps = (...raws: string[]) => raws.map((raw, i) => ({ title: `S${i + 1}: Step ${i + 1}.`, raw: raw + "\n", line: (i + 1) * 10 }));

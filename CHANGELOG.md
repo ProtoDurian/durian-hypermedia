@@ -57,9 +57,11 @@ none of the package's own animations changes (checked on every fixture and the e
 - **Theme tokens:** `--c0`, `--c0-fill`, `--c0-soft`, `--c0-plane`, `--c0-ink` (the neutral role, light and dark), and
   in dark `--c1-dot` to `--c8-dot`, `--acc-dot` and their `-dot-new` (a column's plain and lit dots); a stage's own
   `--stg-*` tokens live in its stylesheet.
-- **A budget for each stage:** each stage compiles and lays out on a budget of its own (3,200,000 units of work, about
-  four times the heaviest real stage), so a page of many stages, laid out again on every resize, never runs out. A
-  stage over it is never blank: it shows its title, a message that names the budget and the fix, and every step in
+- **A budget for each stage:** each stage's compile, and each of its plans (one width), runs on a budget of its own
+  (38,000,000 units of work, four times the heaviest real plan); every part of a layout counts, the connector router's
+  search included, so a page of many stages, laid out again on every resize, never runs out, and a scene of a few
+  hundred connectors is refused in about a second and a half instead of keeping a page busy. A stage over it is never
+  blank: it shows its title, a message that names the budget and the fix, and every step in
   words; every other stage draws. In a parse, a stage over the page's budget is an error block and a problem, like any
   part over its budget.
 

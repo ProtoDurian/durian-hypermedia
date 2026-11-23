@@ -51,7 +51,6 @@ export interface CodeWalkStep {
 export interface CodeWalkBlock extends PartBase { type: "codewalk"; steps: CodeWalkStep[]; walkFiles: Record<string, string | null>; /** packed whole files for still steps (highlight()) */ walkHl?: Record<string, unknown> }
 
 export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: "part" | "page"; /** the facts of a chart written with steps, a time axis, annotations, formats, a heatmap or the page-chart words (core/chart11.ts) */ ext?: any } }
-export interface MermaidBlock extends PartBase { type: "mermaid"; steps: { title: string; src: string }[] }
 export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
   /** a composed stage (0.7.0: lanes, cards, panels, a time block; every animation whose fence does not ask for the graph engine): its source and the page's roles (role name -> colour 0 to 8) */
   stage?: { src: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> }; roles: Record<string, number> };
@@ -91,7 +90,7 @@ export type FolderBlock = { [K in FolderPartName]: PartBlock<FolderPartData[K]> 
 export type { FolderPartName, FolderPartData, PartBlock };
 
 export type Block =
-  | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock | MermaidBlock
+  | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock
   | AnimationBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock | FolderBlock
   | ReferenceBlock | SvgBlock | InteractiveBlock;
 export type BlockType = Block["type"];

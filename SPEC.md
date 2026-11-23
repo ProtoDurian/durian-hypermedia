@@ -21,7 +21,7 @@ On the stateless replay article: source about 5,200 tokens, what a person reads 
 | callout | a blockquote with a bold marker | `> **Watch out:** ...` |
 | own marks and prefixes | front matter (or the host's `marks` and `prefixes` options of `parse()`) | `marks:`, `prefixes:` (section 3.1) |
 
-- **Parts with data** are `terminal` (also written `console` or `shellsession`), `filetree`, `editor`, `codewalk`, `chart`, `mermaid` and `animation`. Any other fence (```` ```ts ````, ```` ```diff ````) is a plain code block. On any Markdown viewer (GitHub, an editor) a part still shows as readable text.
+- **Parts with data** are `terminal` (also written `console` or `shellsession`), `filetree`, `editor`, `codewalk`, `chart` and `animation`. Any other fence (```` ```ts ````, ```` ```diff ````) is a plain code block. On any Markdown viewer (GitHub, an editor) a part still shows as readable text.
 - **The info string** after the part name may carry `#id`, `key=value` or `key="two words"`. Ids are optional: give one only when something links to the part.
 - **Containers** do not nest. Inside `:::tabs` and `:::accordion`, every heading (at the highest level used inside) starts one tab or row. Containers may hold fenced parts.
 - **`:::llm` belongs to the part or `:::human` segment right before it** (blank lines between are fine). An LLM reads it instead of that part.
@@ -32,7 +32,7 @@ On the stateless replay article: source about 5,200 tokens, what a person reads 
 | In the source | In the LLM view |
 | --- | --- |
 | prose, headings, lists, tables, code blocks, code references | kept unchanged |
-| ```` ```terminal ````, ```` ```filetree ````, ```` ```editor ````, ```` ```codewalk ````, ```` ```mermaid ```` | the block as written; `#id` and `title=` dropped from the info string |
+| ```` ```terminal ````, ```` ```filetree ````, ```` ```editor ````, ```` ```codewalk ```` | the block as written; `#id` and `title=` dropped from the info string |
 | ```` ```chart ```` with fixed data | its data as a Markdown table, under one line naming the kind and title |
 | ```` ```chart ```` with controls or formulas | its source as it is (the formulas say more than one set of numbers) |
 | ```` ```tierlist ```` | one line per tier, `S: Postgres (does everything), SQLite`, under a line naming the list; colours dropped |
@@ -123,7 +123,7 @@ The name is a plain string.
 
 **Animated or still.** A code walk moves between steps in one of two ways. *Animated* morphs the lines of one step into the next and is for the same code changing (a function growing step by step). *Still* does not morph: the step's file is shown whole, the step's lines (`#L..`) are open and marked, the rest of the file is folded into a one-line bar ("… 12 lines") the reader can open, and a move to the next step switches marks and folds at once. Moving between different functions or files is still, because a morph between unrelated code only confuses. By default a move is animated when the next step is in the same file and its lines share a line with the step before, and still otherwise. To say it, write `animate=on`, `animate=off` or `animate=auto` on the fence (every move) or on a `@step` line (the move into that step; it beats the fence; `auto` there means the default rule). `animate=` is not allowed on step 1. An LLM reads the code and the notes; the LLM view leaves `animate=` out. Add to the table of section 3: `code walk | animate=on|off|auto | animated or still moves (default auto)`.
 
-**Diagram.** A plain mermaid block. With `%% @step <title>` lines (a mermaid comment, so it still draws anywhere) it builds up: step k draws every line up to its end.
+**Boxes and lines are an `animation`.** There is no separate diagram part: every drawing of boxes joined by lines is an `animation` (section 6), with no `@step` lines when it stands still. Since 0.7.0 a ```` ```mermaid ```` block is a plain code block, and doccheck refuses it with one message that names the `animation` part (and ```` ```sequence ```` for a sequence diagram).
 
 **Chart.** The chart keys: `kind` (bar, line, area, scatter, bubble, radar, pie, doughnut, polar, candlestick), `title`, `x` (a list, or `{label, values, min, max, scale}`), `y` (`{label, min, max, scale}`), `y2` (a second value axis on the right: `{label, min, max, scale}`), `series` (each `name`, `data`, and optional `kind`, `axis`, `tone`), `stacked` (`true` or `percent`), `horizontal`. Plus `controls` (slider, select, toggle, button) and `let` (formulas in the small expression language of SPEC.v2.md section 8). Section 7 says what each kind and option does and what doccheck refuses.
 
@@ -585,7 +585,7 @@ cli --> dev: project written
 - **LLM view:** `Sequence: <title>. Participants: ...`, then the numbered messages, a block's messages indented under `loop <text>:`.
 - **Phone:** the heads stay at the top while the box scrolls; three or more participants scroll sideways in the part's own box.
 - **Caps:** `sequenceParticipants` (12), `sequenceItems` (200; 120 in UNTRUSTED_LIMITS) lines of participants, messages, blocks and notes together, and `sequenceDepth` (3).
-- **doccheck refuses:** an `end`, `else` or `and` with no block open (or an `else` in a loop, an `and` in an alt), a block never closed, blocks nested too deep, a message or note with no text, an unknown participant kind, a participant declared twice, mermaid's `participant A as B`, an id with a character outside the set, a line that is none of these, no message at all, more participants or lines than the caps, `steps=each` with `@step` lines or with fewer than 2 messages, an unknown attribute, and a part over the page's work budget.
+- **doccheck refuses:** an `end`, `else` or `and` with no block open (or an `else` in a loop, an `and` in an alt), a block never closed, blocks nested too deep, a message or note with no text, an unknown participant kind, a participant declared twice, the form `participant A as B`, an id with a character outside the set, a line that is none of these, no message at all, more participants or lines than the caps, `steps=each` with `@step` lines or with fewer than 2 messages, an unknown attribute, and a part over the page's work budget.
 
 #### Sparkline in a sentence (`:spark[...]`)
 
@@ -734,10 +734,10 @@ evolve kettle 0.65 "smart kettle"
 
 ## 4. Steps are an attachment
 
-- **One marker:** a line `@step <title>` inside a fenced part (`%% @step <title>` in mermaid). The text up to the next `@step` belongs to that step.
-- **Parts that take steps:** terminal, file tree, editor, code walk, mermaid and animation. A chart has controls instead; doccheck refuses `@step` in a chart.
+- **One marker:** a line `@step <title>` inside a fenced part. The text up to the next `@step` belongs to that step.
+- **Parts that take steps:** terminal, file tree, editor, code walk and animation. A chart has controls instead; doccheck refuses `@step` in a chart.
 - **At least 2 steps, or none.** One `@step` is refused, except in an editor: its files as they are come first, so one edit already makes two states.
-- **What may come before the first `@step`:** in an editor its files (and `@file` blocks), in an animation its setup lines, in mermaid the start of the diagram. In a terminal or a file tree with `@step` lines, every line sits under a step; nothing comes before the first one.
+- **What may come before the first `@step`:** in an editor its files (and `@file` blocks), in an animation its setup lines. In a terminal or a file tree with `@step` lines, every line sits under a step; nothing comes before the first one.
 - **No nested steppers.** Containers do not nest and a part cannot hold a part, so a stepped part is never inside another stepped part.
 - **Play starts at once** (format version 10). Pressing Play does the next thing now: an animation steps to its next step (or back to the first, from the last) and a terminal moves on from a finished step or types its next key, with no wait for the step tick. The pause between steps comes after that first move. Measured on the 26 players of the Format page (a script clicks Play on each and times the first change): under 100 ms for all (before: 1.5 to 3.2 s).
 - **Every stepped part looks and works the same:** a fixed-size stage, the step's title under it, and one control row (Back, Play where it plays, a slider, the count, Next); :kbd[Left] and :kbd[Right] step the part that has focus. Stepping never moves the buttons.
@@ -1399,7 +1399,7 @@ The month's numbers:
 The build log is in [[terminal:build-42 "the build"]], and the label is optional: [[filetree:repo-layout]].
 ```
 
-- **Type:** the name of a fenced part (`terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `animation`, `tierlist`, `alignment`, every part added later, and a host block's name), or `interactive` or `svg`. Containers (`:::tabs` and the others) are not referenced. A word that is not a type (`[[note:this]]`) is plain text.
+- **Type:** the name of a fenced part (`terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, every part added later, and a host block's name), or `interactive` or `svg`. Containers (`:::tabs` and the others) are not referenced. A word that is not a type (`[[note:this]]`) is plain text.
 - **Name:** letters, digits, `.`, `-` and `_`, at most 128 characters. Never a path (`/`, `\`, a leading `.`, `..`), a scheme (`x:`) or a URL (`//`, `www.`). The host finds the part by its name; the package never fetches anything.
 - **Label:** optional, in double quotes, on the same line, at most 200 characters. A reader sees it until the part is there; an LLM reads it.
 - **Escape:** `\[[` is plain text.
@@ -1485,7 +1485,7 @@ Revenue grows 20% a year: year 5 is about 2.07 times year 1.
 
 ## 10. Translations
 
-A translation keeps every part, attribute, code reference and code block of its source, in order; doccheck's "translation shape" compares them. Translated: prose, headings, list items, table cells, callout text, front matter `title`, `description` and the `label` and `means` of own marks and prefixes, `:::llm` texts, mermaid labels, terminal and file tree step titles, code walk notes, chart `title`/`label`/`name` (a second axis's `label` too; the category names in `x` stay as they are), a tier list's title, tier names, item names and notes, an alignment grid's title, axis names, cell and region labels, item names and notes (translate a tier or axis name the same way everywhere it is written, on the `tiers:` line and in the tier lines, on the axis lines, the `region:` lines and the cell lines; never the colours in square brackets, the keys `tiers:`, `x:`, `y:`, `region:`, `arrows:` or the `@ x, y` numbers), and an animation's captions, its quoted labels and its say and note texts (never its ids, entity kinds or change words). No native speaker has read the five translations yet.
+A translation keeps every part, attribute, code reference and code block of its source, in order; doccheck's "translation shape" compares them. Translated: prose, headings, list items, table cells, callout text, front matter `title`, `description` and the `label` and `means` of own marks and prefixes, `:::llm` texts, terminal and file tree step titles, code walk notes, chart `title`/`label`/`name` (a second axis's `label` too; the category names in `x` stay as they are), a tier list's title, tier names, item names and notes, an alignment grid's title, axis names, cell and region labels, item names and notes (translate a tier or axis name the same way everywhere it is written, on the `tiers:` line and in the tier lines, on the axis lines, the `region:` lines and the cell lines; never the colours in square brackets, the keys `tiers:`, `x:`, `y:`, `region:`, `arrows:` or the `@ x, y` numbers), and an animation's captions, its quoted labels and its say and note texts (never its ids, entity kinds or change words). No native speaker has read the five translations yet.
 
 ## What changed from version 10
 

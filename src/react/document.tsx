@@ -32,7 +32,7 @@ export interface DocumentProps {
   /** "off" stills every animation, morph, typing and chart transition (also set by prefers-reduced-motion) */
   motion?: "on" | "off";
   /** swap the chrome (the part frame, callouts, error blocks, the spinner) and draw Markdown elements
-   *  yourself (Code, InlineCode, Link, Table, Heading) or mermaid diagrams (Mermaid) */
+   *  yourself (Code, InlineCode, Link, Table, Heading) */
   slots?: Partial<Slots>;
   /** add this to every Markdown heading's level, so a page's "#" sits below the host's own headings (default 0) */
   demoteHeadings?: number;

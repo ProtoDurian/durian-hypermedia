@@ -1,4 +1,4 @@
-// The host draws Markdown elements through slots (Code, InlineCode, Link, Table, Heading, Mermaid), demotes headings,
+// The host draws Markdown elements through slots (Code, InlineCode, Link, Table, Heading), demotes headings,
 // and turns front matter off. Without a slot the renderer draws the element exactly as before.
 import { describe, expect, test } from "bun:test";
 import React from "react";
@@ -6,7 +6,7 @@ import { renderToString } from "react-dom/server";
 import { parse, llmView } from "../src/index";
 import { DhDocument } from "../src/react/index";
 import { DhDocument as StrictDocument } from "../src/react/strict";
-import type { CodeSlotProps, LinkSlotProps, TableSlotProps, HeadingSlotProps, MermaidSlotProps } from "../src/react/context";
+import type { CodeSlotProps, LinkSlotProps, TableSlotProps, HeadingSlotProps } from "../src/react/context";
 import { allFixtures, taskBlock } from "./helpers";
 
 const PAGE = `# Title
@@ -134,32 +134,9 @@ describe("code walk notes are React children", () => {
   });
 });
 
-describe("mermaid drawn by the host", () => {
-  const d = parse("```mermaid\nflowchart LR\n  A --> B\n```\n");
-  test("the Mermaid slot draws each step; the part never shows the loading spinner", () => {
-    const seen: MermaidSlotProps[] = [];
-    const Mermaid = (p: MermaidSlotProps) => { seen.push(p); return <img alt={p.title} data-host-mermaid={p.step} />; };
-    for (const Doc of [DhDocument, StrictDocument]) {
-      seen.length = 0;
-      const h = render(<Doc doc={d} slots={{ Mermaid }} />);
-      expect(seen).toHaveLength(1);
-      expect(seen[0].src).toContain("A --> B");
-      expect(h).toContain('data-host-mermaid="0"');
-      expect(h).toContain("is-drawn");
-      expect(h).not.toContain("data-mermaid=");
-      expect(h).not.toContain("dh-spinner");
-    }
-  });
-  test("strict without a slot shows the diagram's source as text", () => {
-    const h = render(<StrictDocument doc={d} />);
-    expect(h).toContain("mermaid-src");
-    expect(h).toContain("A --&gt; B");
-  });
-});
-
 describe("the strict entry renders every fixture", () => {
   for (const f of allFixtures()) test(f.name, () => {
-    const h = render(<StrictDocument doc={parse(f.text, { blocks: [taskBlock] })} blocks={[taskBlock]} slots={{ Mermaid: ({ src }) => <span data-m>{src.length}</span> }} />);
+    const h = render(<StrictDocument doc={parse(f.text, { blocks: [taskBlock] })} blocks={[taskBlock]} />);
     expect(h).toContain('class="dh-doc"');
   });
 });

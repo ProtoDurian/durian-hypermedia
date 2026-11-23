@@ -336,24 +336,3 @@ export function Terminal({ steps, ui, title, prefixes }: { steps: { title: strin
   );
 }
 
-// ---------------------------------------------------------------- diagram: a mermaid block; with steps it builds up one step at a time
-// Every step is drawn at once into one grid cell, so the stage is as tall as the biggest step and never jumps.
-// Draw: a host's own renderer for each step (it gets the mermaid source); without it the page's script draws [data-mermaid] boxes.
-export type DiagramDrawProps = { src: string; title: string; step: number; active: boolean };
-export function Diagram({ steps, ui, Draw }: { steps: { title: string; src: string }[]; ui: Ui; Draw?: React.ComponentType<DiagramDrawProps> }) {
-  const [i, setI] = useState(0);
-  const go = (k: number) => setI(Math.max(0, Math.min(steps.length - 1, k)));
-  return (
-    <div className="dg" tabIndex={steps.length > 1 ? 0 : undefined} onKeyDown={(e) => steps.length > 1 && onArrows(e, (d) => go(i + d))}>
-      <div className="dg-stack">
-        {steps.map((s, k) => Draw
-          ? <div key={k} className={cx("diagram", "is-drawn", k === i && "is-active")} data-dh-host-diagram aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre><div className="mermaid-svg"><Draw src={s.src} title={s.title} step={k} active={k === i} /></div></div>
-          : <div key={k} className={cx("diagram", k === i && "is-active")} data-mermaid aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre></div>)}
-      </div>
-      {steps.length > 1 && <>
-        <div className="anim-cap" aria-live="polite"><span className="cw-num">{i + 1}</span><span>{steps[i].title}</span></div>
-        <Controls ui={ui} i={i} n={steps.length} onGo={go} />
-      </>}
-    </div>
-  );
-}

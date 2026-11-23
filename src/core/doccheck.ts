@@ -85,6 +85,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   };
   const checkMd = (n: MdNode, ctx: Ctx) => {
     for (const m of mapCodeRefs(n.text)) { const e = checkCodeRef(doc, m, src); if (e) err(n.line, "code references", e); }
+    for (const [off, kind] of mermaidFences(n.text)) err(n.line + off, "part data", mermaidMessage(kind));
     const noCode = n.text.replace(/```[\s\S]*?```/g, "");
     for (const m of noCode.matchAll(/^>\s*\*\*([^*]+?):\*\*/gm)) if (!CALLOUTS.includes(m[1])) err(n.line, "part data", `"**${m[1]}:**" is not a callout marker (markers: ${CALLOUTS.join(", ")})`);
     if (/^:::\s*banner/m.test(noCode)) err(n.line, "part data", `:::banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
@@ -119,7 +120,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   const checkPart = (p: PartNode, ctx: Ctx) => {
     partsSeen++;
     const def = PARTS[p.name];
-    if (!def) { err(p.line, "parts known", `unknown container ":::${p.name}" (containers: tabs, accordion, human, llm; data parts are fenced blocks: \`\`\`terminal, \`\`\`filetree, \`\`\`editor, \`\`\`codewalk, \`\`\`chart, \`\`\`tierlist, \`\`\`alignment, \`\`\`mermaid, \`\`\`animation)`); return; }
+    if (!def) { err(p.line, "parts known", `unknown container ":::${p.name}" (containers: tabs, accordion, human, llm; data parts are fenced blocks: \`\`\`terminal, \`\`\`filetree, \`\`\`editor, \`\`\`codewalk, \`\`\`chart, \`\`\`tierlist, \`\`\`alignment, \`\`\`animation)`); return; }
     if (p.attrs.id) { if (ids.has(p.attrs.id)) err(p.line, "part data", `id "${p.attrs.id}" is used twice (first at line ${ids.get(p.attrs.id)})`); else ids.set(p.attrs.id, p.line); }
     if (p.steps.length && !def.steps) err(p.steps[0].line, "part data", `${p.name} takes no @step lines`);
     // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none
@@ -213,7 +214,6 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
       for (const e of r.errors) err(e.line, `${name}: ${e.msg}`);
       break;
     }
-    case "mermaid": if (!p.body.trim()) err(p.line, `empty mermaid block`); break;
     case "filetree": {
       if (p.steps.length && p.head.trim()) err(p.line, "filetree: with @step lines, put every tree under a step");
       for (const s of treeSteps(p)) { const t = parseTree(s.text, s.line, p.defs); for (const e of t.errors) err(e.line, e.msg); if (!t.rows.length) err(s.line, "filetree has no entries"); }
@@ -309,3 +309,28 @@ function main() {
 }
 if (import.meta.main) main();
 export { checkDoc, checkTranslation, checkLlmViews };
+
+// mermaid was removed in 0.7.0 (one migration message for each mermaid code block): a page that still has one gets
+// the part that draws it now. Line by line, no backtracking: a fence opens with three or more backticks or tildes and
+// the word mermaid, and closes with a run of the same character at least as long.
+export function mermaidFences(text: string): [number, string][] {
+  const out: [number, string][] = [];
+  const ls = text.split("\n");
+  for (let i = 0; i < ls.length; i++) {
+    const t = ls[i].trimStart(), ch = t[0];
+    if (ch !== "`" && ch !== "~") continue;
+    let n = 0; while (t[n] === ch) n++;
+    if (n < 3) continue;
+    const info = t.slice(n).trim(), word = info.split(/\s/)[0].toLowerCase();
+    let j = i + 1;
+    const closes = (l: string) => { const u = l.trim(); if (u.length < n) return false; for (const c of u) if (c !== ch) return false; return true; };
+    while (j < ls.length && !closes(ls[j])) j++;
+    if (word === "mermaid") { const first = ls.slice(i + 1, j).map((l) => l.trim()).find((l) => l && !l.startsWith("%%")) ?? ""; out.push([i, first.split(/\s/)[0]]); }
+    i = j;
+  }
+  return out;
+}
+export function mermaidMessage(kind: string): string {
+  const k = /^(sequenceDiagram)$/.test(kind) ? " This one is a sequence diagram: ```sequence draws it (SPEC.md, the sequence part)." : "";
+  return `\`\`\`mermaid was removed in 0.7.0: draw boxes and lines as an \`\`\`animation (with no @step lines it stands still; SPEC.md section 6).${k}`;
+}

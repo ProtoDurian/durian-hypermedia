@@ -11,7 +11,6 @@ draws that data with React, so author text is always a text node or an escaped a
 | `javascript:` links in disguise (case, entities, tabs, percent, zero-width and soft-hyphen characters) | the scheme is read the way a browser reads it; the link is dropped, its text stays | `hostile/03`, `05` |
 | `data:`, `vbscript:`, `file:`, `blob:` links and images; `http:` images | dropped by the default policy; script-like schemes are dropped even if the host policy returns them | `hostile/04` |
 | HTML inside a part's text (terminal, file tree, chart, tier list, code walk note, animation label) | text | `hostile/07` |
-| mermaid `%%{init}%%` directives, `click` callbacks, HTML labels | directives dropped (with a problem); `securityLevel: "strict"`; no HTML labels; the SVG is cleaned with DOMPurify (no script, no foreignObject, no handlers) and attached as nodes | `hostile/06` |
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | Markdown written to make a parser search again and again (long runs of openers that never close) | read in time linear in its length (see [Work that is not an expression](#work-that-is-not-an-expression)) | `test/markdown-work.test.ts` |
 | YAML with very many keys or values (every node costs a parser time; one map's keys cost some parsers the square of their number) | front matter ignored with a problem, a chart an error block, before any parser runs | `test/yaml-size.test.ts` |
@@ -29,7 +28,7 @@ draws that data with React, so author text is always a text node or an escaped a
 
 `test/hostile.test.tsx` renders each fixture and checks that no `<script>`, `<iframe>`, `<object>`, `<embed>`,
 `<foreignObject>` or `<style>` element, no `on*` attribute and no script, data, vbscript or file URL is in the HTML.
-`bun run csp` opens every page in headless Chrome under a strict CSP and also checks the live DOM after mermaid, the
+`bun run csp` opens every page in headless Chrome under a strict CSP and also checks the live DOM after the
 charts and the 3D stage have drawn (0 violations, 0 errors, 0 dangerous nodes, 0 `alert()` calls).
 
 ## The evaluation budget
@@ -232,30 +231,25 @@ the Document. A page works under:
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'none'
 ```
 
-`style-src 'unsafe-inline'` is needed in two cases (measured with `bun run csp -- --strict-style`):
+`style-src 'unsafe-inline'` is needed in one case (measured with `bun run csp -- --strict-style`):
 
 - **Server-rendered HTML.** React writes `style="..."` attributes (code colours, part sizes, positions) into the HTML:
   4 to 26 blocked per page without it.
-- **Mermaid, even when rendered only in the browser.** Its SVG carries a `<style>` element and style attributes
-  (76 blocked on the diagram page). Without `'unsafe-inline'` the diagram still draws, but unstyled.
 
-A page rendered only in the browser, without mermaid, works under `style-src 'self'`: React sets styles through the
+A page rendered only in the browser works under `style-src 'self'`: React sets styles through the
 DOM, which CSP allows (0 violations on every other part).
 
 ## Trusted Types
 
-No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements, and the mermaid
-part attaches its cleaned SVG as nodes. For a page under `require-trusted-types-for 'script'`:
+No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements. For a page under `require-trusted-types-for 'script'`:
 
-- `durian-hypermedia/react/strict` reaches neither mermaid nor DOMPurify; its whole import graph (dependencies
+- `durian-hypermedia/react/strict`: its whole import graph (dependencies
   included, React left out) has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
   `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`), and never reaches
   `durian-hypermedia/react/interactive`, the only module that sets a frame's page, under its own policy
   `dh-interactive` (`test/refs-tt.test.ts`).
 - `bun run tt` renders every fixture (hostile ones included) in the browser only, through the strict entry, under the
   policy: 0 violations. A control page that puts a plain string into `innerHTML` must be refused, or the check fails.
-- Mermaid diagrams go to the host's `Mermaid` slot. The full entry's in-page mermaid uses `innerHTML` inside the
-  library and is refused under the policy (`bun scripts/csp-check.ts --trusted-types --full`).
 
 ## References (format version 11)
 

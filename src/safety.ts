@@ -37,9 +37,7 @@ export interface Limits extends PartLimits {
   maxCalcInputs: number;
   /** items of one tier list or alignment grid */
   maxItems: number;
-  /** characters of one mermaid diagram */
-  maxMermaidChars: number;
-  /** steps of any stepped part (terminal, file tree, editor, code walk, mermaid) */
+  /** steps of any stepped part (terminal, file tree, editor, code walk, animation) */
   maxSteps: number;
   /** work of one part's expressions (a chart's let, x and series, or one reader action on it): steps, value slots, characters of text */
   maxEvalSteps: number;
@@ -85,7 +83,6 @@ export const LIMITS: Limits = {
   maxCalcRows: 24,
   maxCalcInputs: 12,
   maxItems: 500,
-  maxMermaidChars: 20_000,
   maxSteps: 200,
   maxEvalSteps: 100_000,
   maxEvalValues: 50_000,

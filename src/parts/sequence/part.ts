@@ -106,7 +106,7 @@ export function declLine(t: string): { kind: string; id: string; label: string |
   for (let j = e + 1; j < t.length; j++) if (!isSpace(t[j])) return null;
   return { kind, id, label: t.slice(i + 1, e) };
 }
-/** mermaid's habit `participant A as B`: the kind word, the id, the label; null when the line is not one */
+/** the form `participant A as B` (another tool's way of naming one): the kind word, the id, the label; null when the line is not one */
 function asLine(t: string): { kind: string; id: string; label: string } | null {
   let i = 0; while (i < t.length && isLetter(t[i])) i++;
   const kind = t.slice(0, i).toLowerCase();
@@ -157,9 +157,9 @@ export function parseSequence(body: string, baseLine: number, title: string, eac
       parts.push({ id: d.id, kind, label: d.label ?? d.id, line: l.line, implicit: false });
       continue;
     }
-    // mermaid's habit: participant A as B
+    // the form participant A as B
     const asM = asLine(t);
-    if (asM) { const lab = asM.label.startsWith('"') ? asM.label.slice(1) : asM.label; err(l.line, `"as" is mermaid's habit; write ${asM.kind} ${asM.id.toLowerCase()} "${lab.endsWith('"') ? lab.slice(0, -1) : lab}"`); continue; }
+    if (asM) { const lab = asM.label.startsWith('"') ? asM.label.slice(1) : asM.label; err(l.line, `"as" does not name a participant here; write ${asM.kind} ${asM.id.toLowerCase()} "${lab.endsWith('"') ? lab.slice(0, -1) : lab}"`); continue; }
     let blk: string | null = null;
     for (const w of BLOCKS) if (blk === null && wordRest(t, w) !== null) blk = w;
     if (blk) {

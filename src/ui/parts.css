@@ -163,14 +163,6 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .cc-val { font: 600 13px var(--font-mono); color: var(--acc-ink); min-width: 2.4em; text-align: right; }
 .cc select { font: 500 13px var(--font-sans); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 8px; background: var(--surface); color: var(--ink); }
 
-/* ---- diagram ---- */
-.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; overflow-x: auto; }
-.diagram.is-drawn .mermaid-src { display: none; }
-.mermaid-src { margin: 0; font: 400 12px var(--font-mono); color: var(--muted); white-space: pre-wrap; }
-.mermaid-svg svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-/* format version 8: on a phone a wide diagram keeps 11 px words (client.tsx sets the svg's min-width) and scrolls */
-.mermaid-more { margin: 6px 0 0; font: 500 12px var(--font-sans); color: var(--muted); }
-
 /* ---- inline: keys and mouse ---- */
 .dh-keys { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; vertical-align: baseline; }
 .dh-chord { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
@@ -237,21 +229,12 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .callout-label { font-weight: 600; }
 
 
-/* stepped diagram: every step drawn into one cell; only the current one shows */
-.dg { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); overflow: hidden; }
-.dg:focus-visible { outline: 2px solid var(--acc); }
-.dg-stack { display: grid; }
-.dg-stack > .diagram { grid-area: 1 / 1; border: 0; border-radius: 0; visibility: hidden; opacity: 0; transition: opacity .35s; }
-.dg-stack > .diagram.is-active { visibility: visible; opacity: 1; }
-.dg .ctl { border-top: 0; }
-
 /* editor without tabs */
 .ide-crumbs { display: flex; align-items: center; gap: 8px; }
 .ide-step-t { flex: 1; }
 
 /* ---- the caption under a stepped diagram ---- */
 .anim-cap { display: flex; align-items: flex-start; padding: 12px 16px 6px; font-size: var(--fs-s); color: var(--ink); min-height: calc(2 * 1.5em + 18px); line-height: 1.5; border-top: 1px solid var(--line); }
-.diagram:has(.mermaid-svg) .mermaid-src { display: none; }
 .ctl-count { white-space: nowrap; flex: none; }
 @media (max-width: 480px) { .ctl { flex-wrap: wrap; row-gap: 8px; } .ctl .ctl-mid { order: -1; flex: 1 0 100%; } .ctl > .btn:last-child { margin-left: auto; } }
 
@@ -505,9 +488,6 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    it. Only when scripts run (the html has class js); without them the server's drawing stays */
 @media (max-width: 560px) { .js .scn:not([data-live]) .scn-svg { visibility: hidden; } }
 
-/* ---- format version 10: a mermaid edge label sits on a solid card, so its arrow never runs through the words
-   (mermaid's own sheet draws that card at half opacity; its rules are by id, so these need !important) ---- */
-.mermaid-svg svg .edgeLabel rect, .mermaid-svg svg .edgeLabel .background { opacity: 1 !important; fill: var(--surface) !important; }
 /* ---- format version 11: still and static scenes, a calm story (src/ui/anim.tsx, src/core/whole.ts, src/core/calm.ts) */
 .scn.is-whole .scn-stage, .scn.is-still .scn-stage { min-height: 0; max-height: none; }
 /* a phone's stage that grew to keep the camera still between two zooms (core/calm.ts calmHeight, the same numbers) */

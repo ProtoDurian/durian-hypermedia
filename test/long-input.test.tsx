@@ -136,7 +136,6 @@ describe("steps that each carry a whole text", () => {
   const big = [
     ["editor", `${F}editor\n@file a.txt\n${"line\n".repeat(4_000)}${"@step s\n+x\n".repeat(150)}${F}\n`],
     ["codewalk", `${F}codewalk\n@file a.ts\n${"x\n".repeat(4_000)}${"@step a.ts\n".repeat(150)}${F}\n`],
-    ["mermaid", `${F}mermaid\nflowchart LR\n${"  a --> b\n".repeat(600)}${"%% @step s\n".repeat(190)}${F}\n`],
     ["filetree", `${F}filetree\n${"x".repeat(20_000)}/\n${"  a\n".repeat(100)}${F}\n`],
   ];
   for (const [name, text] of big) test(`a ${name} whose steps would carry too much shows its source`, () => {

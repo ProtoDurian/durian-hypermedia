@@ -13,7 +13,7 @@
  },
  "markdown.md": {
   "issues": [
-   "error 38 [code references] code reference example-repo/src/service.ts#Service: no pins entry for repo example-repo"
+   "error 5 [code references] code reference example-repo/src/service.ts#Service: no pins entry for repo example-repo"
   ],
   "charts": [],
   "llm": "---\ntitle: Plain Markdown\ndescription: Everything plain Markdown does, as the renderer draws it (no parts).\nsource: markdown.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n# Plain Markdown\n\nA paragraph with **bold**, *italic*, ~~struck~~ text, `inline code`, a [link to the format](https://example.com/format), an [anchor link](#lists) and a [relative link](./other-page.md).\nKeys: Ctrl+K, then Ctrl+S and Left arrow. Mouse: double-click index.ts. A code reference: [the service](code:example-repo/src/service.ts#Service).\n\n## Lists\n\n- one\n- two\n  - two and a half\n- three\n\n1. first\n2. second\n\n- [x] a done task\n- [ ] an open task\n\n## A table\n\n| Part | Written as | An LLM reads |\n| :--- | :---: | ---: |\n| terminal | a code fence | as it is |\n| chart | a code fence with data | its data as a table |\n\n## Code\n\n```ts\nexport function greet(name: string): string {\n  return `Hi ${name}`;\n}\n```\n\n> A plain quote, with *emphasis*.\n\n> **Tip:** A callout opens with a bold marker.\n\n---\n\nAn image from a relative path: ![the logo](./logo.svg \"The logo\")\n"
@@ -42,7 +42,7 @@
     ]
    }
   ],
-  "llm": "---\ntitle: Showcase\ndescription: Several parts on one page, to compare the style variants (soft, flat, bold) and light and dark.\nsource: showcase.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n> **Note:** One page, three styles. Switch them at the top.\n\n## A terminal\n\n```terminal\n$ bun add durian-hypermedia\ninstalled durian-hypermedia@0.1.0\n$ bun test\n301 pass, 0 fail\n```\n\n> **Tip:** Every part steps with Left arrow and Right arrow, or a tap on Next.\n\n## A chart\n\nChart (bar): Bundle size, gzipped\n\n| entry | first load |\n| --- | --- |\n| parser | 60 |\n| terminal | 10 |\n| chart | 17 |\n| animation | 39 |\n\n## A tier list\n\nTier list: Which part to reach for (top tier first)\nS: terminal, code walk\nA: chart, tier list\nB: animation (when time matters)\nC: mermaid (when nothing else draws it)\nD: (empty)\n\n## Tabs\n\n### Server\n\nParse and highlight on the server, render to HTML, hydrate in the browser.\n\n### Browser only\n\nParse and render in the browser; code shows without colours.\n\n## A code walk\n\n```codewalk\n@file src/page.tsx\nimport { parse } from \"durian-hypermedia\";\nimport { DhDocument } from \"durian-hypermedia/react\";\n\nexport function Page({ text }: { text: string }) {\n  const doc = parse(text);\n  return <DhDocument doc={doc} variant=\"flat\" />;\n}\n@step src/page.tsx#L4-L7 focus=5\nParse the text: the tree is plain data.\n@step src/page.tsx#L4-L7 focus=6\nDraw it, in the host's style.\n```\n"
+  "llm": "---\ntitle: Showcase\ndescription: Several parts on one page, to compare the style variants (soft, flat, bold) and light and dark.\nsource: showcase.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n> **Note:** One page, three styles. Switch them at the top.\n\n## A terminal\n\n```terminal\n$ bun add durian-hypermedia\ninstalled durian-hypermedia@0.1.0\n$ bun test\n301 pass, 0 fail\n```\n\n> **Tip:** Every part steps with Left arrow and Right arrow, or a tap on Next.\n\n## A chart\n\nChart (bar): Bundle size, gzipped\n\n| entry | first load |\n| --- | --- |\n| parser | 60 |\n| terminal | 10 |\n| chart | 17 |\n| animation | 39 |\n\n## A tier list\n\nTier list: Which part to reach for (top tier first)\nS: terminal, code walk\nA: chart, tier list\nB: animation (when time matters)\nC: sequence (when the order of calls is the point)\nD: (empty)\n\n## Tabs\n\n### Server\n\nParse and highlight on the server, render to HTML, hydrate in the browser.\n\n### Browser only\n\nParse and render in the browser; code shows without colours.\n\n## A code walk\n\n```codewalk\n@file src/page.tsx\nimport { parse } from \"durian-hypermedia\";\nimport { DhDocument } from \"durian-hypermedia/react\";\n\nexport function Page({ text }: { text: string }) {\n  const doc = parse(text);\n  return <DhDocument doc={doc} variant=\"flat\" />;\n}\n@step src/page.tsx#L4-L7 focus=5\nParse the text: the tree is plain data.\n@step src/page.tsx#L4-L7 focus=6\nDraw it, in the host's style.\n```\n"
  },
  "format/01-callouts.dh.md": {
   "issues": [
@@ -92,15 +92,10 @@
   "charts": [],
   "llm": "---\ntitle: \"A segment LLMs skip\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/08-a-segment-llms-skip.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## A segment LLMs skip\n\n`llm=none` says, in the source, that LLMs need nothing here.\n"
  },
- "format/09-diagram.dh.md": {
-  "issues": [],
-  "charts": [],
-  "llm": "---\ntitle: \"Diagram\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/09-diagram.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Diagram\n\nA plain `mermaid` code block. LLMs read mermaid well, so it reaches them unchanged.\n\n```mermaid\nflowchart LR\n  CLI -- \"init call\" --> TC[\"template container\"]\n  TC -- \"question reply\" --> CLI\n```\n"
- },
  "format/10-steps-on-any-part.dh.md": {
   "issues": [],
   "charts": [],
-  "llm": "---\ntitle: \"Steps on any part\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/10-steps-on-any-part.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Steps on any part\n\nSteps are not a part of their own: any part becomes step by step when it holds `@step` lines (in mermaid, `%% @step`, a mermaid comment, so the diagram still draws anywhere). Here a diagram builds up one arrow per step.\n\n```mermaid\nflowchart LR\n  CLI[\"CLI\"]\n  TC[\"template container\"]\n%% @step The CLI sends an init call with every answer it holds.\n  CLI -- \"init call: all answers\" --> TC\n%% @step The script stops at a question and sends it back.\n  TC -- \"question reply\" --> CLI\n%% @step The next init call carries one answer more.\n  CLI -- \"init call: one more answer\" --> TC\n```\n"
+  "llm": "---\ntitle: \"Steps on any part\"\ndescription: A fixture made from the Format page section of the same name.\nsource: format/10-steps-on-any-part.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n## Steps on any part\n\nSteps are not a part of their own: any part becomes step by step when it holds `@step` lines. Here a sequence builds up one call a step.\n\nSequence. Participants: CLI, template container.\n\nThe CLI sends an init call with every answer it holds.\n1. cli -> tc: init call: all answers\nThe script stops at a question and sends it back.\n2. tc --> cli: question reply\nThe next init call carries one answer more.\n3. cli -> tc: init call: one more answer\n"
  },
  "format/11-chart-bar.dh.md": {
   "issues": [],
@@ -1173,13 +1168,6 @@
   ],
   "charts": [],
   "llm": "---\ntitle: Hidden characters in a scheme\nsource: hostile/05-zero-width-scheme.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n[zero width](java​script:alert(1))\n[soft hyphen](java&#173;script:alert(1))\n"
- },
- "hostile/06-mermaid-attacks.dh.md": {
-  "issues": [
-   "warn 6 mermaid: %%{...}%% directives are dropped (they could change the diagram's security settings)"
-  ],
-  "charts": [],
-  "llm": "---\ntitle: Mermaid that tries to escape\nsource: hostile/06-mermaid-attacks.dh.md\n---\n<!-- Made by dh llm from the source; nobody edits this file. -->\n\n```mermaid\n%%{init: {\"securityLevel\": \"loose\", \"startOnLoad\": true}}%%\nflowchart LR\n  A[\"<img src=x onerror=alert(1)>\"] --> B[\"<script>alert(2)</script>\"]\n  B --> C[plain]\n  click A call alert(3)\n  click C \"javascript:alert(4)\"\n```\n"
  },
  "hostile/07-html-in-part-text.dh.md": {
   "issues": [

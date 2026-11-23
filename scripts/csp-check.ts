@@ -2,12 +2,12 @@
 // Prove the CSP: serve the example site with a strict Content-Security-Policy and open every page in headless Chrome.
 //   bun example/build.tsx && bun scripts/csp-check.ts [--strict-style] [--trusted-types [--full]] [--only <regex>] [--out results.json]
 // --trusted-types: serve with require-trusted-types-for 'script' and open the tt-*.html pages (every fixture, rendered in
-// the browser only by the strict entry); with --full, the ttfull-*.html pages (the full entry, mermaid in the page) instead.
+// the browser only by the strict entry); with --full, the ttfull-*.html pages (the full entry) instead.
 // For each page it counts: CSP violations (securitypolicyviolation events), script errors, alert() calls, and
 // dangerous nodes left in the document (script, iframe, object, embed, foreignObject, on* attributes, script URLs).
 // It also opens the 3D view of the first animation (three.js under the CSP), steps every stepped part once, steps
 // every composed stage through all its steps (each step button in order, then Back, then Play and Pause, checking
-// the step count each time), and waits for charts and mermaid to draw. Exit 1 when any page has a violation, an error or a dangerous node.
+// the step count each time), and waits for charts to draw. Exit 1 when any page has a violation, an error or a dangerous node.
 import { launch } from "./cdp";
 import { join, resolve } from "node:path";
 import { readdirSync } from "node:fs";
@@ -93,17 +93,14 @@ for (const f of pages) {
   const stg = await p.eval<{ stages: number; still: number; stepped: number; steps: number; bad: string[] }>(STEP_STAGES);
   const has3d = await p.eval<boolean>(`!!document.querySelector(".dh-doc .scn-mode") || !!document.querySelector(".dh-doc .scn3")`);
   if (has3d) { await p.eval(`(() => { const s = document.querySelector(".dh-doc .scn"); if (s && !s.querySelector(".scn3")) s.querySelector(".scn-mode")?.click(); })()`); for (let k = 0; k < 24; k++) { await p.sleep(250); if (await p.eval<boolean>(`!!document.querySelector(".dh-doc .scn3-canvas") && !document.querySelector(".dh-doc .scn3-loading")`)) break; } }
-  const waitMs = (await p.eval<boolean>(`!!document.querySelector(".dh-doc [data-mermaid], .dh-doc canvas")`)) ? 1500 : 300;
+  const waitMs = (await p.eval<boolean>(`!!document.querySelector(".dh-doc canvas")`)) ? 1500 : 300;
   await p.sleep(waitMs);
   const s = await p.eval<{ csp: string[]; errors: string[]; alerts: number }>(`window.__dh`);
   const danger = await p.eval<string[]>(DANGER);
-  // every node of every drawn diagram keeps its label (mermaid's labels must survive the cleaning)
-  const blank = await p.eval<string[]>(`[...document.querySelectorAll(".dh-doc .diagram.is-drawn svg")].flatMap((s, i) => [...s.querySelectorAll("g.node")].filter((g) => !g.textContent.trim()).map((g) => "diagram " + i + ": blank label on " + (g.id || "a node")))`);
-  if (!f.startsWith("hostile-")) danger.push(...blank);
   // a stage that did not follow its steps fails the page; a stage page whose stages were not stepped means the check is broken
   danger.push(...stg.bad);
   if (/^(tt(full)?-)?stage-/.test(f) && stg.stages - stg.still > 0 && stg.stepped === 0) danger.push("no stage was stepped: the check is broken");
-  const drawn = await p.eval<Record<string, number>>(`({ mermaid: document.querySelectorAll(".dh-doc .diagram.is-drawn").length, mermaidFailed: document.querySelectorAll(".dh-doc .diagram.is-failed").length, charts: document.querySelectorAll(".dh-doc .chart canvas").length, webgl: [...document.querySelectorAll(".dh-doc canvas")].filter((c) => !c.closest(".chart")).length, svgStages: document.querySelectorAll(".dh-doc .scn svg").length })`);
+  const drawn = await p.eval<Record<string, number>>(`({ charts: document.querySelectorAll(".dh-doc .chart canvas").length, webgl: [...document.querySelectorAll(".dh-doc canvas")].filter((c) => !c.closest(".chart")).length, svgStages: document.querySelectorAll(".dh-doc .scn svg").length })`);
   Object.assign(drawn, { stages: stg.stages, stagesStepped: stg.stepped, stageSteps: stg.steps, stagesStill: stg.still });
   results.push({ page: f, csp: s?.csp ?? ["no collector"], errors: s?.errors ?? [], alerts: s?.alerts ?? 0, danger, drawn });
   const bad = (s?.csp.length ?? 1) + (s?.errors.length ?? 0) + (s?.alerts ?? 0) + danger.length;

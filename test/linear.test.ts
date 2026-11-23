@@ -10,7 +10,7 @@ import { mixed, only, piece, grow, part, repeated, type Piece } from "./text-gen
 /** At most this many times longer for 8 times the text (linear is about 8; quadratic about 64). */
 const MOST = 20;
 // the smaller size of each shape: 8 KB, or less where 8 times it would pass one of the part's own caps
-const SMALL: Record<string, number> = { fileTreeSteps: 1536, animationSteps: 900, mermaid: 2400, chart: 2400, tierList: 1200, alignment: 3000 };
+const SMALL: Record<string, number> = { fileTreeSteps: 1536, animationSteps: 900, chart: 2400, tierList: 1200, alignment: 3000 };
 const shapes: [string, (bytes: number) => string][] = [
   ["mixed", mixed],
   ...(Object.keys(piece) as Piece[]).map((k): [string, (b: number) => string] => [k, (b) => only(k, b)]),

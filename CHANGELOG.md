@@ -57,6 +57,25 @@ The third release candidate of 0.7.0. The format number stays 10.
   `--good-ink`, `--warn-ink`, `--hot-ink` and `--bad-ink` are a little darker, dark `--hot-ink` and `--bad-ink` a little
   lighter, each in its own hue.
 
+### Removed (breaking)
+
+- **mermaid is gone from the package.** There is no `mermaid` part any more: a ```` ```mermaid ```` block is a plain code
+  block, and `check()` refuses each one with one message that names the part to use instead (```` ```animation ```` for
+  boxes and lines, with no `@step` lines for a still drawing; ```` ```sequence ```` for a sequence diagram). What leaves
+  the API: the `MermaidBlock` type and `"mermaid"` in `PART_NAMES` and `BlockType`; `MermaidPart`, `HostMermaidPart`
+  and the `durian-hypermedia/react/mermaid` and `durian-hypermedia/react/mermaid-host` entries; the `Mermaid` slot and
+  `MermaidSlotProps`; the `maxMermaidChars` limit; the optional `mermaid` peer dependency and the `dompurify`
+  dependency; the `.diagram`, `.dg`, `.mermaid-*` and `.dh-mermaid` classes. `durian-hypermedia/react/strict` stays
+  and now holds the same parts as `durian-hypermedia/react`. The fixtures that drew with mermaid now use an
+  `animation` (`format/07`, `format/09-still-scene`) or a stepped `sequence` (`format/10`); `hostile/06` is gone with
+  the part it attacked. To move a page: rewrite each mermaid block as the part the message names (SPEC.md section 6).
+
+### Fixed
+
+- **An issue in Markdown that follows a plain code block points at the Markdown's first line**, as every Markdown issue
+  does, not at the line after the code block (a code reference above a ```` ```ts ```` block was reported 30 lines
+  below itself).
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this

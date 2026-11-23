@@ -80,16 +80,6 @@
       "bun": "./src/react/chart.tsx",
       "import": "./dist/react/chart.js"
     },
-    "./react/mermaid": {
-      "types": "./src/react/mermaid.tsx",
-      "bun": "./src/react/mermaid.tsx",
-      "import": "./dist/react/mermaid.js"
-    },
-    "./react/mermaid-host": {
-      "types": "./src/react/mermaid-host.tsx",
-      "bun": "./src/react/mermaid-host.tsx",
-      "import": "./dist/react/mermaid-host.js"
-    },
     "./react/animation": {
       "types": "./src/react/animation.tsx",
       "bun": "./src/react/animation.tsx",
@@ -152,20 +142,13 @@
   },
   "peerDependencies": {
     "react": ">=18 <20",
-    "react-dom": ">=18 <20",
-    "mermaid": "^11.0.0"
-  },
-  "peerDependenciesMeta": {
-    "mermaid": {
-      "optional": true
-    }
+    "react-dom": ">=18 <20"
   },
   "dependencies": {
     "chart.js": "4.5.1",
     "chartjs-chart-matrix": "3.1.0",
     "codehike": "1.1.0",
     "d3-sankey": "0.12.3",
-    "dompurify": "3.4.18",
     "entities": "8.1.0",
     "github-slugger": "2.0.0",
     "linkify-it": "6.1.0",
@@ -181,7 +164,6 @@
     "@types/react": "18.3.27",
     "@types/react-dom": "18.3.7",
     "@types/three": "0.180.0",
-    "mermaid": "11.17.2",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "typescript": "5.9.3"

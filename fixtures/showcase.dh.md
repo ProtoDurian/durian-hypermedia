@@ -34,7 +34,7 @@ series:
 S: terminal, code walk
 A: chart, tier list
 B: animation (when time matters)
-C: mermaid (when nothing else draws it)
+C: sequence (when the order of calls is the point)
 ```
 
 ## Tabs

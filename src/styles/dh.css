@@ -30,13 +30,10 @@
 }
 .dh-doc .dh-fallback::before { content: attr(data-dh-missing); display: block; margin-bottom: 4px; color: var(--faint); font: 600 11px/1.3 var(--font-sans); letter-spacing: .06em; text-transform: uppercase; }
 
-/* the loading spinner (mermaid); a slot can replace it */
+/* the loading spinner (the 3D stage); a slot can replace it */
 .dh-doc .dh-spinner { display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) 0; color: var(--muted); font-size: var(--fs-s); }
 .dh-doc .dh-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--acc); animation: dh-spin .8s linear infinite; }
 @keyframes dh-spin { to { transform: rotate(360deg); } }
-.dh-doc .dh-mermaid { position: relative; }
-.dh-doc .dh-mermaid .dh-spinner { position: absolute; top: 4px; right: 8px; padding: 0; }
-.dh-doc .dh-mermaid-missing .dh-spinner { display: none; }
 
 /* "What an LLM reads here", when the host asks for it */
 .dh-doc .llm-peek .pane-llm { white-space: pre-wrap; overflow-x: auto; max-height: 24rem; }

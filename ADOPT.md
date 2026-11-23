@@ -28,9 +28,9 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 | `durian-hypermedia` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `UNTRUSTED_LIMITS`, `defaultUrlPolicy`, every type |
 | `durian-hypermedia/server` | Bun or Node | `highlight(doc)`: colours for code (Code Hike on WebAssembly) |
 | `durian-hypermedia/react` | React 18 or 19 | `DhDocument` (every part), each part component, `DEFAULT_SLOTS`, `UI` |
-| `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; mermaid drawn by your `Mermaid` slot; no mermaid, no DOMPurify, no HTML-string sink |
+| `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; no HTML-string sink |
 | `durian-hypermedia/react/document` | React | `DocumentView`: the document with only the parts you pass |
-| `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `mermaid`, `mermaid-host` (no library), `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
+| `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
 | `durian-hypermedia/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
 | `durian-hypermedia/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
 | `durian-hypermedia/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
@@ -48,7 +48,6 @@ matter). The text may be hostile: [SECURITY.md](SECURITY.md) says what `parse()`
   whatever the policy returns;
 - caps on size, block count, nesting, animation things, steps and layout work, chart points, items and YAML size;
   going over one gives an error block in place of the part and a line in `doc.problems`, never a crash;
-- mermaid is drawn with `securityLevel: "strict"`, no HTML labels, and the SVG is cleaned before it joins the page.
 
 ```ts
 const doc = parse(text, {
@@ -102,7 +101,7 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   slots={{ Frame, Callout, Error, Spinner }}   // swap the chrome
   // and draw Markdown your way (no default: leave one out and the renderer draws it):
   //   Code {lang,text,meta,hl}, InlineCode {text}, Link {href,title,external,children},
-  //   Table {align,head,rows,headText}, Heading {depth,level,id,text,children}, Mermaid {src,title,step,active}
+  //   Table {align,head,rows,headText}, Heading {depth,level,id,text,children}
   demoteHeadings={2}         // "#" draws as <h3>
   blocks={[terminalSession, taskBlock]}
   inlines={[fileRef, taskRef]}
@@ -116,7 +115,7 @@ with `renderDocument`. Pass the `Document` from server to browser as JSON with `
 `<script type="application/json">` (it escapes `<`), read it with `readDocument(id)`.
 
 **Hydration order, and class `js`.** `hydrateDocument()` hydrates a page's heavy parts (animation, chart, terminal, code
-walk, editor, file tree, tier list, alignment grid, mermaid) in the order the reader needs them: the parts on screen (and
+walk, editor, file tree, tier list, alignment grid) in the order the reader needs them: the parts on screen (and
 just below) first, one per task so the page paints between them; the one the reader scrolls to jumps the queue; then the
 rest in page order; a part the reader touches, clicks, focuses or types in works at once. A server-rendered part keeps its
 HTML until its turn, so nothing flashes. It also puts the class `js` on `<html>` (the phone's first-paint rule in
@@ -136,15 +135,13 @@ Proved by the example site served with
 `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'`:
 every fixture page (including the hostile ones, with 3D opened and every stepped part stepped) has 0 violations in
 headless Chrome (`bun run csp`). `style-src 'unsafe-inline'` is needed for the `style="..."` attributes in
-server-rendered HTML (code colours, sizes) and for mermaid, which puts a `<style>` element and style attributes in its SVG, even in the browser. Without
-`'unsafe-inline'` a page rendered only in the browser works for every part (mermaid draws, but unstyled; React sets styles through
+server-rendered HTML (code colours, sizes). Without
+`'unsafe-inline'` a page rendered only in the browser works for every part (React sets styles through
 the DOM, which CSP allows); see the notes in SECURITY.md.
 
-**Trusted Types.** Under `require-trusted-types-for 'script'`, use `durian-hypermedia/react/strict` and give a
-`Mermaid` slot (for example, draw in your own sandboxed frame and show the SVG as an `<img>`). That entry's import graph
-holds no mermaid, no DOMPurify and no HTML-string sink (`test/trusted-types.test.ts`), and every fixture renders under
-the policy with 0 violations (`bun run tt`). The full entry works there too except its in-page mermaid, which the
-browser refuses (the diagram's source stays on the page).
+**Trusted Types.** Under `require-trusted-types-for 'script'`, use `durian-hypermedia/react/strict`. That
+entry's import graph holds no HTML-string sink (`test/trusted-types.test.ts`), and every fixture renders under the
+policy with 0 violations (`bun run tt`).
 
 **Messages, not pages.** For chat-like text where a leading `---` is a rule, not front matter:
 `parse(text, { frontMatter: false })`.
@@ -175,32 +172,31 @@ A host with several styles and palettes: one `variant` per style (a block of tok
 
 ## 6. Sizes
 
-Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result). React and react-dom are left out of every
-row but the first (the host ships them once): 139 KB, 46 KB gzipped.
+Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0-rc.3. React and react-dom are
+left out of every row but the first (the host ships them once): 139 KB, 46 KB gzipped. *Own code only* is
+the package's code in every chunk, first load and later, with the dependencies left out.
 
 | Entry | First load (min / gzip) | Later, on demand (min / gzip) | Own code only (min / gzip) |
 | --- | --- | --- | --- |
-| `durian-hypermedia` (parse, llmView, check) | 165 KB / 60 KB | none | 127 KB / 49 KB |
-| `react` (every part) | 207 KB / 77 KB | 4.1 MB / 1.2 MB (mermaid, three.js, chart.js) | 177 KB / 69 KB |
-| `react/document` (no part) | 41 KB / 17 KB | none | 27 KB / 12 KB |
-| `react/terminal` | 21 KB / 10 KB | none | 21 KB / 10 KB |
-| `react/filetree` | 21 KB / 10 KB | none | 21 KB / 10 KB |
-| `react/editor` | 39 KB / 17 KB | none | 25 KB / 12 KB |
-| `react/codewalk` | 79 KB / 29 KB | none | 28 KB / 13 KB |
-| `react/chart` | 40 KB / 17 KB | 204 KB / 71 KB (chart.js) | 40 KB / 17 KB |
-| `react/mermaid` | 22 KB / 11 KB | 3.4 MB / 992 KB (mermaid) | 21 KB / 10 KB |
-| `react/animation` | 97 KB / 39 KB | 522 KB / 137 KB (three.js, 3D only) | 119 KB / 48 KB |
-| `react/tierlist` | 19 KB / 9 KB | none | 19 KB / 9 KB |
-| `react/alignment` | 21 KB / 10 KB | none | 21 KB / 10 KB |
-| `react/containers` | 41 KB / 17 KB | none | 27 KB / 12 KB |
+| `durian-hypermedia` (parse, llmView, check) | 954 KB / 349 KB | none | 902 KB / 324 KB |
+| `react` (every part) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (libraries loaded only when needed: chart.js when a chart mounts, three.js when a reader opens 3D, and others) | 3.0 MB / 1.0 MB |
+| `react/strict` (every part, under Trusted Types) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (the same) | 3.0 MB / 1.0 MB |
+| `react/document` (no part) | 646 KB / 237 KB | none | 581 KB / 207 KB |
+| `react/terminal` | 26 KB / 12 KB | none | 26 KB / 12 KB |
+| `react/filetree` | 26 KB / 11 KB | none | 26 KB / 11 KB |
+| `react/editor` | 44 KB / 19 KB | none | 31 KB / 14 KB |
+| `react/codewalk` | 61 KB / 25 KB | none | 48 KB / 20 KB |
+| `react/chart` | 137 KB / 51 KB | 208 KB / 73 KB (chart.js) | 140 KB / 53 KB |
+| `react/animation` | 580 KB / 219 KB | 543 KB / 145 KB (three.js, 3D only) | 623 KB / 236 KB |
+| `react/tierlist` | 23 KB / 10 KB | none | 23 KB / 10 KB |
+| `react/alignment` | 30 KB / 13 KB | none | 30 KB / 13 KB |
+| `react/containers` | 646 KB / 237 KB | none | 581 KB / 207 KB |
 
 The part entries share most of what they load (the document view, the Markdown renderer, the step controls), so two
-parts cost far less than the sum of their rows. `styles.css` is about 78 KB, 15 KB gzipped.
+parts cost far less than the sum of their rows. `styles.css` is about 232 KB, 39 KB gzipped.
 
 ## 7. What is optional
 
-- **mermaid** is an optional peer dependency (most of the "later" bytes above). Leave it out, or leave out the
-  `mermaid` component: a diagram then shows its source as text.
 - **3D** loads three.js only when a reader opens the 3D view of an animation.
 - **chart.js** loads when a chart mounts.
 - **Colours for code** need `highlight()` on the server; without it code is plain.

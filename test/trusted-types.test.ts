@@ -23,15 +23,14 @@ async function graph(entry: string) {
 }
 
 describe("trusted types: the strict entry's import graph", () => {
-  for (const entry of ["src/react/strict.tsx", "src/react/mermaid-host.tsx", "src/react/codewalk.tsx", "src/react/containers.tsx", "src/react/document.tsx"]) {
-    test(`${entry}: no mermaid, no DOMPurify, no HTML-string sink`, async () => {
+  for (const entry of ["src/react/strict.tsx", "src/react/codewalk.tsx", "src/react/containers.tsx", "src/react/document.tsx"]) {
+    test(`${entry}: no HTML-string sink`, async () => {
       const g = await graph(entry);
       expect(g.inputs.filter((x) => /node_modules\/(mermaid|dompurify)\//.test(x))).toEqual([]);
-      expect(g.inputs.some((x) => /src\/react\/mermaid\.tsx$/.test(x))).toBe(false);
       expect(g.sinks).toEqual([]);
     });
   }
-  test("the package's own sources: no HTML-string sink outside the classic mermaid part", async () => {
+  test("the package's own sources: no HTML-string sink", async () => {
     const glob = new Bun.Glob("src/**/*.{ts,tsx}");
     const hits: string[] = [];
     for await (const f of glob.scan(PKG)) {
@@ -40,10 +39,12 @@ describe("trusted types: the strict entry's import graph", () => {
     }
     expect(hits).toEqual([]);
   });
-  test("control: the full entry does reach mermaid and DOMPurify (so the check can see them)", async () => {
-    const g = await graph("src/react/index.tsx");
-    expect(g.inputs.some((x) => /node_modules\/mermaid\//.test(x))).toBe(true);
-    expect(g.inputs.some((x) => /node_modules\/dompurify\//.test(x))).toBe(true);
+  test("control: a module that sets innerHTML is seen (so the check can see a sink)", async () => {
+    const g = await graph("example/tt-control.ts");
     expect(g.sinks.length).toBeGreaterThan(0);
+  });
+  test("the full entry reaches no mermaid and no DOMPurify either (mermaid left the package in 0.7.0)", async () => {
+    const g = await graph("src/react/index.tsx");
+    expect(g.inputs.filter((x) => /node_modules\/(mermaid|dompurify)\//.test(x))).toEqual([]);
   });
 });

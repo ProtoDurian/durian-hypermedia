@@ -5,7 +5,6 @@ import { UI, type Ui } from "../ui/ui";
 import type { Block, BlockType, ErrorBlock, HostBlock } from "../types";
 import type { BlockDef } from "../blocks";
 import type { UrlPolicy } from "../safety";
-import type { DiagramDrawProps } from "../ui/parts";
 
 /** Chrome a host style may swap. Each gets the default's props; return any React node. */
 export interface Slots {
@@ -15,7 +14,7 @@ export interface Slots {
   Callout: React.ComponentType<{ kind: string; label: string; children: React.ReactNode }>;
   /** a part that went over a cap or could not be read */
   Error: React.ComponentType<{ block: ErrorBlock }>;
-  /** shown while a part loads (mermaid, the 3D stage's library) */
+  /** shown while a part loads (the 3D stage's library) */
   Spinner: React.ComponentType<{ label: string }>;
   // The Markdown slots below have no default: without one the renderer draws the element itself.
   /** a fenced code block (not a part): the host draws it (its own colours, a Copy button) */
@@ -28,8 +27,6 @@ export interface Slots {
   Table?: React.ComponentType<TableSlotProps>;
   /** a Markdown heading, at its level after demoteHeadings */
   Heading?: React.ComponentType<HeadingSlotProps>;
-  /** draws one step of a mermaid diagram instead of the in-page mermaid library (see the mermaid part) */
-  Mermaid?: React.ComponentType<MermaidSlotProps>;
 }
 export interface CodeSlotProps {
   /** the first word of the fence's info string ("" when none) */
@@ -70,7 +67,6 @@ export interface HeadingSlotProps {
   text: string;
   children: React.ReactNode;
 }
-export type MermaidSlotProps = DiagramDrawProps;
 export type PartComponent<B extends Block = any> = React.ComponentType<{ block: B }>;
 export type Components = Partial<Record<BlockType, PartComponent>>;
 

@@ -210,13 +210,6 @@ figure.part { margin-inline: 0; }
 .st-panel.is-fresh .t-new { animation: type .55s steps(28, end) both; animation-delay: calc(var(--i) * .35s); }
 @keyframes type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
-/* diagram */
-.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; overflow-x: auto; }
-.diagram .mermaid-svg svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
-.diagram.is-drawn .mermaid-src { display: none; }
-.mermaid-src { margin: 0; font: 12px var(--font-mono); white-space: pre-wrap; color: var(--muted); }
-.mermaid-src code { background: none; border: 0; }
-
 /* chart */
 .chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; }
 .chart-title { font-weight: 600; color: var(--ink); margin-bottom: 8px; font-size: var(--fs-s); }

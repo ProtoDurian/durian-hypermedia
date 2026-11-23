@@ -39,8 +39,8 @@ describe("syntax", () => {
     expect(d.problems).toEqual([]);
   });
   test("every fenced part type and the reference-only types may be referenced; containers may not", () => {
-    for (const t of ["terminal", "filetree", "editor", "codewalk", "chart", "mermaid", "animation", "tierlist", "alignment", "svg", "interactive", "console"]) expect(isReferenceType(t)).toBe(true);
-    for (const t of ["tabs", "accordion", "human", "llm", "note", "toString", "constructor"]) expect(isReferenceType(t)).toBe(false);
+    for (const t of ["terminal", "filetree", "editor", "codewalk", "chart", "animation", "tierlist", "alignment", "svg", "interactive", "console"]) expect(isReferenceType(t)).toBe(true);
+    for (const t of ["mermaid", "tabs", "accordion", "human", "llm", "note", "toString", "constructor"]) expect(isReferenceType(t)).toBe(false);
   });
   test("a host block's name is a type while parse() runs", () => {
     const task = defineBlock({ name: "ticket", parse: (i) => ({ body: i.body }) });

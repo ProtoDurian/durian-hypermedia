@@ -3,10 +3,10 @@ import { yamlParse, chargeYaml } from "../host/yaml";
 // dh-lib: the Durian Hypermedia parser and writers, shared by dh (parse and write) and doccheck (checks).
 // Format version 3: plain Markdown first.
 //   - a part with data is a fenced code block whose info string names it: ```terminal, ```filetree, ```editor,
-//     ```codewalk, ```chart, ```mermaid, ```animation <kind>
+//     ```codewalk, ```chart, ```animation <kind>
 //   - a part that holds prose is one of four containers, `:::tabs`, `:::accordion`, `:::human`, `:::llm`,
 //     closed by a line `:::`; inside tabs and accordions every heading starts one tab or row
-//   - steps are an attachment: a line `@step <title>` inside a fenced part (`%% @step <title>` in mermaid)
+//   - steps are an attachment: a line `@step <title>` inside a fenced part
 //   - `:::llm` right after a part or a `:::human` segment replaces it in the LLM view
 import { createHash } from "../host/crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
@@ -37,7 +37,6 @@ export const PARTS: Record<string, PartDef> = {
   filetree: { form: "fenced", llm: "as-is", steps: true },
   editor: { form: "fenced", llm: "as-is", steps: true },
   codewalk: { form: "fenced", llm: "as-is", steps: true },
-  mermaid: { form: "fenced", llm: "as-is", steps: true },
   chart: { form: "fenced", llm: "data", steps: false },
   animation: { form: "fenced", llm: "steps", steps: true },
   tierlist: { form: "fenced", llm: "lines", steps: false },
@@ -210,12 +209,13 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
       if (PARTS[word]?.form === "fenced") {
         flush();
         out.push(fencedPart(lines, i, close, base, word, f[4]));
+        bufLine = close + 1;
       } else {
+        // a plain code block is Markdown: it joins the text before it, which keeps its first line
         if (!buf.length) bufLine = i;
         buf.push(...lines.slice(i, close + 1));
       }
       i = close;
-      bufLine = i + 1;
       continue;
     }
     const o = openLine(l);
@@ -263,9 +263,9 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   if (name === "animation" && words[1] === "only") attrs.only = attrs.view ?? "?";
   const bodyLines = lines.slice(open + 1, close);
   const p = emptyPart(name, attrs, base + open + 1, base + close + 1, lines.slice(open, close + 1).join("\n"), lines[open], bodyLines.join("\n"), base + open + 2);
-  // steps: "@step title" (in mermaid "%% @step title", a mermaid comment, so the diagram still draws on any Markdown viewer)
+  // steps: "@step title"
   // the spaces after @step taken whole (no backtracking into them when the title holds a line end)
-  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b(?=(\s*))\1(.*)$/ : /^@step\b(?=(\s*))\1(.*)$/;
+  const stepRe = /^@step\b(?=(\s*))\1(.*)$/;
   let cur: Step | null = null;
   const head: string[] = [];
   const raw: string[] = [];
@@ -729,10 +729,9 @@ export function editorFiles(doc: Doc, p: PartNode, src: string | undefined) {
 }
 
 // How many characters a part's steps carry, at most, when every step holds a whole text: an editor's file before and
-// after each edit, a code walk's lines of a made-up file, a mermaid diagram up to each step. That is the steps times
+// after each edit, a code walk's lines of a made-up file. That is the steps times
 // the text, so parse() caps it (a part whose steps would carry too much is shown as its source). Other parts: 0.
 export function stepTextSize(doc: Doc, p: PartNode): number {
-  if (p.name === "mermaid") { let acc = p.head.length, n = p.steps.length ? 0 : acc; for (const s of p.steps) { acc += 1 + s.raw.length; n += acc; } return n; }
   if (p.name === "codewalk") { const keys = new Set<string>(); let n = 0; for (const r of codewalkRefs(doc, p)) { const k = `${r.repo}/${r.file}`; n += (r.made?.length ?? 0) + (keys.has(k) ? 0 : (keys.add(k), r.made?.length ?? 0)); } return n; }
   if (p.name === "editor") {
     // a file after an edit is no longer than before it plus the lines the edit adds
@@ -744,15 +743,6 @@ export function stepTextSize(doc: Doc, p: PartNode): number {
   }
   return 0;
 }
-// mermaid steps: each "%% @step" line ends a step; step k draws every line up to its end (the diagram builds up)
-export function mermaidSteps(p: PartNode): { title: string; src: string }[] {
-  if (!p.steps.length) return [{ title: "", src: p.head }];
-  const out: { title: string; src: string }[] = [];
-  let acc = p.head;
-  for (const s of p.steps) { acc = acc + "\n" + s.raw; out.push({ title: s.title, src: acc.replace(/(?<!\n)\n+$/, "") }); }
-  return out;
-}
-
 // chart: see tools/chart.ts (pure, shared with the browser)
 export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEYS, SERIES_KEYS, type ChartControl } from "./chart";
 // animation: see tools/scene.ts (pure, shared with the browser)
@@ -1038,7 +1028,6 @@ export function structureOf(doc: Doc) {
         const a = { ...n.attrs }; delete a.title;
         let data = "";
         if (n.name === "chart") data = JSON.stringify(stripTexts(chartYaml(n)));
-        if (n.name === "mermaid") data = `${n.body.split("\n").length} lines, ${n.steps.length} steps`;
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
         if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t, 0, n.defs).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
@@ -1100,7 +1089,6 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
       case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
-      case "mermaid": base.steps = mermaidSteps(n); break;
       case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text, 0, n.defs).rows })); base.marks = usedMarks(n.defs, base.trees.flatMap((t: any) => t.rows.flatMap((r: any) => r.badges))); break;
       case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; { const ps = Object.entries(n.defs?.prefixes ?? {}); const used = ps.length ? usedPrompts(base.steps) : new Set<string>(); base.prefixes = Object.fromEntries(ps.filter(([k]) => used.has(k))); } base.title = n.attrs.title ?? null; break;
       case "codewalk": { const refs = codewalkRefs(doc, n); const modes = codewalkModes(n, refs); base.walkFiles = {}; base.steps = refs.map((r, i) => { const t = readRange(doc, r, src); const key = `${r.repo}/${r.file}`; if (!(key in base.walkFiles)) base.walkFiles[key] = readWhole(doc, r, src); return { animated: modes[i], key, repo: r.repo, file: r.file, commit: t.commit, lines: r.lines, focus: r.focus, marks: r.marks, lang: t.lang, code: t.text, error: t.err, note: noteHtml(n.steps[i].raw.trim()) }; }); break; }

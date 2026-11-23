@@ -83,7 +83,7 @@ describe("sequence: every refusal names the line and the fix", () => {
     ["blocks 4 deep", two + "loop 1\nloop 2\nloop 3\nloop 4\na -> b: x\nend\nend\nend\nend", /blocks nest 3 deep at most/],
     ["an unknown kind", "gizmo a \"A\"\nparticipant b\na -> b: x", /unknown participant kind "gizmo"/],
     ["a participant twice", "participant a\nparticipant a\na -> a: x", /participant "a" is declared twice/],
-    ["mermaid's as", "participant A as Bee\nparticipant b\nA -> b: x", /write participant a "Bee"/],
+    ["the as form", "participant A as Bee\nparticipant b\nA -> b: x", /write participant a "Bee"/],
     ["an id with a bad character", "participant a$b\nparticipant b\nb -> b: x", /"a\$b" is not an id/],
     ["a line that is none of these", two + "some odd thing here\na -> b: x", /is not a participant, a message/],
     ["no message at all", two, /a sequence has no message/],

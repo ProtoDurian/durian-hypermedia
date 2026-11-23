@@ -20,10 +20,6 @@ describe("caps", () => {
     expect(d.blocks.some((b) => b.type === "terminal")).toBe(true);
     expect(d.blocks.some((b) => b.type === "error" && b.part === "animation")).toBe(true);
   });
-  test("mermaid length", () => {
-    const d = parse("```mermaid\nflowchart LR\n" + Array.from({ length: 2000 }, (_, i) => `  n${i} --> n${i + 1}`).join("\n") + "\n```\n");
-    expect(d.blocks.some((b) => b.type === "error" && b.part === "mermaid")).toBe(true);
-  });
   test("animation source length", () => {
     const d = parse("```animation\n" + Array.from({ length: 3000 }, (_, i) => `box b${i} "a box with a long label number ${i}"`).join("\n") + "\n```\n");
     expect(d.blocks.some((b) => b.type === "error" && b.part === "animation")).toBe(true);

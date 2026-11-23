@@ -105,18 +105,16 @@ budget (SECURITY.md).
 | `Link` | `{ href, title, external, children }` | every link the URL policy let through; nothing sets `target` when you draw it |
 | `Table` | `{ align, head, rows, headText }` | tables; cells arrive as React children, never HTML |
 | `Heading` | `{ depth, level, id, text, children }` | headings; `demoteHeadings={2}` turns `#` into `<h3>` with or without the slot |
-| `Mermaid` | `{ src, title, step, active }` | each step of a mermaid diagram, drawn your way (mermaid is then never loaded) |
 
 ```tsx
 <DhDocument doc={doc} demoteHeadings={2}
-  slots={{ Code: MyCode, InlineCode: MyInlineCode, Link: MyLink, Table: MyTable, Mermaid: MyDiagram }} />
+  slots={{ Code: MyCode, InlineCode: MyInlineCode, Link: MyLink, Table: MyTable }} />
 ```
 
 ## Trusted Types
 
-`durian-hypermedia/react/strict` is every part for a page under `require-trusted-types-for 'script'`: it imports
-neither mermaid nor DOMPurify (diagrams go to your `Mermaid` slot, or show their source), and no module it reaches sets
-an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
+`durian-hypermedia/react/strict` is every part for a page under `require-trusted-types-for 'script'`: no module it
+reaches sets an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
 policy in headless Chrome (0 violations).
 
 ## Theming

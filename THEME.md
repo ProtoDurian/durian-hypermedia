@@ -298,14 +298,14 @@ Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--pct`, `--rows`, `--t`, `--t-i
 | `.dh-doc[data-dh-motion="off"]` | motion off: every transition, morph, typing effect and chart animation is still |
 | `.dh-doc[data-theme="dark"]` | this document in dark |
 | `figure.part.part-<type>`, `[data-dh-part="<type>"]` | the frame around each part (`terminal`, `chart`, `animation`, a host block's name ...) |
-| `.term`, `.fx`, `.ide`, `.cw`, `.chart`, `.dg`, `.scn`, `.tl`, `.al` | the terminal, file tree, editor, code walk, chart, diagram, animation stage, tier list, alignment grid |
+| `.term`, `.fx`, `.ide`, `.cw`, `.chart`, `.scn`, `.tl`, `.al` | the terminal, file tree, editor, code walk, chart, animation stage, tier list, alignment grid |
 | `.tabs`, `.tab-bar`, `.tab-panel`, `.accordion`, `.acc-item`, `.human` | the containers |
 | `.ctl`, `.btn`, `.btn-go`, `.ctl-range` | the step controls (Back, Play, the slider, Next) |
 | `.callout.callout-<kind>` | callouts (`note`, `tip`, `important`, `warn`, `security`); a note about the whole page is a callout under the title |
 | `.dh-turn` | a block with no height at the top of a part: where the hydration queue finds the part on the page |
 | `.code-block`, `.ch-pre`, `.ch-focus`, `.ch-mark`, `.ch-add`, `.ch-del` | code, and its focused, marked, added and removed lines |
 | `.dh-error` | a part parse() refused (over a cap, unsafe, unreadable) |
-| `.dh-spinner`, `.dh-spin` | the loading spinner (mermaid) |
+| `.dh-spinner`, `.dh-spin` | the loading spinner (the 3D stage) |
 | `.dh-fallback` | a part shown as text because no component was given for it |
 | `.dh-raw` | raw HTML from the source, shown as text |
 | `.dh-keys kbd`, `.dh-mouse` | keyboard keys and mouse actions in text |
@@ -325,7 +325,7 @@ A host style writes its own the same way: override the shape and motion tokens u
 ```
 
 For changes CSS cannot make, `slots` swap the chrome components: `Frame` (the box around each part), `Callout`,
-`Error` and `Spinner`; they also draw Markdown elements your own way (`Code`, `InlineCode`, `Link`, `Table`, `Heading`) and mermaid diagrams (`Mermaid`): see ADOPT.md.
+`Error` and `Spinner`; they also draw Markdown elements your own way (`Code`, `InlineCode`, `Link`, `Table`, `Heading`): see ADOPT.md.
 
 ## Motion
 

@@ -297,11 +297,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       // the YAML is sized as it parses (host/yaml.ts): a text over its size caps, or anchors that stand for too much,
       // refuse the chart before anything reads it
       if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself|YAML is too long|YAML has too many keys/.test(ye)) return refuse(p, ye); }
-      if (p.name === "mermaid") {
-        if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
-      }
-      // steps that each carry a whole text (an editor's file before and after, a code walk's lines, a mermaid diagram so
-      // far) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
+      // steps that each carry a whole text (an editor's file before and after, a code walk's lines) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
       const carried = stepTextSize(dh, p);
       if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(carried));
       stepText += carried;
@@ -336,13 +332,6 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         case "codewalk":
           blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: refs.inline(mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }), p.steps[i]?.raw ?? "", p.steps[i]?.line ?? p.line) }));
           break;
-        case "mermaid": {
-          // a %%{init: ...}%% directive may try to change mermaid's settings: it is dropped
-          let dropped = 0;
-          blk.steps = (blk.steps ?? []).map((s: any) => ({ ...s, src: String(s.src).split("\n").filter((l) => { const d = /^\s*%%\s*\{/.test(l); if (d) dropped++; return !d; }).join("\n") }));
-          if (dropped) problems.push({ line: p.line, level: "warn", message: "mermaid: %%{...}%% directives are dropped (they could change the diagram's security settings)" });
-          break;
-        }
       }
       return blk as Block;
     }

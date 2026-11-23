@@ -57,6 +57,11 @@ export function looksLikeGraph(head: string): boolean {
 export const WIDE_W = 1000;   // the design width a build lays out at; the browser lays out again at its column's width
 export const NARROW_W = 340;  // under this many pixels per lane the stage stacks lanes and bands
 export const MAX_LINES = 400, MAX_CARDS = 120, MAX_EDGES = 400;
+/** One stage's own budget for a compile, or for its plans at every width the server or the browser draws
+ *  (src/ui/stage.tsx): each stage gets a fresh one, so a page of many stages, resized again and again, never drains one
+ *  budget, and a runaway source is still refused. Measured 23 Nov 2026: the heaviest real stage needs 770,018 work and
+ *  728,240 memory for 7 server plans (the Format page's heaviest 104,351); the caps are about 4x that. */
+export const STAGE_WORK = 3_200_000, STAGE_MEMORY = 3_000_000;
 
 // ---------------------------------------------------------------- the model
 /** a lane, or a band under lanes (span); an "across" band runs its cards left to right, one row per card line */

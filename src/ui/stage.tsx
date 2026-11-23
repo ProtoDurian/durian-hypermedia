@@ -5,7 +5,7 @@
 // as numbered buttons; one caption. Static (SPEC 4.1): one step, drawn whole, no player.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { compileStage, layoutStage, type Plan } from "../core/stage";
+import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
 /** the widths the server lays out at: the stage's drawing width in a full-width figure (--stg-max 1180 less its border; every
  * window of 1212 px or more) and on a 390 px phone (358 less the border), so the page the server paints is the page the
  * browser keeps there (no jump on load) */
@@ -13,7 +13,7 @@ const SSR_WIDE_W = 1178, SSR_NARROW_W = 356;
 import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "../core/stage-core";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
 /** run on a stage budget of its own: a long-lived host renders many pages, and none may spend another's room */
-const fresh = <T,>(fn: () => T): T => withStageBudget(newBudget(), fn);
+const fresh = <T,>(fn: () => T): T => withStageBudget(newBudget(STAGE_WORK, STAGE_MEMORY), fn);
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Ui } from "./ui";
 

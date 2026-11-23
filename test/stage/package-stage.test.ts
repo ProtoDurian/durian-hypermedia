@@ -8,7 +8,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { parse, check, llmView, animationTexts } from "../../src/index";
 import { DhDocument } from "../../src/react/index";
-import { compileStage } from "../../src/core/stage";
+import { compileStage, STAGE_WORK, STAGE_MEMORY } from "../../src/core/stage";
 import { beginDocument, docBudget, endDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
 import { BudgetError as PageBudgetError, pageBudget, withBudget } from "../../src/core/budget";
 
@@ -83,5 +83,26 @@ describe("the stage draws on a budget of its own", () => {
     const doc = parse(readFileSync(join(FIX, pages[0]), "utf8"), { path: pages[0] });
     const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
     expect(html).not.toContain("stg-over");
+  });
+});
+
+describe("each stage's own layout budget (STAGE_WORK), as in the prototype", () => {
+  test("the caps hold the heaviest measured stage four times over", () => {
+    expect(STAGE_WORK).toBeGreaterThanOrEqual(4 * 770_018);
+    expect(STAGE_MEMORY).toBeGreaterThanOrEqual(4 * 728_240);
+  });
+  test("every stage page draws, one page after another in one process, with the page's own budget empty", () => {
+    for (const f of pages) {
+      beginDocument(); const doc = parse(readFileSync(join(FIX, f), "utf8"), { path: f });
+      beginDocument(newBudget(0, 0));
+      const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
+      expect(html).toContain('class="stg');
+      expect(html).not.toContain("stg-over");
+    }
+    expect(docBudget().left()).toEqual({ work: 0, memory: 0 });
+  });
+  test("a layout over one stage's cap is refused", () => {
+    beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY));
+    expect(() => docBudget().charge("stage layout", STAGE_WORK + 1)).toThrow(BudgetError);
   });
 });

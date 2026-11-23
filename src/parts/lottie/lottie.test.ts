@@ -212,6 +212,26 @@ describe("lottie: kept inside the part", () => {
     expect(out.layers[1].masksProperties[0].cl).toBe(false);
     expect(out.chars).toEqual([glyph]);
   });
+  test("kept inside the part: ids and classes of any type never reach the page; a mask keeps only a true/false flag", () => {
+    const odd: unknown[] = [["app"], 7, { a: "b" }, true, "x"];
+    for (const v of odd) {
+      const j: any = good();
+      j.layers[0].ln = v; j.layers[0].cl = v;
+      j.layers.push({ ty: 4, ind: 2, ks: {}, shapes: [{ ty: "gr", ln: v, cl: v, it: [{ ty: "sh", ln: v, cl: v }] }],
+        masksProperties: [{ cl: v, mode: "a", pt: { a: 0, k: {} } }] });
+      const out: any = lottieForDrawing(j, big());
+      expect(JSON.stringify(out)).not.toMatch(/"ln":/);
+      expect(out.layers[0].cl).toBeUndefined();
+      expect(out.layers[1].shapes[0].cl).toBeUndefined();
+      expect(out.layers[1].shapes[0].it[0].cl).toBeUndefined();
+      expect(out.layers[1].masksProperties[0].cl).toBe(typeof v === "boolean" ? v : undefined);
+    }
+  });
+  test("a solid layer's colour is a plain colour, never a reference the page could fetch", () => {
+    const solid = (sc: unknown) => base({ layers: [{ ty: 1, ind: 1, ks: {}, sc, sw: 10, sh: 10 }] });
+    for (const sc of ["#fff", "#A0b1C2"]) expect(why(solid(sc))).toBeNull();
+    for (const sc of ["url(https://example.com/x)", "red", "#ff", ["#fff"], 1, undefined]) expect(why(solid(sc))).toMatch(/solid layer/);
+  });
   test("the part check names what it refused", () => {
     const l = p("alt: x", { src: "a.json" });
     const [ref] = lottieFiles(l, 3);

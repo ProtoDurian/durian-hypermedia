@@ -34,6 +34,7 @@ export function checkLottieData(json: any, bytes: number, budget: Budget, caps: 
         if (v.ty === 6) { bad = `the file has a sound layer (sound is not played; export without it)`; return; }
         if (v.ty === 15) { bad = `the file has a footage layer (separate files are not allowed; export without it)`; return; }
         if (v.ty === 5 && !glyphs) { bad = `the file has a text layer with no glyphs in the file (chars); ${GLYPHS}`; return; }
+        if (v.ty === 1 && !(typeof v.sc === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(v.sc))) { bad = `the file has a solid layer whose colour (sc) is not a plain colour (#rgb or #rrggbb)`; return; }
       }
       for (const [k, x] of Object.entries(v)) {
         // an expression is a string held under "x" next to an animated value: { a: 0, k: ..., x: "var $bm_rt; ..." }
@@ -79,21 +80,22 @@ export function checkLottieData(json: any, bytes: number, budget: Budget, caps: 
  *  it; `budget` is charged for the walk. */
 const FONT_KEYS = ["fName", "fFamily", "fStyle", "fWeight", "ascent"];
 export function lottieForDrawing(json: any, budget: Budget): any {
-  const strip = (v: any, d: number) => {
+  // The player writes `ln` and `cl` of any type into the page as an id and a class: they never reach it. The one other
+  // use of `cl` is a mask's true/false flag, which is kept there and only as a boolean.
+  const strip = (v: any, d: number, mask: boolean) => {
     if (d > 64 || !v || typeof v !== "object") return;
     budget.charge(1);
-    if (Array.isArray(v)) { for (const x of v) strip(x, d + 1); return; }
-    // strings only: the same key holds a flag elsewhere
-    if (typeof v.ln === "string") delete v.ln;
-    if (typeof v.cl === "string") delete v.cl;
-    for (const x of Object.values(v)) strip(x, d + 1);
+    if (Array.isArray(v)) { for (const x of v) strip(x, d + 1, mask); return; }
+    delete v.ln;
+    if (!(mask && typeof v.cl === "boolean")) delete v.cl;
+    for (const [k, x] of Object.entries(v)) strip(x, d + 1, k === "masksProperties");
   };
   if (json && typeof json === "object") {
     delete json.segments;
     if (json.fonts && Array.isArray(json.fonts.list)) {
       json.fonts = { list: json.fonts.list.map((f: any) => { budget.charge(1); const o: Record<string, unknown> = {}; for (const k of FONT_KEYS) if (f && typeof f === "object" && k in f) o[k] = f[k]; return o; }) };
     } else delete json.fonts;
-    strip(json, 0);
+    strip(json, 0, false);
   }
   return json;
 }

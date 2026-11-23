@@ -4,7 +4,7 @@
 //   <DocumentView doc={doc} components={{ chart: ChartPart }} />
 // A part with no component is shown as what an LLM reads (plain text), so nothing is lost.
 // "durian-hypermedia/react" exports DhDocument, the same with every part.
-import React, { useMemo } from "react";
+import React, { useMemo, useRef } from "react";
 import { UI, type Ui } from "../ui/ui";
 import { registeredBlocks, type BlockDef } from "../blocks";
 import type { UrlPolicy } from "../safety";
@@ -15,6 +15,7 @@ import { Md } from "./markdown";
 import { Turn } from "./turn";
 import { ReferencePart } from "./reference";
 import { pageStatic } from "../parts/kit/static";
+import { useTableMore } from "./table-more";
 
 
 export interface DocumentProps {
@@ -95,9 +96,12 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
   }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter]);
   const { doc } = p;
+  // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)
+  const root = useRef<HTMLDivElement>(null);
+  useTableMore(root, settings.ui.hintTable ?? "↔ Swipe the table to see all of it");
   return (
     <DhContext.Provider value={settings}>
-      <div className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>
+      <div ref={root} className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>
         <Blocks blocks={doc.blocks} />
       </div>
     </DhContext.Provider>

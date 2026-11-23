@@ -52,7 +52,8 @@ describe("format version 10: the numbers", () => {
     expect(bad).toEqual([]);
   }, 30000);
   test("the version 10 samples are fixtures", () => {
-    const names = fixtureFiles().join(" ");
+    // (0.7.0-rc.3, owner row 6) the Format page's kube-proxy scene is flat now; the 3D-only sample it replaced is a test fixture
+    const names = [...fixtureFiles(), ...readdirSync(join(import.meta.dir, "fixtures-3d"))].join(" ");
     for (const n of ["candlestick", "your-own-tiers", "three-tiers-or-seven", "alignment-grid-any-size", "colours-and-regions", "marks-and-prefixes", "3d-only", "seven-network-layers", "array-a-map-and-a-tree"]) expect(names).toContain(n);
     expect(names).not.toContain("banner");
   });

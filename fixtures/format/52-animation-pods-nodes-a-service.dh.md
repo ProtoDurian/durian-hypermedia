@@ -5,7 +5,7 @@ description: A fixture made from the Format page section of the same name.
 
 ## Animation: pods, nodes, a service
 
-Containers nest: pods in nodes in a cluster. A service routes to pods; when a node dies, a pod is started elsewhere.
+Containers nest: pods in nodes in a cluster. A service is a stable name in front of pods; when a node dies, a pod is started elsewhere.
 
 ```animation dir=down
 family svc "service"
@@ -23,10 +23,10 @@ pill svc "service: web" is=svc
 svc -> w1 is=svc
 svc -> w2 is=svc
 svc -> w3 is=svc
-note svc: one stable name in front of the web pods
+note svc: one stable name and address in front of the web pods
 @step Pods run on nodes; nodes make up the cluster. The service is one name in front of the three web pods.
 camera all
-@step The service spreads requests over the pods.
+@step Calls to the service are spread over its pods: rules on every node pick one.
 send "GET /" svc -> w1
 send "GET /cart" svc -> w2
 @step Node 2 dies, and web-2 with it.
@@ -37,7 +37,7 @@ camera cluster
 remove w2
 add pill w2b "web-2" in n3 is=web
 svc -> w2b is=svc
-@step The service sends to the running pods only; nobody sees a gap.
+@step The rules now pick among the running pods only; nobody sees a gap.
 send "GET /cart" svc -> w2b
 camera all
 ```

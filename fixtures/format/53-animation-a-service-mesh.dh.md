@@ -27,7 +27,7 @@ cfg --> pxa is=ctl
 cfg --> pxb is=ctl
 @step Each pod runs its app and a sidecar proxy. The app talks only to its own proxy.
 send both "pay order 7" a -> pxa
-@step The two proxies talk over mutual TLS: the call is encrypted, and each side proves who it is.
+@step The two proxies talk over mutual TLS, from one pod's IP to the other's (on the wire through both nodes and the network under them): the call is encrypted, and each side proves who it is.
 send both "encrypted" pxa -> pxb
 @step The payments proxy hands the call to its app. Neither app sees the encryption.
 send both "pay order 7" pxb -> b

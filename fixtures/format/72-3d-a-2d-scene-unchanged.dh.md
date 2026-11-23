@@ -20,10 +20,10 @@ pill svc "service: web"
 svc -> w1
 svc -> w2
 svc -> w3
-note svc: one stable name in front of the web pods
+note svc: one stable name and address in front of the web pods
 @step Pods run on nodes; nodes make up the cluster. The service is one name in front of the three web pods.
 camera all
-@step The service spreads requests over the pods.
+@step Calls to the service are spread over its pods: rules on every node pick one.
 send "GET /" svc -> w1
 send "GET /cart" svc -> w2
 @step Node 2 dies, and web-2 with it.
@@ -34,7 +34,7 @@ camera cluster
 remove w2
 add pill w2b "web-2" in n3 tone=good
 svc -> w2b
-@step The service sends to the running pods only; nobody sees a gap.
+@step The rules now pick among the running pods only; nobody sees a gap.
 send "GET /cart" svc -> w2b
 camera all
 ```

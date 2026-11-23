@@ -110,6 +110,19 @@ The third release candidate of 0.7.0. The format number stays 10.
 - Every fixture renders the same HTML as in 0.7.0-rc.2 (none asks for static on these parts); one new fixture,
   `fixtures/format/81-static-live-and-still.dh.md`, shows the same parts live and static.
 
+### Changed: kube-proxy and the Kubernetes samples; a wide table says to swipe
+
+- **kube-proxy takes the real path** (Format fixture 66, now `Animation: a packet through kube-proxy`): a flat scene
+  in one fixed view; the packet goes from the frontend's veth into node 1's kernel (a rule kube-proxy wrote rewrites
+  the service IP to web-2's), out of node 1's network card, through the VPC (its route shown) into node 2's card and
+  kernel, then web-2's veth; the reply comes back the same hops and node 1's conntrack undoes the rewrite. The old
+  3D-only scene ("goes straight to web-2: pod to pod") is kept as a test fixture of the 3D engine.
+- **The other Kubernetes and service-mesh samples say the same:** a service is a stable name and address whose calls
+  rules on every node spread over its pods (fixtures 52 and 72); mutual TLS runs from one pod's IP to the other's,
+  through both nodes and the network under them (fixture 53).
+- **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`
+  under it, both following the scroll (`DocumentView`; `src/react/table-more.ts`); neither shows in print.
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this

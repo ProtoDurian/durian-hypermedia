@@ -125,7 +125,11 @@ tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
 /* format version 10: code in a table cell keeps its words whole (the global "anywhere" let a column shrink until
    "(changed)" broke after "chang"); a table wider than a phone scrolls inside its box and says so */
 td code, th code { overflow-wrap: break-word; }
-.table-more { margin: -12px 0 20px; font: 500 12px var(--font-sans); color: var(--muted); }
+.table-more { position: absolute; margin: 0; white-space: nowrap; font: 500 12px/18px var(--font-sans); color: var(--muted); } /* out of the flow: src/react/table-more.ts places it under its table (no load shift) */
+/* a table wider than its box: the side with more of it fades out, and follows the scroll (0.7.0-rc.3) */
+.table-wrap[data-more="r"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.table-wrap[data-more="l"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.table-wrap[data-more="lr"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
 
 /* callouts */
 .callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
@@ -316,3 +320,5 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); color:
 @media (max-width: 640px) {
   .site-nav a { padding: 6px 8px; }
 }
+/* print: a page does not scroll, so no faded side and no swipe line (0.7.0-rc.3) */
+@media print { .table-wrap[data-more] { -webkit-mask-image: none; mask-image: none; } .table-more { display: none; } }

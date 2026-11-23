@@ -18,6 +18,7 @@ import { chartTable11, evalChart11, usesChart11 } from "./chart11";
 import { currentBudget, BudgetError } from "./budget";
 import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
+import { isStagePart, setStageRoles, stagePartJson, stagePartLlm, stagePartTexts } from "./stage-part"; // the composed stage (0.7.0)
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
 import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
@@ -332,6 +333,7 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const defs = defsOf(path, fm, opts.site);
   const fmObj = fm && typeof fm === "object" && !Array.isArray(fm) ? (fm as Record<string, unknown>) : {};
   for (const p of allParts(body)) { p.defs = defs.defs; p.fm = fmObj; }
+  setStageRoles(allParts(body), fm); // the composed stage: the page's roles
   return { path, fmRaw, fm, body, bodyText, bodyStart, defErrors: defs.errors };
 }
 // every part of a page, in order, including parts inside containers and :::llm blocks
@@ -820,7 +822,7 @@ function chartLlm(p: PartNode): string {
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
 // (made once per compile; it plays the story again, which the compile already paid for: not charged twice)
 const llmText = new WeakMap<Compiled, string>();
-function animLlm(p: PartNode): string { const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
+function animLlm(p: PartNode): string { if (isStagePart(p)) return stagePartLlm(p); const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
 function llmOfNodes(nodes: Node[], publicView: boolean): string {
   const out: string[] = [];
   for (const n of nodes) {
@@ -884,7 +886,7 @@ export function humanText(doc: Doc, src?: string): string {
       if (n.kind === "md") out.push(inlineToLlm(n.text));
       else if (n.kind === "part") {
         if (n.name === "llm") continue;
-        if (n.name === "animation") out.push(...animOf(n).scene.texts);
+        if (n.name === "animation") out.push(...(isStagePart(n) ? stagePartTexts(n) : animOf(n).scene.texts));
         else if (n.name === "chart") out.push(yamlTexts(chartYaml(n)).join("\n"));
         else if (n.name === "codewalk") { out.push(...n.steps.map((s) => s.raw)); if (src) codewalkRefs(doc, n).forEach((r) => { const t = readRange(doc, r, src); if (t.text) out.push(t.text); }); }
         else if (PARTS[n.name]?.form === "fenced") out.push(n.body);
@@ -1092,7 +1094,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
     if (n.kind === "toc") return { type: "toc", line: n.line, depth: +(n.attrs.depth ?? 3), scope: n.attrs.section ? "section" : "page", source: n.src };
     const base: any = { type: n.name, id: n.attrs.id ?? null, attrs: n.attrs, line: n.line, source: n.source + (n.llm ? "\n\n" + n.llm.source : ""), llm: llmOfPart(n, publicView) || null, llmKind: llmKindOf(n), size: tok(llmOfPart(n, publicView)) };
     switch (n.name) {
-      case "animation": base.anim = animSrc(n); break;
+      case "animation": base.anim = animSrc(n); if (isStagePart(n)) base.stage = stagePartJson(n); break; // a composed stage also carries its stage source
       case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;

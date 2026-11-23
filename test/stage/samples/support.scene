@@ -1,0 +1,29 @@
+roles: desk=c1 eng=c2 ship=c3
+title: Support | one ticket, team by team
+matrix: Who holds a ticket | three teams, four stages
+column in: Intake | arrives
+column tr: Triage | sorted
+column fx: Fix | worked on
+column cl: Close | confirmed
+desk d: Front desk | first contact
+  in: [t1] New ticket | by email; [t2] Chat ask | live chat; + urgent
+  tr: [t3] Tag it | priority and owner
+  cl: [t6] Reply sent | the customer is told
+eng e: Engineering | owns the fix
+  tr: + needs a repro
+  fx: [t4] Patch | with a test; + hotfix; ... about 40 more in the queue
+ship s: Release | ships the change
+  fx: [t5] Review | two approvals
+  cl: + deployed
+@step Arrive: A ticket arrives at the front desk.
+light d.in: two tickets wait
+light t1
+@step Triage: The desk tags it and passes it on.
+light d.tr
+light e.tr: a repro is asked for
+@step Fix: Engineering patches it.
+show t4
+light e.fx
+@step Close: The desk tells the customer.
+show t6
+light *.cl

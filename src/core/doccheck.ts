@@ -12,6 +12,8 @@ import { BudgetError, partBudget } from "./budget";
 import { chartRoom, briefJson } from "./chart";
 import { chart11Check } from "./chart11";
 import { animOverMessage } from "./work";
+import { isStagePart, stagePartCheck } from "./stage-part"; // the composed stage (0.7.0)
+import { BudgetError as StageBudgetError } from "./stage-budget";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
@@ -123,13 +125,14 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none
     if (p.steps.length === 1 && p.name !== "editor") err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
     // an animation over its layout budget is said once and not checked further (core/work.ts)
-    if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
+    if (p.name === "animation" && isStagePart(p)) { try { stagePartCheck(p); } catch (e) { if (!(e instanceof StageBudgetError)) throw e; err(p.line, "part data", `animation: ${e.message}`); return; } }
+    else if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
     const none = p.attrs.llm === "none";
     if (p.name === "human") {
       if (p.llm && none) err(p.line, "fence partner", `human-only segment has both llm=none and a :::llm after it`);
       if (!p.llm && !none) err(p.line, "fence partner", `human-only segment has no :::llm after it and no llm=none mark (write :::human llm=none when LLMs need nothing)`);
     } else if (none) err(p.line, "LLM text present", `${p.name} may not use llm=none: only a human-only segment may; wrap it in :::human llm=none if LLMs need nothing`);
-    else if (def.form === "fenced" && !p.llm && ctx !== "segment" && !folderLlmExempt(p)) {
+    else if (def.form === "fenced" && !p.llm && ctx !== "segment" && !folderLlmExempt(p) && !isStagePart(p)) { // a composed stage's LLM view is its content (it warns over 2,000 tokens instead)
       const t = tok(llmFormOf(p, false));
       if (t > LLM_LIMIT) err(p.line, "LLM text present", `${p.name}${p.attrs.id ? ` #${p.attrs.id}` : ""} reads as ${t} tokens in the LLM view, over the ${LLM_LIMIT}-token limit; add a :::llm block after it, or make it smaller`);
     }
@@ -141,7 +144,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     }
     checkPartData(doc, p, (l, m) => err(l, "part data", m), src, (l, m) => warn(l, "part data", m));
     // an animation's warnings (format version 6): a token's label too long for its small chip
-    if (p.name === "animation") for (const w of animOf(p).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
+    if (p.name === "animation") for (const w of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
     if (def.form === "container") visit(p.nodes, p.name === "human" || ctx === "segment" ? "segment" : "part");
     if (p.name === "codewalk") codewalkRefs(doc, p).forEach((r, i) => {
       const s = p.steps[i];
@@ -193,7 +196,7 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
   // a part in its own folder (src/parts/<name>/, format version 11) has its checks there
   if (folderPart(p.name)) { folderCheck(p, err, warn); return; }
   switch (p.name) {
-    case "animation": for (const e of animOf(p).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
+    case "animation": for (const e of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;
     case "chart": {
       // at most 20 problems per chart (each at most 300 characters), then a count of the rest

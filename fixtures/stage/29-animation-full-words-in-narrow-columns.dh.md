@@ -1,0 +1,26 @@
+---
+title: "Animation: full words in narrow columns"
+description: A fixture made from the Format page section of the same name (a composed stage).
+roles:
+  client: c1
+  server: c2
+  store: c3
+  job: c4
+  cache: c5
+  ops: c6
+  plain: c0
+---
+
+## Animation: full words in narrow columns
+
+When a word cannot fit inside a phone cell, its full caption sits below the row. Long header words share several lines above their columns.
+
+```animation
+title: A labelled archive | full cell words
+time: 0..8
+cells: 1 | headers
+ticks: 0.5 first, 1.5 receiptTick, 2.5 third, 3.5 fourth, 4.5 fifth, 5.5 sixth, 6.5 seventh, 7.5 eighth
+row job archive "": operators 0..4; /receipt 4..5; archived, 5..6; payload 6..7; paused 7..8
+@step Read: Full words remain readable.
+@step Keep: The cells and captions keep their places.
+```

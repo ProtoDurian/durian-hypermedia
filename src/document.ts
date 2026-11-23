@@ -11,6 +11,9 @@ import { countHeading, mdBlocks, mdInline, type MdContext, type InlineDef } from
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
+import { compileStage } from "./core/stage";
+import { isStagePart, stageOf, stageTexts } from "./core/stage-part";
+import { BudgetError as StageBudgetError } from "./core/stage-budget";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
@@ -31,7 +34,8 @@ const CHECK_YAML_FACTOR = 3;
  * function compiles the block's own source again, so it also works on a block read from older JSON that has no
  * `texts`. Tools use it instead of reaching into scene internals.
  */
-export function animationTexts(block: Pick<AnimationBlock, "anim">): string[] {
+export function animationTexts(block: Pick<AnimationBlock, "anim" | "stage">): string[] {
+  if (block.stage) { const s = block.stage.src; return stageTexts(compileStage(s.head, s.steps, s.base, s.info, block.stage.roles)); }
   const a = block.anim;
   return [...compileScene(a.head, a.steps, a.base, a.info).scene.texts];
 }
@@ -269,6 +273,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "animation") {
         if (p.body.length > lim.maxAnimChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxAnimChars.toLocaleString("en-US")}`);
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
+        // a composed stage (0.7.0) is compiled once (core/stage-part.ts stageOf); over the stage budget of the page it
+        // is refused here (core/stage-budget.ts), and its own caps (cards, rows, steps) are doccheck errors
+        if (isStagePart(p)) {
+          try { animTexts = stageTexts(stageOf(p)); } catch (e) { if (e instanceof StageBudgetError) return refuse(p, e.message); throw e; }
+        } else {
         const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
         // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
         let values = 0;
@@ -280,6 +289,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         animTexts = [...c.scene.texts];
         const most = Math.max(0, ...c.frames.map((f) => f.boxes.length));
         if (most > lim.maxAnimEntities) return refuse(p, `${most} things on the stage; the limit is ${lim.maxAnimEntities}`);
+        }
       }
       if (p.name === "chart" || p.name === "tierlist" || p.name === "alignment") {
         if (tooManyAliases(p.body)) return refuse(p, "too many YAML anchors and aliases");

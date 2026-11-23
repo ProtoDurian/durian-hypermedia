@@ -1,0 +1,53 @@
+/* http: a request and its response as two cards. Its tokens read the base tokens, so light and dark follow; a host sets
+   one to restyle the part. */
+:root {
+  --http-method-get: var(--c2); --http-method-post: var(--c1); --http-method-put: var(--c3); --http-method-patch: var(--c4); --http-method-delete: var(--c7);
+  --http-status-2xx: var(--good); --http-status-3xx: var(--acc); --http-status-4xx: var(--warn); --http-status-5xx: var(--bad);
+  --http-body-bg: var(--term); --http-body-ink: var(--term-ink); --http-body-max: 420px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --http-body-bg: var(--term); --http-status-2xx: var(--good); }
+}
+:root[data-theme="dark"] { --http-body-bg: var(--term); --http-status-2xx: var(--good); }
+
+.http { display: grid; gap: 10px; min-width: 0; }
+.http-title { font: 600 var(--fs-s) var(--font-display); color: var(--ink); }
+.http-msg { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); box-shadow: var(--shadow-sm); overflow: hidden; border-left: 4px solid var(--line-2); min-width: 0; }
+.http-req { border-left-color: var(--c1); } .http-res { border-left-color: var(--line-2); }
+.http-line { display: flex; align-items: center; gap: 10px; padding: 12px 14px; flex-wrap: wrap; }
+.http-method { font: 700 12.5px var(--font-mono); letter-spacing: .04em; padding: 4px 11px; border-radius: var(--r-pill); color: var(--on-acc); background: var(--c1); }
+.http-method.tone-c2 { background: var(--http-method-get); } .http-method.tone-c1 { background: var(--http-method-post); } .http-method.tone-c3 { background: var(--http-method-put); } .http-method.tone-c4 { background: var(--http-method-patch); } .http-method.tone-c7 { background: var(--http-method-delete); } .http-method.tone-c6 { background: var(--c6); }
+.http-url { font: 500 14px var(--font-mono); color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+.http-host { color: var(--muted); font-weight: 400; }
+.http-path { color: var(--ink); }
+.http-q { color: var(--muted); } .http-q b { color: var(--acc-ink); font-weight: 500; } .http-q em { font-style: normal; color: var(--c8-ink); } .http-q i { font-style: normal; color: var(--faint); }
+.http-ver { font: 400 12px var(--font-mono); color: var(--faint); }
+.http-copy { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); border-radius: var(--r-pill); padding: 0 12px; min-height: 36px; font: 500 12.5px var(--font-sans); cursor: pointer; }
+.http-copy:hover { border-color: var(--acc); color: var(--acc-ink); } .http-copy:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.http-status { display: inline-flex; align-items: center; gap: 8px; font: 500 14px var(--font-sans); padding: 4px 14px 4px 5px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); }
+.http-status b { font: 700 13px var(--font-mono); padding: 2px 10px; border-radius: var(--r-pill); color: var(--on-acc); }
+.http-status.tone-good b { background: var(--http-status-2xx); } .http-status.tone-acc b { background: var(--http-status-3xx); } .http-status.tone-warn b { background: var(--http-status-4xx); } .http-status.tone-bad b { background: var(--http-status-5xx); } .http-status.tone-muted b { background: var(--muted); }
+.http-heads { border-top: 1px solid var(--line); background: var(--surface-2); padding: 8px 14px; }
+.http-heads dl { margin: 0; display: grid; gap: 2px; }
+.http-heads dl > div { display: grid; grid-template-columns: minmax(8em, max-content) 1fr; gap: 12px; font: 400 13px/1.5 var(--font-mono); }
+.http-heads dt { color: var(--acc-ink); font-weight: 500; overflow-wrap: anywhere; } .http-heads dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.http-more { all: unset; cursor: pointer; margin-top: 6px; color: var(--acc-ink); font: 500 12.5px var(--font-sans); min-height: 28px; display: inline-flex; align-items: center; }
+.http-more:hover { text-decoration: underline; } .http-more:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
+.http-body { border-top: 1px solid var(--line); background: var(--http-body-bg); color: var(--http-body-ink); padding: 12px 14px; overflow-x: auto; font: 400 13px/1.6 var(--font-mono); max-height: var(--http-body-max); overflow-y: auto; }
+.http-body:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
+.http-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.http-arrow { display: flex; justify-content: center; color: var(--faint); margin: -2px 0; }
+.http-src { margin: 0; padding: 12px 14px; background: var(--http-body-bg); color: var(--http-body-ink); border-radius: var(--r-m); overflow-x: auto; font: 400 13px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.http-plain .cw-error { border-radius: var(--r-m); margin-bottom: 8px; }
+.j-node, .j-kids { display: block; } .j-kids { padding-left: 1.4em; border-left: 1px dashed var(--term-line); margin-left: .45em; }
+.j-row { display: flex; flex-wrap: wrap; align-items: baseline; white-space: pre-wrap; min-height: 1.6em; overflow-wrap: anywhere; }
+.j-fold { all: unset; cursor: pointer; width: 28px; height: 28px; margin: -3px 0 -3px -7px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; flex: none; align-self: center; }
+.j-fold:hover { background: var(--acc-softer); } .j-fold:focus-visible { outline: 2px solid var(--acc-2); outline-offset: 1px; }
+.j-fold .chev { color: var(--term-faint); }
+.j-row > .j-key:first-child, .j-row > .j-p:first-child { margin-left: 21px; }
+[data-dh-static] .j-row > .j-key:first-child, [data-dh-static] .j-row > .j-p:first-child { margin-left: 0; }
+.j-key { color: var(--ch-3); } .j-str { color: var(--ch-8); } .j-num { color: var(--ch-2); } .j-bool, .j-null { color: var(--ch-5); } .j-p { color: var(--term-faint); } .j-sum { color: var(--term-faint); font-style: italic; }
+@container (max-width: 520px) {
+  .http-heads dl > div { grid-template-columns: 1fr; gap: 0; margin-bottom: 4px; }
+  .http-copy { margin-left: 0; }
+}

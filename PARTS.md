@@ -246,6 +246,8 @@ export default defineInline<{ cap: number }, Spark>({
   for the work you do (a step per match, per word), as in section 2. Never catch `BudgetError`. Hand scans only: no regular
   expression that can backtrack over author text, and a search that finds its next match once and keeps it (see
   `replaceBracketed` in `core/dh-lib.ts`) rather than searching to the end of the text again from every start.
+- **A mark read from the source (`raw`).** A part whose marks use characters Markdown reads first (maths: `\\`, `_` and `*` are TeX) gives `raw: { chars, match }` instead of (or beside) `scan`. The core calls `match(src, pos, max, state, budget, block)` where the source has one of `chars`, before escapes, emphasis and links are read, in a paragraph's text and (`block: true`) at the start of a line at the top level of the page; it returns where the mark ends and its data, or null. Keep what a failed search found on the state, so a text of many openers and no closer is read once. `data: undefined` with a `problem` reports a wrong use and leaves the text as written. See `math/`.
+- **The whole page.** `prepare(page)` gets `page.texts` (the page's Markdown text nodes, as written, in page order) and a fenced part's `ctx.texts` is the same, for a part that numbers or counts its marks over the page (citations: `references/`).
 - **Where the parts meet.** Parts read a text in `rank` order (default 0, then by name); a part sees the ranges of the parts before
   it as filler characters (so a word part never reads inside `:spark[...]`).
 - **Imports.** `inline.ts` follows the rules of `part.ts` (section 2): `../inline`, `../kit/text`, `../../core/budget`, `../../safety`

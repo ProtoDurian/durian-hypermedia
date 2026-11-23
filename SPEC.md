@@ -388,6 +388,31 @@ after: media/after-dark.svg "The same dashboard on a dark page"
 - **Caps:** `compareImageAlt` (300; 200 in UNTRUSTED_LIMITS) characters of alt text, `compareImageLabel` (40) of a label, `compareImageUrl` (500; 300) of an address.
 - **doccheck refuses:** a line with no alt text, a missing `before` or `after`, one given twice, an address the policy refuses (it says why), an empty alt text or one over its cap, a bad `start=`, `direction=`, `ratio=` or `fit=`, an unknown key, and a part over the page's work budget.
 
+#### Diff
+
+A ```` ```diff ```` fence holding a unified diff (what `git diff` prints).
+
+````
+```diff view=split title="Bind every interface"
+diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -10,5 +10,5 @@ export function start() {
+   const port = 8080;
+-  const host = "localhost";
++  const host = "0.0.0.0";
+   listen(host, port);
+```
+````
+
+- File headers, line numbers on both sides, the changed words marked inside a changed line (jsdiff, at parse time), unchanged runs of more than 10 lines folded to 3 at each end (a tap opens them), a gap between hunks shown as "... N lines". Unified on a narrow part, split on a wide one (by the part's own width, 760 px); two buttons switch it, and `view=split|unified` fixes it. A diff with several files has one header each (+added, -removed, a rename) that folds.
+- **Phone:** a line does not wrap (a wrapped line would lose its sign and its number). The body scrolls sideways inside its own box; the two line numbers and the sign stay in view at the left, and the hunk head and the fold button stay one box wide at the left.
+- **Static:** `static` on the fence draws every file open, with no button; a folded run stays a plain "... N lines" row.
+- **A body with no `@@` hunk** stays a plain code block (a warning). Hand-written counts in `@@` that are wrong still read.
+- **LLM view:** as written. **Keys:** `title=`, `view=`, `static`.
+- **Caps:** `diffLines` (4000; 2000 in UNTRUSTED_LIMITS) lines and `diffFiles` (40; 20) files; word marks only run on a changed line of at most `diffWordLine` (1200; 600) characters and `diffWordTokens` (300; 150) words, with a hard `diffEditLength` (60; 40) edit limit, so two long one-line files cost a count, not a hang. Library: `diff` (jsdiff) 9.0.0.
+- **doccheck refuses:** an unknown key, `view=` other than split or unified, a line inside a hunk that does not start with `+`, `-` or a space, more lines or files than the caps, and a block over the page's work budget.
+
 #### Downloads
 
 ````
@@ -513,6 +538,28 @@ Each team keeps its own UL inside a bounded context.
 - **Caps:** `glossaryTerms` (200 on a page; 100 in UNTRUSTED_LIMITS), `glossaryLabel` (60 characters), `glossaryDef` (600 characters; 400 in UNTRUSTED_LIMITS) and `glossaryAliases` (5 other names).
 - **doccheck refuses:** a line that is not a term line, an empty meaning, a name or meaning over its cap, a bad id, too many other names, more terms than the cap, a term (or its id) defined twice (it names both lines), an unknown key, front matter `glossary:` that is not a map of text. It warns on a term the text never uses.
 
+#### Http
+
+````
+```http title="Create an order"
+POST /v1/orders HTTP/1.1
+Host: api.example.com
+Authorization: Bearer <token>
+
+{ "sku": "tea", "qty": 2 }
+
+HTTP/1.1 201 Created
+
+{ "id": "o-7" }
+```
+````
+
+- A request (request line, headers, a blank line, a body), then optionally its response (status line, headers, body). Drawn as a method tag and the address (the query split into names and values), headers folded after 6, a JSON body as a tree that folds, the status as a tag (2xx `good`, 3xx `acc`, 4xx `warn`, 5xx `bad`), and **Copy as curl**. A phone stacks each header name over its value; the body scrolls inside its own box.
+- **Static:** `static` on the fence draws the whole message: every header, the whole JSON tree, no fold button and no Copy button.
+- **LLM view:** as written. **Keys:** `title=`, `static`.
+- **Caps:** `httpLines` (600; 300 in UNTRUSTED_LIMITS) lines and `httpChars` (60000; 30000) characters a block, `httpHeaders` (80; 40) headers a message, `httpJsonDepth` (24; 16) levels and `httpJsonNodes` (3000; 1500) nodes of a JSON tree (past either, the body stays text).
+- **doccheck:** a body that does not start with a request or status line stays a plain code block (a warning). **Refused:** a header line that is not a header (naming it), a line after the request that is not its response, more headers or lines than the caps, an unknown fence key, a block over the page's work budget, and a real-looking secret in `Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key` or any header named like a token, secret, key or password (write `<token>`, `${TOKEN}` or `...`).
+
 #### Log
 
 ```log labels="app=shop" title="Checkout"
@@ -613,6 +660,24 @@ arc DE -> US 40
 - **Static:** draws the selected step immediately, without controls, gestures, routing or provider requests. A globe becomes a flat map; bundled boundaries and every value remain available without JavaScript.
 - **Provider integration:** import `mapProvider` from `durian-hypermedia/react/map-providers` in host code and pass its result as `DocumentView map={...}`. Install the chosen optional provider and its CSS. This opt-in entry is outside the default and strict renderer graphs; Leaflet, MapLibre and Google have their own CSP requirements. The host can instead supply its own `MapHost` capabilities without these libraries.
 
+#### Maths (`$...$`, `$$...$$` and `math`)
+
+```
+The area of a circle is $A = \pi r^2$.
+
+$$
+\sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+$$
+```
+
+- **Where:** `$...$` in a sentence, `$$...$$` on its own lines or around one run of text, or a ```` ```math ```` block holding the TeX. The TeX is LaTeX, read by KaTeX. The marks are read from the Markdown source itself, so `\\`, `_` and `*` inside a formula are the author's TeX, not Markdown. Never inside inline code or a code block.
+- **The `$` rule** (GitHub's and Pandoc's): an opening `$` is followed by a non-space, a closing `$` follows a non-space and is not followed by a digit, so "it costs $5 and $10" stays text. `\$` is a dollar sign. An inline formula never spans a line; a block never spans a blank line. doccheck warns on a `$` pair that looks like money.
+- **Drawn at parse time by KaTeX** into a tree of elements (never an HTML string); the page runs no maths script. The reader accepts only the tags, attributes and styles KaTeX writes. KaTeX is run with `trust` off, `maxExpand` 200 and `maxSize` 20, and every formula charges the page budget by its size and its output. The same formula twice is drawn once.
+- **No fonts, no stylesheet:** KaTeX writes MathML only and the browser draws it with its own maths font, so nothing needs a host's set-up (KaTeX's font files are under the SIL Open Font Licence and are not bundled). Letters are plain Latin and Greek with a class for italic and bold, so a machine with no maths font still draws them. `\tag` numbers a block; `\label` is dropped (KaTeX has none).
+- **LLM view:** the TeX as written, between its `$` signs.
+- **Caps:** `mathChars` (4,000; 1,500 in UNTRUSTED_LIMITS) characters in one formula, `mathFormulas` (600; 150) formulas on a page, `mathNodes` (60,000; 20,000) elements in one formula's tree.
+- **doccheck refuses** TeX KaTeX cannot read (its message, with the line and column of the formula), `\href`, `\url`, `\htmlClass`, `\htmlData`, `\htmlId`, `\htmlStyle` and `\includegraphics`, a formula over the character cap, more formulas than the page cap, and a page that spends more than its budget. A formula that cannot be drawn shows its TeX in a code box. **Warns:** a `$` pair that looks like money.
+
 #### PDF
 
 ````
@@ -628,6 +693,37 @@ arc DE -> US 40
 - **Local file:** `checkLocalFiles` from `durian-hypermedia/node` checks the file is a PDF within its cap and has the page `page=` names (pages are counted as page objects; a file that keeps them in compressed object streams is not page-checked).
 - **Caps** (travel in the data, checked in the browser at load): `pdfPages` (500; 200 in UNTRUSTED_LIMITS), `pdfBytes` (20 MB; 8 MB).
 - **doccheck refuses:** a `src` that is not a `.pdf` file or not an allowed address, no `src`, `page=` that is not a number from 1, a `view` other than page or scroll, a bad `height`, an unknown option, any body line, a part over the page's work budget.
+
+#### Citations (`[@key]` and `references`)
+
+````
+Marks make a study easier to read [@smith2020, p. 12], and two together [@smith2020; @lee2019].
+
+```references style=apa
+- id: smith2020
+  author: Smith, Jane; Lee, Kim
+  title: A study of marks
+  in: Journal of Studies
+  year: 2020
+  volume: 12
+  pages: 10-20
+- id: lee2019
+  author: Lee, Kim
+  title: Notes on lists
+  type: web
+  publisher: Example Press
+  year: 2019
+  url: https://example.com/notes
+```
+````
+
+- **In the text:** `[@key]`, `[@key, p. 12]` (a locator after a comma) and `[@a; @b]` (several). In apa and chicago a mark reads `(Smith & Lee, 2020)`; in ieee it reads `[1]`, numbered in order of first cite. Never inside inline code, a code block, a link or a heading.
+- **The list** is a ```` ```references ```` block (small YAML, one entry per `- id:`); `style=apa|ieee|chicago` (apa by default). Entry types: `article`, `book`, `chapter`, `web`, `report`, `talk`, `software`. Fields: `id`, `type`, `author` and `editor` (names joined by `;`, "Family, Given" or "Given Family"), `title`, `in`, `year` (four digits, or `2020a`), `volume`, `issue`, `pages`, `doi` (bare), `url` (http or https), `accessed` (`2026-11-20`), `publisher`, `place`, `edition`, `version`, `number`, `note`. Every value is read as text, so `10-20` and `2020` stay as written. The list is drawn where the block is, sorted for apa and chicago and in order of first cite for ieee, each entry with "cited N times" and a link back to each mark.
+- **A mark** is a button: hover (after a short wait), focus or tap opens one card with the entry, "Open source" (its DOI or url) and Copy; Esc closes it. On a phone the card is a sheet at the bottom.
+- **The formatter is the package's own** (the three styles, seven types, nothing else); a citation-style engine is not bundled.
+- **LLM view:** the marks as written, and the list as `References:` then `- [id] formatted entry`.
+- **Caps:** `referencesEntries` (400; 100 in UNTRUSTED_LIMITS) entries, `referencesAuthors` (30; 12) authors in one entry, `referencesText` (600; 300) characters in a title, publisher or note, `referencesCites` (2,000; 500) cites on a page.
+- **doccheck refuses:** a cite of a key not in the list (it names the nearest key), a cite with no `references` block, a reference with no `title` or no `author` (a `web` one may give a `publisher`), a duplicate id, an unknown type, key or style, a year that is not four digits, a DOI that is a link, a URL that is not http or https (no `data:`, `blob:`, `javascript:`), two `references` blocks. **Warns:** a reference never cited; a missing `year` (it shows "n.d."). A refused mark stays as written.
 
 #### Sankey
 
@@ -704,6 +800,24 @@ The LLM reads the trace as written. Above 400 tokens library runs become one lin
 Caps: stacktraceLines is 2000 (1000 in UNTRUSTED_LIMITS); hosts may lower it. Every scan charges the page budget.
 
 Doccheck refuses unknown options, an unknown language, strip= without repo=, secret-looking text, an undetectable language, no recognizable frame, a .NET frame before its exception, too many lines, and too much work. app= matching no frame warns.
+
+#### Stats
+
+**Stat tiles are the row of big numbers at the top of a dashboard:** each tile is one figure with its name, how it changed and, if given, a tiny line of its recent values.
+
+````
+```stats title="The week"
+Requests "1.2 M" change=+12% [good] note="last 7 days" spark=3 5 4 6 8 9
+p95 latency "180 ms" change=-8% [good]
+Errors "0.4%" change=+0.1 [bad]
+```
+````
+
+- A line: `<name> "<value>" [change=<signed number>] [<colour>] [note="..."] [spark=<numbers>]`. The colour word in brackets says whether the change is good or bad (a fall in latency is good); it is never guessed from the sign. The arrow follows the sign. A tile may also take `glyph="..."` (decorative text), `trend=up|down|flat` and `sub="..."` (a line under the value). Colour words: `c1` to `c8`, `acc`, `good`, `warn`, `bad`, `muted`. 2 to 4 tiles a row on a wide stage, 2 on a phone.
+- **Static:** `static` on the fence draws the tiles whole (they never move; print is the same). A line that does not read refuses the whole block, and the page draws the first problem in place of the tiles.
+- **LLM view:** one line a tile, `- Requests: 1.2 M (+12%, last 7 days)`, after `Stat tiles: <title>.` when the fence has a title; the glyph is left out.
+- **Caps:** `statsTiles` (12; 8 in UNTRUSTED_LIMITS) tiles a block, `statsSpark` (60; 40) numbers in a sparkline, `statsText` (60) characters in a name, value, glyph or sub-line, `statsNote` (120; 80) characters in a note.
+- **doccheck refuses:** a line that is not a tile, an empty name or value, a name or value over the cap, a `change=` that is not a signed number, a colour that is not a colour word (never a hex value), an unknown key, a `trend=` other than up, down or flat, an empty or long glyph, sub-line or note, a `spark=` of fewer than 2 numbers, over the cap or with a word that is not a number, more than the tile cap, a block with no tile, an unknown fence key, a block over the page's work budget.
 
 #### Timeline
 
@@ -817,6 +931,22 @@ evolve kettle 0.65 "smart kettle"
 - **LLM view:** a table `component | evolution | visible` (`product (0.40)`), then the needs, moves, inertia, pipelines, groups and notes as lines, then the step captions.
 - **Caps:** `wardleyComponents` (60; 40 in UNTRUSTED_LIMITS). The word placer looks at a bounded number of things for each label, and its cost is charged to the budget when the map is drawn.
 - **doccheck refuses:** a bare pair, a value outside 0 to 1, a component with no `visible=` or no `evolution=`, an unknown key, an id with a character outside the set or written twice, a need, `inertia`, `highlight`, `pipeline`, `group` or `evolve` that names something that is not a component, a pipeline with no `from=` or `to=`, a note with no text or position, needs that go round in a circle, a line that is none of these, no component, more components than the cap, an unknown attribute, and a part over the page's work budget. It warns when `evolve` goes to the left.
+
+#### Weather
+
+````
+```weather place="San Francisco" unit=c tz=America/Los_Angeles
+2026-11-22 sun 18/11 rain=0% wind=12km/h
+2026-11-24 rain 14/9 rain=80% wind=30km/h precip=6mm pressure=1004hPa
+2026-11-25 storm 13/8 rain=95% wind=45km/h note="Ferry may stop"
+```
+````
+
+- **A line** is a day (`<date> <sky> <high>/<low>`) or an hour (`<date> <time> <sky> <temp>`), then `rain=<n>%` (the chance), `wind=<n><unit>`, `precip=<n><unit>` (the amount), `pressure=<n><unit>` and `note="..."`. Skies: `sun`, `clear-night`, `partly`, `cloud`, `fog`, `drizzle`, `rain`, `storm`, `snow`, `sleet`, `hail`, `wind`. A part shows days or hours, not both. It never fetches; the icons are the part's own drawings. Fence keys: `place=`, `title=`, `tz=`, `unit=`, `wind=`, `rain=`, `pressure=`.
+- **Units are the reader's.** `unit=c|f`, `wind=kmh|mph|ms|kn`, `rain=mm|in`, `pressure=hpa|inhg` on the fence only say which unit the numbers are written in, and are the default. The part carries a units menu of real buttons (Tab reaches each; Space or Enter picks): °C or °F, km/h, mph, m/s or knots, mm or inches, hPa or inHg; a group appears only for a value the part has. Every number is converted from the written one, so °F then °C then °F gives the first numbers back exactly. A host gives its own default with `partOptions={{ weather: { units: { temp: "f", wind: "mph", rain: "in", pressure: "inhg" } } }}` on `DocumentView` (any of the four; an unknown word is ignored); the reader's choice is remembered in their browser (`localStorage` under `dh-wx-units`, in try/catch, shared by every weather part on the page and by other tabs) and wins over both. A `static` part, and the server's page, draw the forecast whole in the fence's unit: no menu, no storage.
+- **The LLM view:** a table `day | sky | high / low | rain | wind` (hours: `time | sky | temperature | ...`, with `pressure` when any line has it), temperatures in both units (`18 °C (64 °F)`), then the notes.
+- **Caps:** `weatherRows` (200; 100 in UNTRUSTED_LIMITS) lines, `weatherLineChars` (400) characters in a line, `weatherNoteChars` (160) in a note.
+- **doccheck refuses:** an unknown sky, unit or key (it lists them); a low above the high; rain over 100%; a value with a unit other than the fence's (write one unit per part); days and hours mixed; a bad date, time or zone; an unclosed `note="`; an `@step` line; no forecast line; a part over its caps or over the page's work budget.
 
 <!-- parts:end -->
 

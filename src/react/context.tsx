@@ -90,6 +90,9 @@ export interface DhSettings {
   map?: import("../parts/map/host").MapHost;
   /** A host clock in milliseconds, used by calendar's Today command and current-time line. */
   now?: number;
+  /** the host's options for the folder parts, by part name (DocumentProps.partOptions); {} when none. A part reads the key it owns
+   *  (weather: `units`, the host's default units); a part never needs an option to draw. */
+  partOptions?: Readonly<Record<string, unknown>>;
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

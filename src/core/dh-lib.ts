@@ -82,6 +82,7 @@ export interface PartNode {
   llm?: PartNode;                    // a :::llm right after this part
   defs?: Defs;                       // the page's and the site's own marks and prefixes (format version 10), set by parseDoc
   fm?: Record<string, unknown>;      // the page's front matter (an object, else {}), set by parseDoc, for folder parts
+  texts?: readonly string[];         // the page's Markdown text nodes as written, in page order, set by parseDoc, for folder parts that count marks over the page (citations)
 }
 export type Node = MdNode | TocNode | PartNode;
 export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[]; /** references parse() read (format version 11) */ refs?: number }
@@ -344,9 +345,18 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const body = parseNodes(lines, 0, lines.length, bodyStart, null);
   const defs = defsOf(path, fm, opts.site);
   const fmObj = fm && typeof fm === "object" && !Array.isArray(fm) ? (fm as Record<string, unknown>) : {};
-  for (const p of allParts(body)) { p.defs = defs.defs; p.fm = fmObj; }
+  const texts = mdTexts(body);
+  for (const p of allParts(body)) { p.defs = defs.defs; p.fm = fmObj; p.texts = texts; }
   setStageRoles(allParts(body), fm); // the composed stage: the page's roles
   return { path, fmRaw, fm, body, bodyText, bodyStart, defErrors: defs.errors };
+}
+// the Markdown text nodes of a page, as written, in page order (containers' and tabs' too)
+function mdTexts(nodes: Node[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.kind === "md") out.push(n.text);
+    else if (n.kind === "part") { mdTexts(n.nodes, out); for (const it of n.items) mdTexts(it.nodes, out); }
+  }
+  return out;
 }
 // every part of a page, in order, including parts inside containers and :::llm blocks
 export function allParts(nodes: Node[]): PartNode[] {

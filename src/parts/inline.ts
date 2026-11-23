@@ -40,6 +40,22 @@ export interface InlinePage {
   idPrefix: string;
   /** the host's options of this parse() call (ParseOptions): a part reads the key it owns (the glossary's `glossary`); {} when none */
   options: Readonly<Record<string, unknown>>;
+  /** the page's Markdown text (every text node outside the parts, in page order, as written); [] in the LLM view. A part that numbers
+   *  or counts its marks over the whole page (citations) reads them here. Read-only. */
+  texts?: readonly string[];
+}
+
+/** A mark read from the Markdown source itself, before backslash escapes, emphasis and links are read (maths: `\\`, `_` and `*`
+ *  are the author's TeX). The core calls `match` where the source has one of `chars`, in a paragraph's text (`max` is the end of
+ *  that text) and, at the start of a line, for a block (`$$` lines). */
+export interface InlineRaw<S = unknown, D = unknown> {
+  /** the characters a mark may start with (one or more characters of one kind: "$") */
+  chars: string;
+  /** Is there a mark at `pos` of `src`? Return where it ends (exclusive) and its data, or null. Linear over the whole text: a search that
+   *  found no end must not be repeated from the next start (keep what the last search found on the state). `block` is true when the
+   *  core asks from the start of a line outside a paragraph: return a hit only when the mark may stand alone; it then must end the line.
+   *  `data: undefined` with a `problem` reports a wrong use and leaves the text as written. */
+  match(src: string, pos: number, max: number, state: S, budget: Budget, block: boolean): { end: number; data?: D; problem?: string; level?: "error" | "warn" } | null;
 }
 
 /** One range of one text run that is this part's. `from` and `to` are offsets in the text `scan` was given, `to` exclusive. */
@@ -61,6 +77,8 @@ export interface InlineDef<S = unknown, D = unknown> {
   /** once per page, before its text is read: the part's state (a term table). Return `null` for "nothing to do on this page":
    *  the core then never calls `scan` (no text is offered, nothing is charged). Pure, charges `page.budget`. */
   prepare?(page: InlinePage): S | null;
+  /** a mark read from the source before escapes and emphasis (see InlineRaw); a part that reads only raw marks gives a `scan` that returns [] */
+  raw?: InlineRaw<S, D>;
   /** once per plain text run: the ranges that are this part's, in order, not overlapping. Linear; charges `budget`. The state
    *  is the one `prepare` made, and may be changed (a part that marks only the first use keeps what it has marked). */
   scan(text: string, state: S, budget: Budget): InlineHit<D>[];

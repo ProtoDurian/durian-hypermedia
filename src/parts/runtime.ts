@@ -77,7 +77,7 @@ export function readPart(p: PartNode, def: PartDef<any>): Read {
   try {
     const budget = partBudget(`the ${def.name} part`);
     const limits = currentBudget()?.lim ?? LIMITS;
-    r = { ok: true, data: def.parse(input, { limits, budget, frontMatter: p.fm ?? {}, idPrefix: ambientPrefix }), input };
+    r = { ok: true, data: def.parse(input, { limits, budget, frontMatter: p.fm ?? {}, texts: p.texts ?? [], idPrefix: ambientPrefix }), input };
   } catch (e) {
     r = { ok: false, message: e instanceof Error ? e.message : String(e), budget: e instanceof BudgetError, input };
   }

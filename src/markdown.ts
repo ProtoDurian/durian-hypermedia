@@ -10,7 +10,7 @@ import GithubSlugger, { slug as githubSlug } from "github-slugger";
 import MarkdownIt, { type MarkdownIt as Reader, type Token as Tok } from "./vendor/markdown-it";
 import { KEY_GLYPHS, MOUSE_PRESS } from "./core/dh-lib";
 import { applyUrlPolicy, decodeRefs, LIMITS, type UrlPolicy } from "./safety";
-import { inlineSection, prepareInlines, scanRun, type InlineRun } from "./parts/inline-runtime";
+import { inlineSection, matchRaw, prepareInlines, rawParts, scanRun, type InlineRun } from "./parts/inline-runtime";
 import { referenceRule } from "./core/refs";
 
 
@@ -348,6 +348,47 @@ function refRule(finders: RefFinder[]) {
     return false;
   };
 }
+// ---- marks read from the source itself (InlineRaw: maths). They run before escapes and emphasis, so the author's `\\`, `_` and `*` are not touched.
+function rawInline(state: StateInline, silent: boolean): boolean {
+  const run: InlineRun | undefined = (state.env as any).dhRun;
+  if (!run || !run.active.length) return false;
+  const c = state.src[state.pos];
+  for (const a of rawParts(run)) {
+    if (!a.def.raw!.chars.includes(c)) continue;
+    const r = matchRaw(run, a, state.src, state.pos, state.posMax, false);
+    if (!r || !(r.end > state.pos) || r.end > state.posMax) continue;
+    if (!silent) { const t = state.push("dh-ref", "", 0); t.content = state.src.slice(state.pos, r.end); t.markup = t.content; t.meta = { name: a.def.name, data: r.data, problem: r.problem, level: r.level }; }
+    state.pos = r.end;
+    return true;
+  }
+  return false;
+}
+/** A mark that stands alone on its lines at the top level of the page (a `$$` formula), as a paragraph of its own: the reader's block rules never see its lines. */
+function rawBlock(state: any, startLine: number, endLine: number, silent: boolean): boolean {
+  const run: InlineRun | undefined = state.env.dhRun;
+  if (!run || !run.active.length || state.parentType !== "root" || state.level !== 0) return false;
+  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+  const src: string = state.src, pos: number = state.bMarks[startLine] + state.tShift[startLine];
+  const c = src[pos];
+  for (const a of rawParts(run)) {
+    if (!a.def.raw!.chars.includes(c)) continue;
+    const r = matchRaw(run, a, src, pos, src.length, true);
+    if (!r || !(r.end > pos) || r.data === undefined) continue;
+    let last = startLine;
+    while (last + 1 < endLine && state.bMarks[last + 1] < r.end) last++;
+    if (state.bMarks[last] + state.tShift[last] > r.end || src.slice(r.end, state.eMarks[last]).trim() !== "") continue;
+    if (silent) return true;
+    const open = state.push("paragraph_open", "p", 1); open.map = [startLine, last + 1];
+    const inl = state.push("inline", "", 0); inl.map = [startLine, last + 1]; inl.content = src.slice(pos, r.end);
+    const ref = new state.Token("dh-ref", "", 0);
+    ref.content = ref.markup = inl.content; ref.meta = { name: a.def.name, data: r.data, problem: r.problem, level: r.level };
+    inl.children = [ref];
+    state.push("paragraph_close", "p", -1);
+    state.line = last + 1;
+    return true;
+  }
+  return false;
+}
 // ---- task list items (GFM): "[ ] " or "[x] " at the start of an item's first paragraph
 function taskItems(state: StateCore) {
   const toks: Tok[] = state.tokens;
@@ -466,6 +507,8 @@ function makeReader(defs: InlineDef<any, any>[] | undefined, lazyInline = false)
   if (finders.length) { md.inline.ruler.after("dh-mouse", "dh-ref", refRule(finders)); last = "dh-ref"; }
   md.inline.ruler.after(last, "dh-autolit", autolinkLiteral);
   md.inline.ruler.before("link", "dh-reference", referenceRule);
+  md.inline.ruler.before("escape", "dh-raw", rawInline);
+  md.block.ruler.before("fence", "dh-raw-block", rawBlock, { alt: ["paragraph", "reference", "blockquote", "list"] });
   md.inline.ruler.before("emphasis", "dh-strike", strikeTokenize);
   md.inline.ruler2.before("emphasis", "dh-strike", strikePost);
   md.block.ruler.before("list", "dh-sublist", subList, { alt: ["paragraph"] });
@@ -495,8 +538,8 @@ const nestCap = (maxDepth: number) => Math.max(40, 3 * maxDepth + 10);
 const INLINE_NEST = 20;
 // the reader and env of the text being converted: an inline token's children are read from them when it is converted
 let cur: { md: Reader; env: any } | null = null;
-function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: number): { toks: Tok[]; md: Reader; env: any } {
-  const md = readerFor(defs), env: any = {};
+function lex(src: string, defs: InlineDef<any, any>[] | undefined, maxDepth: number, inlineRun?: InlineRun): { toks: Tok[]; md: Reader; env: any } {
+  const md = readerFor(defs), env: any = { dhRun: inlineRun };
   md.options.maxNesting = nestCap(maxDepth);
   const toks = md.parse(src, env);
   mail.src = ""; dom.src = ""; run.src = ""; // the e-mail, domain and link-end scans' caches need not hold the text
@@ -569,7 +612,7 @@ function ghText(toks: Tok[] | null | undefined): string {
 }
 /** Count a heading that carries no id of its own (a tab or an accordion title) in the document's repeat counter, as GitHub counts every heading. */
 export function countHeading(line: string, ctx: MdContext): void {
-  const l = lex(line, ctx.inlines, ctx.maxDepth), toks = l.toks;
+  const l = lex(line, ctx.inlines, ctx.maxDepth, ctx.inlineParts), toks = l.toks;
   const i = toks.findIndex((t) => t.type === "heading_open");
   if (i >= 0) ctx.slugger.slug(ghText(withText(l, () => kidsOf(toks[i + 1]))));
 }
@@ -604,7 +647,7 @@ export function mdBlocks(src: string, ctx: MdContext): MdBlock[] {
   }
   if (deep) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; shown as plain text` }); return [{ t: "raw", text: src }]; }
   let lx: ReturnType<typeof lex>;
-  try { lx = lex(src, ctx.inlines, ctx.maxDepth); }
+  try { lx = lex(src, ctx.inlines, ctx.maxDepth, ctx.inlineParts); }
   catch (e) { ctx.problems.push({ line: ctx.line, message: `Markdown could not be read: ${(e as Error).message}` }); return [{ t: "raw", text: src }]; }
   const toks = lx.toks;
   if (toks.some((t) => t.level >= nestCap(ctx.maxDepth) - 2)) { ctx.problems.push({ line: ctx.line, message: `Markdown nested deeper than ${ctx.maxDepth} levels; shown as plain text` }); return [{ t: "raw", text: src }]; }
@@ -806,7 +849,12 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
         out.push({ t: "mouse", act, press: p.press, badge: p.badge, target: (m?.[2] ?? "").replace(/^"|"$/g, "") });
         break;
       }
-      case "dh-ref": flush(); out.push({ t: "ref", name: (t.meta as any).name, text: t.content, data: (t.meta as any).data }); break;
+      case "dh-ref": {
+        const m = t.meta as { name: string; data: unknown; problem?: string; level?: "error" | "warn" };
+        if (m.problem) ctx.problems.push({ line: ctx.runLine ?? ctx.line, message: `${m.name}: ${m.problem}`, level: m.level });
+        if (m.data === undefined) { buf = (buf ?? "") + t.content; break; }   // a wrong use: the text stays as written
+        flush(); out.push({ t: "ref", name: m.name, text: t.content, data: m.data }); break;
+      }
       case "dh-reference": { flush(); const m = t.meta as { type: string; name: string; label: string | null; bad: string | null }; out.push({ t: "reference", type: m.type, name: m.name, label: m.label, text: t.content, ...(m.bad ? { error: m.bad } : {}) }); break; }
       case "html_inline": flush(); out.push({ t: "text", v: t.content }); break;   // inline HTML: shown as the text it is
       default:

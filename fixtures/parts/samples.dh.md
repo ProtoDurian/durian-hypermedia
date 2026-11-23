@@ -205,6 +205,62 @@ before: media/before-light.svg "A dashboard with four tiles and a bar chart on a
 after: media/after-dark.svg "The same dashboard on a dark page"
 ```
 
+## Diff
+
+A `diff` block holds what `git diff` prints. It is drawn as a diff view: a file header with how much changed, line numbers on both sides, the changed words marked inside a changed line, and long unchanged runs folded. It is split on a wide part and unified on a narrow one; the buttons switch it, and `view=split` or `view=unified` fixes it. On a phone the lines do not wrap: the numbers and the sign stay in view while the code scrolls inside its box.
+
+```diff
+diff --git a/src/server.ts b/src/server.ts
+index 4b825dc..9f3c1a7 100644
+--- a/src/server.ts
++++ b/src/server.ts
+@@ -12,9 +12,10 @@ export function start(config: Config) {
+   const port = config.port ?? 8080;
+-  const host = "localhost";
++  const host = config.host ?? "0.0.0.0";
+   const server = createServer(handler);
+-  server.listen(port, host);
++  server.listen(port, host, () => log.info("listening", { port, host }));
+   register(server);
+   watch(config);
+   return server;
+@@ -48,6 +49,6 @@ export function stop(server: Server) {
+   unwatch();
+-  server.close();
++  server.close(() => log.info("closed"));
+ }
+@@ -80,18 +81,19 @@ export function reload(server: Server) {
+   const next = readConfig();
+-  if (next.port !== current.port) restart(server);
++  if (next.port !== current.port || next.host !== current.host) restart(server);
+   current = next;
+   emit("reload", next);
+   mark("reload");
+   audit(next);
+   notify(next);
+   flush();
+   settle();
+   prune();
+   index();
+   compact();
+   verify();
++  log.debug("reloaded", { port: next.port });
+   return server;
+ }
+```
+
+With `static` the diff is drawn whole, with no button: every file open, and a folded run only says how many lines it holds.
+
+```diff static
+--- a/src/greet.ts
++++ b/src/greet.ts
+@@ -1,4 +1,4 @@
+ export function greet(name: string) {
+-  return "Hello, " + name;
++  return `Hello, ${name}!`;
+ }
+```
+
 ## Downloads
 
 A card for each file: a type icon, its size, a plain download link, and a checksum that copies on a tap, with the line that checks it. Nothing is counted and nothing is fetched until the reader presses Download.
@@ -385,6 +441,39 @@ term bc "bounded context" also "context map": one part of the system with its ow
 
 Each team keeps its own UL inside a bounded context. The second use of UL in the same section stays plain text: UL.
 
+## Http
+
+An `http` block is a request and, after a blank line, its response, as text. It is drawn as a method tag and the address (the query split into names and values), the headers (folded after six), the body (JSON is pretty and can be folded), the status as a tag coloured by its class, and a button that copies the request as `curl`. A secret in a header is never written out: use a placeholder such as `<token>`.
+
+```http title="Create an order"
+POST /v1/orders?dry_run=false&currency=usd HTTP/1.1
+Host: api.example.com
+Content-Type: application/json
+Accept: application/json
+Authorization: Bearer <token>
+Idempotency-Key: 6f1c2d0e
+User-Agent: shop-cli/2.4
+X-Request-Id: req-7a91
+
+{ "sku": "tea", "qty": 2, "ship": { "to": "198.51.100.7", "express": true }, "notes": ["gift", "no receipt"] }
+
+HTTP/1.1 201 Created
+Content-Type: application/json
+Location: /v1/orders/o-7
+
+{ "id": "o-7", "status": "open", "total": { "amount": 1840, "currency": "usd" } }
+```
+
+With `static` the whole message is drawn: every header, the whole JSON tree, no button.
+
+```http static
+HTTP/1.1 404 Not Found
+Content-Type: application/json
+Cache-Control: no-store
+
+{ "error": "not_found", "detail": { "resource": "order", "id": "o-9" } }
+```
+
 ## Log
 
 A fence named `log`. It reads JSON lines, logfmt and the common "time level message key=value" shape. The filter box speaks **LogQL** (Grafana Loki's query language): `{level="error"}`, `|= "timeout"`, `!= "health"`, `|~ "5\\d\\d"`, `| status >= 500`; a box that starts with neither `{` nor `|` is plain words. Only the query half of LogQL is read, never metric queries. `filter=` is the starting filter. The author (often an agent) points at what matters with `@highlight` lines: a LogQL filter or `line 3-5`, a colour word and the reason in quotes.
@@ -447,6 +536,23 @@ fill DE 83.2
 fill FR 68.4
 ```
 
+## Maths (`$...$`, `$$...$$` and `math`)
+
+The area of a circle is $A = \pi r^2$, and a sum of the first $n$ numbers is:
+
+$$
+\sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+$$
+
+The same in a `math` block, with a fraction, a root and a matrix:
+
+```math
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} \qquad
+\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}
+```
+
+Prices stay text: it costs $5 and $10, and `$not maths$` in code is left alone.
+
 ## PDF
 
 pdf.js draws the pages on a canvas, and its text layer makes the words selectable and searchable. The file below was printed from a small made-up document. The viewer works a page at a time; try the search box, the outline and the zoom.
@@ -457,6 +563,30 @@ pdf.js draws the pages on a canvas, and its text layer makes the words selectabl
 `view=scroll` lays every page out in one scrolling column and draws the ones near the window.
 
 ```pdf src="media/sample.pdf" title="The same file, scrolling" view=scroll height=s
+```
+
+## Citations (`[@key]` and `references`)
+
+A mark in the text opens its entry: marks make a study easier to read [@smith2020, p. 12], and two together are one group [@smith2020; @lee2019]. Hover, focus or tap a mark for the entry.
+
+```references style=apa title="References"
+- id: smith2020
+  author: Smith, Jane; Lee, Kim
+  title: A study of marks
+  in: Journal of Studies
+  year: 2020
+  volume: 12
+  issue: 3
+  pages: 10-20
+  doi: 10.1234/jbs.2020.4
+- id: lee2019
+  author: Lee, Kim
+  title: Notes on lists
+  type: web
+  publisher: Example Press
+  year: 2019
+  url: https://example.com/notes
+  accessed: 2026-11-20
 ```
 
 ## Sankey
@@ -611,6 +741,25 @@ Traceback (most recent call last):
 ValueError: bad
 ```
 
+## Stats
+
+**Stat tiles are the row of big numbers at the top of a dashboard:** each tile is one figure with its name, how it changed and, if given, a tiny line of its recent values, so a reader takes in the state of something at a glance before reading on. The colour word in brackets says whether the change is good or bad (a fall in latency is good); it is never guessed from the sign.
+
+```stats title="The week"
+Requests "1.2 M" change=+12% [good] note="last 7 days" spark=3 5 4 6 8 9
+p95 latency "180 ms" change=-8% [good] spark=9 8 8 7 7 6 5
+Errors "0.4%" change=+0.1 [bad] note="of requests" spark=2 2 3 2 4 5
+Cost "USD 412" change=+3% spark=4 4 5 5 5 6
+```
+
+A tile can also carry a glyph, a trend word and a sub-line. This block is `static`: it draws the tiles whole, the same in print.
+
+```stats title="Garden at a glance" static
+Yield "251 kg" glyph="✦" trend=up sub="Across three plots" change=+8% [good] note="this season" spark=180 192 205 224 251
+Water "120 L" glyph="◉" trend=down sub="Stored rainwater" change=-6% [good] note="this week" spark=150 145 138 126 120
+Beds "30" glyph="▦" trend=flat sub="Ready for planting" [c3]
+```
+
 ## Timeline
 
 One line per event, oldest first; an indented line is a detail. A year, a month or a day.
@@ -748,4 +897,35 @@ note "Kettles are a product now" visible=0.3 evolution=0.1
 highlight kettle
 @step A smart kettle moves it further to the right.
 evolve kettle 0.65 "smart kettle"
+```
+
+## Weather
+
+A forecast written in the source; it never fetches. The units menu on the part switches °C and °F, km/h, mph, m/s and knots, mm and inches, hPa and inHg, and your choice is remembered in this browser.
+
+```weather place="San Francisco" unit=c tz=America/Los_Angeles
+2026-11-22 sun 18/11 rain=0% wind=12km/h pressure=1021hPa
+2026-11-23 partly 16/10 rain=10% wind=15km/h pressure=1018hPa
+2026-11-24 rain 14/9 rain=80% wind=30km/h precip=6mm pressure=1004hPa
+2026-11-25 storm 13/8 rain=95% wind=45km/h precip=14mm pressure=996hPa note="Ferry may stop"
+2026-11-26 cloud 12/7 rain=30% wind=20km/h precip=1mm pressure=1009hPa
+```
+
+Hours work the same way, with one temperature, here written in °F and mph.
+
+```weather place="Oakland" unit=f wind=mph tz=America/Los_Angeles
+2026-11-24 06:00 fog 48 rain=5% wind=4mph
+2026-11-24 09:00 cloud 52 rain=20% wind=8mph
+2026-11-24 12:00 drizzle 57 rain=60% wind=11mph
+2026-11-24 15:00 rain 59 rain=85% wind=14mph
+2026-11-24 18:00 rain 55 rain=70% wind=12mph
+2026-11-24 21:00 cloud 51 rain=25% wind=7mph
+```
+
+The same forecast with `static`: drawn whole in the fence's unit, with no menu.
+
+```weather static place="Sydney" unit=c wind=kmh
+2026-11-22 sun 24/17 rain=0% wind=14km/h
+2026-11-23 partly 22/16 rain=20% wind=18km/h
+2026-11-24 sleet 3/-1 rain=70% wind=22km/h note="Ice on the road"
 ```

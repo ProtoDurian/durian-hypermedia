@@ -1,0 +1,36 @@
+:root {
+  --references-mark-ink: var(--acc-ink, var(--acc));
+  --references-mark-bg: var(--acc-softer);
+  --references-item-bg: var(--surface-2);
+  --references-uses-ink: var(--muted);
+  --references-card-w: 340px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --references-mark-ink: var(--acc-ink, var(--acc));
+  --references-mark-bg: var(--acc-softer);
+  --references-item-bg: var(--surface-2);
+  --references-uses-ink: var(--muted);
+  --references-card-w: 340px;
+  }
+}
+:root[data-theme="dark"] {
+  --references-mark-ink: var(--acc-ink, var(--acc));
+  --references-mark-bg: var(--acc-softer);
+  --references-item-bg: var(--surface-2);
+  --references-uses-ink: var(--muted);
+  --references-card-w: 340px;
+}
+.cite-mark { font: inherit; color: var(--references-mark-ink); background: none; border: 0; padding: 0 1px; cursor: pointer; border-radius: 4px; text-decoration: underline dotted; text-underline-offset: 3px; min-height: 24px; }
+.cite-mark:hover, .cite-mark[aria-expanded="true"] { background: var(--references-mark-bg); }
+.cite-mark:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px; }
+.cite-card { width: min(var(--references-card-w), calc(100vw - 16px)); }
+.cite-entry { margin: 4px 0 8px; font-size: var(--fs-s); overflow-wrap: anywhere; }
+.refs-title { font: 600 var(--fs-m) var(--font-display); margin: 0 0 var(--s-3); display: flex; align-items: center; gap: 10px; }
+.refs-count { font: 500 var(--fs-xs) var(--font-sans); color: var(--muted); background: var(--surface-3); border-radius: var(--r-pill); padding: 1px 9px; }
+.refs-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s-2); }
+.refs-item { background: var(--references-item-bg); border: 1px solid var(--line); border-radius: var(--r-m); padding: 10px 14px; scroll-margin-top: 80px; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.refs-num { font-weight: 600; }
+.refs-text a { overflow-wrap: anywhere; }
+.refs-uses { font-size: var(--fs-xs); color: var(--references-uses-ink); }
+.refs-uses a { margin-left: 6px; display: inline-block; min-width: 24px; min-height: 24px; text-align: center; line-height: 24px; }

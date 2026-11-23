@@ -6,6 +6,7 @@ import calendar from "../calendar/part";
 import chartKinds from "../chart-kinds/part";
 import compare from "../compare/part";
 import compareImage from "../compare-image/part";
+import diff from "../diff/part";
 import downloads from "../downloads/part";
 import explore from "../explore/part";
 import fishbone from "../fishbone/part";
@@ -13,31 +14,38 @@ import flame from "../flame/part";
 import gallery from "../gallery/part";
 import gantt from "../gantt/part";
 import glossary from "../glossary/part";
+import http from "../http/part";
 import log from "../log/part";
 import lottie from "../lottie/part";
 import map from "../map/part";
+import math from "../math/part";
 import pdf from "../pdf/part";
+import references from "../references/part";
 import sankey from "../sankey/part";
 import sequence from "../sequence/part";
 import stacktrace from "../stacktrace/part";
+import stats from "../stats/part";
 import timeline from "../timeline/part";
 import trace from "../trace/part";
 import venn from "../venn/part";
 import video from "../video/part";
 import wardley from "../wardley/part";
+import weather from "../weather/part";
 import glossaryInline from "../glossary/inline";
+import mathInline from "../math/inline";
+import referencesInline from "../references/inline";
 import sparkInline from "../spark/inline";
 
 /** the folder parts, by fence word */
-export const FOLDER_PARTS = { audio, calendar, "chart-kinds": chartKinds, compare, "compare-image": compareImage, downloads, explore, fishbone, flame, gallery, gantt, glossary, log, lottie, map, pdf, sankey, sequence, stacktrace, timeline, trace, venn, video, wardley } as const;
+export const FOLDER_PARTS = { audio, calendar, "chart-kinds": chartKinds, compare, "compare-image": compareImage, diff, downloads, explore, fishbone, flame, gallery, gantt, glossary, http, log, lottie, map, math, pdf, references, sankey, sequence, stacktrace, stats, timeline, trace, venn, video, wardley, weather } as const;
 export const FOLDER_PART_DEFS: Record<string, PartDef<any>> = FOLDER_PARTS;
 /** the inline parts (parts of a sentence), in name order; core/markdown.ts reads them (parts/inline.ts) */
-export const INLINE_PARTS: InlineDef<any, any>[] = [glossaryInline, sparkInline];
+export const INLINE_PARTS: InlineDef<any, any>[] = [glossaryInline, mathInline, referencesInline, sparkInline];
 /** the inline parts' names, in name order */
-export const INLINE_PART_NAMES = ["glossary", "spark"] as const;
+export const INLINE_PART_NAMES = ["glossary", "math", "references", "spark"] as const;
 
 /** the folder parts' fence words, in name order */
-export const FOLDER_PART_NAMES = ["audio", "calendar", "chart-kinds", "compare", "compare-image", "downloads", "explore", "fishbone", "flame", "gallery", "gantt", "glossary", "log", "lottie", "map", "pdf", "sankey", "sequence", "stacktrace", "timeline", "trace", "venn", "video", "wardley"] as const;
+export const FOLDER_PART_NAMES = ["audio", "calendar", "chart-kinds", "compare", "compare-image", "diff", "downloads", "explore", "fishbone", "flame", "gallery", "gantt", "glossary", "http", "log", "lottie", "map", "math", "pdf", "references", "sankey", "sequence", "stacktrace", "stats", "timeline", "trace", "venn", "video", "wardley", "weather"] as const;
 export type FolderPartName = (typeof FOLDER_PART_NAMES)[number];
 /** what each folder part's parse returns (the data of its block) */
 export interface FolderPartData {
@@ -46,6 +54,7 @@ export interface FolderPartData {
   "chart-kinds": ReturnType<typeof chartKinds.parse>;
   "compare": ReturnType<typeof compare.parse>;
   "compare-image": ReturnType<typeof compareImage.parse>;
+  "diff": ReturnType<typeof diff.parse>;
   "downloads": ReturnType<typeof downloads.parse>;
   "explore": ReturnType<typeof explore.parse>;
   "fishbone": ReturnType<typeof fishbone.parse>;
@@ -53,16 +62,21 @@ export interface FolderPartData {
   "gallery": ReturnType<typeof gallery.parse>;
   "gantt": ReturnType<typeof gantt.parse>;
   "glossary": ReturnType<typeof glossary.parse>;
+  "http": ReturnType<typeof http.parse>;
   "log": ReturnType<typeof log.parse>;
   "lottie": ReturnType<typeof lottie.parse>;
   "map": ReturnType<typeof map.parse>;
+  "math": ReturnType<typeof math.parse>;
   "pdf": ReturnType<typeof pdf.parse>;
+  "references": ReturnType<typeof references.parse>;
   "sankey": ReturnType<typeof sankey.parse>;
   "sequence": ReturnType<typeof sequence.parse>;
   "stacktrace": ReturnType<typeof stacktrace.parse>;
+  "stats": ReturnType<typeof stats.parse>;
   "timeline": ReturnType<typeof timeline.parse>;
   "trace": ReturnType<typeof trace.parse>;
   "venn": ReturnType<typeof venn.parse>;
   "video": ReturnType<typeof video.parse>;
   "wardley": ReturnType<typeof wardley.parse>;
+  "weather": ReturnType<typeof weather.parse>;
 }

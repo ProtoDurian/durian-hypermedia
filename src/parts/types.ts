@@ -46,6 +46,9 @@ export interface PartContext {
   budget: Budget;
   /** the page's front matter, read-only (a code reference's pins, a page-wide setting); {} when the page has none */
   frontMatter?: Readonly<Record<string, unknown>>;
+  /** the page's Markdown text nodes as written, in page order (code blocks of the page are not in them); [] when none. A part that counts
+   *  marks over the whole page (citations: the number of each cite) reads them here. Read-only. */
+  texts?: readonly string[];
   /** the page's id prefix (ParseOptions.idPrefix, default "dh-"): put it before an id the part's view makes (an anchor), so two
    *  documents on one page never share one */
   idPrefix?: string;

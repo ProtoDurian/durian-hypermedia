@@ -48,13 +48,37 @@ export function prepareInlines(frontMatter: Record<string, unknown>, nodes: Node
       const fenced = Object.hasOwn(FOLDER_PART_DEFS, def.name) ? FOLDER_PART_DEFS[def.name] : undefined;
       if (fenced) for (const p of blocksNamed(nodes, def.name)) blocks.push(inputOf(p, fenced));
       const budget = partBudget(`the ${def.name} part`);
-      const state = def.prepare ? def.prepare({ frontMatter, blocks, limits, budget, idPrefix, options }) : {};
+      const state = def.prepare ? def.prepare({ frontMatter, blocks, limits, budget, idPrefix, options, texts: pageTexts(nodes) }) : {};
       if (state !== null && state !== undefined) run.active.push({ def, state, stopped: false });
     } catch (e) {
       run.problems.push({ line: 1, level: "error", message: `${def.name}: ${e instanceof BudgetError ? e.message : `could not be read (${e instanceof Error ? e.message : String(e)})`}; its marks in the text are not made` });
     }
   }
   return run;
+}
+
+/** The page's Markdown text nodes, as written, in page order (tabs and accordions included; the text of a part's own fence is not). */
+function pageTexts(nodes: Node[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.kind === "md") out.push(n.text);
+    else if (n.kind === "part") { pageTexts(n.nodes, out); for (const it of n.items) pageTexts(it.nodes, out); }
+  }
+  return out;
+}
+
+/** The parts of this page that read marks from the source itself (InlineRaw), for the Markdown core's rules. */
+export function rawParts(run: InlineRun): Active[] { return run.active.filter((a) => a.def.raw && !a.stopped); }
+/** One raw mark: the part's `match` with a budget of its own (named for the part). A budget error stops the part for the rest of the page. */
+export function matchRaw(run: InlineRun, a: Active, src: string, pos: number, max: number, block: boolean): { end: number; data?: unknown; problem?: string; level?: "error" | "warn" } | null {
+  try {
+    const r = a.def.raw!.match(src, pos, max, a.state, partBudget(`the ${a.def.name} part`), block);
+    currentBudget()?.charge(1 + (r ? r.end - pos : 0));
+    return r;
+  } catch (e) {
+    a.stopped = true;
+    run.problems.push({ line: 1, level: "error", message: `${a.def.name}: ${e instanceof BudgetError ? e.message : `could not be read (${e instanceof Error ? e.message : String(e)})`}; the rest of the text is left as written` });
+    return null;
+  }
 }
 
 /** A heading of this depth starts: tell the parts (a part that marks the first use in a section starts again). */

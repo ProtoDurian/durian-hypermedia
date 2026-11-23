@@ -52,6 +52,8 @@ export interface DocumentProps {
   /** an interactive part a reference resolved to: "off" (the default) shows its still; "static" draws its HTML and CSS
    *  in a sandboxed frame with no script; "on" runs it there. Needs InteractivePart from durian-hypermedia/react/interactive */
   interactive?: "off" | "static" | "on";
+  /** options for the folder parts, by part name: `{ weather: { units: { temp: "f", wind: "mph" } } }` sets the default units of every weather part (the reader's own choice still wins) */
+  partOptions?: Readonly<Record<string, unknown>>;
   className?: string;
 }
 
@@ -100,7 +102,8 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
     map: p.map,
     now: p.now,
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now]);
+    partOptions: p.partOptions,
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions]);
 
   const { doc } = p;
   // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)

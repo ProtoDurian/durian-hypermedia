@@ -9,7 +9,8 @@ const ROOT = join(import.meta.dir, "..");
 test("plain charts: issues, evaluation and LLM view match the snapshot from before the chart words", async () => {
   const want = JSON.parse(readFileSync(join(import.meta.dir, "legacy/base.snap.json"), "utf8"));
   const got = JSON.parse(JSON.stringify(await snapshot(ROOT)));
-  expect(Object.keys(got).sort()).toEqual(Object.keys(want).sort());
+  // every page of the snapshot is still there and the same; a page added later (references, new parts) is not a legacy chart
+  expect(Object.keys(want).filter((k) => !(k in got))).toEqual([]);
   for (const k of Object.keys(want)) expect(got[k], k).toEqual(want[k]);
 });
 test("a plain scatter with a number range on x is valid", async () => {

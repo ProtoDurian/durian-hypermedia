@@ -96,12 +96,12 @@ server s1: shop south | 1 till
 mark t1 5: bad +85
 note: till 1 was emptied | 85 then 20 goes down: the till was emptied | so 85 is added back
 @step Per hour: Each till's increase over the hour.
-value t1 t2 t3: per hour | 100, 60, 180
+value t1 t2 t3: per hour | 95, 60, 180
 @step Shops: Each shop adds its own tills.
-sum s0: shop north | 100 + 60 = 160 -> 160
+sum s0: shop north | 95 + 60 = 155 -> 155
 sum s1: shop south | 180 -> 180
 @step Office: The office adds the shops.
-total out: 160 + 180 = 340 => takings per hour | 340
+total out: 155 + 180 = 335 => takings per hour | 335
 aside out: an emptied till loses nothing
 ```
 
@@ -246,9 +246,9 @@ ticks: 0.5 first, 1.5 second, 2.5 third, 3.5 fourth
 row job draft "(a) Draft | writes": +×1 0..1; hold 1..2 @1 [warn]; +×2 1..2 @2 [lit]; +×3 2..3 @3; _ 3..4 @3 [dashed]
 row server copy "| Copy | stores": paused 0..1 [dashed]; +×1 1..2 @2; issue 2..3 @2 [bad]; ×3 2..3 @3 [good]; _ 3..4 @3 [dashed]
 @step Draft: The second sheet waits at the desk.
-@step Copy: A saved sheet returns to the draft row.
+@step Copy: A saved copy returns to the draft row; the third sheet's copy has an issue.
 arrow copy -> draft at 1.5: saved copy
-@step Input: A new sheet arrives from above.
+@step Input: The third copy is stored after all, and a new sheet arrives from above.
 arrow above -> draft at 2.5 [dashed]: new sheet
 ```
 
@@ -267,8 +267,8 @@ zoom labels: 38 before, 39 near, 41 after, 42 end
 zoom row job receipt "Receipt: three entries": +writing 39..41 [warn]
 dot 5, 15
 dot 25 [good]: saved
-@step Watch: One newer sample arrives during the window.
 dot 30: newest
+@step Watch: One newer sample arrives during the window.
 span axis 0..20 [line] [warn]: first half
 keep span receipt 39..41 [line] [warn]: three entries
 @step Check: The check runs at the end of the window.
@@ -333,7 +333,8 @@ beside
 units Stored pieces | One square is one piece.
   job (client) 12: kept 8, leaving 4
   job (server) 12: kept 10, leaving 2
-  Both desks retain a copy.
+  c, the client desk: 8 kept, 4 leaving.
+  s, the server desk: 10 kept, 2 leaving.
   ~ Thick borders show departing pieces.
 @step Gone: The departed pieces are faint.
 card job: Draft | The retained copy is ready.
@@ -341,7 +342,8 @@ beside
 units Stored pieces | One square is one piece.
   job (client) 12: kept 8, gone 4
   job (server) 12: kept 10, gone 2
-  Both desks retain a copy.
+  c, the client desk: 8 kept, 4 gone.
+  s, the server desk: 10 kept, 2 gone.
   ~ Faint squares show departed pieces.
 ```
 
@@ -411,6 +413,7 @@ o -> sa: trays
 @step Sell: Rye sells out and the oat loaf moves to the window.
 move p3 to w
 light p1: sold
+dim p1
 text sa: rye is gone | spelt stays
 @step Late: Shelf B runs low and closes; the timer is off.
 tone sb bad
@@ -553,7 +556,7 @@ move 2 from Fri to Mon; 1 from Sat to Tue
 peak: busiest 1.2×
 big: 1.2× | busiest ÷ average
 heading: the moves: Fri → Mon (2 trays), Sat → Tue (1 tray) | the week's total does not change
-@step Two baristas: With a second barista, Saturday is the only busy day.
+@step Two baristas: Saturday remains the busiest day; Friday is also above average.
 values: 0.9 0.9 1.0 1.0 1.1 1.2 0.9
 light Sat: the busiest
 heading: two baristas, a month later
@@ -570,8 +573,8 @@ ruler: none
 row job draft "Draft": +draft 2.9..3.1 @1..1 [dot]; +stored 2.9..3.1 @2 [dot]
 row server copy "Copy": +copy 4.9..5.1 @1..1 [dot]; +saved 4.9..5.1 @2 [dot]
 @step Arrive: The pieces arrive at different times.
-keep at 2 [guide]: first copy
-keep at 8 [guide] [good]: last copy
+keep at 3 [guide]: first copy
+keep at 5 [guide] [good]: last copy
 @step Save: The words change while the dots stay still.
 ```
 
@@ -662,9 +665,9 @@ title: A labelled schedule | full words
 time: 0..32
 ticks: 0 p0, 4 p4 ▲ parcel ready, 8 p8, 28 p28, 30 p30, 32 p32
 row job run "Run": +working 0..32
-at 4: copy lost
 @step See: Every labelled tick keeps its words.
-@step Keep: The marker keeps its caption.
+@step Lost: At 16 a copy is lost; the tick words stay.
+keep at 16 [bad]: copy lost
 ```
 
 ## Animation: full words in narrow columns
@@ -676,9 +679,9 @@ title: A labelled archive | full cell words
 time: 0..8
 cells: 1 | headers
 ticks: 0.5 first, 1.5 receiptTick, 2.5 third, 3.5 fourth, 4.5 fifth, 5.5 sixth, 6.5 seventh, 7.5 eighth
-row job archive "": operators 0..4; /receipt 4..5; archived, 5..6; payload 6..7; paused 7..8
+row job archive "": operators 0..4; /receipt 4..5; archived 5..6; payload 6..7 @2; paused 7..8 @2
 @step Read: Full words remain readable.
-@step Keep: The cells and captions keep their places.
+@step Keep: The payload and the pause arrive; the other cells keep their places.
 ```
 
 ## Animation: arrivals over a bottom ruler
@@ -693,7 +696,7 @@ row labels: beside
 ticks: 0, 4, 8, 12
 at 10 [solid] [good]: storage ready
 row job first "First": packed 3.9..4.1 [dot]
-row server second "Second": stored 7.9..8.1 [dot]
+row server second "Second": stored 7.9..8.1 @2 [dot]
 at 6 [solid] [good] [caption]: The parcel is released.
 @step Pack: The first dot records packing.
 @step Store: The second dot records storage.
@@ -711,7 +714,7 @@ row job draft "(a) Draft | first writer": +×1 0..4; +×2 4..7 @3
 row server copy "(b) Copy | spare writer": +×1 0..4; lost 4..7 @3 [bad]
 row job archive "| Archive": reads a parcel 0..4; +stored 4..7 @3
 @step Draft: Four columns are revealed.
-@step Copy: A reply returns to the draft.
+@step Copy: The copy is ready, but no reply reaches the draft.
 tag copy 0..2: copy is ready
 foot (job): the draft keeps its colour
 arrow copy -> draft at 0.5 [dashed]: no reply
@@ -743,7 +746,7 @@ time: 0..8
 ruler: none
 row job root "Root": sent 1..2 [dot] [plain]
 row server engine "Engine": working 3..4 [dot]
-row job store "Store": saved 5..6 [dot] [plain] @2
+row job store "Store": saved 5..6 [dot] [plain] @5
 @step Send: The root and engine are visible.
 @step Pulse: The engine dot is solid for one step.
 fill engine
@@ -841,11 +844,10 @@ Each tick header is a band. Independent row ranges reveal in place without an ex
 title: Numbered shifts | boxed tick headers
 time: 840..872
 cells: 1 | headers
-row job draft "draft": +x 840..848 @3; x 848..869 @4 [warn]; x 869..872 @5 [good]
-row server copy "copy": +x 840..848 @3; x 848..869 @4 [warn]; x 869..872 @5 [good]
-row job archive "archive": +x 840..848 @3; x 848..869 @4 [warn]; x 869..872 @5 [good]
-@step Wait: The fixed header shows the planned domain.
-@step Ready: The row positions remain reserved.
+row job draft "draft": +x 840..848 @2; x 848..869 @3 [warn]; x 869..872 @4 [good]
+row server copy "copy": +x 840..848 @2; x 848..869 @3 [warn]; x 869..872 @4 [good]
+row job archive "archive": +x 840..848 @2; x 848..869 @3 [warn]; x 869..872 @4 [good]
+@step Wait: The fixed header shows the planned domain; the rows keep their places, empty.
 @step Eight: Each row shows eight cells.
 @step Continue: The next interval appears.
 @step Finish: The final interval appears.
@@ -864,10 +866,10 @@ row job draft "Draft": +operators 0..4; +payload 4..7 @3
 row server receiver "Receiver": +save, payload 0..2 @2; +to two operators 2..7 @3
 row job archive "Archive": +receipt 0..2; +archived, payload 2..4 @2; _ 4..7 @3
 @step Begin: The first entries keep their places.
-keep at 2 [accent] [below]: checkTick = Q - 2 s
+keep at 2 [accent] [below]: check = shift 2
 @step Copy: The receiver records the parcel.
 @step Finish: Every full word remains readable.
-keep at 4 [bad] [below]: shiftTick = Q + 1 s
+keep at 4 [bad] [below]: switch = shift 4
 ```
 
 ## Animation: compact desktop tick headers
@@ -882,13 +884,15 @@ cells: 1 | headers
 row job old "parcel 7 · old keeper": _ 840..872
 row server next "parcel 32 · new keeper": _ 840..872
 row job receiver "receiver": _ 840..872
-@step Begin: The row positions remain fixed.
+@step Begin: Half of parcel 7's pieces are leaving its old holder.
 units Stored pieces | one square per parcel
   job 16: kept 8, leaving 8
-@step Change: The following summary keeps its place.
+  j, parcel 7: 8 kept, 8 leaving.
+@step Change: The leaving pieces are gone; the summary keeps its place.
 units Stored pieces | one square per parcel
-  job 16: kept 8, leaving 8
-foot: One summary.
+  job 16: kept 8, gone 8
+  j, parcel 7: 8 kept, 8 gone.
+foot: 8 of 16 pieces stay.
 keep at 848 [below]: previousTick
 keep at 870 [bad] [below]: currentTick
 ```

@@ -29,11 +29,11 @@ server s1: shop south | 1 till
 mark t1 5: bad +85
 note: till 1 was emptied | 85 then 20 goes down: the till was emptied | so 85 is added back
 @step Per hour: Each till's increase over the hour.
-value t1 t2 t3: per hour | 100, 60, 180
+value t1 t2 t3: per hour | 95, 60, 180
 @step Shops: Each shop adds its own tills.
-sum s0: shop north | 100 + 60 = 160 -> 160
+sum s0: shop north | 95 + 60 = 155 -> 155
 sum s1: shop south | 180 -> 180
 @step Office: The office adds the shops.
-total out: 160 + 180 = 340 => takings per hour | 340
+total out: 155 + 180 = 335 => takings per hour | 335
 aside out: an emptied till loses nothing
 ```

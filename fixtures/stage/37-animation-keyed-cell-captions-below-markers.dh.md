@@ -24,8 +24,8 @@ row job draft "Draft": +operators 0..4; +payload 4..7 @3
 row server receiver "Receiver": +save, payload 0..2 @2; +to two operators 2..7 @3
 row job archive "Archive": +receipt 0..2; +archived, payload 2..4 @2; _ 4..7 @3
 @step Begin: The first entries keep their places.
-keep at 2 [accent] [below]: checkTick = Q - 2 s
+keep at 2 [accent] [below]: check = shift 2
 @step Copy: The receiver records the parcel.
 @step Finish: Every full word remains readable.
-keep at 4 [bad] [below]: shiftTick = Q + 1 s
+keep at 4 [bad] [below]: switch = shift 4
 ```

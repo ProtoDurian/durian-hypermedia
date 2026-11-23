@@ -1,6 +1,7 @@
 // @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
 // a tick label's own reveal (@N), separated cells ("cells: 1 | apart"), the zoom inset's caption bracket ("| bracket").
 import { beforeEach, expect, test } from "bun:test";
+import { tiedToCell } from "./v11-tied-helper";
 import { compileStage, layoutStage, stageLlm, type Plan } from "../../src/core/stage";
 import { type Item, measure, fontSize, setPhoneFont } from "../../src/core/stage-core";
 import { beginDocument, newBudget, BudgetError, DOC_WORK } from "../../src/core/stage-budget";
@@ -238,17 +239,15 @@ test("a tick label takes one tone, in either order with @N; two tones are refuse
   expect(compile(src(`3 "Thu" [bad] [warn]`), 5).errors.map((e) => e.msg).join()).toContain("a tick label takes one tone");
 });
 
-test("phone headers too wide for their columns stand level on staggered rows by their columns; every short cell word stays in its own cell (staggered), no footnote", () => {
+test("phone headers too wide for their columns stand on end inside their own column when the turned digits fit it (rc.2 MUST 7), else level on staggered rows with a leader; every short cell word stays in its own cell (staggered), no footnote", () => {
   const ticks = Array.from({ length: 32 }, (_, i) => `${840 + i}.5 ${40 + i}`).join(", ");
   const c = compile(`time: 840..872 | ticks\ncells: 1 | headers\nticks: ${ticks}\nrow job a "Old owner": x1 840..872\nrow server b "New owner": +x1 840..848 @2; x1 848..872 @3`, 3);
   expect(c.errors).toEqual([]);
   for (const w of [356, 326]) {
     const p = layoutStage(c.model, w), heads = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^[4-7]\d$/.test(i.s) && !i.tip);
     expect(heads.length).toBe(32);
-    for (const h of heads) expect(h.rotate).toBeUndefined();
-    const box = (t: Extract<Item, { k: "text" }>) => ({ x: t.x, w: measure(t.s, "sub"), y: t.y });
-    for (let i = 0; i < heads.length; i++) for (let j = i + 1; j < heads.length; j++) { const a = box(heads[i]), b = box(heads[j]); if (a.y === b.y) expect(a.x + a.w <= b.x || b.x + b.w <= a.x).toBe(true); }
-    expect(new Set(heads.map((h) => h.y)).size).toBeLessThanOrEqual(3);
+    setPhoneFont(true);
+    try { const headerCells = p.items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && /:header:/.test(i.id || "")); for (const h of heads) expect(tiedToCell(p.items, h, headerCells)).toBe(""); } finally { setPhoneFont(false); }
     const foot = p.items.filter((i) => i.k === "text" && /^\d+(–\d+)?: /.test(i.s));
     expect(foot.length).toBe(0);                                         // never a footnote for a short word, never a merged run
     for (const step of [1, 2, 3]) {

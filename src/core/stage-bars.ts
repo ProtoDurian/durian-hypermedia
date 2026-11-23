@@ -59,9 +59,11 @@ function factsInForce(b: Bars, step: number): { at: At[]; toneAt: Map<number, st
 function barTone(b: Bars, at: At[], toneAt: Map<number, string>[], k: number, i: number): { tone: string; why: string } {
   const a = at[k], s = b.steps.get(k), v = a.values[i], hi = Math.max(...a.values), mv = s?.moves ?? [];
   let tone = b.role ? `role:${b.role}` : "acc", why = "";
+  // The authored peak stays highlighted regardless of the cap; only a giver's automatic warning requires excess.
+  const over = !a.limit || v > a.limit.v;
   if (a.peak && v === hi) { tone = "bad"; why = "the peak"; }
   if (s?.limit && v > s.limit.v && v !== hi) { tone = "warn"; why = "over the limit"; }
-  if (mv.some((m) => m.from === i)) { tone = "warn"; why = "gives"; }
+  if (mv.some((m) => m.from === i) && over) { tone = "warn"; why = "gives"; }
   if (mv.some((m) => m.to === i)) { tone = "good"; why = "takes"; }
   const byAuthor = toneAt[k].get(i); if (byAuthor) { tone = byAuthor === "accent" ? "acc" : byAuthor; why = `marked ${byAuthor}`; } // the author's tone wins over the worked-out ones
   if (s?.bar?.i === i) { tone = "acc"; why = s.bar.s ? `lit: ${s.bar.s}` : "lit"; }
@@ -199,7 +201,7 @@ registerBlock({
     }
   },
   layout(b: Bars, box: Box): LayoutOut {
-    const items: Item[] = [], steps = Math.max(box.steps, ...b.steps.keys(), 1), W = box.w, nar = box.narrow;
+    const items: Item[] = [], moveUnder: Item[] = [], steps = Math.max(box.steps, ...b.steps.keys(), 1), W = box.w, nar = box.narrow;
     docBudget().charge("stage bars", b.n * steps * 3 + 50, b.n * steps);
     const { at, toneAt } = inForce(b, steps);
     let y = 0;
@@ -318,9 +320,8 @@ registerBlock({
         const cx = tx + (fx - tx) * 0.55, cy = ty, arc: [number, number][] = [];
         // a fine polyline (no corner rounding: that is for right-angle paths and would kink a curve at every point)
         for (let j = 0; j <= 24; j++) { const t = j / 24, u = 1 - t; arc.push([u * u * fx + 2 * u * t * cx + t * t * tx, u * u * fy + 2 * u * t * cy + t * t * ty]); }
-        // drawn over the bars: a surface-coloured band under the dashes keeps the curve whole where it crosses a bar of
-        // its own colour, and a large head (as the originals)
-        items.push({ k: "path", pts: arc, ink: "surface", w: nar ? 5 : 6, on: [k], bar: { ignore: 1 } });
+        // The clearance goes behind the data: it may separate a move from the grid, but never erase a bar's top.
+        moveUnder.push({ k: "path", pts: arc, ink: "surface", w: nar ? 5 : 6, on: [k], bar: { ignore: 1 } });
         items.push({ k: "path", pts: arc, ink: "acc:line", dash: true, arrow: true, head: nar ? 11 : 15, w: nar ? 2 : 2.5, id: `move:${m.from}:${m.to}:${k}`, on: [k], bar: { edge: 1, from: runId.get(`${m.from}:${k}`) ?? "", to: runId.get(`${m.to}:${k}`) ?? "" } });
       }
       if (s.bar?.s) { const v = at[k].values[s.bar.i], c = chip(0, 0, s.bar.s, "acc"); const cx = Math.max(x0 + c.w / 2, Math.min(x1 - c.w / 2, BX(s.bar.i) + bw / 2)); items.push(...chip(cx, Math.max(top - 6, Y(v) - 26), s.bar.s, "acc").items.map((it) => ({ ...it, on: [k] }))); }
@@ -329,7 +330,7 @@ registerBlock({
     let h = bot + 22;
     if (b.title) for (const row of wrap(b.title, W - 8, "sub", 2)) { items.push({ k: "text", x: (x0 + x1) / 2 > W / 2 ? W / 2 : (x0 + x1) / 2, y: h + 12, s: row, f: "sub", ink: "muted", anchor: "middle" }); h += 15; }
     for (const it of items) if (it.k === "text" && it.anchor === "middle") { const hw = measure(it.s, it.f) / 2; it.x = Math.max(hw, Math.min(W - hw, it.x)); }
-    return { h: h + 6, items };
+    return { h: h + 6, items: [...moveUnder, ...items] };
   },
   facts(b: Bars, step) {
     const tabSteps = (t: { a: number; b: number }) => (t.a === t.b ? `step ${t.a}` : `steps ${t.a} to ${t.b}`);
@@ -338,20 +339,25 @@ registerBlock({
       return [`Bars: ${b.title || "values"}${b.unit ? ` (${b.unit})` : ""}, ${b.n} bars${b.ticks.length ? `, axis ${b.ticks.map(fmt).join(", ")}` : ""}.`, ...(b.tabs.length ? [`Tabs: ${b.tabs.map((t) => `${t.name} (${tabSteps(t)})`).join(", ")}.`] : []), ...b.lines.map((l) => `Line ${l.name} at ${fmt(l.v)}.`), ...(v0 ? [`Values: ${v0.map((v, i) => `${b.labels[i]} ${fmt(v)}`).join(", ")}.`] : [])];
     }
     // the drawing's paint: which bars are lit in this step and why, and the tab lit when it changes
-    const { at, toneAt } = factsInForce(b, step), lit: string[] = [];
-    for (let i = 0; i < b.n; i++) { const w = barTone(b, at, toneAt, step, i).why; if (w) lit.push(`${b.labels[i]} ${fmt(at[step].values[i])} (${w})`); }
+    const { at, toneAt } = factsInForce(b, step), lit: string[] = [], plainAt: string[] = [], lim = at[step].limit;
+    // An unhighlighted bar at the limit stays plain; authored highlights also say "at the limit", never "over".
+    for (let i = 0; i < b.n; i++) {
+      const w = barTone(b, at, toneAt, step, i).why, v = at[step].values[i], on = !!lim && v === lim.v;
+      if (w) lit.push(`${b.labels[i]} ${fmt(v)} (${w}${on ? "; at the limit" : ""})`); else if (on) plainAt.push(`${b.labels[i]} ${fmt(v)}`);
+    }
     const tabOn = (k: number) => b.tabs.findIndex((t) => k >= t.a && k <= t.b), tab = tabOn(step);
     const s = b.steps.get(step);
     const out: string[] = [];
     if (tab >= 0 && (step === 1 || tab !== tabOn(step - 1))) out.push(`Tab: ${b.tabs[tab].name}.`);
-    if (!s) return lit.length ? [...out, `Lit bars: ${lit.join(", ")}.`] : out;
+    const atText = plainAt.length ? `at the limit ${fmt(lim!.v)}, not lit: ${plainAt.join(", ")}` : "";
+    const tail = lit.length ? [`Lit bars: ${lit.join(", ")}${atText ? "; " + atText : ""}.`] : atText ? [`Bars ${atText}.`] : [];
+    if (!s) return [...out, ...tail];
     if (s.head) out.push(s.head.join(" · ") + ".");
     if (s.values) { docBudget().charge("stage bars", s.values.length + 1); out.push(`Values: ${s.values.map((v, i) => `${b.labels[i]} ${fmt(v)}`).join(", ")}.`); }
     if (s.peak) out.push(`Peak: ${s.peak}.`);
     if (s.big) out.push(s.big.join(": ") + ".");
     if (s.limit) out.push(`Limit ${fmt(s.limit.v)}${s.limit.s ? `: ${s.limit.s}` : ""}.`);
     if (s.moves.length) out.push(`Moves: ${s.moves.map((m) => `${b.labels[m.from]} to ${b.labels[m.to]} (${m.k})`).join(", ")}.`);
-    if (lit.length) out.push(`Lit bars: ${lit.join(", ")}.`);
-    return out;
+    return [...out, ...tail];
   },
 } satisfies StageBlock<Bars>);

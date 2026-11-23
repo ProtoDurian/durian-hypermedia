@@ -29,7 +29,7 @@ const barsAt = (items: Item[], k: number) => items.filter((i) => i.k === "box" &
 test("parses bars and lists the facts per step", () => {
   const c = compile(); expect(c.errors).toEqual([]);
   const llm = stageLlm(c);
-  for (const s of ["Bars: day of the week · cups ÷ the average (×), 7 bars, axis 0, 0.5, 1, 1.5.", "Line average at 1.", "Values: Mon 0.7, Tue 0.8", "Peak: busiest 1.4×.", "1.4×: busiest ÷ average.", "Limit 1.2: cap 1.2×.", "Moves: Fri to Mon (2), Sat to Tue (1).", "Lit bars: Sat 1.2 (lit: the busiest)."]) expect(llm).toContain(s);
+  for (const s of ["Bars: day of the week · cups ÷ the average (×), 7 bars, axis 0, 0.5, 1, 1.5.", "Line average at 1.", "Values: Mon 0.7, Tue 0.8", "Peak: busiest 1.4×.", "1.4×: busiest ÷ average.", "Limit 1.2: cap 1.2×.", "Moves: Fri to Mon (2), Sat to Tue (1).", "Lit bars: Sat 1.2 (lit: the busiest; at the limit)."]) expect(llm).toContain(s);
 });
 for (const w of [1000, 340]) test(`bars lay out inside ${w} with every data mark at its true value`, () => {
   const plan = layoutStage(compile().model, w); bounded(plan.items, w, plan.h);
@@ -44,10 +44,10 @@ for (const w of [1000, 340]) test(`bars lay out inside ${w} with every data mark
   }
   // one bar per day per step, each in its slot
   for (const k of [1, 2, 3, 4]) { const bs = barsAt(plan.items, k); expect(bs.length).toBe(7); expect(new Set(bs.map((b) => String(b.bar?.id).split(":")[1])).size).toBe(7); }
-  // tones: the peak bad, the over-limit warn in the limit step, givers warn and takers good in the move step
+  // tones: authored peaks stay highlighted at the cap; giving warnings clear, and takers remain good
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], idx = (d: string) => days.indexOf(d);
   const tone = (k: number, d: string) => barsAt(plan.items, k).find((b) => String(b.bar?.id).startsWith(`bar:${idx(d)}:`))!.fill.split(":")[0];
-  expect(tone(1, "Fri")).toBe("bad"); expect(tone(2, "Sat")).toBe("warn"); expect(tone(3, "Mon")).toBe("good"); expect(tone(3, "Fri")).toBe("warn"); expect(tone(4, "Sat")).toBe("acc"); expect(tone(1, "Mon")).toBe("role");
+  expect(tone(1, "Fri")).toBe("bad"); expect(tone(2, "Sat")).toBe("warn"); expect(tone(3, "Mon")).toBe("good"); expect(tone(3, "Fri")).toBe("bad"); expect(tone(4, "Sat")).toBe("acc"); expect(tone(1, "Mon")).toBe("role");
   // the taker's growth as stacked blocks: 2 on Monday, 1 on Tuesday
   expect(plan.items.filter((i) => i.k === "box" && i.cls === "stg-block" && shownAt(i, 3)).length).toBe(3);
   // moves are arrows with edge hooks, shown in their step only
@@ -166,13 +166,14 @@ test("a peak just under a limit: the peak dotted, the limit dashed and drawn ove
   const tsx = require("node:fs").readFileSync(require("node:path").join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8") as string;
   expect(tsx).toContain(`strokeDasharray: it.dot ? "0.1 4.5"`); expect(tsx).toContain(`strokeLinecap: it.dot ? "round"`);
 });
-test("a move's arrow is drawn over the bars: after them, on a surface band (ignored by the bar), with a large head", () => {
+test("a move arrow stays over the bars while its surface clearance stays behind them", () => {
   const c = compile(head, crowded);
   for (const w of [1000, 356]) {
     const p = layoutStage(c.model, w), lastBar = Math.max(...p.items.flatMap((it, i) => (it.k === "box" && it.cls?.includes("stg-bar") ? [i] : [])));
     for (const id of ["move:4:0:2", "move:5:1:2"]) {
-      const i = p.items.findIndex((it) => it.id === id), a = p.items[i] as Extract<Item, { k: "path" }>, band = p.items[i - 1] as Extract<Item, { k: "path" }>;
+      const i = p.items.findIndex((it) => it.id === id), a = p.items[i] as Extract<Item, { k: "path" }>, band = p.items.find(it => it.k === "path" && it.ink === "surface" && JSON.stringify(it.pts) === JSON.stringify(a.pts)) as Extract<Item, { k: "path" }>;
       expect(i).toBeGreaterThan(lastBar);
+      expect(p.items.indexOf(band)).toBeLessThan(p.items.findIndex(it => it.k === "box" && !!it.cls?.includes("stg-bar")));
       expect(band).toMatchObject({ k: "path", ink: "surface", bar: { ignore: 1 } }); expect(band.pts).toEqual(a.pts); expect(band.w!).toBeGreaterThan(a.w! + 2);
       expect(a.head!).toBeGreaterThanOrEqual(p.phone ? 11 : 15);
     }

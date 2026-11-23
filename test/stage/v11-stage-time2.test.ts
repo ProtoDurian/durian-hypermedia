@@ -2,6 +2,7 @@
 // the time axis under named lanes (axis: A..B), a span drawn as a bar ([bar]) with its tag as the chip at
 // its left end, and titled row bands (band role id "Title": r1..r2). Public sample words only.
 import { beforeEach, expect, test } from "bun:test";
+import { tiedToCell } from "./v11-tied-helper";
 import { compileStage, layoutStage, stageLlm } from "../../src/core/stage";
 import { type Item } from "../../src/core/stage-core";
 import { beginDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
@@ -475,12 +476,10 @@ test("phone numbers: every cell's number drawn (never fewer): level in its cell,
       }
       const nums = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^\d+$/.test(i.s));
       for (const t of nums) expect(fontSize(t.f)).toBeGreaterThanOrEqual(11);
-      // the reads (two digits, cells about 8 to 9 px at 390) stand level on two rows
-      const reads = nums.filter((t) => t.s.length === 2);
-      if (w === 390) { expect(reads.some((t) => t.rotate)).toBe(false); expect(new Set(reads.map((t) => Math.round(t.y))).size).toBeLessThanOrEqual(2 * 2); }
-      // the ticks (three digits, cells about 7.4 px at 390) stand level on three rows at 390
-      const ticks = nums.filter((t) => t.s.length === 3);
-      if (w === 390) { expect(ticks.some((t) => t.rotate)).toBe(false); expect(new Set(ticks.map((t) => Math.round(t.y))).size).toBe(3); }
+      // rc.2 MUST 7: every number is tied to its own cell: on end inside it when the turned digits fit (the reads, cells about 9 px at 390),
+      // else level on staggered rows with a leader to its cell (the ticks, cells about 7.4 px)
+      for (const t of nums) expect(tiedToCell(p.items, t, cells)).toBe("");
+      if (w === 390) { expect(nums.filter((t) => t.s.length === 2).every((t) => t.rotate)).toBe(true); expect(nums.filter((t) => t.s.length === 3).some((t) => t.rotate)).toBe(false); }
       for (const t of nums.filter((n) => n.rotate)) { const r = painted(t); expect(r.w).toBeLessThanOrEqual(fontSize("chip")); }
     } finally { setPhoneFont(false); }
   }
@@ -676,4 +675,31 @@ test("band... | compact: its rows pack under the band's title (name, then sub, s
   }
   const bad = compileStage(pairHead("time: 0..20 | seconds", " | compacted"), pairSteps, 1, {}, roles);
   expect(bad.errors.map((e) => e.msg).join(" ")).toContain("optionally ending | compact");
+});
+
+test("phone cell words staggered under their row: each has a leader in its cell's ink from its own cell's bottom edge down to the word (rc.2 MUST 7)", () => {
+  const head = `job s: sender | sends
+time: 0..12 | hours
+cells: 1
+row job b "batch": waiting 0..3; +working 3..9; finished 9..12`;
+  for (const w of [356, 326]) {
+    beginDocument();
+    const c = compileStage(head, [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }], 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    setPhoneFont(true);
+    try {
+      const cells = boxes(p.items).filter((b) => /:cell:b:/.test(b.id || ""));
+      const words = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^(waiting|working|finished)$/.test(i.s));
+      expect(words.length).toBe(12); // one word per cell, staggered under the row
+      const leaders = p.items.filter((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.cls === "stg-time-leader");
+      for (const t of words) {
+        const top = t.y - fontSize(t.f) * 0.72, half = measure(t.s, t.f) / 2;
+        const lead = leaders.find((l) => Math.abs(l.pts[1][1] - top) <= 2 && l.pts[0][0] >= t.x - half && l.pts[0][0] <= t.x + half && cells.some((c) => Math.abs(c.x + c.w / 2 - l.pts[0][0]) < 0.6 && Math.abs(c.y + c.h - l.pts[0][1]) < 0.6));
+        if (!lead) throw new Error(`${w}: "${t.s}" at ${t.x.toFixed(1)},${t.y} has no leader from its cell`);
+        expect(lead.ink).toBe(t.s === "working" ? "role:job:line" : "line-2");
+      }
+      const xs = new Set(leaders.map((l) => Math.round(l.pts[0][0] * 10))); expect(xs.size).toBe(12); // one leader per cell
+    } finally { setPhoneFont(false); }
+  }
 });

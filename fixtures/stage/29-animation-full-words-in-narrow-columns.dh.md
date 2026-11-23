@@ -20,7 +20,7 @@ title: A labelled archive | full cell words
 time: 0..8
 cells: 1 | headers
 ticks: 0.5 first, 1.5 receiptTick, 2.5 third, 3.5 fourth, 4.5 fifth, 5.5 sixth, 6.5 seventh, 7.5 eighth
-row job archive "": operators 0..4; /receipt 4..5; archived, 5..6; payload 6..7; paused 7..8
+row job archive "": operators 0..4; /receipt 4..5; archived 5..6; payload 6..7 @2; paused 7..8 @2
 @step Read: Full words remain readable.
-@step Keep: The cells and captions keep their places.
+@step Keep: The payload and the pause arrive; the other cells keep their places.
 ```

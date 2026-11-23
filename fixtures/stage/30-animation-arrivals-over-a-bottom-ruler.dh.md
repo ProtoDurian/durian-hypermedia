@@ -23,7 +23,7 @@ row labels: beside
 ticks: 0, 4, 8, 12
 at 10 [solid] [good]: storage ready
 row job first "First": packed 3.9..4.1 [dot]
-row server second "Second": stored 7.9..8.1 [dot]
+row server second "Second": stored 7.9..8.1 @2 [dot]
 at 6 [solid] [good] [caption]: The parcel is released.
 @step Pack: The first dot records packing.
 @step Store: The second dot records storage.

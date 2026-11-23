@@ -18,10 +18,13 @@ test("desktop roomy row cards use one label column, full subtitles and an even r
   for(const id of['ra','rb','rm']){const variants=boxes(p).filter(i=>i.bar?.id===id);expect(new Set(variants.map(i=>`${i.x},${i.y},${i.h}`)).size).toBe(1);}
  }
 });
-test("an above input arrow is a short stub above the tick words with its label beside the unit caption",()=>{
+// the input from above runs down to its row's top (a stub over the tick words never
+// reached it); the tick word it passes is drawn over it with a halo; its label stays beside the unit caption
+test("an above input arrow runs from beside the unit caption down to its row, over the tick word, its label beside the unit caption",()=>{
  const c=compile();expect(c.errors).toEqual([]);
  for(const w of[1158,1280]){const p=layoutStage(c.model,w),arrow=p.items.find((i):i is Extract<Item,{k:'path'}>=>i.k==='path'&&i.arrow&&i.from===2)!,tick=p.items.find((i):i is Extract<Item,{k:'text'}>=>i.k==='text'&&i.s==='t8')!,unit=p.items.find((i):i is Extract<Item,{k:'text'}>=>i.k==='text'&&i.s==='one tick per column')!,label=p.items.find((i):i is Extract<Item,{k:'text'}>=>i.k==='text'&&i.s==='new parcel')!;
-  expect(arrow.pts[1][1]-arrow.pts[0][1]).toBe(16);expect(arrow.head).toBe(8); /* 8 px visible stem before the 8 px head */expect(arrow.pts[1][1]).toBeLessThan(tick.y-11);expect(label.x).toBeGreaterThan(arrow.pts[0][0]);expect(label.y).toBe(unit.y);expect(label.ink).toBe('acc:ink');expect(arrow.bar?.to).toBe('ra');
+  const ra=boxes(p).filter(i=>i.bar?.id==='ra'&&i.x<arrow.pts[0][0]&&i.x+i.w>arrow.pts[0][0]).sort((u,v)=>u.y-v.y)[0]??boxes(p).find(i=>i.bar?.id==='ra')!;
+  expect(arrow.head).toBe(8);expect(arrow.pts[1][1]).toBeGreaterThan(tick.y);expect(Math.abs(arrow.pts[1][1]-ra.y)).toBeLessThanOrEqual(3);expect((tick as {halo?:boolean}).halo).toBe(true);expect(label.x).toBeGreaterThan(arrow.pts[0][0]);expect(label.y).toBe(unit.y);expect(label.ink).toBe('acc:ink');expect(arrow.bar?.to).toBe('ra');
  }
 });
 test("desktop labels wrap only at their shared width cap and taller cell states keep every row at that height",()=>{

@@ -35,6 +35,7 @@ o -> sa: trays
 @step Sell: Rye sells out and the oat loaf moves to the window.
 move p3 to w
 light p1: sold
+dim p1
 text sa: rye is gone | spelt stays
 @step Late: Shelf B runs low and closes; the timer is off.
 tone sb bad

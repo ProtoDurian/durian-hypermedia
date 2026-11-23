@@ -23,13 +23,15 @@ cells: 1 | headers
 row job old "parcel 7 · old keeper": _ 840..872
 row server next "parcel 32 · new keeper": _ 840..872
 row job receiver "receiver": _ 840..872
-@step Begin: The row positions remain fixed.
+@step Begin: Half of parcel 7's pieces are leaving its old holder.
 units Stored pieces | one square per parcel
   job 16: kept 8, leaving 8
-@step Change: The following summary keeps its place.
+  j, parcel 7: 8 kept, 8 leaving.
+@step Change: The leaving pieces are gone; the summary keeps its place.
 units Stored pieces | one square per parcel
-  job 16: kept 8, leaving 8
-foot: One summary.
+  job 16: kept 8, gone 8
+  j, parcel 7: 8 kept, 8 gone.
+foot: 8 of 16 pieces stay.
 keep at 848 [below]: previousTick
 keep at 870 [bad] [below]: currentTick
 ```

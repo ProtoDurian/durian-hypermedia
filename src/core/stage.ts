@@ -24,7 +24,7 @@ import {
   LINE_H, PAD, measure, wrap, longestWord, parts, colon, chip, shift, expandIds, range, ID_RE, forbidden, textLines,
   blockFor, blockByOp, blockByMore, blockWords,
   setPhoneLines,
-  setPhoneFont,
+  setPhoneFont, fontSize,
 } from "./stage-core";
 import { oldWord, KEEP_WORDS, type WordScope } from "./stage-words"; // renamed words say the new one
 import { PHONE, phonePer, wholeAt, moreInFreeCell, headingRect, setPhone } from "./stage-phone"; // denser phone forms
@@ -641,13 +641,21 @@ function layoutAt(m: Model, w: number): Plan {
     free = reuse ? undefined : r.free; laneFoot = r.bottom; y = r.bottom + 12;
     if (reuse) { y = top0; panelRegion(); y = Math.max(y, r.bottom + 12); reused = true; }
   };
+  const columnGroups = new Map<string, { head: typeof m.head[number]; left: number }[]>(), columnLeft = new Map<typeof m.head[number], number>();
+  for (const head of m.head) {
+    const columns = head.block.columns?.(head.node, box); if (!columns) continue;
+    const group = columnGroups.get(columns.key) ?? []; group.push({ head, left: columns.left }); columnGroups.set(columns.key, group);
+  }
+  for (const group of columnGroups.values()) if (group.length > 1) {
+    const left = Math.max(...group.map(c => c.left)); for (const c of group) columnLeft.set(c.head, left);
+  }
   m.head.forEach((h, i) => {
     if (i === m.panelsAt) panelRegion();
     if (i === m.lanesAt) { bandPlace = undefined; lanesHere(); }
     const offered=peer;peer=undefined;
     box.footLeft = undefined;
     const lanes=items.flatMap((it)=>it.k==="box"&&it.cls==="stg-region"&&it.bar?.kind==="lane"&&it.bar.label?[{title:String(it.bar.label),x:it.x-PAD,w:it.w}]:[]); // lane columns laid out so far
-    const out=h.block.layout(h.node,{...(offered?{...box,aside:{w:offered.w,...(offered.steps?{steps:offered.steps}:{})}}:box),lanes});
+    const out=h.block.layout(h.node,{...(offered?{...box,aside:{w:offered.w,...(offered.steps?{steps:offered.steps}:{})}}:box),...(columnLeft.has(h)?{columnLeft:columnLeft.get(h)}:{}),lanes});
     if (offered && (out.aside || !offered.steps)) bandPlace = undefined;
     if(offered&&out.aside){
       const at=box.narrow?Math.max(y,offered.bottom):offered.y;
@@ -680,7 +688,8 @@ function layoutAt(m: Model, w: number): Plan {
   const top = m.cards.size && [...m.cards.values()].some((c) => c.parent) ? { ...m, steps: m.steps.map((s) => ({ ...s, edges: s.edges.map((e) => ({ ...e, from: topCard(m, e.from), to: topCard(m, e.to), fromPill: e.fromPill ?? (topCard(m, e.from) !== e.from ? "card:" + e.from : undefined), toPill: e.toPill ?? (topCard(m, e.to) !== e.to ? "card:" + e.to : undefined) })) })) } : m; //... at the height of the inner card
   pillBox = (p: string, k: number) => p.startsWith("card:") ? inner.get(p.slice(5)) : items.find((it) => it.k === "box" && typeof it.id === "string" && (p.startsWith("badge:") ? it.id === p : it.id.startsWith(`pill:${p}@`)) && (it.on ? it.on.includes(k) : k >= (it.from ?? 1) && (!it.to || k <= it.to))) as Rect | undefined;
   labelObs = items.filter((it) => it.k === "box" && it.cls !== "stg-region");
-  headObs = items.filter((it) => it.k === "text" && it.f === "lane"); // lane and band headings
+  headObs = items.filter((it) => it.k === "text" && it.f === "lane");
+  wordObs = items.flatMap((it) => { if (it.k !== "text" || !it.s.trim()) return []; const tw = measure(it.s, it.f), x0 = it.anchor === "middle" ? it.x - tw / 2 : it.anchor === "end" ? it.x - tw : it.x, h = fontSize(it.f) + 4; return [{ x: x0 - 1, y: it.y - h + 3, w: tw + 2, h, on: it.on, from: it.from, to: it.to }]; }); // lane and band headings
   if (rects.size) items.push(...connectors(top, reused && idsB.size ? new Map([...rects].filter(([id]) => !idsB.has(id))) : rects, w, narrow));
   const connEnd = items.length;
   const rectOf = (id: string) => rects.get(id) ?? inner.get(id)!;
@@ -787,6 +796,14 @@ function layoutAt(m: Model, w: number): Plan {
     const over = (t: Extract<Item, { k: "text" }>) => { const x0 = t.x - 2, x1 = t.x + measure(t.s, t.f) + 2, y0 = t.y - 12, y1 = t.y + 4;
       return lines.some((p) => p.pts.slice(1).some((q, i) => { const o = p.pts[i]; return Math.abs(o[0] - q[0]) < 1 && o[0] > x0 && o[0] < x1 && Math.min(o[1], q[1]) < y1 && Math.max(o[1], q[1]) > y0; })); };
     const lift = items.filter((it) => it.k === "text" && it.f === "lane" && (it.anchor ?? "start") === "start" && over(it));
+    // a lane's "and more" words that a line crosses go over it the same
+    // way (the four lines into the servers left no stretch of the gap wide enough for "… about 2,000 sessions"); a line
+    // within 6 px of the words counts (the browser draws them a little wider than measured)
+    const moreText = new Set(m.lanes.flatMap((l) => l.more.flatMap((t) => [t, `… ${t}`])));
+    const anyLine = items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow);
+    const crossed = (t: Extract<Item, { k: "text" }>) => { const tw = measure(t.s, t.f), x0 = (t.anchor === "middle" ? t.x - tw / 2 : t.anchor === "end" ? t.x - tw : t.x) - 6, x1 = x0 + tw + 12, y0 = t.y - 12, y1 = t.y + 4;
+      return anyLine.some((p) => p.pts.slice(1).some((q, i) => { const o = p.pts[i]; return Math.abs(o[0] - q[0]) < 1 && o[0] > x0 && o[0] < x1 && Math.min(o[1], q[1]) < y1 && Math.max(o[1], q[1]) > y0; })); };
+    for (const it of items) if (it.k === "text" && it.f === "sub" && moreText.has(it.s) && !lift.includes(it) && crossed(it)) lift.push(it);
     if (lift.length) { const set = new Set(lift); const rest = items.filter((it) => !set.has(it)); items.length = 0; items.push(...rest, ...lift.map((t) => ({ ...t, halo: true }) as Item)); }
   }
   return { w, h: Math.ceil(y + 6), items, narrow, ...(box.narrow ? { phone: true } : {}) };
@@ -1428,6 +1445,7 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
   // lane headings in the gaps: labels keep clear. A label keeps clear only of what is drawn in one of its
   // own steps (on: its steps; none: every step), so a later step reuses the places of labels no longer drawn
   const taken: (Rect & { on?: number[] })[] = [...nav.heads];
+  const pastHead = new Map<string, [number, number]>(); // a label's place just past its line's head, inside its target (sample 15)
   es.forEach((e0, i) => {
     if (relabelOf(m, e0)) return; // the connector is already drawn: this line only relabels it
     const e = e0.back ? { ...e0, from: e0.to, to: e0.from, fromPill: e0.toPill, toPill: e0.fromPill } : e0;
@@ -1452,6 +1470,34 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     // a card at the foot of its box drops straight into a target under it where the two
     // overlap, 10 px in from both, past no card and no words (no run down the box's side and under it)
     let drop: [number, number][] | null = null;
+    // a card inside a box to a card beside that box, in one row: out of
+    // its side into the gap, down the gap past what the target holds in the line's steps, into the target's side, its
+    // label just past the head (the gap is narrower than a chip); never out through the target and round it by the
+    // stage's edge. With no room under what the target holds: straight across.
+    if (fc && !tc && Math.abs(f.y - t.y) < 1 && (t.x >= f.x + f.w - 1 || t.x + t.w <= f.x + 1) && !m.cards.get(e.to)?.parent) {
+      const lr = t.x > f.x, sx = lr ? fc.x + fc.w : fc.x, y0 = Math.round(fc.y + fc.h / 2), ex = lr ? t.x : t.x + t.w, gx = Math.round(lr ? (f.x + f.w + t.x) / 2 : (t.x + t.w + f.x) / 2);
+      const on2 = edgeSteps(m, e.step, e), kidsIn = (m.cards.get(e.to)?.kids ?? []).map((k) => pillBox(`card:${k}`, e.step)).filter((r): r is Rect => !!r);
+      // the says under the target and under the cards it holds, in the line's steps
+      const holders: [string, Rect][] = [[e.to, t], ...(m.cards.get(e.to)?.kids ?? []).flatMap((k): [string, Rect][] => { const r = pillBox(`card:${k}`, e.step); return r ? [[k, r]] : []; })];
+      const saysIn = (ks: number[]) => ks.flatMap((k) => { const st = m.steps[k - 1]; if (!st) return []; return holders.flatMap(([id, r]) => { const ts = st.says.filter(([sid]) => sid === id).map(([, x]) => x); return ts.length ? drawSays(ts, r, "role:x", w, NPAD, k, nav.sayW.get(id)).filter((it): it is Extract<Item, { k: "box" }> => it.k === "box") : []; }); });
+      // the line keeps under all of it in every step it is drawn; its label needs room only in its own steps
+      const occ = Math.max(t.y + 28, ...kidsIn.map((r) => r.y + r.h), ...saysIn(on2).map((r) => r.y + r.h)), Y = Math.round(occ + 10), cwl = e.label ? measure(e.label, "chip") + 18 : 0;
+      const lsteps = (m.roles[e.role ?? m.cards.get(e.from)!.role] ?? 0) === 0 || e.keep ? labelSteps(m, e) : [e.step], lobs = [...kidsIn, ...saysIn(lsteps)], lx = lr ? ex + 8 + cwl / 2 : ex - 8 - cwl / 2;
+      const spot = !e.label ? undefined : [Y + 2, Y - 22].map((y): [number, number] => [lx, y]).find(([x, y]) => x - cwl / 2 >= t.x + 4 && x + cwl / 2 <= t.x + t.w - 4 && y >= t.y + 4 && y + 20 <= t.y + t.h - 4 && !lobs.some((r) => x + cwl / 2 > r.x && x - cwl / 2 < r.x + r.w && y + 20 > r.y && y < r.y + r.h));
+      const room = Y + 10 <= t.y + t.h && Math.abs(gx - (lr ? f.x + f.w : f.x)) >= 6 && free(gx, y0, Y, [e.from, e.to]) && (!e.label || !!spot);
+      if (room && Y > y0 + 8) { drop = [[sx, y0], [gx, y0], [gx, Y], [ex, Y]]; if (spot) pastHead.set(`${e.from}>${e.to}|${e.step}`, spot); }
+      else if (y0 > t.y + 8 && y0 < t.y + t.h - 8) {
+        drop = [[sx, y0], [ex, y0]];
+        // its label on that short line, over the gap and the two frames, slid to cover no word and no other inner card
+        if (e.label) {
+          const shownL = (r: { on?: number[]; from?: number; to?: number }) => r.on ? r.on.some((k) => lsteps.includes(k)) : lsteps.some((k) => k >= (r.from ?? 1) && (!r.to || k <= r.to));
+          const inner = [...kidsIn, ...(m.cards.get(e.from)?.kids ?? []).map((k) => pillBox(`card:${k}`, e.step)).filter((r): r is Rect => !!r && r !== fc)];
+          const clearAt = (x: number) => x - cwl / 2 >= NPAD && x + cwl / 2 <= w - NPAD && ![...inner, ...lobs].some((r) => x + cwl / 2 > r.x && x - cwl / 2 < r.x + r.w && y0 + 10 > r.y && y0 - 10 < r.y + r.h)
+            && !wordObs.some((r) => shownL(r) && x + cwl / 2 > r.x && x - cwl / 2 < r.x + r.w && y0 + 10 > r.y && y0 - 10 < r.y + r.h);
+          for (let d = 0; d <= 80; d += 2) { const hit2 = [gx - d, gx + d].find(clearAt); if (hit2 !== undefined) { pastHead.set(`${e.from}>${e.to}|${e.step}`, [hit2, y0 - 10]); break; } }
+        }
+      }
+    }
     // a card inside a box indented from the lane's edge, with a target under that strip:
     // out of the card's left side, down the strip, into the target (its own short route, not round the box's far side);
     // a lane heading in its way moves right of the line when it still fits
@@ -1478,7 +1524,7 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
       const targetKids=m.cards.get(e.to)?.kids??[],targetKid=copies.length>1&&targetKids.length>=copies.length?pillBox(`card:${targetKids[copies.indexOf(e0)]}`,e.step):undefined;
       const entryY=targetKid?targetKid.y+targetKid.h/2:NaN;
       const my = Number.isFinite(entryY)&&entryY>=lo+8&&entryY<=hi-8?entryY:copies.length>1?lo+8+(hi-lo-16)*(copies.indexOf(e0)+1)/(copies.length+1):e.label && foot - mid > 30 ? Math.max(Math.max(f.y, t.y) + 10, foot - 14 - 8 * slotOf(`${[e.from, e.to].sort().join("|")}|foot|${e.step}`)) : mid; pts = lr ? [[f.x + f.w, my], [t.x, my]] : [[f.x, my], [t.x + t.w, my]]; curve = "h"; } // side by side in one row
-    else if (drop) { pts = drop; curve = drop.length > 2 ? "round" : "v"; }
+    else if (drop) { pts = drop; curve = drop.length > 2 ? "round" : Math.abs(drop[0][1] - drop[1][1]) < 1 ? "h" : "v"; }
     // a card inside a box with nothing of the box under it leaves by its foot, out through the
     // box's, and takes its own way to a card under the box (not the side channel with the box's other lines)
     else if (fc && !tc && down && t.y > f.y + f.h + 4 && (sibs = (m.cards.get(e.from)?.kids ?? []).filter((k) => k !== e.fromPill!.slice(5)).map((k) => pillBox(`card:${k}`, e.step)).filter((r): r is NonNullable<typeof r> => !!r)) && !sibs.some((r) => r.y >= fc.y + fc.h - 0.5 && r.x < fc.x + fc.w && fc.x < r.x + r.w)
@@ -1769,6 +1815,8 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
         const ok = cands.find(([x, y]) => clear(x, y)); if (ok) [cx, ly] = ok;
       }
     }
+    // its place just past its line's head, inside the target, when that line took the gap route (sample 15)
+    { const ph = pastHead.get(`${e.from}>${e.to}|${e.step}`); if (ph && !e.tone && !taken.some((r) => meets(r) && ph[0] + cw / 2 > r.x && ph[0] - cw / 2 < r.x + r.w && ph[1] + 20 > r.y && ph[1] < r.y + r.h)) { cx = ph[0]; ly = ph[1]; } }
     taken.push({ x: cx - cw / 2 - 3, y: ly, w: cw + 6, h: 20, on });
     if (e.tone) {
       // a toned label on a phone stands beside its own line where it crosses the gap, never across it
@@ -1789,6 +1837,7 @@ let pillBox: (p: string, k: number) => Rect | undefined = () => undefined;
  * connector label keeps off those shown in its steps */
 let labelObs: Item[] = [];
 let headObs: Item[] = [];
+let wordObs: (Rect & { on?: number[]; from?: number; to?: number })[] = []; // every word drawn before the connectors, card words too (sample 15)
 /** connectors of one step with the same words into one card, two or more, from one side,
  * where a lane stands between a source and the target: they come in over the cards, into the target's top, one label */
 function fanInGroups(m: Model): Edge[][] {
@@ -2021,7 +2070,11 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
       cx=(p.a[0]+p.b[0])/2;const lineY=(p.a[1]+p.b[1])/2;cy=lineY+(p.e.copy!%2?4:-24)-Math.floor(p.e.copy!/2)*24;
     }
     else if (fan) { const t = rects.get(p.e.to)!, xs = fan.group.map((q) => fanTop.get(q)!.px), lft = rects.get(p.e.from)!.x < t.x; cx = ownLine(m,p.e)?fan.px+(lft?1:-1)*(cw/2+6):lft ? Math.max(...xs) + cw / 2 + 10 : Math.min(...xs) - cw / 2 - 10; cy = t.y - 24; }
-    else if (group.length > 1 && (p.side === "tb" || p.side === "bt")) { const xs = group.map((g) => g.a[0]); cx = (Math.min(...xs) + Math.max(...xs)) / 2; cy = (p.a[1] + p.b[1]) / 2 - 10; } // one label over a vertical bundle: centred over all of it
+    else if (group.length > 1 && (p.side === "tb" || p.side === "bt")) { const xs = group.map((g) => g.a[0]); cx = (Math.min(...xs) + Math.max(...xs)) / 2; cy = (p.a[1] + p.b[1]) / 2 - 10;
+      // lines of unequal length: on the stretch they all share (the
+      // gap the bundle crosses together), not the middle of the longest, which sat on a card and slid off to another line (only when that middle is on a card)
+      const lo = Math.max(...group.map((g) => Math.min(g.a[1], g.b[1]))), hi = Math.min(...group.map((g) => Math.max(g.a[1], g.b[1]))); if (hi - lo >= 24 && [...liveOf(m, rects, p.e).values()].some((r) => cx + cw / 2 > r.x && cx - cw / 2 < r.x + r.w && cy + 20 > r.y && cy < r.y + r.h)) cy = (lo + hi) / 2 - 10;
+    } // one label over a vertical bundle: centred over all of it
     else if ((p.side === "lr" || p.side === "rl") && (() => { const cf = m.cards.get(p.e.from)!, ct = m.cards.get(p.e.to)!; return cf.lane === ct.lane && !!m.lanes[cf.lane]?.row && Math.abs(rects.get(p.e.from)!.y - rects.get(p.e.to)!.y) < 1; })()) {
       // neighbours of a row (layout: row): the label stands under the line, at the gap between them
       cx = (p.a[0] + p.b[0]) / 2; cy = Math.max(rects.get(p.e.from)!.y + rects.get(p.e.from)!.h, rects.get(p.e.to)!.y + rects.get(p.e.to)!.h) + 2;
@@ -2044,7 +2097,7 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
       if (xs.some((x) => x > cx - cw / 2 - 4 && x < cx + cw / 2 + 4)) { let best = -1; for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] > best) { best = xs[i] - xs[i - 1]; cx = (xs[i] + xs[i - 1]) / 2; } }
     }
     // not on a card, not on another label: slide along the line's gap
-    let tries = 0;
+    let tries = 0, inTarget = false;
     const lon = edgeSteps(m, p.e.step, p.e), seenIn = (it: Item) => lon.some((k) => (it.on ? it.on.includes(k) : k >= (it.from ?? 1) && (!it.to || k <= it.to)));
     const onBox = () => labelObs.some((r) => r.k === "box" && cx + cw / 2 > r.x && cx - cw / 2 < r.x + r.w && cy + 20 > r.y && cy < r.y + r.h && seenIn(r));
     live = liveOf(m, rects, p.e);
@@ -2058,10 +2111,19 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
       const own: [number, number][] = group.length === 1 ? [0.5, 0.4, 0.6, 0.3, 0.7].map(along).map(([x, y]) => [x, y - 10]) : [];
       const cands: [number, number][] = [...own, [cx, cy], [cx, lone ? tgt.y + tgt.h + 10 : tgt.y + tgt.h - 12], ...[0.5, 0.35, 0.65, 0.2, 0.8].map(along)];
       const clampX = (x: number) => Math.max(PAD + cw / 2, Math.min(w - PAD - cw / 2, x));
-      const ok = cands.find(([x, y]) => { cx = clampX(x); cy = y; return !hit(); });
-      if (ok) { cx = clampX(ok[0]); cy = ok[1]; } else { cx = cands[0][0]; cy = cands[0][1]; }
+      // no place on its own line (the gap is narrower than the
+      // chip): inside its target, just past its arrowhead, where the target holds nothing in the label's steps (no inner
+      // card, say or label); before the target's corner or top, ~100 px from the line
+      const ownOk = own.find(([x, y]) => { cx = clampX(x); cy = y; return !hit(); });
+      const bx = p.b[0], by = p.b[1], sideIn = Math.abs(bx - tgt.x) < 1 || Math.abs(bx - (tgt.x + tgt.w)) < 1;
+      const inside = (x: number, y: number) => x - cw / 2 >= tgt.x + 4 && x + cw / 2 <= tgt.x + tgt.w - 4 && y >= tgt.y + 4 && y + 20 <= tgt.y + tgt.h - 4
+        && !labelObs.some((r) => r.k === "box" && (r as { id?: string }).id !== p.e.to && r.cls !== "stg-region" && seenIn(r) && x + cw / 2 > r.x && x - cw / 2 < r.x + r.w && y + 20 > r.y && y < r.y + r.h && !(r.x <= tgt.x + 1 && r.x + r.w >= tgt.x + tgt.w - 1 && r.y <= tgt.y + 1 && r.y + r.h >= tgt.y + tgt.h - 1))
+        && !taken.some((r) => (!r.on || r.on.some((k) => lon.includes(k))) && x + cw / 2 > r.x && x - cw / 2 < r.x + r.w && y + 20 > r.y && y < r.y + r.h);
+      const past = sideIn && lone && !ownOk ? ([[by + 2, 1], [by - 22, 1]] as const).map(([y]) => [bx < tgt.x + tgt.w / 2 ? bx + 8 + cw / 2 : bx - 8 - cw / 2, y] as [number, number]).find(([x, y]) => inside(x, y)) : undefined;
+      const ok = ownOk ?? past ?? cands.find(([x, y]) => { cx = clampX(x); cy = y; return !hit(); });
+      if (past && ok === past) { cx = past[0]; cy = past[1]; inTarget = true; } else if (ok) { cx = clampX(ok[0]); cy = ok[1]; } else { cx = cands[0][0]; cy = cands[0][1]; }
     }
-    while (hit() && tries++ < 12) cy += tries % 2 ? -24 * tries : 24 * tries;
+    while (!inTarget && hit() && tries++ < 12) cy += tries % 2 ? -24 * tries : 24 * tries;
     cx = Math.max(PAD + cw / 2, Math.min(w - PAD - cw / 2, cx));
     taken.push({ x: cx - cw / 2, y: cy, w: cw, h: 20, on: lon });
     if (p.e.tone) { items.push({ k: "text", x: cx, y: cy + 14, s: t, f: TONE_F, ink: `${p.e.tone}:ink`, anchor: "middle", bar: { "edge-label": t }, from: p.e.step, ...(p.e.keep ? { on: labelSteps(m, p.e) } : { to: p.e.step }), hot: lit(m, p.e.step) } as Item); continue; }

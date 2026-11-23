@@ -26,8 +26,8 @@ zoom labels: 38 before, 39 near, 41 after, 42 end
 zoom row job receipt "Receipt: three entries": +writing 39..41 [warn]
 dot 5, 15
 dot 25 [good]: saved
-@step Watch: One newer sample arrives during the window.
 dot 30: newest
+@step Watch: One newer sample arrives during the window.
 span axis 0..20 [line] [warn]: first half
 keep span receipt 39..41 [line] [warn]: three entries
 @step Check: The check runs at the end of the window.

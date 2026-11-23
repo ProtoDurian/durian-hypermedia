@@ -39,25 +39,25 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--c1-ink` | family 1: its words on small tags; read by .tone-c1, .tl, .cc-1 | `#3039C8` | `#B4B9FF` |
 | `--c1-soft` | family 1: its pale fill; read by .tone-c1, .tl, .cc-1 | `#E3E5FF` | `#262B57` |
 | `--c2` | family colour 2: borders, lines and dots of family 2 (animation, tier list, alignment grid, chart); read by .tone-c2, .cc-2, .pc-calc .tone-c2 | `#0E9F9A` | `#2DD4BF` |
-| `--c2-ink` | family 2: its words on small tags; read by .tone-c2, .cc-2, :root:not([data-theme="light"]) | `#0A6662` | `#7EE8DA` |
+| `--c2-ink` | family 2: its words on small tags; read by .tone-c2, .cc-2, :root | `#0A6662` | `#7EE8DA` |
 | `--c2-soft` | family 2: its pale fill; read by .tone-c2, .cc-2, stage (code) | `#D3F2EF` | `#143633` |
 | `--c3` | family colour 3: borders, lines and dots of family 3 (animation, tier list, alignment grid, chart); read by .tone-c3, .cc-3, .pc-calc .tone-c3 | `#D99A00` | `#F2C94C` |
-| `--c3-ink` | family 3: its words on small tags; read by .tone-c3, .cc-3, :root:not([data-theme="light"]) | `#7A5600` | `#F7DD8C` |
+| `--c3-ink` | family 3: its words on small tags; read by .tone-c3, .cc-3, :root | `#7A5600` | `#F7DD8C` |
 | `--c3-soft` | family 3: its pale fill; read by .tone-c3, .cc-3, stage (code) | `#FBEFC9` | `#3A3112` |
 | `--c4` | family colour 4: borders, lines and dots of family 4 (animation, tier list, alignment grid, chart); read by .tone-c4, .cc-4, .pc-calc .tone-c4 | `#9A5CF5` | `#B794FF` |
 | `--c4-ink` | family 4: its words on small tags; read by .tone-c4, .cc-4, :root:not([data-theme="light"]) | `#5F2DB3` | `#D2BCFF` |
 | `--c4-soft` | family 4: its pale fill; read by .tone-c4, .cc-4, stage (code) | `#EDE2FF` | `#2E2350` |
 | `--c5` | family colour 5: borders, lines and dots of family 5 (animation, tier list, alignment grid, chart); read by .tone-c5, .cc-5, .pc-calc .tone-c5 | `#F26B1D` | `#FF8A3D` |
-| `--c5-ink` | family 5: its words on small tags; read by .tone-c5, .cc-5, :root:not([data-theme="light"]) | `#9E4008` | `#FFB27F` |
+| `--c5-ink` | family 5: its words on small tags; read by .tone-c5, .cc-5, :root | `#9E4008` | `#FFB27F` |
 | `--c5-soft` | family 5: its pale fill; read by .tone-c5, .cc-5, stage (code) | `#FFE4D3` | `#3A2414` |
 | `--c6` | family colour 6: borders, lines and dots of family 6 (animation, tier list, alignment grid, chart); read by .tone-c6, .cc-6, .pc-calc .tone-c6 | `#1F8FE0` | `#5AB4FF` |
-| `--c6-ink` | family 6: its words on small tags; read by .tone-c6, .cc-6, :root:not([data-theme="light"]) | `#0F5D99` | `#9CD2FF` |
+| `--c6-ink` | family 6: its words on small tags; read by .tone-c6, .cc-6, :root | `#0F5D99` | `#9CD2FF` |
 | `--c6-soft` | family 6: its pale fill; read by .tone-c6, .cc-6, stage (code) | `#D8ECFB` | `#15304A` |
 | `--c7` | family colour 7: borders, lines and dots of family 7 (animation, tier list, alignment grid, chart); read by .tone-c7, .cc-7, .pc-calc .tone-c7 | `#E2408A` | `#FF6FAE` |
 | `--c7-ink` | family 7: its words on small tags; read by .tone-c7, .cc-7, :root:not([data-theme="light"]) | `#9C1C56` | `#FF9DC8` |
 | `--c7-soft` | family 7: its pale fill; read by .tone-c7, .cc-7, stage (code) | `#FCDDEB` | `#3D1A2A` |
 | `--c8` | family colour 8: borders, lines and dots of family 8 (animation, tier list, alignment grid, chart); read by .tone-c8, .cc-8, .pc-calc .tone-c8 | `#3FA34D` | `#6FD67E` |
-| `--c8-ink` | family 8: its words on small tags; read by .tone-c8, .cc-8, :root:not([data-theme="light"]) | `#216D2B` | `#A2E8AC` |
+| `--c8-ink` | family 8: its words on small tags; read by .tone-c8, .cc-8, :root | `#216D2B` | `#A2E8AC` |
 | `--c8-soft` | family 8: its pale fill; read by .tone-c8, .cc-8, stage (code) | `#DDF1DF` | `#17351C` |
 | `--ch-5` | code colours (Code Hike theme github-from-css): function; read by .t-pr.t-root, .t-q | `#FF8DBA` | `#FF8DBA` |
 | `--ch-6` | code colours (Code Hike theme github-from-css): function; read by .t-pr | `#8FE3B0` | `#8FE3B0` |

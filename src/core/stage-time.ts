@@ -428,6 +428,14 @@ registerBlock({
     if (tokens.includes("[bar]") && (id === "axis" || tokens.includes("[line]"))) { ctx.problem(op.line, "[bar] draws a row's span as a filled bar: use it on a row, without [line]"); return; }
     t.marks.push({ step: op.step, kind: "span", row: id, a: s[0], b: s[1], text: c[1], tone: tokens.includes("[bar]")&&!colour?undefined:markPaint(colour, ctx.roles, op.line), persist: !!op.keep, line: tokens.includes("[line]"), bar: tokens.includes("[bar]"),...(tokens.includes("[above]")?{above:true}:{}),...(tokens.includes("[bare]")?{bare:true}:{}) });
   },
+  columns(t: Time, box: Box) {
+    if (box.narrow || !t.cells || t.roomy || t.apart || t.values || t.zoom || t.lanes || t.bands.length || t.labelsAbove !== undefined || t.labelsBeside !== undefined) return;
+    charge("column alignment",t.rows.length+1);
+    if(t.rows.some(r=>r.segs.some(s=>s.after)))return;
+    const cap=t.headers&&!t.rulerNone&&Math.ceil((t.b-t.a)/t.cells)>=24?150:110;
+    const lab = t.rows.some(r => r.label) ? Math.min(cap, Math.max(36, ...t.rows.map(r => measure(r.label, "sub") + 10))) : 0;
+    return { key: "time:" + Math.round((t.b - t.a) / t.cells * 1e9) / 1e9, left: lab + 8 };
+  },
   layout(t: Time, box: Box): LayoutOut {
     charge("layout", t.rows.length + t.points.length + t.marks.length + t.arrows.length + 1);
     const wrap=(s:string,w:number,f:Parameters<typeof wrapText>[2],max=4)=>{
@@ -472,7 +480,7 @@ registerBlock({
       const laneA=!inset&&!box.narrow&&w===box.w&&t.lanes?box.lanes?.find(l=>l.title===t.lanes![0]):undefined,laneB=laneA?box.lanes?.find(l=>l.title===t.lanes![1]):undefined;
       const samplePad=box.narrow&&t.rulerBelow&&!t.cells&&rows.some(r=>{charge("sample edge room",r.segs.length+1);return new Set(r.segs.filter(s=>s.dot&&s.b>a.a&&s.a<a.b).map(s=>(Math.max(a.a,s.a)+Math.min(a.b,s.b))/2)).size>1;})?6:0;
       // Repeated samples have room for their radius and stroke inside the frame; ticks and markers use the same inset axis.
-      const x0 = (laneA&&laneB?Math.max(labW+bandW+8,laneA.x):labW + bandW + (roomyPhone?-8:8))+samplePad, x1 = (laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW)-samplePad, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
+      const x0 = Math.max(box.columnLeft ?? -Infinity,(laneA&&laneB?Math.max(labW+bandW+8,laneA.x):labW + bandW + (roomyPhone?-8:8))+samplePad), x1 = (laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW)-samplePad, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
       /** with "apart" a tick names the cell that starts at it, so its label is centred above that cell */
       const labelX=(v:number,a:Axis)=>t.apart&&t.cells&&v<a.b?X((v+Math.min(a.b,v+t.cells))/2):samplePad?x0-samplePad+(v-a.a)/(a.b-a.a)*(x1-x0+2*samplePad):X(v);
       /** on a phone a cell's word that does not fit level stands on end inside its cell (as numbers do), no footnote, when it is short (24 px; 54 in "apart" cells) */
@@ -604,7 +612,9 @@ registerBlock({
       const headerValues=headerCells?cellHeaders(t):[];
       const headerLabels=new Map(headerValues.map(v=>[v,t.tickLabels.get(v)||fmt(t.ticks?v:t.a+Math.floor((v-t.a)/t.cells!)*t.cells!)]));
       // on a phone, header labels that fit neither level nor on end in their column stand level on up to 3 staggered rows
-      const headerStagger=box.narrow&&headerValues.length>0&&fontSize("chip")*.8+2>(x1-x0)*(t.cells||1)/(a.b-a.a)&&Math.ceil((Math.max(...headerValues.map(v=>measure(headerLabels.get(v)!,"sub")*1.12))+5)/((x1-x0)*(t.cells||1)/(a.b-a.a)))<=3;
+      const headerPitch=(x1-x0)*(t.cells||1)/(a.b-a.a),headerInOwn=box.narrow&&headerValues.every(v=>/^[-+]?\d+(?:\.\d+)?$/.test(headerLabels.get(v)!))&&fontSize("chip")*.72+1<=headerPitch; // (rc.2 MUST 7)
+      const headerBands=(cw:number)=>headerInOwn&&cw<fontSize("chip")*.72+3?2:numberBands(cw);
+      const headerStagger=box.narrow&&headerValues.length>0&&!headerInOwn&&fontSize("chip")*.8+2>(x1-x0)*(t.cells||1)/(a.b-a.a)&&Math.ceil((Math.max(...headerValues.map(v=>measure(headerLabels.get(v)!,"sub")*1.12))+5)/((x1-x0)*(t.cells||1)/(a.b-a.a)))<=3;
       const headerTurn=(v:number)=>!headerStagger&&turnNumber(headerLabels.get(v)!,X(Math.min(t.b,t.a+(Math.floor((v-t.a)/t.cells!)+1)*t.cells!))-X(t.a+Math.floor((v-t.a)/t.cells!)*t.cells!));
       const headerLines=new Map(headerValues.map(v=>{const start=t.a+Math.floor((v-t.a)/t.cells!)*t.cells!,end=Math.min(t.b,start+t.cells!);return [v,headerTurn(v)?[headerLabels.get(v)!]:wrap(headerLabels.get(v)!,Math.max(8,X(end)-X(start)-6),"sub",Infinity)] as const;}));
       const headerCaptions=new Map<number,{left:number;y:number}>();let headerCaptionH=0;
@@ -617,7 +627,7 @@ registerBlock({
         }
         for(const shelf of shelves){for(const v of shelf.values)headerCaptions.get(v)!.y=headerCaptionH;headerCaptionH+=shelf.h+4;}
       }
-      const headerH=headerCells?Math.max(compactHeaders?18:24,headerCaptionH+6,...headerValues.map(v=>headerTurn(v)?(Math.ceil(measure(headerLabels.get(v)!,"chip")))*numberBands((x1-x0)*t.cells!/(a.b-a.a)):compactHeaders&&headerLines.get(v)!.length===1?18:headerLines.get(v)!.length*18+6)):0;
+      const headerH=headerCells?Math.max(compactHeaders?18:24,headerCaptionH+6,...headerValues.map(v=>headerTurn(v)?(Math.ceil(measure(headerLabels.get(v)!,"chip")))*headerBands((x1-x0)*t.cells!/(a.b-a.a)):compactHeaders&&headerLines.get(v)!.length===1?18:headerLines.get(v)!.length*18+6)):0;
       const tickValues=t.rulerNone?[]:headerCells?headerValues:ticks(a,x1-x0,inset?t.zoomTicks:t.ticks),tickSet=new Set(tickValues);
       const labelValues=inset?[...new Set([...tickValues,...(t.zoomLabels?.keys()||[])])].sort((a,b)=>a-b):tickValues;
       const tickLeading=box.narrow?14:18;
@@ -662,9 +672,12 @@ registerBlock({
           under.push({k:"box",x:left,y:top-headerH,w:width,h:headerH,fill:"surface-2",stroke:"line",r:0,id:`${prefix}:header:${v}`,bar:{kind:"band",label:t.tickLabels.get(v)||fmt(t.ticks?v:start),track:axisId,value:v}});
           const caption=headerCaptions.get(v);
           if(caption&&!headerTurn(v)){
-            const tw=captionWidth(lines);items.push({k:"box",x:caption.left-1,y:top-headerH+caption.y+1,w:tw+2,h:lines.length*18,fill:"surface-2",stroke:"none",r:0,bar:{ignore:1},...tickReveal(v)});
+            const tw=captionWidth(lines);
+            // a caption wider than its header cell gets a leader in its column from the nearer edge of the header band to its words
+            if(tw>width-2){const cx=left+width/2,capTop=top-headerH+caption.y+3,capBottom=top-headerH+caption.y+lines.length*18-1,up=caption.y+lines.length*9<headerCaptionH/2;
+              under.push({k:"path",pts:up?[[cx,top-headerH],[cx,capTop]]:[[cx,capBottom],[cx,top]],ink:"line-2",w:1,cls:"stg-time-leader",bar:{ignore:1},...tickReveal(v)});}items.push({k:"box",x:caption.left-1,y:top-headerH+caption.y+1,w:tw+2,h:lines.length*18,fill:"surface-2",stroke:"none",r:0,bar:{ignore:1},...tickReveal(v)});
             lines.forEach((s,i)=>items.push({k:"text",x:caption.left,y:top-headerH+caption.y+13+i*18,s,f:"sub",ink:"muted",...tickReveal(v)}));
-          }else if(headerTurn(v)){const bands=numberBands(width),index=Math.floor((v-t.a)/t.cells!);items.push({k:"text",x:caption?caption.left+fontSize("chip")*.85:left+width/2+fontSize("chip")*.35,y:caption?top-headerH+caption.y+(Math.ceil(measure(headerLabels.get(v)!,"chip")))/2:top-headerH+headerH/bands*(index%bands+.5),s:headerLabels.get(v)!,f:"chip",ink:"muted",anchor:"middle",rotate:90,...tickReveal(v)});}
+          }else if(headerTurn(v)){const bands=headerBands(width),index=Math.floor((v-t.a)/t.cells!);items.push({k:"text",x:caption?caption.left+fontSize("chip")*.85:left+width/2+fontSize("chip")*.35,y:caption?top-headerH+caption.y+(Math.ceil(measure(headerLabels.get(v)!,"chip")))/2:top-headerH+headerH/bands*(index%bands+.5),s:headerLabels.get(v)!,f:"chip",ink:"muted",anchor:"middle",rotate:90,...tickReveal(v)});}
           else lines.forEach((s,i)=>items.push({k:"text",x:left+width/2,y:top-headerH+(compactHeaders?11:13)+i*18,s,f:"sub",ink:"muted",anchor:"middle",...tickReveal(v)}));continue;
         }
         const x = X(v), lx = labelX(v,a), s = wrap((inset?t.zoomLabels?.get(v):undefined)||t.tickLabels.get(v) || fmt(v), x1 - x0, "sub", 1)[0], tw = measure(s, "sub"), tx = Math.max(x0, Math.min(x1 - 9 - tw * 1.08, lx - tw / 2));
@@ -777,7 +790,10 @@ registerBlock({
           // every cell keeps its number drawn: level when it fits; on end when the turned digits fit their own cell;
           // else level on 2 to 4 staggered rows (sized with 12% room for the browser's wider digits); else on end on 2 or 3 staggered rows; fewer numbers only when not even that fits
           const levelRows=[1,2,3,4].find(n=>(n===1?levelW:levelW*1.12)+3<=n*pitch),turnRows=turnW<levelW?[1,2,3].find(n=>turnW+3<=n*pitch):undefined;
-          const turn=levelRows!==1&&turnRows===1||levelRows===undefined&&turnRows!==undefined,bands=turn?turnRows!:levelRows??2,k=levelRows===undefined&&turnRows===undefined?Math.ceil((levelW+3)/pitch):1; // fewer labels alternate two rows: two ranges may start on neighbouring cells
+          // when the turned digits fit inside their own cell (half a pixel spare), they stand on end there (on 2 or 3 heights, 3 px apart),
+          // rather than level on tiers spanning several cells; level tiers (with leaders) only when not even that fits
+          const inOwn=turnW+.5<=pitch;
+          const turn=levelRows!==1&&turnRows===1||levelRows!==1&&inOwn&&turnRows!==undefined||levelRows===undefined&&turnRows!==undefined,bands=turn?turnRows!:levelRows??2,k=levelRows===undefined&&turnRows===undefined?Math.ceil((levelW+3)/pitch):1; // fewer labels alternate two rows: two ranges may start on neighbouring cells
           const band=turn&&k===1?Math.max(16,Math.ceil(turnLen)+3):!turn&&bands>1&&k===1?Math.ceil(fontSize("sub")*.72)+3:16; /* staggered level digits: their cap height and 3 px a row (digits have no descenders) *//* 3 px between the two rows */const len=Math.ceil(turnLen),stack=turn&&k===1&&bands===2; // two rows of turned numbers: one 3 px gap between them and 1 px above and below
           nm={turn:turn&&k===1,bands,k,h:bands===1&&!(turn&&k===1)?lineH+6:stack?2*len+5:band*bands+4,band:new Map(),len}; // one level row keeps the plain cell's height
           if(k>1){ // the kept cells, by place (every step draws a cell's number on the same row)
@@ -860,7 +876,7 @@ registerBlock({
         let legendY = y + rowH + (dotRow||compact||box.narrow||quiet?0:5);
         // staggered words stand on lines right under their row, each centred under its own cell, so they never cross a box
         const staggerY=legendY+2;if(stagger>1)legendY+=stagger*14+4;
-        const cellLegends:{ref:string;label:string;ink:string;from:number;to:number}[]=[],rangeCaptions:{label:string;from:number;to:number}[]=[],laterNums:{hw?:number;min?:number;mask:Item;word:Item}[]=[];
+        const cellLegends:{ref:string;label:string;ink:string;from:number;to:number}[]=[],rangeCaptions:{label:string;from:number;to:number}[]=[],laterNums:{lead?:Item;hw?:number;min?:number;mask:Item;word:Item}[]=[];
         for (const s of r.segs) {
           charge("segment layout");
           const lo = Math.max(a.a, s.a), hi = Math.min(a.b, s.b); if (hi <= lo) continue;
@@ -886,7 +902,9 @@ registerBlock({
               // the first line where no word shown in the same steps is in its way (cells of several-cell runs repeat the word)
               let line=-1;for(let k=0;k<stagger&&line<0;k++)if(staggerTaken.every(o=>{charge("stagger lines");return o.line!==k||o.to<from||to<o.from||o.r+10<=mid-half||mid+half+10<=o.l;}))line=k;if(line<0)line=index%stagger;
               staggerTaken.push({line,l:mid-half,r:mid+half,from,to});
-              {const baseline=staggerY+11+line*14;items.push({...captionMask(mid-measure(label,"chip")*.6,baseline,label,"surface"),from:s.from,to:s.to});}
+              {const baseline=staggerY+11+line*14;items.push({...captionMask(mid-measure(label,"chip")*.6,baseline,label,"surface"),from:s.from,to:s.to});
+                // a leader in the cell's ink from the cell's bottom edge down to its own word, under every word's backing
+                under.push({k:"path",pts:[[cx+cw/2,y+rowH],[cx+cw/2,baseline-Math.ceil(fontSize("chip")*.72)-1]],ink:token?`${token}:line`:"line-2",w:1,cls:"stg-time-leader",bar:{ignore:1},from:s.from,to:s.to});}
               items.push({k:"text",x:mid,y:staggerY+11+line*14,s:label,f:"chip",ink:s.soft?"ink":token?`${token}:ink`:"muted",anchor:"middle",from:s.from,to:s.to,tip:label});return;}
             if(!override&&onEnd(label,cw,s)){items.push({k:"text",x:cx+cw/2+fontSize("chip")*.35,y:y+rowH/2,s:label,f:"chip",ink:s.soft?"ink":token?`${token}:ink`:"muted",anchor:"middle",rotate:90,from:s.from,to:s.to,tip:label});return;}
             if(box.narrow&&!/^[-+]?\d+(?:\.\d+)?$/.test(label)&&widest(label)>cellWordRoom(cw)&&!s.after){
@@ -930,7 +948,9 @@ registerBlock({
                   // inside the grid of cells (cell 30's and tick 955's numbers no longer pass its right edge)
                   const tw=measure(label,"sub")*1.2,half=measure(label,"sub")*1.12/2+.5,gridR=Math.min(frameLeft+frameWidth,X(a.b));
                   const cx=Math.max(frameLeft+half,Math.min(gridR-half,X(a0)+cw/2)),capH=Math.ceil(fontSize("sub")*.72);
-                  laterNums.push({hw:measure(label,"sub")*1.12/2,min:frameLeft+half,mask:{k:"box",x:cx-tw/2-1,y:cy+4-capH-1.5,w:tw+2,h:capH+3,fill:typeof paint.fill==="string"?paint.fill:"surface",stroke:"none",r:2,cls:"stg-time-word-mask",bar:{ignore:1},from:s.from,to:s.to},word:{k:"text",x:cx,y:cy+4,s:label,f:"sub",ink,anchor:"middle",from:s.from,to:s.to,tip:label}});
+                  // a leader in its cell's column from the row's nearer edge to the number
+                  const up=bi<nm.bands/2,lx=X(a0)+cw/2,lead:Item={k:"path",pts:up?[[lx,y],[lx,cy+4-capH-1.5]]:[[lx,cy+5.5],[lx,y+rowH]],ink:token?`${token}:line`:"line-2",w:1,cls:"stg-time-leader",bar:{ignore:1},from:s.from,to:s.to};
+                  laterNums.push({lead,hw:measure(label,"sub")*1.12/2,min:frameLeft+half,mask:{k:"box",x:cx-tw/2-1,y:cy+4-capH-1.5,w:tw+2,h:capH+3,fill:typeof paint.fill==="string"?paint.fill:"surface",stroke:"none",r:2,cls:"stg-time-word-mask",bar:{ignore:1},from:s.from,to:s.to},word:{k:"text",x:cx,y:cy+4,s:label,f:"sub",ink,anchor:"middle",from:s.from,to:s.to,tip:label}});
                 }
                 else backedWord({k:"text",x:X(a0)+cw/2,y:nm.bands===1?y+(rowH-lineH)/2+11:cy+4,s:label,f:"sub",ink,anchor:"middle",from:s.from,to:s.to,tip:label},"surface");
                 continue;
@@ -956,7 +976,7 @@ registerBlock({
             for(let j=i+1;j<ordered.length;j++){const l=ordered[j],lw=l.word as any;charge("staggered push");
               if(Math.abs(lw.y-rw.y)>.5||(lw.to&&rw.from>lw.to)||(rw.to&&lw.from>rw.to))continue;
               const over=lw.x+l.hw!+3-(rw.x-r.hw!);if(over>0){const nx=Math.max(l.min!,lw.x-over),d=nx-lw.x;lw.x=nx;(l.mask as any).x+=d;}
-              break;}}items.push(...laterNums.map(n=>n.mask),...laterNums.map(n=>n.word));}
+              break;}}items.push(...laterNums.flatMap(n=>n.lead?[n.lead]:[]),...laterNums.map(n=>n.mask),...laterNums.map(n=>n.word));}
         if(rangeCaptions.length){
           const gap=measure(" · ","sub")+2;let cursor=x0,previous:typeof rangeCaptions[number]|undefined;
           for(const cap of rangeCaptions){
@@ -1119,13 +1139,19 @@ registerBlock({
         charge("cell arrows");
         if(!within(e.at,a)||!rowRects.has(e.to)||e.from!=="above"&&!rowRects.has(e.from))continue;
         const to=rowRects.get(e.to)!,from=e.from==="above"?null:rowRects.get(e.from)!;
-        const input=aboveInputs.get(e),upward=from&&from.top>to.top,sy=input!==undefined?input-8:from?(upward?from.headingTop-2:from.bottom+2):top+12+dotLabelH,ty=input!==undefined?input+8:upward?to.bottom+2:to.headingTop-2,x=X(e.at),role=t.rows.find(r=>r.id===(e.from==="above"?e.to:e.from))!.role;
+        const input=aboveInputs.get(e),upward=from&&from.top>to.top,sy=input!==undefined?input-8:from?(upward?from.headingTop-2:from.bottom+2):top+12+dotLabelH,ty=upward?to.bottom+2:to.headingTop-2,x=X(e.at),role=t.rows.find(r=>r.id===(e.from==="above"?e.to:e.from))!.role;
         const {lines:text,x:tx}=arrowLabels.get(e)!;
         const ink=e.tone?(e.tone==="ink"?"ink":`${e.tone}:line`):`role:${role}:line`;
         const its:Item[]=[{k:"path",pts:[[x,sy],[x,ty]],curve:"round",ink,arrow:true,...(input!==undefined?{head:8}:{}),dash:e.dash,w:2,id:`${prefix}:arrow:${index}`,bar:{edge:`${prefix}:arrow:${index}`,from:e.from==="above"?"above":rowId(e.from),to:rowId(e.to)}}];
         const textStart=upward?Math.max(ty,to.captionBottom+2):Math.max(sy,from?.captionBottom??sy),textEnd=upward?from!.headingTop-2:to.headingTop-2;
         text.forEach((s,i)=>its.push({k:"text",x:tx,y:input!==undefined?input+i*18:(textStart+textEnd)/2+4-(text.length-1)*9+i*18,s,f:"sub",ink:e.tone&&e.tone!=="ink"?`${e.tone}:ink`:"ink"}));
         items.push(...shift(its,0,0,{from:e.step,to:e.step}));
+        // an input from above runs down to its row (it stopped as a
+        // stub over the tick words); a word it passes (a tick label at the same time) goes over it, with a halo
+        if(input!==undefined){
+          const lift=items.filter((it):it is Extract<Item,{k:"text"}>=>{if(it.k!=="text"||it.y<=input+6)return false;const tw=measure(it.s,it.f),lx=it.anchor==="middle"?it.x-tw/2:it.anchor==="end"?it.x-tw:it.x;return x>lx-3&&x<lx+tw+3&&it.y-12<ty;});
+          if(lift.length){const set=new Set<Item>(lift);const rest=items.filter(it=>!set.has(it));items.length=0;items.push(...rest,...lift.map(it=>({...it,halo:true}) as Item));}
+        }
       }
       if (values) {
         const v = values, valueId = `${prefix}-y`;
@@ -1147,7 +1173,9 @@ registerBlock({
           items.push({ k: "box", x: xx - 3, y: yy - 3, w: 6, h: 6, r: 3, fill: `role:${p.role}:line`, stroke: "none", cls: "scn-shape", role: p.role, id: `${prefix}:point:${p.id}`, bar: { kind:"chip",track: axisId, value: p.time, "value-axis": valueId, "data-value": p.value } });
           items.push({ k: "path", pts: [[xx - 3, yy], [xx + 3, yy]], ink: `role:${p.role}:line`, id: `${prefix}:value:${p.id}`, bar: { track: valueId, value: p.value } });
         }
-        const occupied=t.points.filter(p=>within(p.time,a)).map(p=>({x:X(p.time)-5,y:Y(p.value)-5,w:10,h:10}));
+        const pointRects=t.points.filter(p=>within(p.time,a)).map(p=>({x:X(p.time)-5,y:Y(p.value)-5,w:10,h:10})),occupied=[...pointRects];
+        type LabelRect={x:number;y:number;w:number;h:number};
+        const labelPlans:{point:Time["points"][number];xx:number;yy:number;lines:string[];width:number;height:number;rect:LabelRect}[]=[];
         let plotBottom=vb+12;
         for(const p of t.points){
           charge("point labels");if(!within(p.time,a))continue;
@@ -1164,10 +1192,35 @@ registerBlock({
           }
           if(!chosen){
             chosen={x:Math.max(x0+2,Math.min(x1-width-2,xx-width/2)),y:plotBottom+8,w:width,h:height};
-            items.push({k:"path",pts:[[xx,yy],[xx,chosen.y-4],[Math.max(chosen.x,Math.min(chosen.x+width,xx)),chosen.y-4]],ink:`role:${p.role}:line`});
           }
           occupied.push(chosen);plotBottom=Math.max(plotBottom,chosen.y+height);
-          lines.forEach((s,i)=>items.push({k:"text",x:chosen!.x,y:chosen!.y+14+i*18,s,f:"sub",ink:`role:${p.role}:ink`}));
+          labelPlans.push({point:p,xx,yy,lines,width,height,rect:chosen});
+        }
+        // Preserve the reserved plot height, but put labels level with their own values whenever that space is clear.
+        const painted=[...pointRects], aligned=new Map<typeof labelPlans[number],LabelRect>();
+        const collides=(rect:LabelRect)=>painted.some(other=>{charge("point label clearance");return rect.x<other.x+other.w+4&&rect.x+rect.w+4>other.x&&rect.y<other.y+other.h+3&&rect.y+rect.h+3>other.y;});
+        for(const plan of labelPlans){
+          const {xx,yy,width,height}=plan;
+          for(const x of[xx+12,xx-width-12]){
+            charge("value-aligned point labels");
+            const rect={x,y:yy-10-(height-18)/2,w:width,h:height};
+            if(x<x0+2||x+width>x1-2||rect.y<vt-18||rect.y+height>plotBottom)continue;
+            if(collides(rect))continue;
+            aligned.set(plan,rect);painted.push(rect);break;
+          }
+        }
+        // A dense plot can retain its collision-free original slots; leaders keep those labels tied to their data.
+        for(const plan of labelPlans)if(!aligned.has(plan)){
+          if(collides(plan.rect)){aligned.clear();break;}
+          painted.push(plan.rect);
+        }
+        for(const plan of labelPlans){
+          const {point:p,xx,yy,lines,width,height}=plan,chosen=aligned.get(plan)||plan.rect;
+          if(Math.abs(chosen.y+height/2-(yy-1))>.01){
+            const lx=Math.max(chosen.x,Math.min(chosen.x+width,xx)),ly=Math.max(chosen.y,Math.min(chosen.y+height,yy));
+            items.push({k:"path",pts:[[xx,yy],[lx,ly]],ink:`role:${p.role}:line`,w:1,id:`${prefix}:point-label:${p.id}`,bar:{ignore:1}});
+          }
+          lines.forEach((s,i)=>items.push({k:"text",x:chosen.x,y:chosen.y+14+i*18,s,f:"sub",ink:`role:${p.role}:ink`,halo:true}));
         }
         y=plotBottom+8;
       }

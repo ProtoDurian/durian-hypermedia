@@ -22,7 +22,7 @@ ruler: none
 row job draft "Draft": +draft 2.9..3.1 @1..1 [dot]; +stored 2.9..3.1 @2 [dot]
 row server copy "Copy": +copy 4.9..5.1 @1..1 [dot]; +saved 4.9..5.1 @2 [dot]
 @step Arrive: The pieces arrive at different times.
-keep at 2 [guide]: first copy
-keep at 8 [guide] [good]: last copy
+keep at 3 [guide]: first copy
+keep at 5 [guide] [good]: last copy
 @step Save: The words change while the dots stay still.
 ```

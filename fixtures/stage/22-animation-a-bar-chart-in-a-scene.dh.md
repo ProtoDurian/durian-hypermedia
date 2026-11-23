@@ -36,7 +36,7 @@ move 2 from Fri to Mon; 1 from Sat to Tue
 peak: busiest 1.2×
 big: 1.2× | busiest ÷ average
 heading: the moves: Fri → Mon (2 trays), Sat → Tue (1 tray) | the week's total does not change
-@step Two baristas: With a second barista, Saturday is the only busy day.
+@step Two baristas: Saturday remains the busiest day; Friday is also above average.
 values: 0.9 0.9 1.0 1.0 1.1 1.2 0.9
 light Sat: the busiest
 heading: two baristas, a month later

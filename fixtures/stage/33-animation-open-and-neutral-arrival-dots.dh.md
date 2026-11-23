@@ -21,7 +21,7 @@ time: 0..8
 ruler: none
 row job root "Root": sent 1..2 [dot] [plain]
 row server engine "Engine": working 3..4 [dot]
-row job store "Store": saved 5..6 [dot] [plain] @2
+row job store "Store": saved 5..6 [dot] [plain] @5
 @step Send: The root and engine are visible.
 @step Pulse: The engine dot is solid for one step.
 fill engine

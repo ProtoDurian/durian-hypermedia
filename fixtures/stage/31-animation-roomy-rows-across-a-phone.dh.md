@@ -23,7 +23,7 @@ row job draft "(a) Draft | first writer": +×1 0..4; +×2 4..7 @3
 row server copy "(b) Copy | spare writer": +×1 0..4; lost 4..7 @3 [bad]
 row job archive "| Archive": reads a parcel 0..4; +stored 4..7 @3
 @step Draft: Four columns are revealed.
-@step Copy: A reply returns to the draft.
+@step Copy: The copy is ready, but no reply reaches the draft.
 tag copy 0..2: copy is ready
 foot (job): the draft keeps its colour
 arrow copy -> draft at 0.5 [dashed]: no reply

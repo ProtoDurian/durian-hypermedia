@@ -6,6 +6,7 @@ import { blockFor, FONT, measure, setPhoneFont, type Item } from "../../src/core
 const measureAt = (s: string, f: Parameters<typeof measure>[1], w: number) => { setPhoneFont(w < 480); try { return measure(s, f); } finally { setPhoneFont(false); } };
 import { beginDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
 import { tickStep } from "../../src/core/stage-time";
+import { tiedToCell } from "./v11-tied-helper";
 const roles = { job: 1, server: 2 };
 const head = `time: 0..60 | seconds
 row job j1 "build": queued 0..4; +running 4..31; done 31..60
@@ -153,22 +154,24 @@ test("short numbered cell rows use a compact pitch on desktop and phone",()=>{
   expect(rows[1].y-rows[0].y).toBeLessThanOrEqual(30);
  }
 });
-test("dense phone numbered cells: numbers too wide for their cell, level or on end, stand level on staggered rows (on end only when level does not fit 3 rows); every cell keeps its number drawn",()=>{
+test("dense phone numbered cells: numbers too wide for their cell stand on end inside it when the turned digits fit (rc.2 MUST 7), else level on staggered rows with leaders; every cell keeps its number drawn",()=>{
  const c=compile('time ticks: 200..232 | ticks\nruler: none\ncells: 1\nrow job a "": +_ 200..232 [numbered]',[]);expect(c.errors).toEqual([]);
  const p=layoutStage(c.model,340),cells=p.items.filter(i=>i.k==="box"&&i.cls?.includes("stg-time-cell"));expect(cells.length).toBe(32);
  expect(cells.every(i=>i.k==="box"&&i.h<=64&&i.h===(cells[0] as Extract<Item,{k:"box"}>).h)).toBe(true); // two staggered rows (3 px apart) when a turned number is wider than its cellexpect(cells.map(i=>i.bar?.label)).toEqual(Array.from({length:32},(_,i)=>String(200+i)));
  expect(p.items.some(i=>i.k==="text"&&i.s==="ticks")).toBe(true);
  expect(cells.map(i=>i.bar?.label)).toEqual(Array.from({length:32},(_,i)=>String(200+i))); // every cell keeps its number for the bar and readers
- const drawn=p.items.filter(i=>i.k==="text"&&/^2\d\d$/.test(i.s));expect(drawn.some(i=>i.k==="text"&&i.rotate)).toBe(false);expect(drawn.length).toBeGreaterThanOrEqual(8); // on end only inside its own cell: these are thinner than turned digits
+ const drawn=p.items.filter(i=>i.k==="text"&&/^2\d\d$/.test(i.s));expect(drawn.length).toBeGreaterThanOrEqual(8);
+ setPhoneFont(true);try{for(const t of drawn)if(t.k==="text")expect(tiedToCell(p.items,t,cells as Extract<Item,{k:"box"}>[])).toBe("");}finally{setPhoneFont(false);} // rc.2 MUST 7: each tied to its own cell
  expect(new Set(drawn.map(i=>i.k==="text"?i.s:"")).size).toBe(32); // never fewer
 bounded(p.items,340,p.h);
  const desktop=layoutStage(c.model,1000);expect(desktop.items.some(i=>i.k==="text"&&i.s==="231")).toBe(true);expect(desktop.items.some(i=>i.k==="text"&&i.rotate)).toBe(false);
 });
-test("numeric header rotation is phone-only and words and fitting numbers stay level",()=>{
+test("numeric header rotation is phone-only and words and fitting numbers stay level; phone numbers stand on end inside their own column when they fit (rc.2 MUST 7)",()=>{
  const h='time: 924..956\ncells: 1 | headers\nrow job a "": +_ 924..956 [numbered]';
  const c=compile(h,[]);expect(c.errors).toEqual([]);
  const p=layoutStage(c.model,340),numbers=p.items.filter(i=>i.k==="text"&&/^9\d\d$/.test(i.s));
- expect(numbers.some(i=>i.k==="text"&&i.rotate)).toBe(false);expect(new Set(numbers.map(i=>i.k==="text"?i.s:"")).size).toBe(32); // headers that fit neither level nor on end stand level on staggered rows; numbered cells too (on end only inside their own cell)
+ expect(new Set(numbers.map(i=>i.k==="text"?i.s:"")).size).toBe(32);
+ setPhoneFont(true);try{const hc=p.items.filter((i):i is Extract<Item,{k:"box"}>=>i.k==="box"&&/:header:/.test(i.id||""));for(const t of numbers)if(t.k==="text")expect(tiedToCell(p.items,t,hc)).toBe("");}finally{setPhoneFont(false);} // headers that fit neither level nor on end stand level on staggered rows; numbered cells too (on end only inside their own cell)
  for(const source of ['time: 0..4\ncells: 1 | headers\nrow job a "": 1 0..4','time: 0..32\nruler: none\ncells: 1\nrow job a "": word 0..32']){
   const x=compile(source,[]);expect(x.errors).toEqual([]);expect(layoutStage(x.model,340).items.some(i=>i.k==="text"&&i.rotate)).toBe(false);
  }

@@ -627,3 +627,64 @@ for (const w of [1180, 1000]) test(`wide: each copy of an x2 pair into a box of 
     expect(e[0]).toBeCloseTo(stb.x, 0); expect(e[1]).toBeCloseTo(kr.y + kr.h / 2, 0); expect(pts[0][1]).toBeCloseTo(e[1], 0);
   }
 });
+
+// 36-40. rc.2 review, MUST 6: connectors' labels by their own line, no line through words, arrows that reach their row
+// (the Format page's samples 01, 10, 15 and 31, with the Format page's roles)
+const PAGE_ROLES = { client: 1, server: 2, store: 3, job: 4, cache: 5, ops: 6, plain: 0 };
+const layP = (head: string, ss: ReturnType<typeof steps>, w: number) => { const c = compileStage(head, ss, 1, {}, PAGE_ROLES); expect(c.errors).toEqual([]); return { c, p: layoutStage(c.model, w) }; };
+const ordersHead = "title: Orders | one request, end to end\n## Browsers\nclient b1..b4: laptop; phone; tablet; kiosk | sends GET /orders\n... about 2,000 sessions\n## Servers\nserver s0,s1: api 0; api 1 | answers in JSON\n  + (a) worker a; (b) worker b\n## Storage\nstore db: orders database | primary | region east\n## _ under Servers..Storage\nops cfg: ledger service | pushes routes and limits\n";
+const ordersSteps = () => steps("b1,b3 --> s0: GET\nb2,b4 --> s1: GET\ntag b1,b3: to api 0\ntag b2,b4: to api 1\nlight s0,s1", "s0,s1 --> db (store): SELECT\nsay db: one primary\nlight db", "cfg -> s1, db: checked\nlight cfg");
+const chipOf = (p: { items: Item[] }, label: string, k: number) => p.items.find((it): it is Extract<Item, { k: "box" }> => it.k === "box" && it.bar?.kind === "chip" && it.bar?.label === label && shown(it, k))!;
+const segsOf = (q: { pts: [number, number][] }) => q.pts.slice(1).map((b, i) => [q.pts[i], b] as const);
+const nearSeg = (r: { x: number; y: number; w: number; h: number }, q: { pts: [number, number][] }, d: number) => segsOf(q).some(([a, b]) => Math.max(r.x - Math.max(a[0], b[0]), 0, Math.min(a[0], b[0]) - (r.x + r.w)) + Math.max(r.y - Math.max(a[1], b[1]), 0, Math.min(a[1], b[1]) - (r.y + r.h)) <= d);
+
+// 36. wide (01 s3): one label of two upward lines of unequal length stands on the stretch they share, between them, not
+// by another line (it slid onto api 1's SELECT line)
+for (const w of [1180, 1000]) test(`wide: a bundle's one label stands between its own lines, on their shared stretch (${w})`, () => {
+  const { p } = layP(ordersHead, ordersSteps(), w);
+  const c = chipOf(p, "checked", 3), own = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && String(it.id).startsWith("cfg>") && shown(it, 3));
+  expect(own.length).toBe(2);
+  const xs = own.map((q) => q.pts[0][0]).sort((a, b) => a - b); expect(c.x).toBeGreaterThan(xs[0]); expect(c.x + c.w).toBeLessThan(xs[1]);
+  const sel = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && String(it.id).endsWith(">db") && !String(it.id).startsWith("cfg") && shown(it, 3));
+  for (const q of sel) expect(nearSeg(c, q, 12)).toBe(false);
+});
+
+// 37. phone (01): a lane's "and more" words that a line crosses (or grazes) are drawn over it, with a halo
+for (const w of [356, 326]) test(`phone: lines through an "and more" line go under its words (${w})`, () => {
+  const { p } = layP(ordersHead, ordersSteps(), w);
+  const i = p.items.findIndex((it) => it.k === "text" && /about 2,000 sessions/.test(it.s));
+  expect(i).toBeGreaterThan(-1); expect((p.items[i] as { halo?: boolean }).halo).toBe(true);
+  expect(p.items.slice(i + 1).some((it) => it.k === "path")).toBe(false);
+});
+
+// 38-39. 15 'A library': a card inside a box to the box beside it (phone: straight across, its label on that line, on
+// no word); a line into a lone target's side (wide: its label just past its head inside the target, not 100 px above)
+const libHead = "title: A library | books between branches\n## Branches\nstore h: main branch | two floors | open late\n  store f1: ground floor [+ open] | returns desk\n  store f2: top floor [- shut] | reading room\n## Vans\njob v: book van | one driver\n  job v1: morning run | 8 stops\n  job v2: evening run | 5 stops\n## Readers\nclient r: readers\n  client r1: card bearer | borrows 3\n  client r2: new reader | no card yet\n## Desk across Branches..Readers\nops a: check in\nops b: shelve\nops c: lend\nnext row\nops d: repair\n";
+const libSteps = () => steps("dashed r2\nf1 -> v: 40 books\nv1 -> r: drop-off", "state f2: [+ open]\ntext v2: 5 stops | and the late club\ndashed r2 off\ntag r2: joined\nsay v2: runs late tonight and comes back by ten | one driver\nsay v2: no stops on the hill", "clear\na --> b: next\nb --> c: next\nd -> b: mended");
+for (const w of [356, 326]) test(`phone: a card inside a box to the box beside it goes straight across, its label on that line (${w})`, () => {
+  const { p } = layP(libHead, libSteps(), w);
+  const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "h>v" && shown(it, 1))!, v = boxOf(p, "v");
+  expect(q.pts.length).toBe(2); expect(Math.max(...q.pts.map(([x]) => x))).toBeLessThanOrEqual(v.x + 0.5);
+  const c = chipOf(p, "40 books", 1); expect(c.y).toBeLessThan(q.pts[0][1]); expect(c.y + c.h).toBeGreaterThan(q.pts[0][1]);
+  const words = p.items.filter((it): it is Extract<Item, { k: "text" }> => it.k === "text" && it.f !== "chip" && shown(it, 1));
+  for (const t of words) { const tw = t.s.length * 5, x0 = t.anchor === "middle" ? t.x - tw / 2 : t.x; expect(c.x + c.w > x0 && c.x < x0 + tw && c.y + c.h > t.y - 9 && c.y < t.y + 2).toBe(false); }
+});
+for (const w of [1180, 1000]) test(`wide: a label with no room on its line stands just past its head in its lone target (${w})`, () => {
+  const { p } = layP(libHead, libSteps(), w);
+  const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "v>r" && shown(it, 1))!, c = chipOf(p, "drop-off", 1), r = boxOf(p, "r");
+  const [ex, ey] = q.pts.at(-1)!; expect(Math.abs(ex - r.x)).toBeLessThan(1);
+  expect(c.x).toBeGreaterThanOrEqual(r.x); expect(c.x - ex).toBeLessThan(16); expect(Math.abs(c.y + c.h / 2 - ey)).toBeLessThan(24);
+  for (const id of ["r1", "r2"]) { const b = boxOf(p, id); expect(c.x + c.w > b.x && c.x < b.x + b.w && c.y + c.h > b.y && c.y < b.y + b.h).toBe(false); }
+});
+
+// 40. wide time cells (10, 31): an input from above runs down to its row (it stopped as a stub over the tick words); the
+// tick word it passes is drawn over it, with a halo
+const deskHead = "title: A print desk | one column per sheet\ntime: 0..4 | sheets\ncells: 1 | roomy\nticks: 0.5 first, 1.5 second, 2.5 third, 3.5 fourth\nrow job draft \"(a) Draft | writes\": +×1 0..1; +×2 1..2 @2; +×3 2..3 @3; _ 3..4 @3 [dashed]\nrow server copy \"| Copy | stores\": paused 0..1 [dashed]; +×1 1..2 @2; ×3 2..3 @3 [good]; _ 3..4 @3 [dashed]\n";
+for (const w of [1180, 1000]) test(`wide: an input from above reaches its row, over the tick word (${w})`, () => {
+  const { p } = layP(deskHead, steps("", "arrow copy -> draft at 1.5: saved copy", "arrow above -> draft at 2.5 [dashed]: new sheet"), w);
+  const a = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && (it.bar as { from?: string } | undefined)?.from === "above")!;
+  const row = p.items.filter((it): it is Extract<Item, { k: "box" }> => it.k === "box" && shown(it, 3) && it.x < a.pts[0][0] && it.x + it.w > a.pts[0][0] && it.y > a.pts[0][1]).sort((u, v) => u.y - v.y)[0];
+  expect(row).toBeTruthy(); expect(Math.abs(a.pts.at(-1)![1] - row.y)).toBeLessThanOrEqual(3);
+  const third = p.items.findIndex((it) => it.k === "text" && it.s === "third");
+  expect((p.items[third] as { halo?: boolean }).halo).toBe(true); expect(third).toBeGreaterThan(p.items.indexOf(a));
+});

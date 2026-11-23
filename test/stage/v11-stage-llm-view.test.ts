@@ -40,9 +40,13 @@ test("the tabs and every lit bar are listed, with why each is lit (sample 22)", 
   expect(at(1)).toContain("Lit bars: Fri 1.4 (the peak).");
   expect(at(2)).not.toContain("Tab:"); // the lit tab is named only where it changes
   expect(at(2)).toContain("Lit bars: Fri 1.4 (the peak), Sat 1.3 (over the limit).");
-  expect(at(3)).toContain("Lit bars: Mon 0.9 (takes), Tue 0.9 (takes), Fri 1.2 (gives), Sat 1.2 (gives).");
+  // Fri and Sat keep the authored peak highlight at the cap, without an over-cap giving warning.
+  expect(at(3)).toContain("Lit bars: Mon 0.9 (takes), Tue 0.9 (takes), Fri 1.2 (the peak; at the limit), Sat 1.2 (the peak; at the limit).");
+  expect(at(3)).toContain("Moves: Fri to Mon (2), Sat to Tue (1).");
+  expect(at(3)).not.toContain("gives");
+  expect(at(2)).not.toContain("at the limit"); // 1.4 and 1.3 are over it
   expect(at(4)).toContain("Tab: Two baristas.");
-  expect(at(4)).toContain("Lit bars: Sat 1.2 (lit: the busiest).");
+  expect(at(4)).toContain("Lit bars: Sat 1.2 (lit: the busiest; at the limit).");
 });
 
 test("an inset-only row is listed under the inset's range, not the overview's (sample 27)", () => {
@@ -74,4 +78,9 @@ test("a column lit again is 'lit', not 'new'; a column the step adds is new (sam
 test("a bar the author paints is listed with its paint", () => {
   const v = llm(`bars 3 server: x\n  labels: a, b, c`, ["values: 1 2 3\ntone b bad", "values: 1 2 3"]);
   expect(v).toContain("Lit bars: b 2 (marked bad).");
+});
+
+test("bars at the limit with no lit bar are still listed", () => {
+  const v = llm(`bars 3 server: x\n  labels: a, b, c`, ["values: 1 2 3\nlimit 2: cap", "values: 1 2 2"]);
+  expect(v).toContain("Bars at the limit 2, not lit: b 2, c 2.");
 });

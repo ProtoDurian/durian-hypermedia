@@ -4,7 +4,7 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
-## 0.7.0-rc.2 (not yet released)
+## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this
 candidate, as in 0.7.0-rc.1. Every page, fixture and sample that parsed in 0.7.0-rc.1 parses, checks and renders the
@@ -30,7 +30,8 @@ none of the package's own animations changes (checked on every fixture and the e
     `x2: first | second` labels each copy), a chain `a1, a2 --> b --> c` (each hop as if on its own line).
   - **Head blocks:** a phase track (`track:`, `at phase`; `form: chips`, `form: chips | arrows`, `form: chips | roles`,
     `place: beside where`; only the current phase is drawn as current), a worksheet (`sheet:`, `fill`, `mark`, `sum`, `pass`, an outcome column), bins, counted columns and a
-    bar chart in a scene (`columns`, `bars`), and a swimlane matrix (`matrix:`).
+    bar chart in a scene (`columns`, `bars`: a `peak:` bar keeps its highlight, and a bar is drawn over a
+    `limit` only when it is above it), and a swimlane matrix (`matrix:`).
   - **Time block:** `time: a..b | unit`, rows of states (`row role id "Label": a 0..3; b 3..7`), a state in its own
     role (`b 3..7 (server)`), `[soft]`, `[dot]` and `[dot] [plain]`, markers (`at`, `keep at`, `[beside]`, `[below]`,
     `[tick]`, `[caption]`), `ticks:` with words, a reveal step (`@3`) and a tone, `zoom:` (`| below`, `| bracket`),
@@ -47,7 +48,8 @@ none of the package's own animations changes (checked on every fixture and the e
     card takes the side channel, and a gap whose lines fall back to the right edge grows (4 px at a time, at most 12 a
     gap and 24 a stage); numbers in narrow cells stay level, or stand on end only inside their own cell, or stagger,
     and every cell keeps its number; a word too wide for its cell gets a key and a caption row; staggered words keep
-    10 px from their neighbours on a page-coloured backing; no word is ever under 11 px.
+    10 px from their neighbours on a page-coloured backing, each with a leader from its own cell; a carried chip and a
+    token's remark stay inside their frame; no word is ever under 11 px.
   - **doccheck:** a composed scene is exempt from the 400-token rule and warns over 2,000 tokens in the LLM view; it
     refuses, naming the line and the fix: a coordinate, pixel size, colour value or millisecond option in the source,
     a role the page does not declare (it lists those it does), two roles of one colour in one scene, an unknown card,

@@ -84,7 +84,8 @@ export function ticksEvery(min: number, max: number, unit: string, every: number
     // hours and minutes step on the zone's wall clock, so a clock change does not move 08:00 to 09:00
     const q = partsOf(t, tz);
     for (let k = 0; k < room; k++) {
-      const x = u === "hour" ? wallToMs(q.y, q.mo, q.d, q.h + k * every, 0, 0, 0, tz) : wallToMs(q.y, q.mo, q.d, q.h, q.mi + k * every, 0, 0, tz);
+      // minutes are real minutes (a clock change neither skips nor repeats one); hours step on the zone's wall clock
+      const x = u === "hour" ? wallToMs(q.y, q.mo, q.d, q.h + k * every, 0, 0, 0, tz) : t + k * every * MIN;
       if (x > max) break;
       if (x >= min && (!out.length || x > out[out.length - 1])) out.push(x);
     }

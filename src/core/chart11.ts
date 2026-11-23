@@ -65,8 +65,10 @@ function baseSpec(d: any): any {
 function applyStep(prev: any, st: any, i: number, errors: string[]): any {
   const have: any[] = prev.series;
   const mine = isObj(st) && Array.isArray(st.series) ? st.series.length : 0;
-  charge(2 + have.length + mine * (have.length + 1), have.length + mine);
+  charge(2 + 2 * have.length + 2 * mine, have.length + mine); // the copy, the name map, and a look-up and maybe an add for each series the step names
   let spec: any = { ...prev, series: have.map((s: any) => (isObj(s) ? { ...s } : s)) };
+  const at = new Map<string, number>(); // series name to its place (the first with that name), built once per step
+  spec.series.forEach((s: any, j: number) => { if (isObj(s)) { const k = String(s.name ?? s.label); if (!at.has(k)) at.set(k, j); } });
   if (!isObj(st)) { errors.push(`step ${i + 1} must be an object with a title (and series, annotations or y when it changes them)`); return spec; }
   for (const key of Object.keys(st)) if (!STEP_KEYS.includes(key)) errors.push(`step ${i + 1}: unknown key "${key}" (keys: ${STEP_KEYS.join(", ")})`);
   if (st.title !== undefined && typeof st.title !== "string") errors.push(`step ${i + 1}: title must be text`);
@@ -75,12 +77,12 @@ function applyStep(prev: any, st: any, i: number, errors: string[]): any {
     else for (const ss of st.series) {
       if (!isObj(ss) || typeof ss.name !== "string") { errors.push(`step ${i + 1}: a series needs a name`); continue; }
       for (const key of Object.keys(ss)) if (!STEP_SERIES_KEYS.includes(key)) errors.push(`step ${i + 1}: series "${ss.name}": unknown key "${key}" (keys: ${STEP_SERIES_KEYS.join(", ")})`);
-      const at = spec.series.findIndex((s: any) => isObj(s) && String(s.name ?? s.label) === ss.name);
+      const found = at.get(ss.name) ?? -1;
       if (ss.add === true) {
-        if (at >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
-        else { const { add, ...rest } = ss; spec.series.push(rest); }
-      } else if (at < 0) errors.push(`step ${i + 1}: series "${ss.name}" is not in the chart; add add: true to bring in a new series (series: ${spec.series.map((s: any) => s?.name).filter(Boolean).join(", ") || "none"})`);
-      else { const { add, name, ...rest } = ss; spec.series[at] = { ...spec.series[at], ...rest }; }
+        if (found >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
+        else { const { add, ...rest } = ss; at.set(ss.name, spec.series.length); spec.series.push(rest); }
+      } else if (found < 0) errors.push(`step ${i + 1}: series "${ss.name}" is not in the chart; add add: true to bring in a new series (series: ${spec.series.map((s: any) => s?.name).filter(Boolean).join(", ") || "none"})`);
+      else { const { add, name, ...rest } = ss; spec.series[found] = { ...spec.series[found], ...rest }; }
     }
   }
   if (st.annotations !== undefined) spec.annotations = st.annotations;
@@ -146,8 +148,15 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
     const xs = xValuesOf(d);
     const series: any[] = Array.isArray(d.series) ? d.series : [];
     const pointForm = (s: any) => isObj(s) && Array.isArray(s.data) && s.data.length > 0 && s.data.every((p: any) => (Array.isArray(p) && p.length === 2 && (typeof p[0] === "string" || p[0] instanceof Date)) || (isObj(p) && "t" in p));
-    const forms = series.filter(isObj).map(pointForm);
-    if (xs && forms.some(Boolean)) errors.push(`a time axis takes its times from x.values, or from each series' points [[time, value], ...], not both; remove one`);
+    // the points are counted, and refused when there are too many, before any of them is scanned
+    charge(series.length + 1);
+    let total = 0;
+    for (const s of series) if (isObj(s) && Array.isArray(s.data)) total += s.data.length;
+    const tooMany = total > caps().points;
+    if (!tooMany) charge(total + 1, total);
+    const forms = tooMany ? [] : series.filter(isObj).map(pointForm);
+    if (tooMany) errors.push(`the series have ${total} points together; at most ${caps().points} (aggregate the data into fewer points)`);
+    else if (xs && forms.some(Boolean)) errors.push(`a time axis takes its times from x.values, or from each series' points [[time, value], ...], not both; remove one`);
     else if (!xs && !forms.length) errors.push(`a time axis needs its times: give x.values as ISO times, or write each series' data as points [[time, value], ...]`);
     else if (!xs && forms.some((f) => !f)) errors.push(`with a time axis and no x.values, every series' data is points [[time, value], ...]`);
     else if (typeof d.x?.values === "string") errors.push(`a time axis needs x.values as a list of ISO times, not a formula`);
@@ -354,6 +363,7 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
   const n = Math.max(1, steps.length);
   const out: Prepared[] = [];
   let cur = baseSpec(d); // each step is built from the one before, once
+  let first: string[] = [];
   for (let k = 0; k < n; k++) {
     const es: string[] = [];
     if (steps.length) cur = applyStep(cur, steps[k], k, es);
@@ -363,23 +373,29 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
     const title = steps[k]?.title;
     const p = prepareOne(spec, k, steps.length, typeof title === "string" ? title : undefined);
     out.push(p);
+    if (k === 0 && !p.errors.length) first = chartCheck(p.base);
     for (const e of p.errors) { const msg = n > 1 ? `step ${k + 1}: ${e}` : e; if (!errors.includes(msg) && !(k > 0 && out[0].errors.includes(e))) errors.push(msg); }
-    for (const w of p.warnings) if (k === 0) warnings.push(w);
-    // later steps check their data lengths and numbers with the evaluator
-    if (k > 0 && !p.errors.length && !es.length) { const r = evalChart(p.base); if (r.error) errors.push(`step ${k + 1}: ${r.error}`); }
+    for (const w of p.warnings) { const msg = k === 0 || n < 2 ? w : `step ${k + 1}: ${w}`; if (!warnings.includes(w) && !warnings.includes(msg)) warnings.push(msg); }
+    // later steps are checked like the first chart: the plain chart's schema, then its data lengths and numbers with the evaluator;
+    // a problem of one step does not hide another step's, and a problem the first chart has is not said again
+    if (k > 0 && !p.errors.length && !es.length) {
+      charge(2 + (p.base?.series?.length ?? 0), p.base?.series?.length ?? 0);
+      for (const e of chartCheck(p.base)) { if (!first.includes(e)) { const msg = `step ${k + 1}: ${e}`; if (!errors.includes(msg)) errors.push(msg); } }
+      const r = evalChart(p.base); if (r.error) errors.push(`step ${k + 1}: ${r.error}`);
+    }
   }
   return { base: out[0].base, errors, warnings, steps: out };
 }
 /** what doccheck calls first for a chart: the new words checked, and the plain chart left for the evaluator's own checks */
-export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[]; later: any[] } { return withChartBudget(() => chart11CheckIn(d)); }
-function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[]; later: any[] } {
-  if (!isObj(d)) return { base: d, errors: [], warnings: [], later: [] };
+export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[] } { return withChartBudget(() => chart11CheckIn(d)); }
+function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[] } {
+  if (!isObj(d)) return { base: d, errors: [], warnings: [] };
   let p: ReturnType<typeof prepareChart>;
-  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], later: [] }; throw e; }
+  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; }
   const errors = [...p.errors];
-  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], later: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
+  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
   for (const k of Object.keys(d)) if (!CHART11_KEYS.includes(k)) errors.push(`unknown key "${k}" (keys: ${CHART11_KEYS.join(", ")})`);
-  return { base: p.base, errors, warnings: p.warnings, later: p.steps.slice(1).map((x) => x.base) };
+  return { base: p.base, errors, warnings: p.warnings };
 }
 export const usesChart11 = (d: any) => isObj(d) && (d.kind === "heatmap" || d.steps !== undefined || d.annotations !== undefined || d.tz !== undefined || d.layout !== undefined || d.inputs !== undefined || d.formulas !== undefined || d.calc !== undefined || [d.x, d.y, d.y2].some((a) => isObj(a) && (a.format !== undefined || a.currency !== undefined || a.scale === "time" || a.toggle !== undefined)) || (Array.isArray(d.series) && d.series.some((s: any) => isObj(s) && (s.line !== undefined || s.marker !== undefined))));
 

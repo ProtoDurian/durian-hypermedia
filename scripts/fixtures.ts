@@ -11,10 +11,10 @@ import { publicText, loadRewrites } from "./public-text";
 const PKG = resolve(import.meta.dir, "..");
 // Private addresses in a sample (a cluster's service and pod IPs) become addresses from the ranges kept for documentation (RFC 5737), the last number kept,
 // so a published fixture names no private network.
-const docAddresses = (s: string) => s
+export const docAddresses = (s: string) => s
   .replace(/\b10\.96\.\d+\.(\d+)\b/g, "192.0.2.$1")
   .replace(/\b10\.244\.\d+\.(\d+)\b/g, "198.51.100.$1")
-  .replace(/\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+\.(\d+)\b/g, "203.0.113.$1");
+  .replace(/\b(?:10\.\d+|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.(\d+)\b/g, "203.0.113.$1");
 export function makeFormatFixtures(src: string): string[] {
   loadRewrites(src);
   const raw = docAddresses(publicText(readFileSync(join(src, "samples/parts.dh.md"), "utf8")));

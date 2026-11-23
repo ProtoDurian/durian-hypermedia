@@ -76,7 +76,8 @@ function transform(css: string, dropChrome: boolean): string {
 
 export function buildCss(): string {
   const all = readdirSync(UI).filter((f) => f.endsWith(".css"));
-  const order = ["theme.css", "base.css", ...all.filter((f) => f !== "theme.css" && f !== "base.css").sort()];
+  // colours.css (the measured role palette's planes and 3:1 edges) comes after the other part sheets, so its edges win
+  const order = ["theme.css", "base.css", ...all.filter((f) => f !== "theme.css" && f !== "base.css" && f !== "colours.css").sort(), "colours.css"];
   const parts = order.filter((f) => all.includes(f)).map((f) => `/* ---- ${f} (scoped) ---- */\n${transform(readFileSync(join(UI, f), "utf8"), f === "base.css")}`);
   // the parts in their own folders (src/parts/<name>/style.css), the kit first: listed by scripts/parts.ts
   for (const f of PART_CSS) parts.push(`/* ---- parts/${f} (scoped) ---- */\n${transform(readFileSync(join(PKG, "src/parts", f), "utf8"), false)}`);

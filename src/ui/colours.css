@@ -1,0 +1,26 @@
+/* The measured role palette (0.7.0-rc.3): the animation's planes and edges (tokens in theme.css).
+   A family's container (a group, a frame) is filled with the family's plane, a lighter tint than its leaves, so a box of
+   another family drawn on it keeps a border of 3:1 or more; a thing of the same family, or fill=none, still draws on the
+   surface (parts.css). Plain boxes, plain containers, layer bands and the tone borders use the stage's own edge tokens,
+   each 3:1 or more on everything it can sit on. */
+.cc-1 { --k-plane: var(--c1-plane); } .cc-2 { --k-plane: var(--c2-plane); } .cc-3 { --k-plane: var(--c3-plane); } .cc-4 { --k-plane: var(--c4-plane); }
+.cc-0 { --k: var(--c0); --k-soft: var(--c0-soft); --k-ink: var(--c0-ink); --k-plane: var(--c0-plane); }
+.cc-5 { --k-plane: var(--c5-plane); } .cc-6 { --k-plane: var(--c6-plane); } .cc-7 { --k-plane: var(--c7-plane); } .cc-8 { --k-plane: var(--c8-plane); }
+.scn-ent.cc .scn-frame { fill: var(--k-soft); } /* one fill per role (the originals): a role's group fills like its cards */
+.scn-shape { stroke: var(--scn-edge); }
+.scn-frame { stroke: var(--scn-frame-edge); }
+.scn-band { stroke: var(--scn-band-edge); }
+.tone-acc .scn-shape, .tone-acc .scn-frame { stroke: var(--scn-acc-edge); }
+.tone-good .scn-shape, .tone-good .scn-frame { stroke: var(--scn-good-edge); }
+.tone-warn .scn-shape, .tone-warn .scn-frame { stroke: var(--scn-warn-edge); }
+.tone-hot .scn-shape, .tone-hot .scn-frame { stroke: var(--scn-hot-edge); }
+.tone-muted .scn-shape, .tone-muted .scn-frame { stroke: var(--scn-muted-edge); }
+.scn-idx-cell { stroke: var(--scn-edge); }
+/* the records (class, er, record) and the state part's boxes: the same 3:1 edge */
+:root { --state-border: var(--scn-edge); }
+.scn-rec-edge, .scn-rec-rule { stroke: var(--dg-node-border, var(--scn-edge)); }
+.scn-rec-chip { stroke: var(--scn-edge); }
+/* words on a role's tint: the faint grey (indices, still-empty notes) reads as muted on the stage, so it keeps 4.5:1 on
+   every plane and fill; a key's tag on a role's plate is in the role's own ink */
+.scn-svg { --faint: var(--muted); --er-key-ink: var(--ink); }
+.scn-ent.cc { --er-key-ink: var(--k-ink); }

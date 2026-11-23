@@ -16,6 +16,13 @@
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibmplexmono-500-latin.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/ibmplexmono-600-latin.woff2") format("woff2"); }
+/* the middle dot (U+00B7): Poppins draws it with 0.67 px of ink at 12 px, nearly invisible in "Jump(·, 32)"; these faces,
+   declared after Poppins and limited to U+00B7, take that one glyph from the self-hosted IBM Plex Mono (2.9 px of ink).
+   No text changes; every other character stays Poppins. */
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 300; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); unicode-range: U+00B7; }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); unicode-range: U+00B7; }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibmplexmono-500-latin.woff2") format("woff2"); unicode-range: U+00B7; }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/ibmplexmono-600-latin.woff2") format("woff2"); unicode-range: U+00B7; }
 
 :root {
   color-scheme: light;
@@ -38,36 +45,36 @@
 
   /* --- accents ------------------------------------------------------------- */
   --acc: #555FFF;           /* primary accent: links, focus, "the answer" */
-  --acc-ink: #3039C8;       /* accent as text (>= 7:1 on surface) */
+  --acc-ink: #2E36C5;       /* accent as text (>= 7:1 on surface) */
   /* a column's unlit dot looks the same in both themes: the role's colour where it is 3:1 on the stage and the page,
      else the role's ink (this palette's c2, c3, c5, c6, c8); a lit column's dots are stronger: darker in light (the
      brighter ink in dark, below) */
-  --c1-dot: var(--c1); --c2-dot: var(--c2-ink); --c3-dot: var(--c3-ink); --c4-dot: var(--c4); --c5-dot: var(--c5-ink); --c6-dot: var(--c6-ink); --c7-dot: var(--c7); --c8-dot: var(--c8-ink); --acc-dot: var(--acc);
-  --c1-dot-new: color-mix(in oklab, var(--c1) 70%, #000); --c2-dot-new: color-mix(in oklab, var(--c2-ink) 70%, #000); --c3-dot-new: color-mix(in oklab, var(--c3-ink) 70%, #000); --c4-dot-new: color-mix(in oklab, var(--c4) 70%, #000); --c5-dot-new: color-mix(in oklab, var(--c5-ink) 70%, #000); --c6-dot-new: color-mix(in oklab, var(--c6-ink) 70%, #000); --c7-dot-new: color-mix(in oklab, var(--c7) 70%, #000); --c8-dot-new: color-mix(in oklab, var(--c8-ink) 70%, #000); --acc-dot-new: color-mix(in oklab, var(--acc) 70%, #000);
+  --c1-dot: var(--c1); --c2-dot: var(--c2); --c3-dot: var(--c3); --c4-dot: var(--c4); --c5-dot: var(--c5); --c6-dot: var(--c6); --c7-dot: var(--c7); --c8-dot: var(--c8); --acc-dot: var(--acc);
+  --c1-dot-new: color-mix(in oklab, var(--c1) 70%, #000); --c2-dot-new: color-mix(in oklab, var(--c2) 70%, #000); --c3-dot-new: color-mix(in oklab, var(--c3) 70%, #000); --c4-dot-new: color-mix(in oklab, var(--c4) 70%, #000); --c5-dot-new: color-mix(in oklab, var(--c5) 70%, #000); --c6-dot-new: color-mix(in oklab, var(--c6) 70%, #000); --c7-dot-new: color-mix(in oklab, var(--c7) 70%, #000); --c8-dot-new: color-mix(in oklab, var(--c8) 70%, #000); --acc-dot-new: color-mix(in oklab, var(--acc) 70%, #000);
   --acc-2: #7F87FF;
   --acc-soft: #DEE0FF;
   --acc-softer: #EEEFFF;
   --hot: #F91974;           /* second accent: the problem, "not this" */
-  --hot-ink: #A80C4D;
+  --hot-ink: #980344;
   --hot-soft: #FDD9E8;
 
   /* --- status (fixed meaning; always paired with an icon + word) ---------- */
-  --good: #1CAA53;   --good-ink: #0B6B33;  --good-soft: #DCF1E3;
-  --warn: #FF760D;   --warn-ink: #9A4200;  --warn-soft: #FFE3CE;
-  --bad: #F91974;    --bad-ink: #A80C4D;   --bad-soft: #FDD9E8;
+  --good: #1CAA53;   --good-ink: #075829;  --good-soft: #DCF1E3;
+  --warn: #FF760D;   --warn-ink: #7F3705;  --warn-soft: #FFE3CE;
+  --bad: #F91974;    --bad-ink: #980344;   --bad-soft: #FDD9E8;
   /* family colours (format version 6): an animation names its families, and each gets one of these, in order;
      the base colour for lines, arrows and dots, -soft for fills, -ink for words */
-  --c1: #555FFF; --c1-soft: #E3E5FF; --c1-ink: #3039C8;
-  --c2: #0E9F9A; --c2-soft: #D3F2EF; --c2-ink: #0A6662;
-  --c3: #D99A00; --c3-soft: #FBEFC9; --c3-ink: #7A5600;
-  --c4: #9A5CF5; --c4-soft: #EDE2FF; --c4-ink: #5F2DB3;
-  --c5: #F26B1D; --c5-soft: #FFE4D3; --c5-ink: #9E4008;
-  --c6: #1F8FE0; --c6-soft: #D8ECFB; --c6-ink: #0F5D99;
-  --c7: #E2408A; --c7-soft: #FCDDEB; --c7-ink: #9C1C56;
-  --c8: #3FA34D; --c8-soft: #DDF1DF; --c8-ink: #216D2B;
+  --c1: #4D42FB; --c1-soft: #BAD3FE; --c1-ink: #2955A6;
+  --c2: #324F44; --c2-soft: #91E9D4; --c2-ink: #006A5A;
+  --c3: #7E7361; --c3-soft: #FCDC77; --c3-ink: #755E00;
+  --c4: #6919A3; --c4-soft: #DCACFC; --c4-ink: #5B348C;
+  --c5: #821E00; --c5-soft: #FFCEBC; --c5-ink: #A03F13;
+  --c6: #016C9F; --c6-soft: #DCF5FF; --c6-ink: #007694;
+  --c7: #A61972; --c7-soft: #FFA4BC; --c7-ink: #852456;
+  --c8: #007716; --c8-soft: #85D28B; --c8-ink: #12561F;
   /* a meter's fill and track (format version 8): a colour of its own, never a family's, so a progress bar stands
      apart from the border of the box it sits in; a tone (warn, good, hot) still recolours the fill */
-  --meter: #1B2540; --meter-track: #D5DAE6;
+  --meter: #0A0000; --meter-track: #D5DAE6;
   --info: #555FFF;   --info-ink: #3039C8;  --info-soft: #EEEFFF;
   --untested: #56627C; --untested-ink: #3A4560; --untested-soft: #E3E7F0;
 
@@ -156,6 +163,9 @@
   /* the composed stage (0.7.0): the neutral role colour c0, the plain look (a white card with a slate edge; it meets 3:1
      and 4.5:1 but is not held to the pair limits against the 8 hues). A column's dots fall back to the soft fill and the border. */
   --c0-fill: var(--surface); --c0: #596172; --c0-soft: var(--c0-fill); --c0-plane: var(--c0-soft); --c0-ink: var(--muted);
+  /* the measured role palette (0.7.0-rc.3): a family's plane (its containers' fill, the same as its cards'), and in dark the stage's own 3:1 edges */
+  --c1-plane: #BAD3FE; --c2-plane: #91E9D4; --c3-plane: #FCDC77; --c4-plane: #DCACFC; --c5-plane: #FFCEBC; --c6-plane: #DCF5FF;
+  --c7-plane: #FFA4BC; --c8-plane: #85D28B;
 }
 
 /* ---------------- dark: same family, stepped for a navy page -------------- */
@@ -167,19 +177,19 @@
     --line: #232B44; --line-2: #36415F;
     --ink: #F4F6FB; --ink-2: #DCE1EC; --muted: #B4BDD1; --faint: #98A3BC;
     --acc: #8D94FF; --acc-ink: #B9BEFF; --acc-2: #6C74FF; --acc-soft: #272D5C; --acc-softer: #1A1F42;
-    --hot: #FF4F96; --hot-ink: #FF8DBA; --hot-soft: #3B1529;
+    --hot: #FF4F96; --hot-ink: #FE9FC3; --hot-soft: #3B1529;
     --good: #34C76E; --good-ink: #7BE3A4; --good-soft: #11301F;
     --warn: #FF8F3A; --warn-ink: #FFB984; --warn-soft: #3A2410;
-    --bad: #FF4F96; --bad-ink: #FF8DBA; --bad-soft: #3B1529;
-    --c1: #8A92FF; --c1-soft: #262B57; --c1-ink: #B4B9FF;
-    --c2: #2DD4BF; --c2-soft: #143633; --c2-ink: #7EE8DA;
-    --c3: #F2C94C; --c3-soft: #3A3112; --c3-ink: #F7DD8C;
-    --c4: #B794FF; --c4-soft: #2E2350; --c4-ink: #D2BCFF;
-    --c5: #FF8A3D; --c5-soft: #3A2414; --c5-ink: #FFB27F;
-    --c6: #5AB4FF; --c6-soft: #15304A; --c6-ink: #9CD2FF;
-    --c7: #FF6FAE; --c7-soft: #3D1A2A; --c7-ink: #FF9DC8;
-    --c8: #6FD67E; --c8-soft: #17351C; --c8-ink: #A2E8AC;
-    --meter: #EEF1F8; --meter-track: #36415F;
+    --bad: #FF4F96; --bad-ink: #FE9FC3; --bad-soft: #3B1529;
+    --c1: #8A92FF; --c1-soft: #29295E; --c1-ink: #B6BFFE;
+    --c2: #9DFAF1; --c2-soft: #12534A; --c2-ink: #19E1D5;
+    --c3: #E5B104; --c3-soft: #644402; --c3-ink: #EBBE4A;
+    --c4: #E7A5FE; --c4-soft: #553F75; --c4-ink: #E8A8FE;
+    --c5: #FA6E21; --c5-soft: #3E1600; --c5-ink: #FEAE8C;
+    --c6: #25A6BE; --c6-soft: #012930; --c6-ink: #20DBFB;
+    --c7: #FA61AC; --c7-soft: #4D3339; --c7-ink: #FEA5CB;
+    --c8: #AAEB6E; --c8-soft: #283C00; --c8-ink: #A2D774;
+    --meter: #8E8E94; --meter-track: #36415F;
     --info: #8D94FF; --info-ink: #B9BEFF; --info-soft: #1A1F42;
     --untested: #98A3BC; --untested-ink: #C5CDDD; --untested-soft: #1D2439;
     --mark-bg: #5B4A00; --mark-ink: #FFF6CC;
@@ -198,7 +208,11 @@
     --c0-fill: #232A3B; --c0: #95A3C6; /* the composed stage (0.7.0): the neutral role c0 in dark, a grey-slate fill and a light slate edge */
     --c1-dot: var(--c1); --c2-dot: var(--c2); --c3-dot: var(--c3); --c4-dot: var(--c4); --c5-dot: var(--c5); --c6-dot: var(--c6); --c7-dot: var(--c7); --c8-dot: var(--c8); --acc-dot: var(--acc); /* a column's plain dots in dark: the role's own colour, not its dark fill */
     --c1-dot-new: var(--c1-ink); --c2-dot-new: var(--c2-ink); --c3-dot-new: var(--c3-ink); --c4-dot-new: var(--c4-ink); --c5-dot-new: var(--c5-ink); --c6-dot-new: var(--c6-ink); --c7-dot-new: var(--c7-ink); --c8-dot-new: var(--c8-ink); --acc-dot-new: var(--acc-ink); /* a lit column's dots: brighter */
-  }
+    /* the measured role palette (0.7.0-rc.3): a family's plane (its containers' fill, the same as its cards'), and in dark the stage's own 3:1 edges */
+    --c1-plane: #29295E; --c2-plane: #12534A; --c3-plane: #644402; --c4-plane: #553F75; --c5-plane: #3E1600; --c6-plane: #012930;
+    --c7-plane: #4D3339; --c8-plane: #283C00; --scn-edge: #95A3C6; --scn-frame-edge: #98A3C2; --scn-band-edge: #95A3C6; --scn-good-edge: #34C76E;
+    --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2;
+}
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -207,19 +221,19 @@
   --line: #232B44; --line-2: #36415F;
   --ink: #F4F6FB; --ink-2: #DCE1EC; --muted: #B4BDD1; --faint: #98A3BC;
   --acc: #8D94FF; --acc-ink: #B9BEFF; --acc-2: #6C74FF; --acc-soft: #272D5C; --acc-softer: #1A1F42;
-  --hot: #FF4F96; --hot-ink: #FF8DBA; --hot-soft: #3B1529;
+  --hot: #FF4F96; --hot-ink: #FE9FC3; --hot-soft: #3B1529;
   --good: #34C76E; --good-ink: #7BE3A4; --good-soft: #11301F;
   --warn: #FF8F3A; --warn-ink: #FFB984; --warn-soft: #3A2410;
-  --bad: #FF4F96; --bad-ink: #FF8DBA; --bad-soft: #3B1529;
-  --c1: #8A92FF; --c1-soft: #262B57; --c1-ink: #B4B9FF;
-  --c2: #2DD4BF; --c2-soft: #143633; --c2-ink: #7EE8DA;
-  --c3: #F2C94C; --c3-soft: #3A3112; --c3-ink: #F7DD8C;
-  --c4: #B794FF; --c4-soft: #2E2350; --c4-ink: #D2BCFF;
-  --c5: #FF8A3D; --c5-soft: #3A2414; --c5-ink: #FFB27F;
-  --c6: #5AB4FF; --c6-soft: #15304A; --c6-ink: #9CD2FF;
-  --c7: #FF6FAE; --c7-soft: #3D1A2A; --c7-ink: #FF9DC8;
-  --c8: #6FD67E; --c8-soft: #17351C; --c8-ink: #A2E8AC;
-  --meter: #EEF1F8; --meter-track: #36415F;
+  --bad: #FF4F96; --bad-ink: #FE9FC3; --bad-soft: #3B1529;
+  --c1: #8A92FF; --c1-soft: #29295E; --c1-ink: #B6BFFE;
+  --c2: #9DFAF1; --c2-soft: #12534A; --c2-ink: #19E1D5;
+  --c3: #E5B104; --c3-soft: #644402; --c3-ink: #EBBE4A;
+  --c4: #E7A5FE; --c4-soft: #553F75; --c4-ink: #E8A8FE;
+  --c5: #FA6E21; --c5-soft: #3E1600; --c5-ink: #FEAE8C;
+  --c6: #25A6BE; --c6-soft: #012930; --c6-ink: #20DBFB;
+  --c7: #FA61AC; --c7-soft: #4D3339; --c7-ink: #FEA5CB;
+  --c8: #AAEB6E; --c8-soft: #283C00; --c8-ink: #A2D774;
+  --meter: #8E8E94; --meter-track: #36415F;
   --info: #8D94FF; --info-ink: #B9BEFF; --info-soft: #1A1F42;
   --untested: #98A3BC; --untested-ink: #C5CDDD; --untested-soft: #1D2439;
   --mark-bg: #5B4A00; --mark-ink: #FFF6CC;
@@ -238,6 +252,10 @@
   --c0-fill: #232A3B; --c0: #95A3C6; /* the composed stage (0.7.0): the neutral role c0 in dark, a grey-slate fill and a light slate edge */
   --c1-dot: var(--c1); --c2-dot: var(--c2); --c3-dot: var(--c3); --c4-dot: var(--c4); --c5-dot: var(--c5); --c6-dot: var(--c6); --c7-dot: var(--c7); --c8-dot: var(--c8); --acc-dot: var(--acc); /* a column's plain dots in dark: the role's own colour, not its dark fill */
   --c1-dot-new: var(--c1-ink); --c2-dot-new: var(--c2-ink); --c3-dot-new: var(--c3-ink); --c4-dot-new: var(--c4-ink); --c5-dot-new: var(--c5-ink); --c6-dot-new: var(--c6-ink); --c7-dot-new: var(--c7-ink); --c8-dot-new: var(--c8-ink); --acc-dot-new: var(--acc-ink); /* a lit column's dots: brighter */
+  /* the measured role palette (0.7.0-rc.3): a family's plane (its containers' fill, the same as its cards'), and in dark the stage's own 3:1 edges */
+  --c1-plane: #29295E; --c2-plane: #12534A; --c3-plane: #644402; --c4-plane: #553F75; --c5-plane: #3E1600; --c6-plane: #012930;
+  --c7-plane: #4D3339; --c8-plane: #283C00; --scn-edge: #95A3C6; --scn-frame-edge: #98A3C2; --scn-band-edge: #95A3C6; --scn-good-edge: #34C76E;
+  --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2;
 }
 
 /* charts: the heat ramps (heatmap cells and key) and the tokens of annotations, the scale switch, the key of styled series and the
@@ -250,4 +268,11 @@
   --pc-input-h: 40px; --pc-input-bg: var(--surface);
   --pc-result-bg: var(--acc-softer); --pc-result-border: var(--acc); --pc-result-ink: var(--acc-ink); --pc-result-fs: var(--fs-xl);
   --pc-tile: 14px;
+}
+/* the stage's own edges (0.7.0-rc.3, the measured palette): every box, container and layer band has a border at least 3:1 on
+   what it sits on (the stage, the surface, a tone's tint or a family's plane), measured on every sample in both themes.
+   The dark values sit in the two dark blocks above. */
+:root {
+  --scn-edge: #596172; --scn-frame-edge: #5B616C; --scn-band-edge: #596172;
+  --scn-good-edge: #007031; --scn-warn-edge: #A04600; --scn-hot-edge: #C00056; --scn-acc-edge: #4648E8; --scn-muted-edge: #5B616C;
 }

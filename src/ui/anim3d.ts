@@ -113,7 +113,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   };
   let C: Record<string, THREE.Color> = {};
   const readColours = () => {
-    const names = ["surface", "surface-2", "surface-3", "line", "line-2", "ink", "muted", "faint", "acc", "acc-soft", "acc-softer", "good", "good-soft", "warn", "warn-soft", "hot", "hot-soft", "bad", "meter", "meter-track", ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [`c${k}`, `c${k}-soft`])];
+    const names = ["surface", "surface-2", "surface-3", "line", "line-2", "ink", "muted", "faint", "acc", "acc-soft", "acc-softer", "good", "good-soft", "warn", "warn-soft", "hot", "hot-soft", "bad", "meter", "meter-track", ...[1, 2, 3, 4, 5, 6, 7, 8].flatMap((k) => [`c${k}`, `c${k}-soft`, `c${k}-plane`]), "scn-edge", "scn-frame-edge", "scn-acc-edge", "scn-good-edge", "scn-warn-edge", "scn-hot-edge", "scn-muted-edge"];
     C = Object.fromEntries(names.map((n) => [n, css(`--${n}`)]));
     // paint again with the new tokens (a theme or palette switch while the stage is open)
     if (view) update(view);
@@ -125,7 +125,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     // family as its container, draws on the plain surface (the words are in ink, in the label layer)
     if (cc && t === "plain") { const fill = plainFill ? C.surface : C[`c${cc}-soft`], line = C[`c${cc}`]; return { fill, line, side: fill.clone().lerp(line, 0.38) }; }
     const fill = t === "acc" ? C["acc-soft"] : t === "good" ? C["good-soft"] : t === "warn" ? C["warn-soft"] : t === "hot" ? C["hot-soft"] : t === "muted" ? C["surface-3"] : container && depth % 2 ? C["surface-2"] : C.surface;
-    const line = t === "acc" ? C.acc : t === "good" ? C.good : t === "warn" ? C.warn : t === "hot" ? C.hot : t === "muted" ? C.line : C["line-2"];
+    const line = t === "acc" ? C["scn-acc-edge"] : t === "good" ? C["scn-good-edge"] : t === "warn" ? C["scn-warn-edge"] : t === "hot" ? C["scn-hot-edge"] : t === "muted" ? C["scn-muted-edge"] : C[container ? "scn-frame-edge" : "scn-edge"]; // the measured palette: 3:1 edges
     return { fill, line, side: fill.clone().lerp(line, 0.38) };
   };
 

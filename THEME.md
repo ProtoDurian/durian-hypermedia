@@ -16,49 +16,60 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 - The 3D stage and the charts read the tokens from their own element when they draw and again when `data-theme` changes on
   `<html>`; after changing tokens any other way, toggle `data-theme` or re-mount.
 
-## Colours (195 tokens)
+## Colours (215 tokens)
 
 | Token | What it is for | Light default | Dark default |
 | --- | --- | --- | --- |
 | `--acc` | primary accent: links, focus, "the answer"; read by button.dh-chip:focus-visible, .ctl-range, .btn:hover:not(:disabled) | `#555FFF` | `#8D94FF` |
 | `--acc-2` | accents; read by .coderef | `#7F87FF` | `#6C74FF` |
-| `--acc-ink` | accent as text (>= 7:1 on surface); read by .btn:hover:not(:disabled), .btn-choice, .seg button[aria-pressed="true"] | `#3039C8` | `#B9BEFF` |
+| `--acc-ink` | accent as text (>= 7:1 on surface); read by .btn:hover:not(:disabled), .btn-choice, .seg button[aria-pressed="true"] | `#2E36C5` | `#B9BEFF` |
 | `--acc-soft` | accents; read by .btn-choice, .seg button[aria-pressed="true"], .tone-acc .scn-shape | `#DEE0FF` | `#272D5C` |
 | `--acc-softer` | accents; read by .callout-important, .scn-arrow-l rect, .scn-where | `#EEEFFF` | `#1A1F42` |
 | `--axis` | terminal / code; read by .chart .axis, chart-config (code) | `#B6BFD3` | `#36415F` |
 | `--bad` | status; read by .tone-bad, .callout-security, .callout-security .callout-icon | `#F91974` | `#FF4F96` |
-| `--bad-ink` | status; read by .tone-bad, .b-removed, :root | `#A80C4D` | `#FF8DBA` |
+| `--bad-ink` | status; read by .tone-bad, .b-removed, :root | `#980344` | `#FE9FC3` |
 | `--bad-soft` | status; read by .tone-bad, .b-removed, .fx-row.is-removed | `#FDD9E8` | `#3B1529` |
 | `--bg` | page plane; read by body | `#E6E8F2` | `#070B16` |
 | `--bg-glow-1` | top-right radial glow; read by body | `rgba(85, 95, 255, .13)` | `rgba(108, 116, 255, .16)` |
 | `--bg-glow-2` | bottom-left radial glow; read by body | `rgba(249, 25, 116, .07)` | `rgba(240, 48, 126, .08)` |
 | `--bleed-l` | read by .scn, anim (code) | `-` | `-` |
+| `--c0` | family colour 0: borders, lines and dots of family 0 (animation, tier list, alignment grid, chart); read by .cc-0 | `#596172` | `#95A3C6` |
 | `--c0-fill` | motion; read by :root | `var(--surface)` | `#232A3B` |
-| `--c0-soft` | family 0: its pale fill; read by :root | `var(--c0-fill)` | `var(--c0-fill)` |
-| `--c1` | family colour 1: borders, lines and dots of family 1 (animation, tier list, alignment grid, chart); read by .tone-c1, .tl, .cc-1 | `#555FFF` | `#8A92FF` |
-| `--c1-ink` | family 1: its words on small tags; read by .tone-c1, .tl, .cc-1 | `#3039C8` | `#B4B9FF` |
-| `--c1-soft` | family 1: its pale fill; read by .tone-c1, .tl, .cc-1 | `#E3E5FF` | `#262B57` |
-| `--c2` | family colour 2: borders, lines and dots of family 2 (animation, tier list, alignment grid, chart); read by .tone-c2, .cc-2, .pc-calc .tone-c2 | `#0E9F9A` | `#2DD4BF` |
-| `--c2-ink` | family 2: its words on small tags; read by .tone-c2, .cc-2, :root | `#0A6662` | `#7EE8DA` |
-| `--c2-soft` | family 2: its pale fill; read by .tone-c2, .cc-2, stage (code) | `#D3F2EF` | `#143633` |
-| `--c3` | family colour 3: borders, lines and dots of family 3 (animation, tier list, alignment grid, chart); read by .tone-c3, .cc-3, .pc-calc .tone-c3 | `#D99A00` | `#F2C94C` |
-| `--c3-ink` | family 3: its words on small tags; read by .tone-c3, .cc-3, :root | `#7A5600` | `#F7DD8C` |
-| `--c3-soft` | family 3: its pale fill; read by .tone-c3, .cc-3, stage (code) | `#FBEFC9` | `#3A3112` |
-| `--c4` | family colour 4: borders, lines and dots of family 4 (animation, tier list, alignment grid, chart); read by .tone-c4, .cc-4, .pc-calc .tone-c4 | `#9A5CF5` | `#B794FF` |
-| `--c4-ink` | family 4: its words on small tags; read by .tone-c4, .cc-4, :root:not([data-theme="light"]) | `#5F2DB3` | `#D2BCFF` |
-| `--c4-soft` | family 4: its pale fill; read by .tone-c4, .cc-4, stage (code) | `#EDE2FF` | `#2E2350` |
-| `--c5` | family colour 5: borders, lines and dots of family 5 (animation, tier list, alignment grid, chart); read by .tone-c5, .cc-5, .pc-calc .tone-c5 | `#F26B1D` | `#FF8A3D` |
-| `--c5-ink` | family 5: its words on small tags; read by .tone-c5, .cc-5, :root | `#9E4008` | `#FFB27F` |
-| `--c5-soft` | family 5: its pale fill; read by .tone-c5, .cc-5, stage (code) | `#FFE4D3` | `#3A2414` |
-| `--c6` | family colour 6: borders, lines and dots of family 6 (animation, tier list, alignment grid, chart); read by .tone-c6, .cc-6, .pc-calc .tone-c6 | `#1F8FE0` | `#5AB4FF` |
-| `--c6-ink` | family 6: its words on small tags; read by .tone-c6, .cc-6, :root | `#0F5D99` | `#9CD2FF` |
-| `--c6-soft` | family 6: its pale fill; read by .tone-c6, .cc-6, stage (code) | `#D8ECFB` | `#15304A` |
-| `--c7` | family colour 7: borders, lines and dots of family 7 (animation, tier list, alignment grid, chart); read by .tone-c7, .cc-7, .pc-calc .tone-c7 | `#E2408A` | `#FF6FAE` |
-| `--c7-ink` | family 7: its words on small tags; read by .tone-c7, .cc-7, :root:not([data-theme="light"]) | `#9C1C56` | `#FF9DC8` |
-| `--c7-soft` | family 7: its pale fill; read by .tone-c7, .cc-7, stage (code) | `#FCDDEB` | `#3D1A2A` |
-| `--c8` | family colour 8: borders, lines and dots of family 8 (animation, tier list, alignment grid, chart); read by .tone-c8, .cc-8, .pc-calc .tone-c8 | `#3FA34D` | `#6FD67E` |
-| `--c8-ink` | family 8: its words on small tags; read by .tone-c8, .cc-8, :root | `#216D2B` | `#A2E8AC` |
-| `--c8-soft` | family 8: its pale fill; read by .tone-c8, .cc-8, stage (code) | `#DDF1DF` | `#17351C` |
+| `--c0-ink` | family 0: its words on small tags; read by .cc-0 | `var(--muted)` | `var(--muted)` |
+| `--c0-plane` | motion; read by .cc-0 | `var(--c0-soft)` | `var(--c0-soft)` |
+| `--c0-soft` | family 0: its pale fill; read by .cc-0, :root | `var(--c0-fill)` | `var(--c0-fill)` |
+| `--c1` | family colour 1: borders, lines and dots of family 1 (animation, tier list, alignment grid, chart); read by .tone-c1, .tl, .cc-1 | `#4D42FB` | `#8A92FF` |
+| `--c1-ink` | family 1: its words on small tags; read by .tone-c1, .tl, .cc-1 | `#2955A6` | `#B6BFFE` |
+| `--c1-plane` | motion; read by .cc-1 | `#BAD3FE` | `#29295E` |
+| `--c1-soft` | family 1: its pale fill; read by .tone-c1, .tl, .cc-1 | `#BAD3FE` | `#29295E` |
+| `--c2` | family colour 2: borders, lines and dots of family 2 (animation, tier list, alignment grid, chart); read by .tone-c2, .cc-2, .pc-calc .tone-c2 | `#324F44` | `#9DFAF1` |
+| `--c2-ink` | family 2: its words on small tags; read by .tone-c2, .cc-2, :root:not([data-theme="light"]) | `#006A5A` | `#19E1D5` |
+| `--c2-plane` | motion; read by .cc-2 | `#91E9D4` | `#12534A` |
+| `--c2-soft` | family 2: its pale fill; read by .tone-c2, .cc-2, stage (code) | `#91E9D4` | `#12534A` |
+| `--c3` | family colour 3: borders, lines and dots of family 3 (animation, tier list, alignment grid, chart); read by .tone-c3, .cc-3, .pc-calc .tone-c3 | `#7E7361` | `#E5B104` |
+| `--c3-ink` | family 3: its words on small tags; read by .tone-c3, .cc-3, :root:not([data-theme="light"]) | `#755E00` | `#EBBE4A` |
+| `--c3-plane` | motion; read by .cc-3 | `#FCDC77` | `#644402` |
+| `--c3-soft` | family 3: its pale fill; read by .tone-c3, .cc-3, stage (code) | `#FCDC77` | `#644402` |
+| `--c4` | family colour 4: borders, lines and dots of family 4 (animation, tier list, alignment grid, chart); read by .tone-c4, .cc-4, .pc-calc .tone-c4 | `#6919A3` | `#E7A5FE` |
+| `--c4-ink` | family 4: its words on small tags; read by .tone-c4, .cc-4, :root:not([data-theme="light"]) | `#5B348C` | `#E8A8FE` |
+| `--c4-plane` | motion; read by .cc-4 | `#DCACFC` | `#553F75` |
+| `--c4-soft` | family 4: its pale fill; read by .tone-c4, .cc-4, stage (code) | `#DCACFC` | `#553F75` |
+| `--c5` | family colour 5: borders, lines and dots of family 5 (animation, tier list, alignment grid, chart); read by .tone-c5, .cc-5, .pc-calc .tone-c5 | `#821E00` | `#FA6E21` |
+| `--c5-ink` | family 5: its words on small tags; read by .tone-c5, .cc-5, :root:not([data-theme="light"]) | `#A03F13` | `#FEAE8C` |
+| `--c5-plane` | motion; read by .cc-5 | `#FFCEBC` | `#3E1600` |
+| `--c5-soft` | family 5: its pale fill; read by .tone-c5, .cc-5, stage (code) | `#FFCEBC` | `#3E1600` |
+| `--c6` | family colour 6: borders, lines and dots of family 6 (animation, tier list, alignment grid, chart); read by .tone-c6, .cc-6, .pc-calc .tone-c6 | `#016C9F` | `#25A6BE` |
+| `--c6-ink` | family 6: its words on small tags; read by .tone-c6, .cc-6, :root:not([data-theme="light"]) | `#007694` | `#20DBFB` |
+| `--c6-plane` | motion; read by .cc-6 | `#DCF5FF` | `#012930` |
+| `--c6-soft` | family 6: its pale fill; read by .tone-c6, .cc-6, stage (code) | `#DCF5FF` | `#012930` |
+| `--c7` | family colour 7: borders, lines and dots of family 7 (animation, tier list, alignment grid, chart); read by .tone-c7, .cc-7, .pc-calc .tone-c7 | `#A61972` | `#FA61AC` |
+| `--c7-ink` | family 7: its words on small tags; read by .tone-c7, .cc-7, :root:not([data-theme="light"]) | `#852456` | `#FEA5CB` |
+| `--c7-plane` | motion; read by .cc-7 | `#FFA4BC` | `#4D3339` |
+| `--c7-soft` | family 7: its pale fill; read by .tone-c7, .cc-7, stage (code) | `#FFA4BC` | `#4D3339` |
+| `--c8` | family colour 8: borders, lines and dots of family 8 (animation, tier list, alignment grid, chart); read by .tone-c8, .cc-8, .pc-calc .tone-c8 | `#007716` | `#AAEB6E` |
+| `--c8-ink` | family 8: its words on small tags; read by .tone-c8, .cc-8, :root:not([data-theme="light"]) | `#12561F` | `#A2D774` |
+| `--c8-plane` | motion; read by .cc-8 | `#85D28B` | `#283C00` |
+| `--c8-soft` | family 8: its pale fill; read by .tone-c8, .cc-8, stage (code) | `#85D28B` | `#283C00` |
 | `--ch-5` | code colours (Code Hike theme github-from-css): function; read by .t-pr.t-root, .t-q | `#FF8DBA` | `#FF8DBA` |
 | `--ch-6` | code colours (Code Hike theme github-from-css): function; read by .t-pr | `#8FE3B0` | `#8FE3B0` |
 | `--ch-11` | code colours (Code Hike theme github-from-css): diff deleted bg; read by .ch-del | `rgba(249, 25, 116, .22)` | `rgba(249, 25, 116, .22)` |
@@ -67,11 +78,12 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--ch-22` | code colours (Code Hike theme github-from-css): tab strip; read by .cw-file, .ide-chrome, .ide-tabs | `#0A0E1B` | `#03050D` |
 | `--ch-24` | code colours (Code Hike theme github-from-css): line numbers; read by .ch-ln | `#56627C` | `#56627C` |
 | `--colmin` | read by .al-grid, .al-arrows .al-grid, align (code) | `-` | `-` |
+| `--dg-node-border` | read by .scn-rec-edge | `-` | `-` |
 | `--faint` | meta text, only at weight >= 400 (>= 4.5:1); read by .al-ax-x::before, .al-ax-x::after, .al-ax-y | `#56627C` | `#98A3BC` |
 | `--focus-offset` | read by .pc-seg-b:focus-visible, .ann:focus-visible | `-` | `-` |
 | `--focus-ring` | read by .pc-seg-b:focus-visible, .ann:focus-visible | `-` | `-` |
 | `--good` | status; read by .tone-good, .ch-add, .tone-good .scn-shape | `#1CAA53` | `#34C76E` |
-| `--good-ink` | status; read by .tone-good, .b-new, .chg | `#0B6B33` | `#7BE3A4` |
+| `--good-ink` | status; read by .tone-good, .b-new, .chg | `#075829` | `#7BE3A4` |
 | `--good-soft` | status; read by .tone-good, .b-new, .fx-row.is-new | `#DCF1E3` | `#11301F` |
 | `--grid` | terminal / code; read by .chart .grid, chart-config (code) | `#E3E7F0` | `#1D2439` |
 | `--heat-hi` | dark: same family, stepped for a navy page; read by .heat-bar, .heat-bar.is-diverge, chart-config11 (code) | `#555FFF` | `#8D94FF` |
@@ -79,27 +91,27 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--heat-mid` | dark: same family, stepped for a navy page; read by .heat-bar.is-diverge, chart-config11 (code) | `#F7F8FC` | `#1B2238` |
 | `--heat-neg` | dark: same family, stepped for a navy page; read by .heat-bar.is-diverge, chart-config11 (code) | `#0E9F9A` | `#2DD4BF` |
 | `--hot` | second accent: the problem, "not this"; read by .ch-del, .cw-error, .b-conflict | `#F91974` | `#FF4F96` |
-| `--hot-ink` | accents; read by .scn-ptr-t, .scn-send-chip text, .scn-ent.k-token.tone-hot .scn-chip-t | `#A80C4D` | `#FF8DBA` |
+| `--hot-ink` | accents; read by .scn-ptr-t, .scn-send-chip text, .scn-ent.k-token.tone-hot .scn-chip-t | `#980344` | `#FE9FC3` |
 | `--hot-soft` | accents; read by .b-conflict, .tone-hot .scn-shape, .tone-hot .scn-person .scn-shape | `#FDD9E8` | `#3B1529` |
 | `--info` | status; read by :root, .callout-icon | `#555FFF` | `#8D94FF` |
 | `--info-ink` | status; read by .b-generated, :root, .mk-info | `#3039C8` | `#B9BEFF` |
 | `--info-soft` | status; read by .b-generated, .callout-important, :root | `#EEEFFF` | `#1A1F42` |
-| `--ink` | headings, key text; read by .dh-chip, .dh-note b, .tl-title | `#00081C` | `#F4F6FB` |
+| `--ink` | headings, key text; read by .scn-svg, .dh-chip, .dh-note b | `#00081C` | `#F4F6FB` |
 | `--ink-2` | body text (thin weight needs >= 7:1); read by .dh-note, .al-col, .al-row | `#273143` | `#DCE1EC` |
 | `--ix-frame-border` | read by .dh-ix | `-` | `-` |
 | `--ix-frame-radius` | read by .dh-ix | `-` | `-` |
 | `--ix-off-chip` | read by .dh-ix-chip | `-` | `-` |
 | `--ix-off-ink` | read by .dh-ix-chip | `-` | `-` |
 | `--k` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn-ent.cc .scn-shape, .scn-ent.cc .scn-line, .scn-ent.cc .scn-frame | `var(--c1)` | `var(--c1)` |
-| `--k-ink` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn-ent.cc .scn-chip-t, .scn-ent.cc .scn-ptr-t, .scn-conn.cc .scn-conn-t | `var(--c1-ink)` | `var(--c1-ink)` |
-| `--k-soft` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn-ent.cc .scn-shape, .scn-ent.cc .scn-frame, .scn-ent.cc .scn-person .scn-shape | `var(--c1-soft)` | `var(--c1-soft)` |
+| `--k-ink` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn-ent.cc, .scn-ent.cc .scn-chip-t, .scn-ent.cc .scn-ptr-t | `var(--c1-ink)` | `var(--c1-ink)` |
+| `--k-soft` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn-ent.cc .scn-frame, .scn-ent.cc .scn-shape, .scn-ent.cc .scn-person .scn-shape | `var(--c1-soft)` | `var(--c1-soft)` |
 | `--line` | hairline borders; read by .tl, .tl-row, .al-cell | `#D0D6E3` | `#232B44` |
 | `--line-2` | stronger borders, axes; read by .btn, .seg, .cc select | `#B6BFD3` | `#36415F` |
 | `--mark-bg` | highlight marker; read by .st-state tr.is-changed td | `#FFF0A8` | `#5B4A00` |
 | `--mark-ink` | text techniques; read by .st-state tr.is-changed td | `#00081C` | `#FFF6CC` |
-| `--meter` | status; read by .scn-meter-track, .scn-meter-fill | `#1B2540` | `#EEF1F8` |
+| `--meter` | status; read by .scn-meter-track, .scn-meter-fill | `#0A0000` | `#8E8E94` |
 | `--meter-track` | status; read by .scn-meter-track | `#D5DAE6` | `#36415F` |
-| `--muted` | secondary text, captions (>= 7:1 on surface and page); read by .dh-note-hint, .al-more, .al-cell-label | `#3A4560` | `#B4BDD1` |
+| `--muted` | secondary text, captions (>= 7:1 on surface and page); read by .scn-svg, .dh-note-hint, .al-more | `#3A4560` | `#B4BDD1` |
 | `--nx` | read by .al-grid, .al-arrows .al-grid, align (code) | `-` | `-` |
 | `--ny` | read by .al-has-points .al-cell, align (code) | `-` | `-` |
 | `--on-acc` | text on a solid accent / status fill; read by .btn-go, .btn-go:hover:not(:disabled), .cw-num | `#FFFFFF` | `#070B16` |
@@ -131,6 +143,14 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--ref-refused-border` | read by .dh-xref[data-state="refused"] | `-` | `-` |
 | `--ref-refused-ink` | read by .dh-xref[data-state="refused"] | `-` | `-` |
 | `--ref-type-ink` | read by .dh-xref-type | `-` | `-` |
+| `--scn-acc-edge` | dark: same family, stepped for a navy page; read by .tone-acc .scn-shape | `#4648E8` | `#929AFF` |
+| `--scn-band-edge` | dark: same family, stepped for a navy page; read by .scn-band | `#596172` | `#95A3C6` |
+| `--scn-edge` | dark: same family, stepped for a navy page; read by .scn-shape, .scn-idx-cell, :root | `#596172` | `#95A3C6` |
+| `--scn-frame-edge` | dark: same family, stepped for a navy page; read by .scn-frame | `#5B616C` | `#98A3C2` |
+| `--scn-good-edge` | dark: same family, stepped for a navy page; read by .tone-good .scn-shape | `#007031` | `#34C76E` |
+| `--scn-hot-edge` | dark: same family, stepped for a navy page; read by .tone-hot .scn-shape | `#C00056` | `#FF75A6` |
+| `--scn-muted-edge` | dark: same family, stepped for a navy page; read by .tone-muted .scn-shape | `#5B616C` | `#98A3C2` |
+| `--scn-warn-edge` | dark: same family, stepped for a navy page; read by .tone-warn .scn-shape | `#A04600` | `#FF8F3A` |
 | `--series-1` | chart series 1; read by .chart .bar.s1, .chart .line.s1, .legend .sw.s1 | `#555FFF` | `#6C74FF` |
 | `--series-2` | chart series 2; read by .chart .bar.s2, .chart .line.s2, .legend .sw.s2 | `#F91974` | `#F0307E` |
 | `--series-3` | chart series 3; read by chart-config (code) | `#0E9FB8` | `#1496AC` |
@@ -213,7 +233,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--untested-ink` | status; read by .mk-untested | `#3A4560` | `#C5CDDD` |
 | `--untested-soft` | status; read by .mk-untested | `#E3E7F0` | `#1D2439` |
 | `--warn` | status; read by .tone-warn, .tone-warn .scn-shape, .hl-warn .scn-ring | `#FF760D` | `#FF8F3A` |
-| `--warn-ink` | status; read by .tone-warn, .b-changed, .scn3-l.tone-warn | `#9A4200` | `#FFB984` |
+| `--warn-ink` | status; read by .tone-warn, .b-changed, .scn3-l.tone-warn | `#7F3705` | `#FFB984` |
 | `--warn-soft` | status; read by .tone-warn, .b-changed, .tone-warn .scn-shape | `#FFE3CE` | `#3A2410` |
 
 ## Shape, type, space and motion (32 tokens)
@@ -265,7 +285,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--pc-tile` | dark: same family, stepped for a navy page; read by .pc-tile, .pc-tiles[data-per-row] | `14px` | `14px` |
 
 
-Tokens read with no default in the package (a host may set them): `--bleed-l`, `--colmin`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`.
+Tokens read with no default in the package (a host may set them): `--bleed-l`, `--colmin`, `--dg-node-border`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`.
 
 Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--pct`, `--rows`, `--t`, `--t-ink`, `--t-soft` are set by the components on their own elements (sizes, positions, a tier's colour).
 

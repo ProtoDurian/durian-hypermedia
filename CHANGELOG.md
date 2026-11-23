@@ -19,6 +19,23 @@ The third release candidate of 0.7.0. The format number stays 10.
 - Fishbone and Sankey lead the example index, with live and static examples in both themes. Source and LLM panels wrap long lines within the page.
 - Sankey node labels keep every word on measured, theme-coloured backing plates; narrow layouts wrap labels without ellipsis and reserve their positions across steps.
 
+### Changed
+
+- **The measured role palette** (SPEC.md 6.10): the eight family colours, light and dark, are new and measured. Any two
+  families differ in border and fill, also with protanopia or deuteranopia simulated; every border is 3:1 on the stage,
+  the surface and every other family's fill (one measured exception in light: the yellow family's border is 2.5:1 on
+  the lilac, pink and green fills); every word 4.5:1. A family has one fill for its boxes and its containers
+  (`--cN-plane` is new and names the same colour); in dark a family's words are a light tint of its hue. The stage's
+  own borders are new tokens (`--scn-edge`, `--scn-frame-edge`, `--scn-band-edge`, `--scn-acc-edge`, `--scn-good-edge`,
+  `--scn-warn-edge`, `--scn-hot-edge`, `--scn-muted-edge`), 3:1 on what they sit on, in 2D and 3D. A composed stage's
+  column dots are the family colour in both themes. The middle dot (U+00B7) draws from IBM Plex Mono, so it shows at
+  small sizes. No source changes: a page names roles and families, never a colour. A host that set `--c1` to `--c8`
+  keeps its own colours.
+- The stylesheet build loads `colours.css` after the other part sheets.
+- The tone inks are 4.5:1 on every family fill too (a state pill's word or a lit count on a card): light `--acc-ink`,
+  `--good-ink`, `--warn-ink`, `--hot-ink` and `--bad-ink` are a little darker, dark `--hot-ink` and `--bad-ink` a little
+  lighter, each in its own hue.
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this

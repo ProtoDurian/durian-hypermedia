@@ -42,6 +42,11 @@ The third release candidate of 0.7.0. The format number stays 10.
   *italic*, in 2D, in 3D and in the "All steps" list; a translation must keep a caption's code spans, and an unclosed
   backtick is a doccheck error with its line. The scan is one pass with no pattern that can backtrack. The state,
   class and ER parts use it for their captions and notes.
+- **Long paths in labels (SPEC.md 6.15).** A path breaks only after a `/` and keeps its file's name on a laptop and on a
+  phone (no more `registry/…` with the file lost); a one-line chip keeps the end of a path.
+- **A token sent into a queue, stack or list is an item there (SPEC.md 6.15).** `send ... as <id>` joins the container
+  like a push, so `pop`, `move`, `split` and `drop` work on it; a line that needs a sent token that kept nothing says to
+  give the send an id. The static step list of every part draws a caption's inline marks.
 - **The example site shows each fixture's source and LLM view:** every fixture page (the hand-written ones, the
   Format page samples, the composed stage samples, the folder parts and the hostile pages) opens with two closed
   toggles, `Source` (the fixture as written) and `LLM view` (what `llmView` returns, or a line saying an LLM reads

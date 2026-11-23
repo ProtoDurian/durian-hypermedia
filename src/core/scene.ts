@@ -39,6 +39,7 @@ import { slideWhole } from "./edge10";
 // the layout work of a compile is counted and charged to the animation's budget (core/work.ts)
 import { work, metered, animPartBudget } from "./work";
 import { hasMarks, lineRuns, plain, unclosedTick } from "./inline";
+import { hasPath, hurtsPath, pathTail, wrapPath } from "./path-wrap";
 export const SHAPES = ["box", "circle", "pill", "cylinder", "cloud", "person", "diamond", "text", "dot", "initial", "final"] as const;
 export const CONTAINERS = ["group", "array", "list", "stack", "queue", "tree", "graph", "grid", "buckets", "table", "record"] as const;
 export const OVERLAYS = ["token", "pointer"] as const;
@@ -523,6 +524,7 @@ export interface Ent {
   ghost?: string;         // a kept slot (format version 9): the id of the thing that is here in other steps; takes room, never drawn
   as?: string;            // format version 11: what a record is (class, interface, entity ...); its fields have it too
   field?: Field;          // format version 11: one row of a record
+  item?: boolean;         // format version 11: a token that was sent into a queue, a stack or a list: an item while it waits in one
   map?: number;           // format version 10 (tools/data.ts): a map (a table of key and value, 0, or this many buckets)
 }
 export interface Layer { id: string; label: string; note: string }
@@ -530,7 +532,8 @@ export interface Conn { key: number; from: string; to: string; style: string; la
 export interface Family { id: string; label: string }
 export interface State extends StoryState, DepthState { ents: Record<string, Ent>; root: string[]; conns: Conn[]; camera: string[] | null; view?: CamView; next: number; counters: Record<string, number>; layers: Layer[]; spread: boolean; focus: string | null; families: Family[] }
 // format version 9: the thing the story zoomed into and the camera (and its words) before it; the pieces of each split token
-export interface StoryState { zoom?: string | null; zoomCam?: string[] | null; zoomView?: CamView; pieces?: Record<string, { ids: string[]; label: string }> }
+// format version 11: loose: the sends that left no token behind (no "as"), so a later pop or move can say how to fix it
+export interface StoryState { loose?: { line: number; label: string; to: string; from: string }[]; zoom?: string | null; zoomCam?: string[] | null; zoomView?: CamView; pieces?: Record<string, { ids: string[]; label: string }> }
 // what one step does on top of the state: shown in that step only
 // touched: the ids this step adds, moves, changes, sends along, highlights or makes speak; the story camera keeps them in frame
 // beats (format version 9): beat[id] is the beat that changes it, sendBeat/sayBeat by index, connBeat by connector key;
@@ -539,6 +542,16 @@ export interface Fx extends DepthFx { beats?: number; pace?: string; beat?: Reco
 // dropped (format version 9): tokens lost this step (at: the thing each travelled to first); moved: tokens that moved this step (one hop each)
 
 const isContainer = (k: string) => (CONTAINERS as readonly string[]).includes(k) || k === "bucket";
+const ITEM_HOMES = ["queue", "stack", "list"];
+// format version 11: the kind a thing is sized and drawn as: a sent token waiting in a queue, a stack or a list is its item
+const drawnKind = (e: Ent, parentKind: string | null) => (e.item && !e.anchor && !!parentKind && ITEM_HOMES.includes(parentKind) ? "box" : e.kind);
+const GIVE_ID = "give the send an id (send ... as <id>) to move it later";
+// a line that takes a thing that is not there, after a send that kept nothing: say how to keep it
+function needSent(s: State, id: string) {
+  if (s.ents[id] || !s.loose?.length) return;
+  const l = s.loose[s.loose.length - 1];
+  throw new Refuse(`no entity "${id}" on the stage. If it is what line ${l.line} sent (send ${l.label ? `"${l.label}" ` : ""}${l.from} -> ${l.to}), ${GIVE_ID}`);
+}
 const isOverlay = (k: string) => (OVERLAYS as readonly string[]).includes(k);
 // (a copy costs about a unit for every 4 characters of its JSON, written and read back)
 const clone = (s: State): State => { const t = JSON.stringify(s); work(t.length / 4); return JSON.parse(t); };
@@ -657,7 +670,7 @@ function treeCheck(s: State, parentId: string | null, under: string | null, side
 const CTX: Ctx = { ent, drop, newEnt, insertAt, kidsOf, isContainer, refuse: (m) => new Refuse(m) };
 function applyOp(s: State, op: Op, f: Fx) {
   switch (op.op) {
-    case "zoom": case "drop": case "join": applyStory(s, op, f, CTX); return;
+    case "zoom": case "drop": case "join": if (op.op === "drop") for (const id of op.ids) needSent(s, id); applyStory(s, op, f, CTX); return;
     case "lift": liftOp(s, op.ids, f, CTX, (id) => hiddenBy(s, id)); return;
     case "putback": putBackOp(s, op.ids, f, CTX); return;
     // format version 10 (tools/data.ts): a map is a table (key, value) or buckets, plus one entry per key
@@ -737,9 +750,12 @@ function applyOp(s: State, op: Op, f: Fx) {
     case "move": {
       // several things move together (format version 9): each as if it had its own line, in the order written
       if (op.ids && op.ids.length > 1) { for (const id of op.ids) applyOp(s, { ...op, id, ids: undefined }, f); return; }
+      needSent(s, op.id);
       const e = ent(s, op.id);
       const to = ent(s, op.to, "target");
-      if (isOverlay(e.kind)) { if (to.id === e.id) throw new Refuse(`${op.id} cannot move to itself`); moveToken(s, e, to, !!op.into, op.place, f, op.line, CTX); return; }
+      // (format version 11) an item of a queue moves to a container as any item does: into it
+      const asItem = !!e.item && !!e.parent && isContainer(to.kind);
+      if (isOverlay(e.kind)) { if (to.id === e.id) throw new Refuse(`${op.id} cannot move to itself`); moveToken(s, e, to, !!op.into || asItem, op.place, f, op.line, CTX); return; }
       if (op.to === op.id || isInside(s, op.to, op.id)) throw new Refuse(`${op.id} cannot move into itself`);
       if (e.kind === "field") throw new Refuse(`${e.id} is a field: it stays in its record (highlight it, or set ${e.id} label="name: type")`);
       checkParent(s, to.id, e.kind);
@@ -761,7 +777,7 @@ function applyOp(s: State, op: Op, f: Fx) {
     case "swap": {
       const a = ent(s, op.a), b = ent(s, op.b);
       if (a.parent !== b.parent) throw new Refuse(`swap works inside one container; ${op.a} and ${op.b} are in different ones`);
-      if (isOverlay(a.kind) || isOverlay(b.kind)) throw new Refuse(`a token or pointer moves with "move ... to"; it has no place to swap`);
+      if ([a, b].some((x) => isOverlay(x.kind) && drawnKind(x, x.parent ? s.ents[x.parent].kind : null) !== "box")) throw new Refuse(`a token or pointer moves with "move ... to"; it has no place to swap`);
       const list = kidsOf(s, a.parent);
       f.touched.push(a.id, b.id);
       const i = list.indexOf(a.id), j = list.indexOf(b.id);
@@ -804,16 +820,16 @@ function applyOp(s: State, op: Op, f: Fx) {
     case "spotlight": f.spot = [...(f.spot ?? []), ...op.ids.map((id) => ent(s, id).key)]; f.touched.push(...op.ids); return;
     case "note": ent(s, op.id).note = op.text; return;
     case "send": {
-      f.sends.push({ label: op.label, path: op.path.map((id) => ent(s, id).key), show: op.show, family: op.is ? needFamily(s, op.is) : ent(s, op.path[0]).family, ...(op.as ? { as: op.as } : {}) });
+      f.sends.push({ label: op.label, path: op.path.map((id) => ent(s, id).key), show: op.show, family: op.is ? needFamily(s, op.is) : ent(s, op.path[0]).family, ...(op.as ? { as: op.as } : {}), ...(op.as && ITEM_HOMES.includes(ent(s, op.path[op.path.length - 1]).kind) ? { landed: true as const } : {}) });
       f.touched.push(...op.path);
       // send ... as m (format version 9): the token stays where it arrives, as token m
       // (at a queue, a stack or a list it joins it, as an item; anywhere else it sits at the end)
       if (op.as) {
-        const end = ent(s, op.path[op.path.length - 1]), joins = ["queue", "stack", "list"].includes(end.kind);
-        const e = newEnt(s, { kind: "token", id: op.as, label: op.label || op.as, parent: joins ? end.id : null }, { anchor: joins ? null : end.id, family: f.sends[f.sends.length - 1].family });
+        const end = ent(s, op.path[op.path.length - 1]), joins = ITEM_HOMES.includes(end.kind);
+        const e = newEnt(s, { kind: "token", id: op.as, label: op.label || op.as, parent: joins ? end.id : null }, { anchor: joins ? null : end.id, family: f.sends[f.sends.length - 1].family, ...(joins ? { item: true } : {}) });
         if (joins) end.kids.push(e.id);
         f.enter.push(e.key); f.touched.push(op.as); (f.moved ??= []).push({ id: op.as, line: op.line });
-      }
+      } else if (op.show === "token" || op.show === "both") (s.loose ??= []).push({ line: op.line, label: op.label, from: op.path[0], to: op.path[op.path.length - 1] });
       return;
     }
     case "push": {
@@ -827,7 +843,10 @@ function applyOp(s: State, op: Op, f: Fx) {
     case "pop": {
       const q = ent(s, op.s, "stack or queue");
       if (!["stack", "queue"].includes(q.kind)) throw new Refuse(`pop works on a stack or a queue; "${op.s}" is a ${q.kind}`);
-      if (!q.kids.length) throw new Refuse(`${op.s} is empty: nothing to pop`);
+      if (!q.kids.length) {
+        const l = [...(s.loose ?? [])].reverse().find((x) => x.to === q.id);
+        throw new Refuse(`${op.s} is empty: nothing to pop${l ? `. The send in line ${l.line} (${l.from} -> ${l.to}) left no item behind: ${GIVE_ID}` : ""}`);
+      }
       // a stack gives back its newest item, a queue its oldest
       const id = q.kind === "stack" ? q.kids[q.kids.length - 1] : q.kids[0];
       if (op.to && isOverlay(s.ents[id].kind)) {
@@ -845,6 +864,7 @@ function applyOp(s: State, op: Op, f: Fx) {
       return;
     }
     case "split": {
+      needSent(s, op.id);
       const e = ent(s, op.id);
       if (e.kind === "field") throw new Refuse(`${e.id} is a field of a record; it does not split`);
       if (isContainer(e.kind)) throw new Refuse(`split works on a shape or a token, and "${op.id}" is a container; add new containers and move what is inside`);
@@ -1076,6 +1096,12 @@ export function wrapText(s: string, font: number, maxW: number, maxLines = MAX_L
 }
 // the same number of lines, as even as they can be (no lone word on a last line)
 export function wrapEven(s: string, font: number, maxW: number, maxLines = MAX_LINES): string[] {
+  const lines = evenLines(s, font, maxW, maxLines);
+  if (maxLines < 2 || !hasPath(s) || !hurtsPath(s, lines)) return lines;
+  // a long path keeps its segments whole and its file's name (core/path-wrap.ts)
+  return wrapPath(s, font, maxW, maxLines, textW, (w, width) => wrapText(w, font, width, maxLines));
+}
+function evenLines(s: string, font: number, maxW: number, maxLines: number): string[] {
   const first = wrapText(s, font, maxW, maxLines);
   if (first.length < 2 || first[first.length - 1].endsWith("…")) return first;
   let lo = maxW * 0.4, hi = maxW;
@@ -1083,7 +1109,7 @@ export function wrapEven(s: string, font: number, maxW: number, maxLines = MAX_L
   return wrapText(s, font, hi, maxLines);
 }
 // one line, cut with "…" to fit
-export const cut = (s: string, font: number, maxW: number) => wrapText(s, font, maxW, 1)[0];
+export const cut = (s: string, font: number, maxW: number) => { const one = wrapText(s, font, maxW, 1)[0]; return one === s ? one : pathTail(s, (t) => textW(t, font) <= maxW + 0.5) ?? one; };
 
 const SLOT_PARENTS = ["array", "stack", "queue", "list", "bucket"];
 const isSlot = (kind: string, parentKind: string | null) => kind === "box" && !!parentKind && SLOT_PARENTS.includes(parentKind);
@@ -1094,10 +1120,10 @@ export const cylRy = (z: SizeTok) => Math.round(z.minH * 0.18);
 
 // the size of a shape from its label and its size tokens; its label wraps first
 function leafGeom(e: Ent, parentKind: string | null, z: SizeTok): { w: number; h: number; lines: string[] } {
-  const text = e.label ?? "";
-  if (isSlot(e.kind, parentKind)) { const lines = [cut(text, z.font, z.maxW)]; return { w: Math.max(z.cell, linesW(lines, z.font) + 16), h: z.cell, lines }; }
+  const text = e.label ?? "", kind = drawnKind(e, parentKind);
+  if (isSlot(kind, parentKind)) { const lines = [cut(text, z.font, z.maxW)]; return { w: Math.max(z.cell, linesW(lines, z.font) + 16), h: z.cell, lines }; }
   const wrap = (k = 1) => (text ? wrapEven(text, z.font, z.maxW * k) : []);
-  switch (e.kind) {
+  switch (kind) {
     case "row": return { w: 0, h: z.minH - 8, lines: [] };
     // a token waiting in a container (format version 9): the same chip as a token at a thing
     case "token": { const t = cut(text, CHIP.font, CHIP.maxW); return { w: chipW(t, CHIP.font) + 2 * CHIP.px + TOKEN_DOT, h: CHIP.h, lines: [t] }; }
@@ -1562,7 +1588,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
     const p = e.parent ? s.ents[e.parent] : null;
     const index = p?.kind === "array" ? (work(p.kids.length), String(p.kids.indexOf(id))) : null;
     const sn = sizeOf(id), z = DZ[sn];
-    const container = isContainer(e.kind);
+    const container = isContainer(e.kind), kind = drawnKind(e, p?.kind ?? null);
     const ls = container ? (e.label ? [e.label] : []) : lines.get(id) ?? [];
     const rect = { x, y, w: r.w, h: r.h };
     const hh = head.get(id) ?? 0;
@@ -1570,9 +1596,9 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
       : e.kind === "field" ? { x: x + 6, y: y + 3, w: r.w - 12, h: r.h - 6 }
       : container
       ? (hh && e.label ? { x: x + z.pad + (heads?.get(id) ?? 0) * Math.max(0, r.w - 2 * z.pad - headW(e.label, z) - 2), y: y + 4, w: headW(e.label, z) + 2, h: hh - 6 } : e.kind === "bucket" ? { x, y, w: 30, h: r.h } : null)
-      : e.kind === "row" || e.kind === "token" ? rect : labelBox(isSlot(e.kind, p?.kind ?? null) ? "box" : e.kind, rect, ls, z, e.level != null);
+      : e.kind === "row" || kind === "token" ? rect : labelBox(isSlot(kind, p?.kind ?? null) ? "box" : kind, rect, ls, z, e.level != null);
     const by = hiddenBy(s, id, open), faint = !!by, hidden = !!by && hiddenDeep(s, id, open);
-    boxes.set(id, { key: e.key, id, kind: e.kind, label: e.label, ...rect, depth, container, parentKind: p?.kind ?? null, index, ent: e, head: hh, layer: lay(id), ly: y - bandY(id), size: sn, lines: ls, lbl: faint ? null : lbl, cc: ccOf(id), fill: fillOf(id), pcc: ccOf(e.parent), ...(faint ? { faint } : {}), ...(hidden ? { hidden } : {}) });
+    boxes.set(id, { key: e.key, id, kind, label: e.label, ...rect, depth, container, parentKind: p?.kind ?? null, index, ent: e, head: hh, layer: lay(id), ly: y - bandY(id), size: sn, lines: ls, lbl: faint ? null : lbl, cc: ccOf(id), fill: fillOf(id), pcc: ccOf(e.parent), ...(faint ? { faint } : {}), ...(hidden ? { hidden } : {}) });
     for (const k of e.kids) if (rel.has(k)) absolute(k, x, y, depth + 1);
   };
   for (const k of rootKids) absolute(k, 0, 0, 0);

@@ -755,7 +755,7 @@ function Send({ g, at, fin, marks, p, o = 1, still }: { g: SendGeom; at: Map<num
     <g className={cx("scn-send", arrow && "is-arrow", g.cc && `cc cc-${g.cc}`)} style={{ opacity: p === 0 ? 0 : 1 }}>
       {arrow && geo.map((gg, k) => (k < seg || k === seg) && <path key={k} className="scn-arrow" d={bezPath(gg)} pathLength={1} strokeDasharray="1 1" strokeDashoffset={k < seg ? 0 : 1 - f} />)}
       {arrow && <path className="scn-arrow-head" d={`M${tip.x} ${tip.y}l${-tan.x * 9 - tan.y * 4.5} ${-tan.y * 9 + tan.x * 4.5}l${tan.y * 9} ${-tan.x * 9}z`} />}
-      {token && <><circle className="scn-send-halo" cx={dot.x} cy={dot.y} r={CHIP.dot + 4} /><circle className="scn-send-dot" cx={dot.x} cy={dot.y} r={CHIP.dot + 1} /></>}
+      {token && !(g.landed && p >= 0.999) && <><circle className="scn-send-halo" cx={dot.x} cy={dot.y} r={CHIP.dot + 4} /><circle className="scn-send-dot" cx={dot.x} cy={dot.y} r={CHIP.dot + 1} /></>}
       {chipR && <g className="scn-send-chip"><rect x={chipR.x} y={chipR.y} width={chipR.w} height={chipR.h} rx={chipR.h / 2} /><text x={chipR.x + chipR.w / 2} y={chipR.y + chipR.h / 2} textAnchor="middle" dominantBaseline="central">{chip!.lines[0]}</text></g>}
       {al && alp && <g className="scn-arrow-l" style={{ opacity: alo }}><rect x={alp.x - al.r.w / 2} y={alp.y - al.r.h / 2} width={al.r.w} height={al.r.h} rx={Math.min(9, al.r.h / 2)} /><Words lines={al.lines} x={alp.x} y={alp.y} z={DESIGN.s} cls="scn-arrow-t" font={CHIP.font} /></g>}
     </g>

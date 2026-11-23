@@ -5,6 +5,7 @@
 import React, { useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import type { StaticProp } from "../types";
+import { spans } from "../../core/inline";
 export type { StaticProp };
 
 // ---- the reader's side: 0 = live, 1 = reduce motion, 2 = printing ----
@@ -50,12 +51,20 @@ export function useStatic(prop: StaticProp, n: number, titles: readonly string[]
   return { on, i: staticIndex(prop === false ? undefined : prop, n, titles), print: mode === 2 };
 }
 
+// a caption with its inline marks (code, bold, italic) as elements, never as HTML
+const rich = (t: string): React.ReactNode[] => spans(t).map((p, k) => {
+  let el: React.ReactNode = p.code ? React.createElement("code", { className: "scn-code", "data-dh-slot": "code" }, p.t) : p.t;
+  if (p.i) el = React.createElement("em", null, el);
+  if (p.b) el = React.createElement("strong", null, el);
+  return React.createElement(React.Fragment, { key: k }, el);
+});
+
 /** Under a static part with steps: the chosen step's caption, and every caption in a closed list (open in print). */
 export function StaticSteps({ titles, i, label, print }: { titles: readonly string[]; i: number; label?: string; print?: boolean }) {
   if (titles.length < 2) return null;
   return React.createElement("div", { className: "dh-static-steps", "data-dh-slot": "static-steps" },
-    React.createElement("p", { className: "dh-static-cap" }, React.createElement("span", { className: "cw-num" }, String(i + 1)), " ", titles[i]),
+    React.createElement("p", { className: "dh-static-cap" }, React.createElement("span", { className: "cw-num" }, String(i + 1)), " ", ...rich(titles[i])),
     React.createElement("details", { open: print || undefined },
       React.createElement("summary", null, `${label ?? "All steps"} (${titles.length})`),
-      React.createElement("ol", null, titles.map((t, k) => React.createElement("li", { key: k, "aria-current": k === i ? "step" : undefined }, t)))));
+      React.createElement("ol", null, titles.map((t, k) => React.createElement("li", { key: k, "aria-current": k === i ? "step" : undefined }, ...rich(t))))));
 }

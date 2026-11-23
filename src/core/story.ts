@@ -83,10 +83,10 @@ export function splitToken(s: State, e: Ent, into: { id: string; label: string |
   if (e.kind !== "token") throw c.refuse(`a pointer marks one place; it cannot split`);
   const list = e.parent ? c.kidsOf(s, e.parent) : null;
   let at = list ? list.indexOf(e.id) : -1;
-  const { parent, anchor, family, tone, label } = e;
+  const { parent, anchor, family, tone, label, item } = e;
   c.drop(s, e.id);
   for (const n of into) {
-    const ne = c.newEnt(s, { kind: "token", id: n.id, label: n.label, parent }, { anchor, family, tone });
+    const ne = c.newEnt(s, { kind: "token", id: n.id, label: n.label, parent }, { anchor, family, tone, ...(item ? { item } : {}) });
     if (list) list.splice(at++, 0, n.id);
     f.spawn[ne.key] = e.key;
     f.touched.push(n.id);
@@ -99,11 +99,11 @@ export function mergeTokens(s: State, es: Ent[], into: { id: string; label: stri
   if (es.some((e) => e.kind !== "token")) throw c.refuse(`merge joins tokens with tokens, or shapes with shapes; ${es.filter((e) => e.kind !== "token").map((e) => e.id).join(", ")} ${es.filter((e) => e.kind !== "token").length > 1 ? "are not tokens" : "is not a token"}`);
   const w0 = where(es[0]), off = es.find((e) => where(e) !== w0);
   if (off) throw c.refuse(`merge: ${es[0].id} is ${w0} but ${off.id} is ${where(off)}; the pieces merge where they all are, so move ${off.id} there first`);
-  const { parent, anchor, family, tone } = es[0];
+  const { parent, anchor, family, tone, item } = es[0];
   const list = parent ? c.kidsOf(s, parent) : null;
   const at = list ? Math.min(...es.map((e) => list.indexOf(e.id))) : -1;
   for (const e of es) c.drop(s, e.id);
-  const ne = c.newEnt(s, { kind: "token", id: into.id, label: into.label, parent }, { anchor, family, tone });
+  const ne = c.newEnt(s, { kind: "token", id: into.id, label: into.label, parent }, { anchor, family, tone, ...(item ? { item } : {}) });
   if (list) list.splice(at, 0, ne.id);
   f.touched.push(ne.id);
   for (const e of es) f.merge[e.key] = ne.key;

@@ -97,3 +97,14 @@ describe("inline marks in a rendered page", () => {
     expect(() => spans("`".repeat(30000))).not.toThrow();
   });
 });
+
+describe("the static step list", () => {
+  test("a static animation's caption and its step list draw the marks as elements", () => {
+    const src = "---\ntitle: T\ndescription: D\n---\n\n# T\n\n```animation layout=graph static=true\nbox a \"A\"\n@step Run `task gen` **now**.\nhighlight a\n@step two\nhighlight a\n```\n";
+    const out = html(parse(src));
+    const a = out.indexOf("dh-static-steps"), steps = out.slice(a, out.indexOf("</details>", a));
+    expect(steps).toContain('<code class="scn-code"');
+    expect(steps).toContain("<strong>now</strong>");
+    expect(steps).not.toContain("`task gen`");
+  });
+});

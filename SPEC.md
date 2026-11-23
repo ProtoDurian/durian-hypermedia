@@ -1621,6 +1621,10 @@ A layout follows a line from its first end, so inheritance is written parent fir
 
 **Words:** captions, `say` and `note=` take three marks and nothing else: `code`, **bold** and *italic*. A star opens before a word and closes after one, so `2 * 3`, `*.ts,*.js` and `a*b*c` stay as written; bold may enclose code; other Markdown and HTML stay text. Labels on the stage are plain text (a backtick in one is a warning). An unclosed backtick is a doccheck error with its line. The marks are drawn as elements, never as HTML, in 2D, in 3D and in the "All steps" list; an LLM reads the source marks.
 
+**Long paths:** a path in a label (`internal/wiring/registry/providers.go`) breaks only after a `/`, so a phone never ends a line inside a segment; the box grows a little for a long segment, a path with far too many segments leaves its middle out (`…/`) and always keeps the file's name, and a one-line chip keeps the end of a path (`…/providers.go`).
+
+**A sent item:** `send "seg 1" app -> out as s1` into a queue, stack or list makes an item of it, the same size and place as a pushed item; `pop`, `move`, `split` and `drop` work on it. A `pop`, `move`, `split` or `drop` of a send that has no `as` is refused with the line of the send and the fix ("give the send an id: send ... as <id>"). The sent token's own dot leaves the stage when it arrives.
+
 ## 7. Charts
 
 - **Kinds.** `bar`, `line`, `area` (a line with its fill): `x` lists the categories and each series' `data` holds one number per category (`null` leaves a gap). `scatter`: no category list; `data` is points `[x, y]`. `bubble`: points `[x, y, size]`; the bubble's area follows the size. `radar`: `x` names the axes (at least three), each series is one outline. `pie`, `doughnut`, `polar` (polar area): `x` names the slices, values are 0 or more, and the slice colours follow the default colour order. `candlestick` (format version 10): `x` lists the periods and the series with no `kind` holds one `[open, high, low, close]` per period (`null` leaves a gap). `x` is always the category (or point-x) axis and `y` always the value axis, also when `horizontal: true` turns them on their side.

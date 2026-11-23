@@ -299,7 +299,7 @@ test("a state takes its own role, spelled as on a connector: one row, each tile 
   expect(compile(`time: 0..8\nrow job r "": +a 0..3; b 3..8`, 2).errors).toEqual([]); // the row's role stays the default
 });
 
-test("in an apart grid a [below] marker is its words alone, centred under the tile at its tick, in its tone: no marker line", () => {
+test("in an apart grid a [below] marker is its words alone, starting on the tile at its tick, in its tone: no marker line", () => {
   const head = `time: 0..8\ncells: 1 | apart\nticks: 0.5 t1, 1.5 t2, 2.5 t3, 3.5 t4, 4.5 t5, 5.5 t6, 6.5 t7, 7.5 t8\nrow job a "": a 0..3 (job); wait 3..4 [dashed]; b 4..8 (server)`;
   const c = compile(head, 2, [{ title: "One", raw: "keep at 3 [below] [bad]: ▲ a dies", line: 8 }, { title: "Two", raw: "", line: 10 }]);
   expect(c.errors).toEqual([]);
@@ -308,7 +308,7 @@ test("in an apart grid a [below] marker is its words alone, centred under the ti
     expect(p.items.filter((i) => i.k === "path" && i.bar?.value === 3).length).toBe(0);  // no line, so no extra edge
     const words = texts(p, "▲ a dies")[0], tile = p.items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.bar?.kind === "chip").sort((x, y) => x.x - y.x)[3];
     expect(words.ink).toBe("bad:ink");
-    expect(Math.abs(words.x + measure(words.s, "sub") / 2 - (tile.x + tile.w / 2))).toBeLessThan(w > 400 ? 3 : 40); // centred under its tile (a phone may slide it in from the edge)
+    expect(words.x).toBeGreaterThanOrEqual(tile.x); expect(words.x).toBeLessThan(tile.x + Math.min(8, tile.w / 2)); // starts on its tile: its ▲ on the tile, whatever its width
     expect(words.y).toBeGreaterThan(tile.y + tile.h);
     const label = texts(p, "t4")[0]; expect(label.y).toBeLessThan(tile.y);                 // the tick label stays above its tile
   }
@@ -407,4 +407,61 @@ test("a phone tick label that misses the first row by a little slides right (at 
     setPhoneFont(true); const sorted = [...labels].sort((x, y) => x.x - y.x);
     for (let i = 1; i < sorted.length; i++) expect(sorted[i].x).toBeGreaterThanOrEqual(sorted[i - 1].x + measure(sorted[i - 1].s, "sub")); setPhoneFont(false);
   }
+});
+
+test("apart grid: the span line starts right under the marker words shown by its first step; a later marker that needs its own row goes under the caption (phone), in the row when it fits (desktop)", () => {
+  const head = `time: 0..11\ncells: 1 | apart\nrow job r "": a 0..3 (job); wait 3..4 [dashed]; b 4..7 (server); b (a is cold) 7..9 (server) [wide]; a 9..11 (job)`;
+  const raw = ["keep at 3 [below] [bad]: ▲ a dies", "keep at 7 [below] [accent]: ▲ new bin a, cold", "keep span r 7..9 [line] (server): cold for 18 ticks = 4 min 30 s", "keep at 9 [below] [warn]: ▲ a warm again"];
+  const c = compile(head, 3, [{ title: "One", raw: raw[0] + "\n" + raw[1], line: 8 }, { title: "Two", raw: raw[2], line: 10 }, { title: "Three", raw: raw[3], line: 12 }]);
+  expect(c.errors).toEqual([]);
+  for (const w of [1150, 390]) {
+    const p = layoutStage(c.model, w), y = (s: string) => (p.items.find((i): i is Extract<Item, { k: "text" }> => i.k === "text" && s.startsWith(i.s) && i.s.length > 2) as Extract<Item, { k: "text" }>).y; // a marker may wrap before the stage edge: its first line
+    const line = p.items.find((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.ink === "role:server:line")!.pts[0][1];
+    expect(line - y("▲ new bin a, cold")).toBeLessThan(14);                    // right under the words beside it
+    expect(y("cold for 18 ticks = 4 min 30 s")).toBeGreaterThan(line);
+    if (w > 400) expect(y("▲ a warm again")).toBe(y("▲ a dies"));               // fits the marker row
+    else expect(y("▲ a warm again")).toBeGreaterThan(y("cold for 18 ticks = 4 min 30 s")); // needs its own row: under the caption
+  }
+});
+
+test("a dot's words that would cross the stage's right edge end 12 px left of the dot; elsewhere they stay centred under it", () => {
+  const c = compile(`time: -120..1 | seconds\nticks: -120, -60, 0\ndot -1.72 [warn]: newest sample\ndot -60 [warn]: middle sample`, 2); expect(c.errors).toEqual([]);
+  for (const w of [1150, 390]) {
+    const p = layoutStage(c.model, w); setPhoneFont(w < 400);
+    const dot = (v: number) => p.items.find((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.cls === "scn-shape stg-ruler-dot" && i.bar?.value === v)!;
+    const edge = texts(p, "newest sample")[0], mid = texts(p, "middle sample")[0], dx = (b: Extract<Item, { k: "box" }>) => b.x + b.w / 2;
+    expect(Math.round(edge.x + measure(edge.s, "sub"))).toBe(Math.round(dx(dot(-1.72)) - 12));
+    expect(Math.abs(mid.x + measure(mid.s, "sub") / 2 - dx(dot(-60)))).toBeLessThan(1);
+    setPhoneFont(false);
+  }
+});
+
+test("an axis span's caption left of its line ends at the line's gap and neither it nor its backing covers the line's start", () => {
+  const c = compile(`time: -120..1 | seconds\nticks: -120, -105, -90, -75, -60, -45, -30, -15, 0`, 2, [{ title: "One", raw: "keep span axis -17.45..0 [line] [bad]: 17.45 s after the last change", line: 8 }, { title: "Two", raw: "", line: 10 }]);
+  expect(c.errors).toEqual([]);
+  for (const w of [1178, 1150]) {
+    const p = layoutStage(c.model, w), line = p.items.find((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.ink === "bad:line")!;
+    const start = Math.min(...line.pts.map((q) => q[0])), y = line.pts[0][1], k = p.items.indexOf(line);
+    const covers = p.items.filter((b, j) => j > k && b.k === "box" && b.fill !== "none" && b.x < start + 1 && b.x + b.w > start + 1 && b.y <= y && b.y + b.h >= y);
+    expect(covers.length).toBe(0);
+    const cap = texts(p, "17.45 s after the last change")[0]; expect(cap.anchor).toBe("end"); expect(cap.x).toBeLessThanOrEqual(start - 8);
+  }
+});
+
+test("axis spans whose lines and one-line words never meet share a row; ones that would meet keep their own rows", () => {
+  const c = compile(`time: -120..1 | seconds\nticks: -120, -60, 0`, 2, [{ title: "One", raw: "keep span axis -120..-107.45 [line] [good]: until the first change\nkeep span axis -17.45..0 [line] [bad]: 17.45 s after the last change", line: 8 }, { title: "Two", raw: "", line: 10 }]);
+  expect(c.errors).toEqual([]);
+  const y = (w: number, ink: string) => (layoutStage(c.model, w).items.find((i) => i.k === "path" && i.ink === ink) as Extract<Item, { k: "path" }>).pts[0][1];
+  expect(y(1178, "good:line")).toBe(y(1178, "bad:line"));
+  expect(y(356, "good:line")).not.toBe(y(356, "bad:line"));
+  const p = layoutStage(c.model, 1178), cap = (s: string) => texts(p, s)[0];
+  setPhoneFont(false); const g = cap("until the first change"), b = cap("17.45 s after the last change");
+  expect(g.x + measure(g.s, "sub") * 1.2 + 8).toBeLessThan(b.x - measure(b.s, "sub") * 1.2);   // the words never meet
+});
+
+test("an inset with its own bracket draws no range box on the main axis; a plain inset keeps it", () => {
+  const head = (z: string) => `time: -120..1 | seconds\nticks: -120, -60, 0\nzoom: ${z}\nzoom ticks: -3, -2, -1, 1`;
+  const box = (z: string) => layoutStage(compile(head(z), 3, zoomSteps).model, 1150).items.filter((i) => i.id === "time-zoom-window").length;
+  expect(box("-3..1 | the last 3 minutes | bracket @1..2")).toBe(0);
+  expect(box("-3..1 | the last 3 minutes @1..2")).toBe(1);
 });

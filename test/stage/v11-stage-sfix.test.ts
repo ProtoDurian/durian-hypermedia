@@ -357,9 +357,12 @@ for (const w of [390, 360]) test(`phone, lines: straight: straight down past a l
   for (const id of ["ev>ma", "ev>mb"]) { const q = p.items.find((it) => it.k === "path" && it.id === id) as Extract<Item, { k: "path" }>; expect(q.pts.length).toBe(2); expect(Math.abs(q.pts[0][0] - q.pts[1][0])).toBeLessThan(1); }
   const head = p.items.findIndex((it) => it.k === "text" && it.f === "lane" && it.s.startsWith("Joiner")), last = p.items.map((it) => it.k).lastIndexOf("path");
   expect((p.items[head] as { halo?: boolean }).halo).toBe(true); expect(head).toBeGreaterThan(last);
-  // without the setup line the heading is never crossed (the old route stands)
+  // without the setup line: a line that would hook round the heading (out to the edge and back) runs straight too, the
+  // heading over it; one that only steps aside keeps its way (lines: straight is for those)
   const { p: q } = lay(src.replace("lines: straight\n", ""), steps("ev --> ma, mb", "ev --> ma"), w);
-  expect(q.items.some((it) => (it as { halo?: boolean }).halo)).toBe(false);
+  const qa = q.items.find((it) => it.k === "path" && it.id === "ev>ma") as Extract<Item, { k: "path" }>;
+  expect(qa.pts.length).toBe(2); expect(Math.abs(qa.pts[0][0] - qa.pts[1][0])).toBeLessThan(1);
+  expect(q.items.some((it) => it.k === "text" && it.f === "lane" && it.s.startsWith("Joiner") && (it as { halo?: boolean }).halo)).toBe(true);
 });
 
 // 19. a scene: 'hide ## Title' from step 1 keeps a lane (its region, its band ranges) and draws no
@@ -450,4 +453,128 @@ for (const w of [390, 360]) test(`phone: the copies of 'a -> b x2' each take the
     expect(ps.length).toBe(2);
     expect(JSON.stringify(ps[0].pts)).not.toBe(JSON.stringify(ps[1].pts));
   }
+});
+
+// 24. phone: a lane whose cards are joined one to the next by lines keeps the source's order (left
+// to right, then the next row; the order is meaning), and a line from one row to the next takes the gap between them
+// (a Z, its level 10 px over the next row, under the row's labels), not the side channel
+for (const w of [356, 360, 326]) test(`phone: a chain of cards keeps its order; a line to the next row takes the gap (${w})`, () => {
+  const src = "title: Chain | x\n## Path\nlayout: row\na p0: source | sends\nb p1: reader | reads\nc p2: adder | adds\nd p3: store | keeps\na p4: archive | holds\n";
+  const { p } = lay(src, steps("p0 --> p1: get\np1 --> p2: post\np2 --> p3: write\np3 --> p4: copy", "light p*"), w);
+  const ids = ["p0", "p1", "p2", "p3", "p4"], b = (id: string) => boxOf(p, id)!;
+  for (let k = 1; k < ids.length; k++) { const [u, v] = [b(ids[k - 1]), b(ids[k])]; expect(v.y > u.y + 1 || (Math.abs(v.y - u.y) < 1 && v.x > u.x)).toBe(true); }
+  const right = Math.max(...ids.map((id) => b(id).x + b(id).w));
+  for (let k = 1; k < ids.length; k++) { const [u, v] = [b(ids[k - 1]), b(ids[k])]; if (v.y <= u.y + 1) continue;
+    const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === `${ids[k - 1]}>${ids[k]}`)!;
+    expect(Math.max(...q.pts.map(([x]) => x))).toBeLessThanOrEqual(right); // not out in the channel
+    const lv = q.pts.find((pt, j) => j > 0 && Math.abs(pt[1] - q.pts[j - 1][1]) < 0.5)!; expect(Math.abs(lv[1] - (v.y - 10))).toBeLessThanOrEqual(1); } // 10 px over the next row (under the row's labels)
+});
+
+// 25. phone: a card inside a box with nothing of the box under it leaves by its foot to a card under
+// the box (its own way, not the side channel with the box's other lines); a lane heading hidden in the line's steps is
+// no obstacle to it
+for (const w of [390, 360]) test(`phone: an inner card with nothing under it leaves by its foot (${w})`, () => {
+  const src = "title: Box | x\n## Ops\na dep: workshop | two pens\n  a pa: pen A | upper\n  a pb: pen B | lower\n## Data path\nb d0, d1: data one; data two\nb l1, l2, l3: ticket one; ticket two; ticket three\n";
+  const { p } = lay(src, steps("hide l1, l2, l3\nlight d*", "hide ## Data path\nhide d0, d1\nshow l1, l2, l3\npa --> l1, l2\npb --> l3"), w);
+  const line = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "dep>l3")!;
+  const right = Math.max(...["l1", "l2", "l3", "dep"].map((id) => boxOf(p, id)!.x + boxOf(p, id)!.w));
+  expect(Math.max(...line.pts.map(([x]) => x))).toBeLessThanOrEqual(right); // not out in the channel
+  expect(Math.abs(line.pts[0][0] - line.pts[1][0])).toBeLessThan(0.5); // leaves straight down, by its foot
+});
+
+// 26. wide: in a row lane, a run that would wrap and whose cards each take lines from one and the same
+// card of another lane (none between themselves) stands in one column beside it, each line short (not one card up and
+// to the right with a long line over the top)
+test("wide: a fan of cards from one card stands in one column", () => {
+  const src = "title: Fan | x\n## Ops\na dep: workshop | two pens\n  a pa: pen A | upper\n  a pb: pen B | lower\n## Data path\nlayout: row\nb l1: Ticket desk-front-primary | the first till · bearer: pen A, restamped every 2 s\nb l2: Ticket desk-front-second | a second till · bearer: pen A\nb l3: Ticket desk-front-third | a third till · bearer: pen B\n";
+  const { p } = lay(src, steps("hide l2, l3\npa --> l1", "pa --> l1, l2\npb --> l3"));
+  const b = (id: string) => boxOf(p, id)!;
+  expect(b("l2").x).toBe(b("l1").x); expect(b("l3").x).toBe(b("l1").x);
+  expect(b("l2").y).toBeGreaterThan(b("l1").y + b("l1").h); expect(b("l3").y).toBeGreaterThan(b("l2").y + b("l2").h);
+  for (const id of ["dep>l1", "dep>l2", "dep>l3"]) { const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === id)!; expect(q.pts.length).toBeLessThanOrEqual(2); }
+});
+
+// 27. phone: a line never wraps round a lane heading (a level stretch over its words and another
+// under them); it takes the side channel instead
+for (const w of [390, 360]) test(`phone: a line does not wrap round a lane heading (${w})`, () => {
+  const src = "title: Wrap | x\n## The foreman, two pens, fixed\na dep: workshop | two pens\n  a pa: pen A | upper\n  a pb: pen B | lower\n## The data path, every tick, no foreman on it\nlayout: row\nb ap: app pens | many\nc ev: pickers | 64 pens\nd mg: packers | 4 pens\nb mi: store\na cfg under ev..mg: ledger · yards | written by the bearer\n";
+  const { p } = lay(src, steps("ap --> ev: pluck\nev --> mg: send\nmg --> mi: write\ndep --> cfg\ncfg -> ev\ncfg -> mg", "clear\nap --> ev: pluck"), w);
+  const head = p.items.find((it): it is Extract<Item, { k: "text" }> => it.k === "text" && it.f === "lane" && /data path/.test(it.s))!;
+  const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "dep>cfg")!;
+  // no upright hugs the heading's end across its line (the wrap: over the words, down past their end, back under them)
+  const x1 = head.x + measure(head.s, "lane");
+  const hug = q.pts.slice(1).some((pt, k) => { const o = q.pts[k]; return Math.abs(o[0] - pt[0]) < 0.5 && pt[0] > x1 && pt[0] < x1 + 24 && Math.min(o[1], pt[1]) < head.y - 12 && Math.max(o[1], pt[1]) > head.y + 4; });
+  expect(hug).toBe(false);
+});
+
+// 28. phone (the hero): a line's chip never sits on an arrowhead shown with it (it moves to the nearest free place)
+for (const w of [390, 360, 326]) test(`phone: a chip keeps off the arrowheads (${w})`, () => {
+  const src = "title: Heads | x\n## Packers\nlayout: row\nb m0: packer field 0 | adds parts, writes\nb m1: packer field 1 | adds parts, writes\n## store\nc db: store | same labels as the old one\n";
+  const { p } = lay(src, steps("m0, m1 --> db: written in batches\nsay m1: b writes only what a did not", "clear\nm0 --> db"), w);
+  const chips = p.items.filter((it): it is Extract<Item, { k: "box" }> => it.k === "box" && it.bar?.["edge-label"] !== undefined);
+  expect(chips.length).toBeGreaterThan(0);
+  for (const c of chips) for (const q of p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow && (it.on ?? [1]).some((k) => (c.on ?? [1]).includes(k)))) {
+    const [tx, ty] = q.pts.at(-1)!; // a head into the top of a card: 10 px up from the tip, 6 each side
+    expect(c.x < tx + 6 && c.x + c.w > tx - 6 && c.y < ty && c.y + c.h > ty - 10).toBe(false);
+  }
+});
+
+// 29. phone: two lines from one card down the side channel are nested, never sharing a stretch
+// (one lane and one final leg each, so it is clear which ends where)
+const shareStretch = (a: [number, number][], b: [number, number][]) => a.slice(1).some((p, i) => b.slice(1).some((q, j) => {
+  const [a0, b0] = [a[i], b[j]];
+  if (Math.abs(a0[1] - p[1]) < 0.5 && Math.abs(b0[1] - q[1]) < 0.5 && Math.abs(a0[1] - b0[1]) < 1) return Math.min(Math.max(a0[0], p[0]), Math.max(b0[0], q[0])) - Math.max(Math.min(a0[0], p[0]), Math.min(b0[0], q[0])) > 2;
+  if (Math.abs(a0[0] - p[0]) < 0.5 && Math.abs(b0[0] - q[0]) < 0.5 && Math.abs(a0[0] - b0[0]) < 1) return Math.min(Math.max(a0[1], p[1]), Math.max(b0[1], q[1])) - Math.max(Math.min(a0[1], p[1]), Math.min(b0[1], q[1])) > 2;
+  return false;
+}));
+// the shape of both (a box of two pens over a row lane, then three long cards in its place)
+const boxSrc = "title: Box | x\n## Ops: two pens, fixed\na dep: workshop | barrows: 2 (fixed) | no hirer and no sorter for it | one pen per node · absence budget 1\n  a pa: pen A | bells + clerk\n  a pb: pen B | bells + clerk\n## The data path, every tick, no foreman on it\nlayout: row\na ap: app pens | 1,000 of them\nb ev: readers | 64 pens\nc mg: adders | 4 pens\nd st: store\na cf under ev..mg: ledger · yards · sets | written by the pen that holds the ticket\nb l1: Ticket desk-front-primary | the first till · bearer: pen A, restamped every 2 s\nb l2: Ticket desk-front-second | a second till (illustration) · bearer: pen A\nb l3: Ticket desk-front-third | a third till (illustration) · bearer: pen B\n";
+const boxSteps = () => steps("hide l1, l2, l3\nap --> ev: pluck\nev --> mg: send\nmg --> st: write\ndep --> cf\ncf -> ev\ncf -> mg", "hide ## The data path, every tick, no foreman on it\nhide ap, ev, mg, st, cf\nshow l1, l2, l3\npa --> l1, l2\npb --> l3");
+// (the stage widths of 390 and 360 phones, and 360 itself)
+for (const w of [356, 360, 326]) test(`phone: two lines from one card down the channel share no stretch (${w})`, () => {
+  const { p } = lay(boxSrc, boxSteps(), w);
+  const get = (id: string) => p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === id && (it.on ?? []).includes(2))!;
+  expect(shareStretch(get("dep>l1").pts, get("dep>l2").pts)).toBe(false);
+});
+
+// 30. phone: an upright alone in a gap between cards keeps off the cards it passes (4 px or more)
+for (const w of [356, 360, 326]) test(`phone: a lone upright keeps off the cards it passes (${w})`, () => {
+  const { p } = lay(boxSrc, boxSteps(), w);
+  const q = p.items.find((it): it is Extract<Item, { k: "path" }> => it.k === "path" && it.id === "cf>ev")!;
+  const cards = ["ap", "ev", "mg", "st"].map((id) => boxOf(p, id)!);
+  for (let k = 1; k + 2 < q.pts.length; k++) { const [a, b] = [q.pts[k], q.pts[k + 1]]; if (Math.abs(a[0] - b[0]) > 0.5) continue;
+    for (const r of cards) if (r.y < Math.max(a[1], b[1]) && r.y + r.h > Math.min(a[1], b[1])) expect(Math.min(Math.abs(a[0] - r.x), Math.abs(a[0] - r.x - r.w))).toBeGreaterThanOrEqual(4); }
+});
+
+// 31. phone: no line crosses another of its step where it can: ledger -> readers takes the side channel
+// rather than cross adders -> store; it and workshop -> ledger meet ledger at its side, one above the other; pen A's two
+// lines come down the side, nested; the cards keep their order
+const crossAt = (a: [number, number][], b: [number, number][]) => a.slice(1).some((p, i) => b.slice(1).some((q, j) => {
+  const [a0, b0] = [a[i], b[j]], ah = Math.abs(a0[1] - p[1]) < 0.5, bv = Math.abs(b0[0] - q[0]) < 0.5, av = Math.abs(a0[0] - p[0]) < 0.5, bh = Math.abs(b0[1] - q[1]) < 0.5;
+  const hit = (h0: [number, number], h1: [number, number], v0: [number, number], v1: [number, number]) => v0[0] > Math.min(h0[0], h1[0]) + 0.5 && v0[0] < Math.max(h0[0], h1[0]) - 0.5 && h0[1] > Math.min(v0[1], v1[1]) + 0.5 && h0[1] < Math.max(v0[1], v1[1]) - 0.5;
+  return (ah && bv && hit(a0, p, b0, q)) || (av && bh && hit(b0, q, a0, p));
+}));
+for (const w of [356, 360, 326]) test(`phone: no line crosses another of its step (${w})`, () => {
+  // (with the scene's words under the first card, which leave the room under its row for pen B's way down the gap)
+  const ss = boxSteps(); ss[1].raw += "\nsay l1: today: one till, one pen works";
+  const { p } = lay(boxSrc, ss, w);
+  const lines = p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow);
+  // step 1: no crossing; step 2: pen B's line must pass pen A's line to the first card (pen A is over pen B and both of its
+  // lines leave by the side): one crossing at most, and no shared stretch
+  for (const k of [1, 2]) { const on = lines.filter((q) => (q.on ?? []).includes(k)); let n = 0; for (const a of on) for (const b of on) if (a !== b) { if (crossAt(a.pts, b.pts)) n++; expect(shareStretch(a.pts, b.pts)).toBe(false); } expect(n / 2).toBeLessThanOrEqual(k === 1 ? 0 : 1); }
+  // the cards keep the source's order (it is meaning): l1, l2 in the first row, l3 under
+  const [l1, l2, l3] = ["l1", "l2", "l3"].map((id) => boxOf(p, id)!); expect(l2.y).toBe(l1.y); expect(l1.x).toBeLessThan(l2.x); expect(l3.y).toBeGreaterThan(l1.y);
+});
+
+// 32. phone: a channel line's last level stretch never runs along a say (the words under the card
+// above its target): it comes in at the target's side instead
+for (const w of [356, 360, 326]) test(`phone: a line keeps off a say under the card above its target (${w})`, () => {
+  const ss = boxSteps(); ss[1].raw += "\nsay l3: first come, first served: one pen may hold all three";
+  const { p } = lay(boxSrc, ss, w);
+  const say = p.items.find((it): it is Extract<Item, { k: "box" }> => it.k === "box" && it.bar?.kind === "chip" && String(it.bar?.label).startsWith("first come"))!;
+  expect(say).toBeTruthy();
+  for (const q of p.items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow && (it.on ?? []).includes(2)))
+    for (let k = 1; k < q.pts.length; k++) { const [a, b] = [q.pts[k - 1], q.pts[k]]; if (Math.abs(a[1] - b[1]) > 0.5) continue;
+      const along = Math.max(a[0], b[0]) > say.x && Math.min(a[0], b[0]) < say.x + say.w && a[1] > say.y - 4 && a[1] < say.y + say.h + 6;
+      expect(along).toBe(false); }
 });

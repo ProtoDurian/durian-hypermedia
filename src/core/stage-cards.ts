@@ -50,6 +50,8 @@ export type Card = {
   inside?: boolean;
   /** "badges: stacked": its badges one per row, top to bottom */
   stacked?: boolean;
+  /** "badges: stacked plain": the same rows, words only, no letter chip (the letters still name the rows for ends) */
+  plainBadges?: boolean;
   /** a record key written "Key = value" starts with that value instead of "..." */
   vals0?: Record<string, string>;
 };
@@ -121,9 +123,9 @@ export function parseCardBody(h: CardHost, cur: Card[], body: Line[], ctx: Parse
       for (const card of cur) card.endsHere = true; continue;
     }
     if (word === "badges") { // "badges: stacked": one badge per row, top to bottom; a connector end "card.a" leaves level with badge (a)
-      const q = colon(t); if (!q || q[0] !== "badges" || q[1].trim() !== "stacked") throw new StageError(b.n, `a card's badges line is "badges: stacked" (its badges one per row, top to bottom)`);
+      const q = colon(t); const how = q && q[0] === "badges" ? q[1].trim().split(/\s+/).join(" ") : ""; if (how !== "stacked" && how !== "stacked plain") throw new StageError(b.n, `a card's badges line is "badges: stacked" (its badges one per row, top to bottom) or "badges: stacked plain" (the same rows, words only)`);
       if (sub.length) throw new StageError(sub[0].n, "nothing is indented under badges");
-      for (const card of cur) card.stacked = true; stackAt = b.n; continue;
+      for (const card of cur) { card.stacked = true; if (how === "stacked plain") card.plainBadges = true; } stackAt = b.n; continue;
     }
     if (word === "spacing") { // "spacing: roomy": the record's rows spaced wider (the sheet's word)
       const c = colon(t); if (!c || c[0] !== "spacing" || c[1].trim() !== "roomy") throw new StageError(b.n, `a card's spacing is "spacing: roomy" (its record's rows spaced wider)`);
@@ -417,7 +419,7 @@ export function cardNeed(h: CardHost, c: Card): number {
   const pills = c.pills.map((p) => measure(h.cx.pills.get(p)!.s, "chip") + 70);
   const toks = Math.min(560, c.tokens.reduce((a, t) => a + tokW(t) + TOK_GAP, 0)) + 2 * CARD_PX;
   const rec = c.keys.length ? recCols(h, c).kw + REC_GAP + Math.max(...[...valuesAt(h, c).values()].flat().map((v) => measure(v, "sub"))) + 2 * CARD_PX : 0;
-  return Math.max(...titleAt(h, c).map((t) => measure(t, titleFont(t))).map((x) => x + st + 2 * CARD_PX + 2), subW + 2 * CARD_PX + 2, c.stacked ? Math.max(...c.badges.map((b) => measure(b.s, "sub") + 40), 0) + 12 : c.badges.reduce((a, b) => a + measure(b.s, "sub") + 40, 12), ...kids, ...pills, c.tokens.length ? toks : 0, rec);
+  return Math.max(...titleAt(h, c).map((t) => measure(t, titleFont(t))).map((x) => x + st + 2 * CARD_PX + 2), subW + 2 * CARD_PX + 2, c.stacked ? Math.max(...c.badges.map((b) => measure(b.s, "sub") + (c.plainBadges ? 20 : 40)), 0) + 12 : c.badges.reduce((a, b) => a + measure(b.s, "sub") + 40, 12), ...kids, ...pills, c.tokens.length ? toks : 0, rec);
 }
 /** the least width a card can wrap to */
 export function cardMin(h: CardHost, c: Card): number {
@@ -425,7 +427,7 @@ export function cardMin(h: CardHost, c: Card): number {
   const kids = c.kids.map((id) => cardMin(h, h.cards.get(id)!) - 2);
   const toks = Math.max(0, ...c.tokens.map((t) => tokW(t)));
   const rec = c.keys.length ? recCols(h, c).kw + REC_GAP + 60 : 0;
-  return Math.max(longestWord(c.title, titleFont(c.title)) + st, ...subsAt(h, c).flat().map((x) => subMeasure(x, longestWord)), ...c.badges.map((b) => measure(b.s, "sub") + 34),
+  return Math.max(longestWord(c.title, titleFont(c.title)) + st, ...subsAt(h, c).flat().map((x) => subMeasure(x, longestWord)), ...c.badges.map((b) => measure(b.s, "sub") + (c.plainBadges ? 20 : 34)),
     ...kids, ...c.pills.map((p) => Math.min(140, measure(h.cx.pills.get(p)!.s, "chip") + 20)), toks, rec) + 2 * CARD_PX + 2;
 }
 /** a record key's lines: a key longer than its column wraps whole words inside it, never into its value and never cut
@@ -650,7 +652,7 @@ export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says:
     const rows = badgeRows(c, r.w), per = rows === 1 ? c.badges.length : 1, bw = (r.w - 12 - (per - 1) * 6) / per, G = badgeGeo(); // a lower row on a phone
     c.badges.forEach((b, j) => {
       const bx = r.x + 6 + (j % per) * (bw + 6), by = r.y + r.h - 6 - 26 * insideN(c, r.w) - rows * G.pitch + Math.floor(j / per) * G.pitch + 2, br = h.roles[b.b] !== undefined ? b.b : c.role;
-      out.push(when({ k: "box", x: bx, y: by, w: bw, h: G.h, fill: `role:${br}:soft`, stroke: `role:${br}:line`, r: 6, role: br, id: `badge:${c.id}.${b.b}`, bar: { kind: "card", label: b.s, role: br } }), when({ k: "badge", x: bx + 5, y: by + G.gy, s: b.b, role: br }), when({ k: "text", x: bx + G.tx, y: by + G.ty, s: wrap(b.s, bw - G.tx - 4, "sub", 1)[0], f: "sub", ink: "ink", tip: b.s }));
+      out.push(when({ k: "box", x: bx, y: by, w: bw, h: G.h, fill: `role:${br}:soft`, stroke: `role:${br}:line`, r: 6, role: br, id: `badge:${c.id}.${b.b}`, bar: { kind: "card", label: b.s, role: br } }), ...(c.plainBadges ? [] : [when({ k: "badge", x: bx + 5, y: by + G.gy, s: b.b, role: br })]), when({ k: "text", x: bx + (c.plainBadges ? 8 : G.tx), y: by + G.ty, s: wrap(b.s, bw - (c.plainBadges ? 8 : G.tx) - 4, "sub", 1)[0], f: "sub", ink: "ink", tip: b.s }));
     });
   }
   return out;
@@ -665,7 +667,7 @@ export function cardText(h: CardHost, c: Card): string {
   if (c.state) bits.push(c.state.s);
   if (c.subs.length) bits.push(c.subs.map(plainSub).join("; "));
   let s = c.title === "_" ? bits.join("; ") : `${c.title}${bits.length ? ` (${bits.join("; ")})` : ""}`;
-  if (c.badges.length) s += ` [${c.badges.map((b) => `${b.b}: ${b.s}`).join("; ")}]`;
+  if (c.badges.length) s += ` [${c.badges.map((b) => (c.plainBadges ? b.s : `${b.b}: ${b.s}`)).join("; ")}]`;
   if (c.keys.length) s += ` {${c.keys.map((k) => `${k}: ${c.vals0?.[k] ?? "..."}`).join("; ")}}`;
   if (c.tokens.length) s += ` tokens: ${c.tokens.join(" ")}`;
   if (c.pills.length) s += ` pills: ${c.pills.map((p) => h.cx.pills.get(p)!.s).join("; ")}`;

@@ -973,3 +973,24 @@ describe("'badges: stacked' and a connector end at a badge", () => {
     expect(msgs(c)).toBe(""); expect(c.model.steps[0].edges[0]).toMatchObject({ from: "t.1", to: "a" }); expect(c.model.steps[0].edges[0].fromPill).toBeUndefined();
   });
 });
+describe("'badges: stacked plain': the same rows, words only", () => {
+  const SRC = `## Pens\nfarm t: a shed's crates | the same rows\n  + (1) crate-1 :north; (2) crate-2 :south; (3) crate-3 :east\n  badges: stacked plain\n## Sheds\nshelf a: shed a\nshelf b: shed b\n@step One: x\nt.1 --> a\nt.3 --> b\n@step Two: y`;
+  for (const w of [1000, 340]) test(`no letter chip; the words start near the row's left edge; ends still leave at their rows (${w})`, () => {
+    const c = scene(SRC); expect(msgs(c)).toBe("");
+    const p = layoutStage(c.model, w), row = (k: string) => boxes(p.items).find((b) => b.id === `badge:t.${k}`)!;
+    expect(p.items.some((i) => i.k === "badge" && ["1", "2", "3"].includes((i as any).s))).toBe(false);
+    const word = (p.items as any[]).find((i) => i.k === "text" && i.s === "crate-1 :north"), r1 = row("1");
+    expect(word.x - r1.x).toBeLessThan(12); expect(row("2").y).toBeGreaterThan(r1.y + r1.h - 0.5);
+    for (const [k, eid] of [["1", "t>a"], ["3", "t>b"]] as const) {
+      const [x0, y0] = (p.items.find((i) => i.k === "path" && (i as any).id === eid) as any).pts[0], br = row(k);
+      expect((y0 >= br.y - 0.5 && y0 <= br.y + br.h + 0.5) || (x0 >= br.x - 0.5 && x0 <= br.x + br.w + 0.5)).toBe(true);
+    }
+  });
+  test("the LLM view reads the rows' words, not their letters", () => {
+    const l = stageLlm(scene(SRC));
+    expect(l).toMatch(/\[crate-1 :north; crate-2 :south; crate-3 :east\]/); expect(l).toMatch(/crate-1 :north \(on a shed's crates\) to shed a/);
+  });
+  test("another word after 'stacked' is refused", () => {
+    expect(msgs(scene(SRC.replace("stacked plain", "stacked bare")))).toMatch(/"badges: stacked plain"/);
+  });
+});

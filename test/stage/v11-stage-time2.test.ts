@@ -538,7 +538,7 @@ test("a phone number crossed by a marker line gets a backing in its cell's colou
         const r = painted(t);
         for (const x of lines) if (x > r.x - 1 && x < r.x + r.w + 1) {
           crossed++;
-          const k = p.items.indexOf(t), mask = p.items.slice(0, k).reverse().find((i) => i.k === "box" && i.cls === "stg-time-word-mask" && i.fill === "surface" && i.x <= x && i.x + i.w >= x && i.y <= r.y && i.y + i.h >= r.y + r.h - 1);
+          const k = p.items.indexOf(t), mask = p.items.slice(0, k).reverse().find((i) => i.k === "box" && i.cls === "stg-time-word-mask" && i.x <= x && i.x + i.w >= x && i.y <= r.y && i.y + i.h >= r.y + r.h - 1);
           if (!mask) throw new Error(`${w}: "${t.s}" crossed by the line at ${x.toFixed(1)} has no backing`);
         }
       }
@@ -546,3 +546,80 @@ test("a phone number crossed by a marker line gets a backing in its cell's colou
     } finally { setPhoneFont(false); }
   }
 });
+
+test("phone: a [wide] cell's number that cannot fit inside it (with 12% room for browser glyphs) go to a caption under the row, never clipped at its edge", () => {
+  const src = `time ticks: 924..956 | ticks\ncells: 1\nruler: none\nrow labels: beside\nrow job s32 "crate 32 · leaving": +_ 924..953; _ 953..956 [dashed]\nrow server s7 "crate 7 · gets it": _ 924..932 [dashed]; _ 932..953 [warn]; +_ 953..956\nrow job sts "Workbenches": +36 bins each, until every bin reports switched 924..953 [wide]; 32 953..956 [good] [wide]`;
+  for (const w of [319, 340, 1280]) {
+    beginDocument();
+    const c = compileStage(src, [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }], 1, {}, { job: 1, server: 2 });
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    setPhoneFont(w < 480);
+    try {
+      const cell = boxes(p.items).find((b) => /:seg:sts:953:/.test(b.id || ""))!;
+      const word = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^32( |$)/.test(i.s))[0];
+      expect(word).toBeDefined();
+      const r = painted(word), extra = r.w * 0.12;
+      const inside = r.x - extra / 2 >= cell.x + 2 && r.x + r.w + extra / 2 <= cell.x + cell.w - 2 && r.y >= cell.y && r.y + r.h <= cell.y + cell.h;
+      const under = r.y >= cell.y + cell.h;
+      expect(inside || under).toBe(true);
+      if (w === 1280) expect(inside).toBe(true);
+    } finally { setPhoneFont(false); }
+  }
+});
+
+test("phone staggered numbers sit on a backing over the cell borders, drawn after every cell of their row (a lit cell never hides a neighbour's number), and never poke past the table (955)", () => {
+  for (const w of [340, 319]) {
+    beginDocument();
+    const p = layoutStage(compileStage(readsHead, readsSteps, 1, {}, { job: 1, server: 2 }).model, w);
+    setPhoneFont(true);
+    try {
+      for (const row of ["rd", "tk"]) {
+        const cells = p.items.map((it, k) => ({ it, k })).filter(({ it }) => it.k === "box" && new RegExp(`:cell:${row}:`).test(it.id || ""));
+        const lastCell = Math.max(...cells.map((c) => c.k));
+        const frame = boxes(p.items).find((b) => new RegExp(`:row:${row}:`).test(b.id || ""))!;
+        const nums = p.items.map((it, k) => ({ it, k })).filter(({ it }) => it.k === "text" && /^\d+$/.test(it.s) && !it.rotate && it.y > frame.y && it.y <= frame.y + frame.h);
+        if (w === 340 || row === "rd") expect(nums.length).toBeGreaterThan(10); // at 319 the ticks (5.5 px cells) still stand on end
+        for (const { it, k } of nums) {
+          const t = it as Extract<Item, { k: "text" }>, r = painted(t), extra = r.w * 0.12;
+          expect(k).toBeGreaterThan(lastCell);
+          const mask = p.items.slice(0, k).reverse().find((m) => m.k === "box" && m.cls === "stg-time-word-mask" && m.x <= r.x - extra / 2 + 0.5 && m.x + m.w >= r.x + r.w + extra / 2 - 0.5 && m.y <= r.y + 0.5 && m.y + m.h >= r.y + r.h - 0.5);
+          if (!mask) throw new Error(`${w} ${row}: "${t.s}" has no backing`);
+          expect(r.x - extra / 2).toBeGreaterThanOrEqual(frame.x);
+          expect(r.x + r.w + extra / 2).toBeLessThanOrEqual(frame.x + frame.w);
+        }
+      }
+    } finally { setPhoneFont(false); }
+  }
+});
+
+test("phone widths 326/341/356/380 (window - 34): staggered numbers stay inside the grid's last cell edge; a long [below] label sits under its own line (30; openFromTick/shiftTick)", () => {
+  const head = readsHead;
+  const steps = readsSteps.map((s, i) => i === 2 ? { ...s, raw: s.raw + "\nkeep at ticks 932 [guide] [below]: openFromTick …932 · 10:20:00\nkeep at ticks 953 [bad] [guide] [below]: shiftTick …953 · 10:25:15" } : s);
+  for (const w of [326, 341, 356, 380]) {
+    beginDocument();
+    const c = compileStage(head, steps, 1, {}, { job: 1, server: 2 });
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    setPhoneFont(true);
+    try {
+      for (const row of ["rd", "tk"]) {
+        const cells = boxes(p.items).filter((b) => new RegExp(`:cell:${row}:`).test(b.id || "")), right = Math.max(...cells.map((b) => b.x + b.w));
+        const frame = boxes(p.items).find((b) => new RegExp(`:row:${row}:`).test(b.id || ""))!;
+        for (const t of p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^\d+$/.test(i.s) && !i.rotate && i.y > frame.y && i.y <= frame.y + frame.h)) {
+          const r = painted(t);
+          if (r.x + r.w * 1.06 > right + 0.5) throw new Error(`${w} ${row}: "${t.s}" ends ${(r.x + r.w * 1.06 - right).toFixed(1)} px past the grid`);
+        }
+      }
+      const shelf = new Set<number>();
+      for (const [v, word, time] of [[932, "openFromTick", "10:20:00"], [953, "shiftTick", "10:25:15"]] as const) {
+        const line = p.items.find((i) => i.k === "path" && i.bar?.kind === "guide" && i.bar?.value === v) as Extract<Item, { k: "path" }>, lx = line.pts[0][0];
+        const own = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && (i.s.startsWith(word) || i.s === time || i.s.endsWith(time)));
+        expect(own.length).toBeGreaterThan(0);
+        for (const t of own) { const r = painted(t); shelf.add(t.y); expect(t.anchor).toBe("end"); expect(Math.abs(r.x + r.w - lx)).toBeLessThanOrEqual(0.5); } // each line ends on its own dashed line (anchored there, whatever the font's width)
+      }
+      expect(shelf.size).toBeLessThanOrEqual(2); // not stacked: both share one shelf
+    } finally { setPhoneFont(false); }
+  }
+});
+

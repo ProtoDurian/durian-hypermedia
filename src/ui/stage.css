@@ -32,17 +32,33 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 .stg-btn:disabled { opacity: .45; cursor: default; }
 .stg-btn:focus-visible, .stg-stepbtn:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .stg-count { font: 12px var(--font-mono); color: var(--muted); min-width: 3.5em; text-align: right; }
-.stg-box-wrap { width: 100%; }
+.stg-box-wrap { width: 100%; container: stgbox / inline-size; }
 .stg-plan { width: 100%; }
 .stg-svg { display: block; width: 100%; height: auto; overflow: visible; }
 /* before the browser lays out at its own width: the server's wide plan, or its narrow one on a small screen */
-.stg-plan-narrow { display: none; }
-@media (max-width: 720px) { .stg-plan-wide { display: none; } .stg-plan-narrow { display: block; } .stg-stepname { display: none; } .stg-stepbtn { min-width: 40px; min-height: 40px; justify-content: center; } }
+/* the server's plans (site/src/stage.tsx SSR_W): the widest one that fits the box shows, so at those widths it is the plan
+ the browser lays out again (no jump on load); a box narrower than the first shows the first */
+.stg-plan-ssr { display: none; }
+.stg-plan-ssr[data-w="326"] { display: block; }
+@container stgbox (min-width: 341px) { .stg-plan-ssr[data-w="326"] { display: none; } .stg-plan-ssr[data-w="341"] { display: block; } }
+@container stgbox (min-width: 356px) { .stg-plan-ssr[data-w="341"] { display: none; } .stg-plan-ssr[data-w="356"] { display: block; } }
+@container stgbox (min-width: 380px) { .stg-plan-ssr[data-w="356"] { display: none; } .stg-plan-ssr[data-w="380"] { display: block; } }
+@container stgbox (min-width: 734px) { .stg-plan-ssr[data-w="380"] { display: none; } .stg-plan-ssr[data-w="734"] { display: block; } }
+@container stgbox (min-width: 990px) { .stg-plan-ssr[data-w="734"] { display: none; } .stg-plan-ssr[data-w="990"] { display: block; } }
+@container stgbox (min-width: 1178px) { .stg-plan-ssr[data-w="990"] { display: none; } .stg-plan-ssr[data-w="1178"] { display: block; } }
+@media (max-width: 720px) { .stg-stepname { display: none; } }
 .stg-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 8px 14px 0; padding: 0; }
 .stg-stepbtn { border: 1px solid var(--stg-btn-edge); background: var(--stg-btn-bg); color: var(--ink-2); border-radius: 999px; padding: 4px 11px; min-height: 30px; font: inherit; font-size: 12.5px; cursor: pointer; }
+/* a phone's step buttons are 32 px tall (the stage floor; WCAG 2.5.8 asks 24). After the base rule:
+ the old 40 px rule above it never applied (same weight, earlier), so the buttons measured 30 */
+@media (max-width: 720px) { .stg-stepbtn { min-height: 32px; justify-content: center; } }
 .stg-stepbtn[aria-current="step"] { border-color: var(--stg-step-on); background: var(--stg-step-on-bg); color: var(--ink); }
 .stg-num { color: var(--acc-ink); font-weight: 600; }
 .stg-cap { margin: 8px 14px 0; font-size: 15px; color: var(--ink-2); min-height: 1.5em; }
+/* a stage over its budget: its still form in words (site/src/stage.tsx StageOver) */
+.stg-over-msg { margin: 8px 14px 0; font-size: 14px; color: var(--ink-2); }
+.stg-still { margin: 8px 14px 0; padding-left: 1.4em; font-size: 15px; color: var(--ink-2); }
+.stg-still li + li { margin-top: 4px; }
 .stg .dh-static-steps { margin: 8px 14px 0; }
 
 /* the drawing */
@@ -101,7 +117,7 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
   .stg { padding: 6px 0 8px; }
   .stg-bar { padding: 0 8px 4px; gap: 4px 8px; }
   .stg-ctl { gap: 4px; }
-  .stg-btn { min-height: 30px; min-width: 34px; padding: 2px 8px; }
+  .stg-btn { min-height: 32px; min-width: 34px; padding: 2px 8px; }   /* 32 px tall on a phone: the stage floor (WCAG 2.5.8 asks 24) */
   .stg-steps { gap: 4px; margin: 4px 8px 0; }
   .stg-cap { margin: 6px 8px 0; font-size: 14px; line-height: 1.4; }
   .stg .dh-static-steps { margin: 6px 8px 0; }

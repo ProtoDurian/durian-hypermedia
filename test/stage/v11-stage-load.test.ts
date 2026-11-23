@@ -1,0 +1,100 @@
+// @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
+// Pass 11 sphone: no stage moves on load at the windows readers use most. The server lays out at
+// each box width of those windows (SSR_W: box = min(1180, window - 32) - 2), stage.css shows the widest plan that fits
+// the box (a container query), and the browser lays out again at that same width (stageW), so its plan is the one
+// already painted. Weight: one plan per width, kept under a per-stage cap.
+import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import React from "react";
+import { renderToString } from "react-dom/server";
+import { Stage, SSR_W } from "../../src/ui/stage";
+import { UI } from "../../src/ui/ui";
+import { beginDocument, BudgetError, docBudget, newBudget } from "../../src/core/stage-budget";
+
+const ROLES = { pod: 1, eval: 2, store: 3 };
+const renderStage = (head: string, steps: [string, string][]) => renderToString(React.createElement(Stage, { src: { head, steps: steps.map(([title, raw], i) => ({ title, raw, line: 20 + i })), base: 1, info: {} }, roles: ROLES, ui: UI.en }));
+const html = (head: string, steps: [string, string][]) => { beginDocument(); return renderStage(head, steps); };
+const HEAD = "title: Merger | x\n## Pods\npod p1, p2: pod 1; pod 2 | pushes\n## Eval\neval ev: evaluator | runs rules\n## Store\nstore db: store | keeps\n";
+const STEPS: [string, string][] = [["One", "p1 --> ev\np2 --> ev"], ["Two", "ev -> db: writes"]];
+
+test("the box widths of 360, 375, 390, 414, 768 and 1024 px windows and of every window of 1212 px or more", () => {
+  expect([360, 375, 390, 414, 768, 1024, 1280].map((v) => Math.min(1180, v - 32) - 2)).toEqual([...SSR_W]);
+});
+
+test("the server paints one plan per width, in order, each laid out at its own width", () => {
+  const h = html(HEAD, STEPS);
+  const plans = [...h.matchAll(/<div class="stg-plan stg-plan-ssr" data-w="(\d+)"><svg[^>]*viewBox="0 0 (\d+) /g)];
+  expect(plans.map((m) => +m[1])).toEqual([...SSR_W]);
+  expect(plans.map((m) => +m[2])).toEqual([...SSR_W]);
+});
+
+test("stage.css shows the widest server plan that fits the box: the first below the second width, each from its own width up", () => {
+  const css = readFileSync(join(import.meta.dir, "../../src/ui/stage.css"), "utf8");
+  expect(css).toContain("container: stgbox / inline-size");
+  expect(css).toContain(`.stg-plan-ssr[data-w="${SSR_W[0]}"] { display: block; }`);
+  for (let i = 1; i < SSR_W.length; i++) expect(css).toContain(`@container stgbox (min-width: ${SSR_W[i]}px) { .stg-plan-ssr[data-w="${SSR_W[i - 1]}"] { display: none; } .stg-plan-ssr[data-w="${SSR_W[i]}"] { display: block; } }`);
+  expect(css).not.toMatch(/stg-plan-(wide|narrow)/);
+});
+
+test("weight: a stage's server markup stays under its cap (7 plans: about 3.4 times the old 2; the Format page's median stage is 90 KB)", () => {
+  const h = html(HEAD, STEPS);
+  expect(h.length).toBeLessThan(60_000);
+  // each plan costs about the same: no plan is drawn twice
+  const each = h.split('<div class="stg-plan stg-plan-ssr"').slice(1).map((p) => p.length);
+  expect(each.length).toBe(SSR_W.length);
+});
+
+// the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
+test.skip("hydrating, the browser keeps the server's plans as drawn: no layout at the server's widths (one layout per stage, so 7 plans never charge the page's budget 7 times)", () => {
+  const g = globalThis as { document?: unknown };
+  const had = "document" in g, keep = g.document;
+  g.document = {};
+  try {
+    beginDocument();
+    const src = { head: HEAD, steps: STEPS.map(([title, raw], i) => ({ title, raw, line: 20 + i })), base: 1, info: {} };
+    // the hydrating render: seven plan boxes, each empty (React adopts the server's markup inside them), and no drawing made
+    const h = renderToString(React.createElement(Stage, { src, roles: ROLES, ui: UI.en, hydrate: true }));
+    const plans = [...h.matchAll(/<div class="stg-plan stg-plan-ssr" data-w="(\d+)"><\/div>/g)].map((m) => +m[1]);
+    expect(plans).toEqual([...SSR_W]);
+    expect(h).not.toContain("<svg");
+    // a fresh render in the browser (print, an island with no server markup) still draws
+    const fresh = renderToString(React.createElement(Stage, { src, roles: ROLES, ui: UI.en }));
+    expect(fresh).toContain("<svg");
+  } finally { if (had) g.document = keep; else delete g.document; }
+});
+
+test("stages on the server and in the browser neither inherit nor spend the page's document budget (each has its own, STAGE_WORK)", () => {
+  const previous = docBudget();
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  try {
+    const page = beginDocument(newBudget(0, 0));
+    expect(renderStage(HEAD, STEPS)).toContain("stg-plan-ssr");
+    expect(page.left()).toEqual({ work: 0, memory: 0 });
+
+    Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
+    const outer = beginDocument(newBudget(0, 0));
+    const sheet = 'sheet: Kilns\npod k0: kiln east | two probes\n  eval pa "Probe A": 1, 2\n  eval pb "Probe B": 3, 4\n=> store out: the yard | adds';
+    expect(renderStage(sheet, [["One", "value pa pb: last first | 57, gone one (bad struck)"]])).toContain("stg-struck-line");
+    expect(renderStage(HEAD, STEPS)).toContain("stg-plan-ssr");
+    expect(docBudget()).toBe(outer);
+    expect(outer.left()).toEqual({ work: 0, memory: 0 });
+  } finally {
+    if (windowDescriptor) Object.defineProperty(globalThis, "window", windowDescriptor);
+    else Reflect.deleteProperty(globalThis, "window");
+    beginDocument(previous);
+  }
+});
+
+test("a phone's stage buttons are 32 px tall, the control buttons and the step buttons (the phone rule comes after the base rule, so it wins)", () => {
+  const css = readFileSync(join(import.meta.dir, "../../src/ui/stage.css"), "utf8");
+  const h = (rule: string) => +(/min-height: (\d+)px/.exec(rule)?.[1] ?? NaN);
+  // the phone block (max-width 560): its control-button rule
+  const p560 = css.indexOf("@media (max-width: 560px) {"), ctl = css.indexOf("\n  .stg-btn {", p560);
+  expect(p560).toBeGreaterThan(0); expect(ctl).toBeGreaterThan(p560);
+  expect(h(css.slice(ctl, css.indexOf("}", ctl)))).toBeGreaterThanOrEqual(32);
+  // the step buttons' phone rule, after their base rule (the same weight: the later one wins)
+  const base = css.indexOf("\n.stg-stepbtn {"), step = css.indexOf("@media (max-width: 720px) { .stg-stepbtn {");
+  expect(base).toBeGreaterThan(0); expect(step).toBeGreaterThan(base);
+  expect(h(css.slice(step, css.indexOf("}", step + 30)))).toBeGreaterThanOrEqual(32);
+});

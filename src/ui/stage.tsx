@@ -1,24 +1,32 @@
 // This package is the source of this file: edit it here. It began as a copy of the private prototype's composed stage (0.7.0).
-// The composed stage (format version 11, 0.7.0; tools/stage.ts lays it out): one stage at the column's own width,
+// The composed stage (format version 11, 0.7.0; src/core/stage.ts lays it out): one stage at the column's own width,
 // laid out once for every step, so a thing that stays never moves; a step only shows, hides and lights things.
 // No camera, pan or zoom. The player is one row: the title and its note, Back, Next, Play, the count; the named steps
 // as numbered buttons; one caption. Static (SPEC 4.1): one step, drawn whole, no player.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
-/** the widths the server lays out at: the stage's drawing width in a full-width figure (--stg-max 1180 less its border; every
- * window of 1212 px or more) and on a 390 px phone (358 less the border), so the page the server paints is the page the
- * browser keeps there (no jump on load) */
-const SSR_WIDE_W = 1178, SSR_NARROW_W = 356;
-import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "../core/stage-core";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
-/** run on a stage budget of its own: a long-lived host renders many pages, and none may spend another's room */
-const fresh = <T,>(fn: () => T): T => withStageBudget(newBudget(STAGE_WORK, STAGE_MEMORY), fn);
+import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
+/** the widths the server lays out at: the stage's drawing width (its box: the figure, min(1180, window - 32), less its 2 px
+ * border) at the windows readers use most: 360, 375, 390 and 414 px phones, 768 and 1024 px tablets, every window of 1212 px
+ * or more. stage.css shows the widest plan that fits the box at its own size, so where the box is one of these widths the
+ * page the server paints is the page the browser keeps (no jump on load; one width source: stageW) */
+export const SSR_W = [326, 341, 356, 380, 734, 990, 1178] as const;
+/** the one width source: the width a stage lays out at, its box's content width (the client's layout and the server's set agree on it) */
+export const stageW = (el: HTMLElement) => { const cs = getComputedStyle(el); return Math.floor(el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)); };
+import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "../core/stage-core";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Ui } from "./ui";
 
+/** Each compile and each set of plans runs on a stage budget of its own (src/core/stage.ts STAGE_WORK, about 4x the heaviest
+ * real stage's 7 server plans), on the server and in the browser: a page draws many stages and the browser lays them out
+ * again on every resize, and none may spend another's room or the page's. Over the cap it throws BudgetError (refused). */
+export function stageWork<T>(run: () => T): T {
+  return withStageBudget(newBudget(STAGE_WORK, STAGE_MEMORY), run);
+}
+
 /** struck words: drawn in their tone with a straight line in the bad tone over the whole word (the originals' look; tokens in stage.css) */
-function StruckSlash({ it, phone }: { it: Extract<Item, { k: "text" }>; phone?: boolean }) {
+function struckSlash(it: Extract<Item, { k: "text" }>, phone?: boolean) {
   // a straight line over the whole word at the size it is drawn (a phone's own size; the measure's 0.95 left it short)
   const size = (phone ? PHONE_FONT[it.f] : undefined) ?? FONT[it.f].size, F = FONT[it.f], w = (measure(it.s, it.f) / (F.mono || F.weight >= 500 ? 1 : 0.95)) * (size / F.size);
   const x0 = it.anchor === "middle" ? it.x - w / 2 : it.anchor === "end" ? it.x - w : it.x, my = it.y - size * 0.32;
@@ -94,7 +102,7 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
   useEffect(() => { placeLines(svg.current); let live = true; document.fonts?.ready.then(() => { if (live) placeLines(svg.current); }); return () => { live = false; }; }, [plan]);
   return (
     <svg ref={svg} className={plan.phone ? "stg-svg stg-phone" : "stg-svg"} viewBox={`0 0 ${plan.w} ${plan.h}`} width={plan.w} height={plan.h} role="img" aria-hidden="true" data-fills={plan.fills ? Object.keys(plan.fills).join(" ") : undefined} style={{ aspectRatio: `${plan.w} / ${plan.h}`, ...Object.fromEntries(Object.entries(plan.fills ?? {}).flatMap(([n, [l, d]]) => [[`--stg-f${n.slice(1)}-l`, l], [`--stg-f${n.slice(1)}-d`, d]])) } as any}>
-      {plan.items.map((it, i) => {
+      {stageWork(() => plan.items.map((it, i) => {
         const on = shown(it, k), hot = it.hot?.includes(k), dim = it.dim?.includes(k);
         const cls = ["stg-i", on ? "" : "stg-off", hot ? "stg-hot" : "", dim ? "stg-dim" : ""].filter(Boolean).join(" ");
         const data = { "data-from": it.from ?? 1, "data-to": it.to || undefined } as any;
@@ -115,7 +123,7 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
             return (
               <g key={i} {...data} className={cls} transform={it.rotate === 90 && /^[-+]?\d+(?:\.\d+)?$/.test(it.s) ? `rotate(-90 ${it.x} ${it.y})` : undefined}>
                 <text className={`stg-t stg-f-${it.f}${it.strike ? " stg-struck" : ""}${it.halo ? " stg-halo" : ""}`} x={it.x} y={it.y} textAnchor={it.anchor ?? "start"} style={{ fill: paint(it.ink, roles) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text>
-                {it.strike && <StruckSlash it={it} phone={!!plan.phone} />}
+                {it.strike && struckSlash(it, plan.phone)}
               </g>
             );
           }
@@ -135,7 +143,7 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
           }
           case "tri": return <path key={i} {...data} className={cls} d={`M${it.x - 1} ${it.y - 5}l8 5-8 5z`} style={{ fill: paint(it.ink, roles) }} />;
         }
-      })}
+      }))}
     </svg>
   );
 }
@@ -166,10 +174,31 @@ export function printRelayout(el: HTMLElement, setW: (w: number) => void, cur: (
   return () => { removeEventListener("beforeprint", before); removeEventListener("afterprint", after); try { mq?.removeEventListener("change", change); } catch { /* as above */ } };
 }
 
+type Model = ReturnType<typeof compileStage>["model"];
+/** the words of a stage that could not compile within its budget: its title and its steps as written */
+function stillModel(src: StageSrc): Model {
+  const tl = /^title:\s*(.*)$/m.exec(src.head)?.[1] ?? "", [title, note] = tl.split("|").map((x) => x.trim());
+  const steps = src.steps.map((s) => { const i = s.title.indexOf(":"); const title = (i < 0 ? s.title : s.title.slice(0, i)).trim(); return { title, caption: i < 0 ? title : s.title.slice(i + 1).trim() }; });
+  return { title: title ?? "", note: note ?? "", steps } as unknown as Model;
+}
+/** A stage over its budget (STAGE_WORK) is never blank: its title, a message that names the budget and the fix, and
+ * its still form in words (every step, title and caption); every other stage on the page draws as usual. */
+export const STAGE_OVER_MESSAGE = `This scene needs more work than one stage may use (the stage layout budget, ${STAGE_WORK.toLocaleString("en")} units of work), so it is shown still, in words. Show fewer cards, lines or steps, or split it into two scenes.`;
+function StageOver({ m }: { m: Model }) {
+  return (
+    <div className="stg stg-over" data-dh-slot="stage" data-stage-over="">
+      {m.title && <div className="stg-bar"><span className="stg-title"><b>{m.title}</b>{m.note && <code className="stg-note">{m.note}</code>}</span></div>}
+      <p className="stg-over-msg" role="note">{STAGE_OVER_MESSAGE}</p>
+      {m.steps.length > 0 && <ol className="stg-still">{m.steps.map((s, i) => <li key={i}>{s.caption === s.title ? s.title : `${s.title}: ${s.caption}`}</li>)}</ol>}
+    </div>
+  );
+}
+
 /** The part. `src` is the animation's source, `roles` the page's role numbers; layout runs at the column's width. */
-export function Stage({ src, roles, ui, static: stp, srText }: { src: StageSrc; roles: Record<string, number>; ui: Ui; static?: StaticProp; srText?: string }) {
-  const c = useMemo(() => fresh(() => compileStage(src.head, src.steps, src.base, src.info, roles)), [src, roles]);
-  const m = c.model, n = m.steps.length, titles = m.steps.map((s) => s.title);
+export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: StageSrc; roles: Record<string, number>; ui: Ui; static?: StaticProp; srText?: string; /** set by the client entry when it hydrates the server's markup */ hydrate?: boolean }) {
+  // over one stage's budget (STAGE_WORK) a stage is never blank: it shows its still form (stillModel, StageOver)
+  const c = useMemo(() => { try { return stageWork(() => compileStage(src.head, src.steps, src.base, src.info, roles)); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [src, roles]);
+  const m = c ? c.model : stillModel(src), n = m.steps.length, titles = m.steps.map((s) => s.title);
   const st = useStatic(stp, n, titles);
   const [kLive, setK] = useState(n ? 1 : 0);
   const [playing, setPlaying] = useState(false);
@@ -195,22 +224,27 @@ export function Stage({ src, roles, ui, static: stp, srText }: { src: StageSrc; 
   }, []);
   useEffect(() => {
     const el = box.current; if (!el) return;
-    const set = () => { const cw = Math.floor(el.clientWidth); if (cw > 0) setW((o) => (Math.abs(o - cw) > 1 ? cw : o)); };
+    const set = () => { const cw = stageW(el); if (cw > 0) setW((o) => (Math.abs(o - cw) > 1 ? cw : o)); };
     set();
     let ro: ResizeObserver | null = null;
     try { ro = new ResizeObserver(() => requestAnimationFrame(set)); ro.observe(el); } catch { addEventListener("resize", set); }
     const pr = printRelayout(el, setW, () => wNow.current);
     return () => { ro?.disconnect(); removeEventListener("resize", set); pr(); };
   }, []);
-  // the server draws the wide and the narrow plan (CSS shows the one that fits); the browser lays out at its own width
-  const plans = useMemo(() => { try { return fresh(() => (w ? [layoutStage(m, w)] : [layoutStage(m, SSR_WIDE_W), layoutStage(m, SSR_NARROW_W)])); } catch (e) { if (e instanceof BudgetError) return [] as Plan[]; throw e; } }, [m, w]);
+  // the server draws a plan at each width of SSR_W (CSS shows the widest that fits); the browser lays out at its own width
+  // the browser never lays out the server's widths: until it knows its own (the first effect) it keeps the server's drawn
+  // plans as they are (hydration adopts them; one layout per stage, so 7 plans x 27 stages never charge the page's budget)
+  const browser = false; // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
+  // over one stage's budget (STAGE_WORK) the stage is refused: a note in its place, never an error out of render
+  const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return stageWork(() => (w ? [layoutStage(m, w)] : browser ? [] : SSR_W.map((x) => layoutStage(m, x)))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);
+  const plans = laid ?? [];
   useEffect(() => {
     if (!playing || st.on) return;
     if (kLive >= n) { setPlaying(false); return; }
     const t = setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200);
     return () => clearTimeout(t);
   }, [playing, kLive, n, st.on]);
-  if (!plans.length) return <div className="stg stg-over" role="note">{`${m.title ? m.title + ": " : ""}this scene needs more layout work than a page may use; show fewer cards, rows or steps, or split it into two scenes`}</div>;
+  if (laid === null) return <StageOver m={m} />;
   const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
   return (
@@ -231,7 +265,8 @@ export function Stage({ src, roles, ui, static: stp, srText }: { src: StageSrc; 
         </div>
       )}
       <div className={plans.length === 1 ? "stg-box-wrap stg-ratio" : "stg-box-wrap"} ref={box} data-bar-stage="" style={plans.length === 1 ? { aspectRatio: `${plans[0].w} / ${plans[0].h}` } : undefined}>
-        {plans.map((p, i) => <div key={i} className={w ? "stg-plan" : i ? "stg-plan stg-plan-narrow" : "stg-plan stg-plan-wide"}><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)}
+        {w ? plans.map((p, i) => <div key={i} className="stg-plan"><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)
+          : plans.map((p, i) => <div key={i} className="stg-plan stg-plan-ssr" data-w={SSR_W[i]}><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)}
       </div>
       {srText && <p className="sr-only">{srText}</p>}
       {n > 0 && !st.on && (

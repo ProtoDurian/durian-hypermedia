@@ -59,7 +59,8 @@ registerBlock({
       for(const [row,r] of u.rows.entries()){
         docBudget().charge("units panel row",r.counts.length+1);
         // a wide panel draws the pods as large upright squares across its width (as the originals); a phone keeps small ones
-        const wide=!box.narrow,cols=Math.max(1,Math.min(40,r.total,Math.floor((box.w-34)/4))),pitch=Math.min(wide?20:13,(box.w-34)/cols),size=Math.max(2,Math.min(wide?17:10,wide?pitch*0.85:pitch-2)),tall=wide?Math.round(size*1.35):size,rowPitch=Math.max(12,tall+5);
+        // a phone keeps its squares readable (9 px, 2 px apart at least, rows 3 px apart) and wraps them onto even rows rather than shrinking them
+        const wide=!box.narrow,fit=Math.max(1,Math.floor((box.w-34)/11)),cols=wide?Math.max(1,Math.min(40,r.total,Math.floor((box.w-34)/4))):Math.max(1,Math.ceil(r.total/Math.ceil(r.total/Math.min(40,fit)))),pitch=Math.min(wide?20:13,(box.w-34)/cols),size=Math.max(2,Math.min(wide?17:9,wide?pitch*0.85:pitch-2)),tall=wide?Math.round(size*1.35):size,rowPitch=wide?Math.max(12,tall+5):tall+3;
         items.push({k:"box",x:2,y:y-2,w:20,h:20,r:5,fill:`role:${r.badge}:soft`,stroke:`role:${r.badge}:line`,bar:{kind:"chip",label:r.badge[0],id:`unit-panel:${row}:badge`,role:r.badge}},
           {k:"text",x:12,y:y+12,s:r.badge[0],f:"chip",ink:`role:${r.badge}:ink`,anchor:"middle"});
         let index=0;

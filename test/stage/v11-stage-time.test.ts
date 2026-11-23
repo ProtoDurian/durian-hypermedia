@@ -791,14 +791,27 @@ row job s7 "crate 7 · gets it": _ 924..932 [dashed]; +_ 932..956 [warn]`;
   const longest = Math.max(...Array.from({ length: 32 }, (_, i) => Math.ceil(measure(String(924 + i), "chip"))));
   expect(tk.h).toBeLessThanOrEqual(Math.max(3 * 16 + 4, 2 * longest + 5));
 });
-test("a [below] marker label that fits the block keeps one line: it slides along its axis, its tick still under its words", () => {
+test("a [below] marker label that fits the block keeps one line: it slides along its axis, its tick still under its words (on a phone: each ends at its own line, on one shelf)", () => {
   const src = `time: 924..956 | ticks
 cells: 1
 ruler: none
 row labels: beside
 row job s7 "crate 7 · gets it": _ 924..932 [dashed]; +_ 932..956 [warn]`;
   const c = compile(src, [{ title: "One", raw: "keep at 932 [accent] [guide] [below]: openFromTick …932 · 10:20:00\nkeep at 953 [bad] [guide] [below]: shiftTick …953 · 10:25:15", line: 10 }, { title: "Two", raw: "", line: 13 }]); expect(c.errors).toEqual([]);
-  for (const w of [356, 1000]) {
+  for (const w of [326, 341, 356, 380]) {
+    const p = layoutStage(c.model, w), T = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /Tick|^10:/.test(i.s));
+    setPhoneFont(true);
+    try {
+      expect(new Set(T.map((t) => t.y)).size).toBeLessThanOrEqual(2); // one shelf: at most two lines, both labels on it
+      for (const v of [932, 953]) {
+        const line = p.items.find((i) => i.k === "path" && i.id?.includes(`:at:`) && i.id?.endsWith(`:${v}:${v === 932 ? 0 : 1}`)) as Extract<Item, { k: "path" }>, x = line.pts[0][0];
+        const own = T.filter((t) => t.s.includes(String(v)) || (v === 932 ? t.s === "10:20:00" : t.s === "10:25:15"));
+        expect(own.map((t) => t.s).join(" · ")).toBe(v === 932 ? "openFromTick …932 · 10:20:00" : "shiftTick …953 · 10:25:15");
+        for (const t of own) { expect(t.anchor).toBe("end"); expect(Math.abs(t.x - x)).toBeLessThanOrEqual(0.5); expect(t.x - measure(t.s, "sub") * 1.12).toBeGreaterThanOrEqual(8); } // ends on its own line whatever the font's width
+      }
+    } finally { setPhoneFont(false); }
+  }
+  for (const w of [1000]) {
     const p = layoutStage(c.model, w), T = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text");
     for (const [v, s] of [[932, "openFromTick …932 · 10:20:00"], [953, "shiftTick …953 · 10:25:15"]] as const) {
       const t = T.filter((i) => i.s.includes(String(v)) && /Tick/.test(i.s));

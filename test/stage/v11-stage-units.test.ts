@@ -78,3 +78,24 @@ test("a wide units panel draws large upright squares across its width; its note 
   expect(note.anchor).toBe("end");expect(note.x).toBeCloseTo(last.x+last.w,0);expect(note.y).toBeGreaterThan(last.y+last.h);
   const ph=at(356).sq;expect(ph[0].w).toBeLessThanOrEqual(10);expect(ph[0].h).toBe(ph[0].w);
 });
+
+test("on a phone a units row's squares keep a readable size (9 px, 2 px apart, rows 3 px apart) and wrap onto even rows instead of shrinking", () => {
+  for (const w of [340, 319]) {
+    beginDocument();
+    const c = compileStage("panels", [{ title: "One", raw: "beside 1, 2\ncard job: config | replicas: 36\nunits StatefulSets: 36 pods each | 32-35 leave\n  job 36: kept 32, leaving 4\n  server 36: kept 32, leaving 4", line: 2 }, { title: "Two", raw: "", line: 9 }], 1, {}, { job: 1, server: 2 });
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w), sq = p.items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.cls === "scn-shape stg-unit");
+    expect(sq.length).toBe(72);
+    for (const s of sq) { expect(s.w).toBeGreaterThanOrEqual(9); expect(s.h).toBeGreaterThanOrEqual(9); }
+    const first = sq.filter((s) => s.id?.startsWith("unit-panel:0:")), ys = [...new Set(first.map((s) => s.y))].sort((a, b) => a - b);
+    expect(ys.length).toBe(2);
+    const perRow = ys.map((y) => first.filter((s) => s.y === y).length);
+    expect(Math.abs(perRow[0] - perRow[1])).toBeLessThanOrEqual(1);       // even rows: 18 + 18
+    for (const y of ys) { const row = first.filter((s) => s.y === y).sort((a, b) => a.x - b.x); for (let k = 1; k < row.length; k++) expect(row[k].x - (row[k - 1].x + row[k - 1].w)).toBeGreaterThanOrEqual(2); }
+    for (const s of sq) expect(s.x + s.w).toBeLessThanOrEqual(w);
+  }
+  beginDocument();
+  const d = compileStage("panels", [{ title: "One", raw: "beside 1, 2\ncard job: config | replicas: 36\nunits StatefulSets: 36 pods each | 32-35 leave\n  job 36: kept 32, leaving 4", line: 2 }, { title: "Two", raw: "", line: 9 }], 1, {}, { job: 1, server: 2 });
+  const desk = layoutStage(d.model, 1280).items.filter((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.cls === "scn-shape stg-unit");
+  expect(new Set(desk.map((s) => s.y)).size).toBe(1); // a desktop keeps its one wide row
+});

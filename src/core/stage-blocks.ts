@@ -1,4 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy of the private prototype's composed stage (0.7.0).
+import {boxTone} from "./stage-box-paint";
 // The composed stage's built-in blocks: the phase strip (track), the panels a step swaps in
 // (grid, rows, map, list) and, in their own files, the worksheet (stage-sheet.ts) and time (stage-time.ts).
 // Each block: parse its lines, lay itself out in a box of a given width, list its facts for the LLM view.
@@ -162,14 +163,15 @@ function besideWhere(t: Track, box: Box, parts0: string[][], cw: number, x0: num
 // grid 2
 // host: web-1 | 192.0.2.10 · up [+ kept]
 // host: web-9 | 192.0.2.19 · draining [- not ready: drop]
-type GridItem = { role: string; title: string; subs: string[]; ok?: boolean; v?: string; chip?: boolean };
+type GridItem = { tone?:string; dashed?:boolean; role: string; title: string; subs: string[]; ok?: boolean; v?: string; chip?: boolean };
 type Grid = { cols: number; items: GridItem[]; reserve?: boolean /* the same cards carry a value in another step: on a phone keep its row (390); the wide stage keeps the reference design's heights and landings */ };
 const rowItem = (l: Line, ctx: { roles: Set<string>; problem: (n: number, m: string) => void }): GridItem => {
-  const vd = verdict(l.t), c = colon(vd.text);
+  const dashed=l.t.endsWith(" [dashed]"),vd = verdict(dashed?l.t.slice(0,-9):l.t), c = colon(vd.text);
+  const tone=c?boxTone(c[0],l.n):undefined;if(c&&tone)c[0]=tone.text;
   if (!c || c[0].includes(" ")) throw new StageError(l.n, `a grid item is "role: title | second line", with an optional verdict [+ kept] or [- why]`);
   if (!ctx.roles.has(c[0])) ctx.problem(l.n, `"${c[0]}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"}`);
   const [title, ...subs] = c[1].split(" | ").map((x) => x.trim());
-  return { role: c[0], title, subs, ok: vd.ok, v: vd.v, chip: vd.chip };
+  return { role: c[0], title, subs,...(tone?.tone?{tone:tone.tone}:{}),...(dashed?{dashed:true}:{}), ok: vd.ok, v: vd.v, chip: vd.chip };
 };
 registerBlock({
   word: "grid", kind: "panel",
@@ -205,10 +207,10 @@ registerBlock({
     let y = 0;
     g.items.forEach((it, i) => {
       const r = Math.floor(i / cols), x = (i % cols) * (w + gx), yy = top + hs.slice(0, r).reduce((a, b) => a + b + (roomy ? 14 : pside ? 6 : 8), 0) /* a phone's compact list: 6 px gaps */, h = hs[r], L = lay[i];
-      items.push({ k: "box", x, y: yy, w, h, fill: `role:${it.role}:soft`, stroke: `role:${it.role}:line`, thick: !roomy, r: 9, cls: "scn-shape", role: it.role, bar: { kind: it.title && (roomy || g.cols === 1) ? "card" : "worksheet-row", label: it.title, role: it.role, column: `g${i % cols}` } });
+      items.push({ k: "box", x, y: yy, w, h, fill: it.dashed?"none":it.tone?`${it.tone}:soft`:`role:${it.role}:soft`, stroke: it.dashed?"muted":it.tone?`${it.tone}:ink`:`role:${it.role}:line`, ...(it.dashed?{dash:true}:{}), thick: !roomy, r: 9, cls: "scn-shape", ...(!it.tone&&!it.dashed?{role:it.role}:{}), bar: { kind: it.title && (roomy || g.cols === 1) ? "card" : "worksheet-row", label: it.title, ...(!it.tone&&!it.dashed?{role:it.role}:it.tone&&!it.dashed?{tone:it.tone}:{}), column: `g${i % cols}` } });
       let ty = yy + (roomy ? 18 : pside ? 8 : 10), lastY = 0;
-      for (const t of L.t) { ty += LINE_H.title; items.push({ k: "text", x: x + 12, y: ty - 4, s: t, f: "title", ink: "ink" }); lastY = ty - 4; }
-      for (const s of L.s) { ty += LINE_H.sub; items.push({ k: "text", x: x + 12, y: ty - 3, s, f: "sub", ink: "muted" }); lastY = ty - 3; }
+      for (const t of L.t) { ty += LINE_H.title; items.push({ k: "text", x: x + 12, y: ty - 4, s: t, f: "title", ink: it.dashed?"muted":it.tone?`${it.tone}:ink`:"ink" }); lastY = ty - 4; }
+      for (const s of L.s) { ty += LINE_H.sub; items.push({ k: "text", x: x + 12, y: ty - 3, s, f: "sub", ink: it.tone&&!it.dashed?`${it.tone}:ink`:"muted" }); lastY = ty - 3; }
 
       if (it.v) {
         const tone = it.chip ? `role:${it.role}` : it.ok ? "good" : "bad", sd = side && !it.chip, cbw = it.chip ? Math.min(w - 20, measure(it.v, "sub") + 30) : pside ? measure(vText(it), "sub") + 26 : bw, vx = sd ? x + w - bw - 10 : pside && !it.chip ? x + w - cbw - 10 : x + 10, vy = sd ? yy + h / 2 - 11 : pside && !it.chip ? lastY - 14 : yy + h - 36; /* clear of the name's descenders */
@@ -229,6 +231,8 @@ registerBlock({
 function cellChip(c: Cell, x: number, y: number, w: number, h: number): Item {
   const label = c.lines.map((l) => toneOf(l)[0]).join(" ");
   // a dropped cell ("-..."): a dashed chip (the original's "drops it, no drain")
+  // a role cell ("=> role: words" in a [chip] row): the same chip in the role's colours
+  if (c.role) return { k: "box", x, y, w, h, fill: `role:${c.role}:soft`, stroke: `role:${c.role}:line`, r: 6, role: c.role, ...(c.dropped ? { dash: true } : {}), cls: "scn-shape stg-cell-chip", bar: { kind: "chip", label, role: c.role } };
   return { k: "box", x, y, w, h, fill: "surface", stroke: "line", r: 6, ...(c.dropped ? { dash: true } : {}), cls: c.dropped ? "scn-shape stg-cell-chip stg-cell-dropped" : "scn-shape stg-cell-chip", bar: { kind: "chip", label } };
 }
 function phonePairs(rs: { cells: Cell[] }[], r: { cells: Cell[] }, half: number): Set<number> {
@@ -273,7 +277,7 @@ function flowLine(segs: { s: string; ink: string; lead?: "sep" | "gap" }[], x0: 
 // A cell's lines are split by "; "; a line that starts "! " is a warning, "* " the accent, "~ " muted; "=> role: text"
 // is a chip in that role. A first line "^ a | b | c" heads the columns. `rows plain` is a compact table: no box per row,
 // one line per row (a cell's lines joined), chips as words in their role's ink.
-type Cell = { lines: string[]; chip?: { role: string; s: string }; blank?: boolean /* "_": nothing drawn, the column kept */; dropped?: boolean /* "-...": a dashed chip in a [chip] row */ };
+type Cell = { lines: string[]; chip?: { role: string; s: string }; role?: string /* "=> role: words" in a [chip] row: the row's boxed cell in that role's colours, its own height */; blank?: boolean /* "_": nothing drawn, the column kept */; dropped?: boolean /* "-...": a dashed chip in a [chip] row */ };
 type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean };
 const toneOf = (l: string): [string, string] => (l.startsWith("! ") ? [l.slice(2), "warn:ink"] : l.startsWith("* ") ? [l.slice(2), "acc:ink"] : l.startsWith("~ ") ? [l.slice(2), "muted"] : [l, ""]);
 registerBlock({
@@ -291,7 +295,7 @@ registerBlock({
       const boxed = / \[chip\]$/.test(l.t), lt = boxed ? l.t.replace(/ \[chip\]$/, "") : l.t;
       return { ...(boxed ? { boxed } : {}), cells: lt.split(" | ").map((c): Cell => {
         const t = c.trim();
-        if (t.startsWith("=> ")) { const q = colon(t.slice(3)); if (!q) throw new StageError(l.n, `a chip cell is "=> role: text"`); if (!ctx.roles.has(q[0])) ctx.problem(l.n, `"${q[0]}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"}`); return { lines: [], chip: { role: q[0], s: q[1] } }; }
+        if (t.startsWith("=> ")) { const q = colon(t.slice(3)); if (!q) throw new StageError(l.n, `a chip cell is "=> role: text"`); if (!ctx.roles.has(q[0])) ctx.problem(l.n, `"${q[0]}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"}`); return boxed ? { lines: parts(q[1], " ; "), role: q[0] } : { lines: [], chip: { role: q[0], s: q[1] } }; }
         if (t === "_") return { lines: [], blank: true };
         if (t === "-") throw new StageError(l.n, `a dropped cell is "- words": the words that are dropped (a blank cell is "_")`);
         if (t.startsWith("- ")) return { lines: parts(t.slice(2), " ; "), dropped: true };
@@ -434,7 +438,7 @@ registerBlock({
 // retries: 3
 // - the old flag
 // list Replays | roomy (rows with the reference design's thick spacing; filling a card)
-type ListP = { title: string; roomy?: boolean; rows: ({ k: string; v: string } | { ok: boolean; s: string })[] };
+type ListP = { title: string; tone?:string; roomy?: boolean; rows: (({ k: string; v: string } | { ok: boolean; s: string })&{tone?:string;rowTone?:string})[] };
 /** "| roomy" rows, measured on the reference design's a scene (at a 1178 px stage: title to first row and row
  * pitch 28 px; 42 px under the last row; its phone is the same drawing scaled to 0.73: 21 and 31): the gap between rows,
  * the first row's top and the room under the last row's baseline */
@@ -445,23 +449,24 @@ registerBlock({
     if (!inp.body.length) throw new StageError(inp.line, "a list has its lines indented under it: key: value, + kept, - struck");
     const m = /^(.*?)\s*\|\s*(\S+)$/.exec(inp.arg);
     if (m && m[2] !== "roomy") throw new StageError(inp.line, `a list takes one option after "|": roomy ("list ${m[1]} | roomy"), not "${m[2]}"`);
-    return { title: m ? m[1] : inp.arg, ...(m ? { roomy: true } : {}), rows: inp.body.map((l) => { if (l.t.startsWith("- ") || l.t.startsWith("+ ")) return { ok: l.t[0] === "+", s: l.t.slice(2) }; const c = colon(l.t); if (!c) throw new StageError(l.n, `a list line is "key: value", "+ kept" or "- struck"`); return { k: c[0], v: c[1] }; }) };
+    const title=boxTone(m?m[1]:inp.arg,inp.line);
+    return { title:title.text,...(title.tone?{tone:title.tone}:{}), ...(m ? { roomy: true } : {}), rows: inp.body.map((l) => { if (l.t.startsWith("- ") || l.t.startsWith("+ ")) return { ok: l.t[0] === "+", s: l.t.slice(2) }; const rowTone=/^\((good|bad|warn|accent)\)\s+/.exec(l.t),line=rowTone?l.t.slice(rowTone[0].length):l.t;const c = colon(line); if (!c) throw new StageError(l.n, `a list line is "key: value", "+ kept" or "- struck"`); const toned=/^\((good|bad|warn|accent)\)\s+/.exec(c[1]);return { k:c[0], v:toned?c[1].slice(toned[0].length):c[1],...(rowTone?{rowTone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}),...(toned?{tone:toned[1]==="accent"?"acc":toned[1]}:rowTone?{tone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}) }; }) };
   },
   layout(p: ListP, box: Box): LayoutOut {
     const kw = Math.min(box.w * 0.4, Math.max(0, ...p.rows.map((r) => ("k" in r ? measure(r.k, "small-b") + 16 : 0))));
     // a phone: 4 px between rows (6 wide), the first row 2 px closer to the title
     const R = p.roomy ? ROOMY[box.narrow ? "phone" : "wide"] : null;
     const items: Item[] = [], rg = R ? R.gap : box.narrow ? 4 : 6; let y = R && p.title ? R.top : p.title ? (box.narrow ? 28 : 30) : 10;
-    if (p.title) items.push({ k: "text", x: 14, y: 21, s: p.title, f: "title", ink: "ink" });
+    if (p.title) items.push({ k: "text", x: 14, y: 21, s: p.title, f: "title", ink:"ink" });
     for (const r of p.rows) {
       // the key column is as wide as its widest key, up to 40% of the panel; a longer key wraps inside it, so it never
       // runs into its value (the row is as tall as the taller of the two)
-      if ("k" in r) { const v = wrap(r.v, box.w - kw - 32, "sub", most(3)), ks = wrap(r.k, kw - 10, "small-b", most(3)); ks.forEach((s, i) => items.push({ k: "text", x: 14, y: y + 13 + i * LINE_H.sub, s, f: "small-b", ink: "ink-2" })); v.forEach((s, i) => items.push({ k: "text", x: 14 + kw, y: y + 13 + i * LINE_H.sub, s, f: "sub", ink: "ink" })); y += Math.max(v.length, ks.length) * LINE_H.sub + rg; }
+      if ("k" in r) { const v = wrap(r.v, box.w - kw - 32, "sub", most(3)), ks = wrap(r.k, kw - 10, "small-b", most(3)); ks.forEach((s, i) => items.push({ k: "text", x: 14, y: y + 13 + i * LINE_H.sub, s, f: "small-b", ink:r.rowTone?`${r.rowTone}:ink`:"ink-2" })); v.forEach((s, i) => items.push({ k: "text", x: 14 + kw, y: y + 13 + i * LINE_H.sub, s, f: "sub", ink:r.tone?`${r.tone}:ink`:"ink" })); y += Math.max(v.length, ks.length) * LINE_H.sub + rg; }
       else { const s = wrap(r.s, box.w - 40, "sub", most(2)); s.forEach((t, i) => items.push({ k: "text", x: 26, y: y + 13 + i * LINE_H.sub, s: t, f: "sub", ink: r.ok ? "good:ink" : "bad:ink", strike: !r.ok })); items.push({ k: "text", x: 14, y: y + 13, s: r.ok ? "+" : "−", f: "small-b", ink: r.ok ? "good:ink" : "bad:ink" }); y += s.length * LINE_H.sub + (R ? rg : 6); }
     }
     // roomy: the room under the last row's baseline (y - rg - 3) as measured; else 6 px under the last row
     const h = R ? y - rg - 3 + R.under : y + 6;
-    items.unshift({ k: "box", x: 0, y: 0, w: box.w, h, fill: "surface", stroke: "line-2", r: 9, cls: "scn-frame", ...(p.title?{bar:{kind:"card",label:p.title}}:{}) });
+    items.unshift({ k: "box", x: 0, y: 0, w: box.w, h, fill:p.tone?`${p.tone}:soft`:"surface", stroke:p.tone?`${p.tone}:ink`:"line-2", r: 9, cls: "scn-frame", ...(p.title?{bar:{kind:"card",label:p.title,...(p.tone?{tone:p.tone}:{})}}:{}) });
     return { h, items };
   },
   facts: (p: ListP) => [`${p.title ? p.title + ": " : ""}${p.rows.map((r) => ("k" in r ? `${r.k}: ${r.v}` : `${r.ok ? "kept" : "struck"}: ${r.s}`)).join("; ")}.`],

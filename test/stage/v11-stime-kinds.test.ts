@@ -24,7 +24,7 @@ test("the inset interval is one genuine time bar with its own identity, anchor w
 test("the inset bracket and overview highlight are decorative while their words remain drawn",()=>{
  const c=compile(head);expect(c.errors).toEqual([]);
  const p=layoutStage(c.model,1000);
- for(const id of["time-inset:bracket","time-zoom-window"])expect(p.items.find(i=>i.id===id)?.bar).toEqual({ignore:1});
+ expect(p.items.find(i=>i.id==="time-inset:bracket")?.bar).toEqual({ignore:1});expect(p.items.some(i=>i.id==="time-zoom-window")).toBe(false); // a bracketed inset names its own range, so the overview draws no range box
  expect(p.items.some(i=>i.k==="text"&&i.s==="detail")).toBe(true);
 });
 test("a bordered grid item with a title is a card in roomy and compact forms",()=>{

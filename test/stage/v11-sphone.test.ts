@@ -887,14 +887,14 @@ describe("'[chip]' on a rows row: each cell a boxed chip inside the same row hei
   const rowsSrc = (chip: boolean) => `@step Switch: stewards change.
 rows
   web-a-…-k2x9m ; read by part 32 only | part 7 · old home ; lets it go, no wait | part 32 · new home ; reads + SENDS${chip ? " [chip]" : ""}
-  web-b-…-p4r7t ; read by part 29 only | part 29 · home before and after ; stays | => server: like 900 of 1,000 ; unchanged${chip ? " [chip]" : ""}
+  web-b-…-p4r7t ; read by part 29 only | part 29 · home before and after ; stays | ${chip ? "=> server: " : ""}like 900 of 1,000 ; unchanged${chip ? " [chip]" : ""}
 @step Two: y.`;
   for (const w of [356, 390, 1000, 1280]) test(`at ${w}: one chip per text cell, inside its row, stamped as a chip; no growth; words inside their chip`, () => {
     const a = scene(rowsSrc(true)), b = scene(rowsSrc(false)); expect(a.errors).toEqual([]);
     const pa = layoutStage(a.model, w), pb = layoutStage(b.model, w);
     expect(pa.h).toBe(pb.h);
     const rows = boxes(pa.items).filter((x) => x.bar?.kind === "worksheet-row"), chips = boxes(pa.items).filter((x) => String(x.cls).includes("stg-cell-chip"));
-    expect(chips.length).toBe(5); // 3 text cells + 2 (the role chip cell is a chip already)
+    expect(chips.length).toBe(6); // every cell, the role cell too (a role cell in a [chip] row is the row's chip in its role's colours, as tall as plain words)
     for (const c of chips) {
       expect(c.bar?.kind).toBe("chip");
       const r = rows.find((q) => c.y >= q.y && c.y + c.h <= q.y + q.h)!; expect(r).toBeTruthy();
@@ -944,7 +944,7 @@ rows
   for (const w of [356, 1000, 1280]) test(`at ${w}`, () => {
     const c = scene(SRC); expect(c.errors).toEqual([]);
     const p = layoutStage(c.model, w), chips = boxes(p.items).filter((x) => String(x.cls).includes("stg-cell-chip"));
-    expect(chips.length).toBe(4); // two address cells, the dropped old owner, the kept owner; no chip for "_"
+    expect(chips.length).toBe(5); // two address cells, the dropped old steward, the new steward (a role cell), the kept steward; no chip for "_"
     const drop = chips.filter((x) => String(x.cls).includes("stg-cell-dropped"));
     expect(drop.length).toBe(1); expect((drop[0] as any).dash).toBe(true); expect(drop[0].bar?.label).toBe("part 7 · old home lets it go, no wait");
     expect(texts(p.items).some((t) => t.s === "_" || t.s === "–" || t.s.startsWith("- "))).toBe(false);
@@ -1082,5 +1082,37 @@ show b
     expect(lines.length).toBeGreaterThan(w < 480 ? 1 : 0);
     expect(lines.map((t) => t.s).join(" ").replace(/\s+/g, " ")).toContain("accepts one shape only");
     for (const t of lines) { expect(on(t, 1)).toBe(false); expect(on(t, 2)).toBe(true); }
+  });
+});
+
+describe("a role cell in a [chip] row is the row's chip in the role's colours, no taller", () => {
+  const row = (c: string) => `@step Warm: both read.
+rows
+  web-a ; read by two parts | part 7 · old home ; reads + SENDS | ${c} [chip]
+  web-b ; read by one part | part 29 · home ; stays | _ [chip]
+@step Two: y.`;
+  for (const w of [356, 1178]) test(`at ${w}: '=> client: words' draws a boxed chip in client's colours, its lines as the plain cell's, the row as tall as with plain words`, () => {
+    const a = scene(row("=> client: part 32 · new home ; reads, fills only")), b = scene(row("part 32 · new home ; reads, fills only"));
+    expect(a.errors).toEqual([]); expect(b.errors).toEqual([]);
+    const pa = layoutStage(a.model, w), pb = layoutStage(b.model, w);
+    const chip = boxes(pa.items).find((x) => String(x.cls).includes("stg-cell-chip") && x.bar?.label?.startsWith("part 32"))!;
+    expect(chip).toBeTruthy(); expect(chip.role).toBe("client"); expect(chip.bar?.role).toBe("client"); expect(String(chip.fill)).toBe("role:client:soft");
+    const plain = boxes(pb.items).find((x) => String(x.cls).includes("stg-cell-chip") && x.bar?.label?.startsWith("part 32"))!;
+    expect(chip.h).toBe(plain.h); expect(pa.h).toBe(pb.h);
+    expect(texts(pa.items).some((x) => x.s === "reads, fills only")).toBe(true);
+  });
+});
+
+describe("'; ' in a card panel's line splits it into display lines, as in a rows cell", () => {
+  const SRC = (sep: string) => `@step Done: plain again.
+card server: Done: 36 parts, no change
+  status: 36${sep}pens: nothing changes${sep}sorts again once calm
+@step Two: y.`;
+  for (const w of [356, 1178]) test(`at ${w}: three lines, each its own, the same as three source lines`, () => {
+    const a = scene(SRC(" ; ")), b = scene(SRC("\n  ")); expect(a.errors).toEqual([]); expect(b.errors).toEqual([]);
+    const pa = layoutStage(a.model, w), pb = layoutStage(b.model, w);
+    for (const s of ["status: 36", "pens: nothing changes", "sorts again once calm"]) expect(texts(pa.items).some((t) => t.s === s)).toBe(true);
+    expect(texts(pa.items).some((t) => t.s.includes(" ; "))).toBe(false);
+    expect(pa.h).toBe(pb.h);
   });
 });

@@ -1,4 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy of the private prototype's composed stage (0.7.0).
+import {boxTone} from "./stage-box-paint";
 // More panels a step swaps in: chips (kept and struck words in columns), calc (a formula
 // box), card (one card with cards inside, chips coming in, and a right column).
 import { type Item, type Line, type StageBlock, type Box, type LayoutOut, StageError, LINE_H, registerBlock, measure, drawnW, wrap, wrapRoom, parts, colon, chip, shift, textLines, type Font, type Paint } from "./stage-core";
@@ -129,14 +130,14 @@ registerBlock({
 // Cards after "beside:" stand in a row to the right of the card (under it on a phone), with a dashed arrow to them;
 // plain lines after them are small lines under that row.
 type Inner = { role: string; title: string; lines: string[] };
-type CardP = { role: string; title: string; sub: string; ins: string[]; insRole?: string; inner: Inner[]; left: string[]; right: string[]; beside: Inner[]; under: string[]; wide: boolean };
+type CardP = { tone?:string; role: string; title: string; sub: string; ins: string[]; insRole?: string; inner: Inner[]; left: string[]; right: string[]; beside: Inner[]; under: string[]; wide: boolean };
 registerBlock({
   word: "card", kind: "panel",
   parse(inp, ctx): CardP {
     const c = colon(inp.arg); if (!c) throw new StageError(inp.line, `a card panel is "card role: title | its second line"`);
-    roleCheck(c[0], inp.line, ctx);
+    const tone=boxTone(c[0],inp.line);c[0]=tone.text;roleCheck(c[0], inp.line, ctx);
     const [title, ...sub] = c[1].split(" | ");
-    const p: CardP = { role: c[0], title: title.trim(), sub: sub.join(" | ").trim(), ins: [], inner: [], left: [], right: [], beside: [], under: [], wide: false };
+    const p: CardP = { role: c[0],...(tone.tone?{tone:tone.tone}:{}), title: title.trim(), sub: sub.join(" | ").trim(), ins: [], inner: [], left: [], right: [], beside: [], under: [], wide: false };
     let side: "left" | "right" = "left", beside = false;
     for (const l of inp.body) {
       if (l.t === "beside:") { if (beside) throw new StageError(l.n, "beside: is written once"); beside = true; continue; }
@@ -151,7 +152,8 @@ registerBlock({
       { const q = /^in ([a-z][a-z0-9-]*): (.+)$/.exec(l.t); if (q) { roleCheck(q[1], l.n, ctx); p.insRole = q[1]; p.ins.push(...parts(q[2], ";")); continue; } } // "in role: a; b": the chips in that role's colour
       const q = colon(l.t);
       if (q && ctx.roles.has(q[0]) && l.t.includes(" | ")) { const [t, ...ls] = q[1].split(" | ").map((x) => x.trim()); p.inner.push({ role: q[0], title: t, lines: ls }); continue; }
-      p[side].push(l.t);
+      // "; " splits a line into display lines, as in a rows cell (no new word)
+      p[side].push(...l.t.split(" ; ").map((x) => x.trim()).filter(Boolean));
     }
     if (beside && !p.beside.length) throw new StageError(inp.line, "beside: lists cards under it");
     if (p.beside.length && p.ins.length) throw new StageError(inp.line, "a card has either in: chips or beside: cards, not both");
@@ -171,7 +173,7 @@ registerBlock({
     let y = ph ? 8 : 12;
     // the title wraps to the card
     const head: Item[] = []; for (const t of wrap(p.title, cw - 2 * PX, "title", 3)) { head.push({ k: "text", x: cx + PX, y: y + 13, s: t, f: "title", ink: "ink", tip: t === p.title ? undefined : p.title }); y += LINE_H.title; } y += 20 - LINE_H.title;
-    if (p.sub) for (const s of wrap(p.sub, cw - 2 * PX, "sub", 2)) { head.push({ k: "text", x: cx + PX, y: y + 11, s, f: "sub", ink: "muted" }); y += LINE_H.sub; }
+    if (p.sub) for (const s of wrap(p.sub, cw - 2 * PX, "sub", 2)) { head.push({ k: "text", x: cx + PX, y: y + 11, s, f: "sub", ink:p.tone?`${p.tone}:ink`:"muted" }); y += LINE_H.sub; }
     y += ph ? 4 : 8;
     // the cards inside: side by side when they fit
     if (p.inner.length) {
@@ -192,7 +194,7 @@ registerBlock({
     head.push(...L.items, ...R.items);
     y += twoCols ? Math.max(L.h, R.h) : L.h + (R.h ? R.h + 8 : 0);
     const h = y + (ph ? 8 : 12);
-    items.push({ k: "box", x: cx, y: 0, w: cw, h, fill: `role:${p.role}:soft`, stroke: `role:${p.role}:line`, r: 12, cls: "scn-frame", role: p.role, thick: true, bar: { kind: cw >= box.w - 1 && !p.beside.length && !box.beside && !box.inset ? "panel" : "card", label: p.title, role: p.role } } /* a full-width card is the step's panel (the reference design: journey step 6) */, ...head);
+    items.push({ k: "box", x: cx, y: 0, w: cw, h, fill:p.tone?`${p.tone}:soft`:`role:${p.role}:soft`, stroke:p.tone?`${p.tone}:ink`:`role:${p.role}:line`, r: 12, cls: "scn-frame", ...(!p.tone?{role:p.role}:{}), thick: true, bar: { kind: cw >= box.w - 1 && !p.beside.length && !box.beside && !box.inset ? "panel" : "card", label:p.title,...(p.tone?{tone:p.tone}:{role:p.role}) } } /* a full-width card is the step's panel (the reference design: journey step 6) */, ...head);
     if (p.beside.length) {
       // the cards beside: a row from about 37% to 95.6% of the stage's width, centred on the card, an arrow from the card
       // to the first; on a phone, two a row under the card, a short arrow down to them

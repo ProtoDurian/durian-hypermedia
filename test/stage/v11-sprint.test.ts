@@ -11,7 +11,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { Stage, printRelayout, PRINT_W, type StageSrc } from "../../src/ui/stage";
+import { Stage, printRelayout, PRINT_W, SSR_W, type StageSrc } from "../../src/ui/stage";
+const NP = SSR_W.length; // the server's plans: one per width
 import { UI } from "../../src/ui/ui";
 import { compileStage, layoutStage, panelTitle } from "../../src/core/stage";
 import { measure } from "../../src/core/stage-core";
@@ -112,14 +113,14 @@ describe("sprint: region labels for the bar", () => {
     expect(plain.some((r) => !("data-bar-label" in r))).toBe(true);
   });
   for (const [name, text] of [["lanes and a band", LANES], ["panels", PANELS], ["bins", BINS]] as const) {
-    test(`${name}: every titled region in the source is a drawn rect with its kind and title, in both plans`, () => {
+    test(`${name}: every titled region in the source is a drawn rect with its kind and title, in every server plan`, () => {
       const want = sourceTitles(text), rs = rects(html(text));
       expect(want.length).toBeGreaterThan(0);
       for (const w of want) {
         // a panel is a region of its own kind, or of the kind its own frame already has (a full-width card is a lane)
         const hits = rs.filter((r) => r["data-bar-label"] === w.title && (w.kind === "panel" ? REGIONS.has(r["data-bar-kind"]) : r["data-bar-kind"] === w.kind));
-        // the server renders the wide and the narrow plan: the region is in each
-        expect({ ...w, hits: hits.length }).toEqual({ ...w, hits: 2 });
+        // the server renders a plan per width (SSR_W): the region is in each
+        expect({ ...w, hits: hits.length }).toEqual({ ...w, hits: NP });
       }
     });
   }
@@ -133,12 +134,12 @@ describe("sprint: region labels for the bar", () => {
     const titled = [true, true, true, true, false, false]; // list, map, chips, card; grid and calc have no title: none is made up
     for (let k = 1; k <= 6; k++) {
       const mine = rs.filter((r) => r["data-from"] === String(k));
-      expect({ k, n: mine.length }).toEqual({ k, n: 2 }); // one per plan (wide and narrow)
+      expect({ k, n: mine.length }).toEqual({ k, n: NP }); // one per server plan
       for (const r of mine) { expect(r["data-to"]).toBe(String(k)); expect({ k, labelled: "data-bar-label" in r }).toEqual({ k, labelled: titled[k - 1] }); }
     }
     // a frame that already is a region keeps its kind and takes the title (a full-width card: the step's panel), or stays unnamed (calc: a band)
-    expect(rs.filter((r) => r["data-from"] === "4").map((r) => r["data-bar-kind"])).toEqual(["panel", "panel"]);
-    expect(rs.filter((r) => r["data-from"] === "6").map((r) => r["data-bar-kind"])).toEqual(["band", "band"]);
+    expect(rs.filter((r) => r["data-from"] === "4").map((r) => r["data-bar-kind"])).toEqual(Array(NP).fill("panel"));
+    expect(rs.filter((r) => r["data-from"] === "6").map((r) => r["data-bar-kind"])).toEqual(Array(NP).fill("band"));
   });
   test("a panel region covers its panel: every item of the step's panel lies inside it", () => {
     beginDocument(newBudget());
@@ -162,8 +163,8 @@ describe("sprint: region labels for the bar", () => {
   test("lanes with no heading ('_') and a scene with no '##' get the kind but no label", () => {
     const rs = rects(html(`## _\nserver s0: api 0 | one\n## Store\nstore db: database | two\n`));
     const lanes = rs.filter((r) => r["data-bar-kind"] === "lane");
-    expect(lanes.filter((r) => r["data-bar-label"] === "Store").length).toBe(2);
-    expect(lanes.filter((r) => !("data-bar-label" in r)).length).toBe(2);
+    expect(lanes.filter((r) => r["data-bar-label"] === "Store").length).toBe(NP);
+    expect(lanes.filter((r) => !("data-bar-label" in r)).length).toBe(NP);
   });
 });
 

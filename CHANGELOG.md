@@ -20,12 +20,14 @@ none of the package's own animations changes (checked on every fixture and the e
     `## X above A..B`), `@step Title: caption`; per step `show`, `hide` (cards, and `hide ## Title` for a heading),
     `light` (`light none` for no card), `dim`, `dashed`, `cross` (and `cross ids corner`), `text id:`, `state id:`,
     `tone ids`, a key (`key role [tone]: words`); `notes: above`, `flow: off`, `lines: straight`, `layout: row`.
-  - **Cards and panels:** a card `role ids: title | line | line`, cards inside a card (one level), pills that move,
+  - **Cards and panels:** a card `role ids: title | line | line` (a box tone after the role: `card job [bad]: title`),
+    cards inside a card (one level), pills that move,
     token chips, records, badges (`+ (a) words`, `badges: stacked`), lines in a tone or role (`(good) words`) and the
     panel marks (`. `, `> `, `~ `, `= `); panels shown in one step in one region: `grid N`, `rows` (`_` an empty cell,
     `- words` a dropped one, ` [chip]` boxed cells), `list Title` (`| roomy`), `cells a: 32, +4 new` with `labels:`.
   - **Connectors:** `a, b -> c: label` (`-->` dashed, `<-` from the right side), ends at a pill or a badge (`id.a`),
-    a label in a tone (`(bad)`), `keep a -> b: words` (the words stay while the line does), `x2` (two per pair).
+    a label in a tone (`(bad)`), `keep a -> b: words` (the words stay while the line does), `x2` (two per pair;
+    `x2: first | second` labels each copy), a chain `a1, a2 --> b --> c` (each hop as if on its own line).
   - **Head blocks:** a phase track (`track:`, `at phase`; `form: chips`, `form: chips | arrows`, `place: beside
     where`), a worksheet (`sheet:`, `fill`, `mark`, `sum`, `pass`, an outcome column), bins, counted columns and a
     bar chart in a scene (`columns`, `bars`), and a swimlane matrix (`matrix:`).
@@ -55,9 +57,11 @@ none of the package's own animations changes (checked on every fixture and the e
 - **Theme tokens:** `--c0`, `--c0-fill`, `--c0-soft`, `--c0-plane`, `--c0-ink` (the neutral role, light and dark), and
   in dark `--c1-dot` to `--c8-dot`, `--acc-dot` and their `-dot-new` (a column's plain and lit dots); a stage's own
   `--stg-*` tokens live in its stylesheet.
-- **A layout budget for stages:** each page's stages share one budget of their own (2,000,000 units of work); a stage
-  over it is refused like any part over its budget (an error block and a problem), and a host that renders many pages
-  in one process lays each stage out on a fresh one.
+- **A budget for each stage:** each stage compiles and lays out on a budget of its own (3,200,000 units of work, about
+  four times the heaviest real stage), so a page of many stages, laid out again on every resize, never runs out. A
+  stage over it is never blank: it shows its title, a message that names the budget and the fix, and every step in
+  words; every other stage draws. In a parse, a stage over the page's budget is an error block and a problem, like any
+  part over its budget.
 
 ## 0.7.0-rc.1
 

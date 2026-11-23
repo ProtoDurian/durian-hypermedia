@@ -4,7 +4,7 @@
 //   bun scripts/fixtures.ts [<source folder>]      (scripts/sync.ts runs it too)
 // A section that reads code from a repo (repo=) is left out: the package reads no files; the hand-written fixtures
 // in fixtures/ cover those parts with made-up @file code. The marks section's yaml block moves into the page's front matter, where own marks and prefixes are defined.
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { publicText, loadRewrites } from "./public-text";
 
@@ -15,6 +15,9 @@ export const docAddresses = (s: string) => s
   .replace(/\b10\.96\.\d+\.(\d+)\b/g, "192.0.2.$1")
   .replace(/\b10\.244\.\d+\.(\d+)\b/g, "198.51.100.$1")
   .replace(/\b(?:10\.\d+|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.(\d+)\b/g, "203.0.113.$1");
+// the example pages built beside the Format page (composed stages), each whole (its own roles and front matter), as a
+// fixture in fixtures/stage/ beside the stage samples: fixtures/stage/example-<name>.dh.md
+export const EXAMPLES = ["layers"];
 export function makeFormatFixtures(src: string): string[] {
   loadRewrites(src);
   const raw = docAddresses(publicText(readFileSync(join(src, "samples/parts.dh.md"), "utf8")));
@@ -37,6 +40,13 @@ export function makeFormatFixtures(src: string): string[] {
     }
     const name = `${String(++k).padStart(2, "0")}-${slug}.dh.md`;
     writeFileSync(join(out, name), `---\n${fm}\n---\n\n## ${title}\n\n${body}\n`);
+    made.push(name);
+  }
+  for (const ex of EXAMPLES) {
+    const f = join(src, `samples/${ex}.dh.md`);
+    if (!existsSync(f)) continue;
+    const name = `example-${ex}.dh.md`;
+    writeFileSync(join(PKG, "fixtures/stage", name), docAddresses(publicText(readFileSync(f, "utf8"))));
     made.push(name);
   }
   return made;

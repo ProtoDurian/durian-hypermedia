@@ -39,6 +39,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 - Fishbone and Sankey lead the example index, with live and static examples in both themes. Source and LLM panels wrap long lines within the page.
 - Sankey node labels keep every word on measured, theme-coloured backing plates; narrow layouts wrap labels without ellipsis and reserve their positions across steps.
+- **The layers example** (`fixtures/stage/example-layers.dh.md`, SPEC.md 6.13): one request packet from a laptop's
+  browser through a switch, a home router and two internet routers to a server, and the first packet of the answer
+  back, on the composed stage: ten scenes, 67 steps, each layer a role of its own, the wrappers as boxes inside boxes,
+  and a still last scene setting layer 2 against layer 3 hop by hop. `scripts/fixtures.ts` makes it from the source's
+  `samples/layers.dh.md` with the Format page fixtures (`EXAMPLES`).
 
 ### Changed: the role palette is measured (SPEC.md 6.10)
 

@@ -252,7 +252,9 @@ function emptyPart(name: string, attrs: Attrs, line: number, endLine: number, so
 }
 
 function fencedPart(lines: string[], open: number, close: number, base: number, name: string, rest: string): PartNode {
-  const { attrs, words } = parseAttrs(rest);
+  const { attrs, words: allWords } = parseAttrs(rest);
+  // static (SPEC 4.1): the bare word static on any part is static="" (the finished state); it is never an animation's kind
+  const words = allWords.filter((w) => w !== "static"); if (allWords.includes("static") && attrs.static === undefined) attrs.static = "";
   // a folder part reads a bare word as a flag (```video loop: loop is "true")
   if (folderPart(name)) for (const w of words) if (!Object.hasOwn(attrs, w)) attrs[w] = "true";
   // format version 11 (SPEC 6.14): the bare word zoom gives an animation the reader's camera (pan, zoom, show everything)

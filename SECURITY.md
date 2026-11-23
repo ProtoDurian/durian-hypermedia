@@ -148,6 +148,8 @@ replies, against budgets), and the CI workflow that runs them.
   and for every character they read or make, before the work is done, from the part's budget (an author's `query=`) or
   a reader's own budget. A log keeps at most `logLines` lines and a CSV table at most `exploreCsvRows` rows and
   `exploreCsvCols` columns; past them `check()` names the cap.
+  A long chain of alternatives is charged for the work it does, and a text tool that cannot make its text is refused as
+  a query error.
 - **Gantt time zones.** A gantt in a named time zone charges its zone work to its part's budget before the work is
   done. On the measuring machine a page of gantts in named zones, up to 730 KB, parsed in about 0.5 s with
   `UNTRUSTED_LIMITS` (about 0.3 s in UTC); past that the page's work cap stops the rest.

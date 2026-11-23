@@ -38,7 +38,7 @@ type Node =
   | { t: "idx"; base: Node; key: Node; opt: boolean } | { t: "slice"; base: Node; from: Node | null; to: Node | null; opt: boolean } | { t: "iter"; base: Node; opt: boolean }
   | { t: "str"; parts: (string | Node)[]; fmt: string | null } | { t: "fmt"; name: string }
   | { t: "arr"; e: Node | null } | { t: "obj"; ents: { k: Node; v: Node }[] }
-  | { t: "neg"; e: Node } | { t: "pipe"; a: Node; b: Node } | { t: "comma"; a: Node; b: Node }
+  | { t: "neg"; e: Node } | { t: "pipe"; a: Node; b: Node } | { t: "comma"; list: Node[] }
   | { t: "bin"; op: string; a: Node; b: Node } | { t: "and"; a: Node; b: Node } | { t: "or"; a: Node; b: Node } | { t: "alt"; a: Node; b: Node }
   | { t: "if"; c: Node; th: Node; el: Node | null } | { t: "try"; e: Node; h: Node | null }
   | { t: "as"; src: Node; name: string; body: Node } | { t: "call"; name: string; args: Node[] };
@@ -137,7 +137,8 @@ class Parser {
     this.leave();
     return n;
   }
-  comma(): Node { let a = this.alt(); while (this.isOp(",")) { this.next(); a = { t: "comma", a, b: this.alt() }; } return a; }
+  // a chain of commas is one flat list, so a value never climbs through a tower of nested generators
+  comma(): Node { const a = this.alt(); if (!this.isOp(",")) return a; const list = [a]; while (this.isOp(",")) { this.next(); list.push(this.alt()); } return { t: "comma", list }; }
   // `//` binds looser than `or`, and is right associative; assignment operators sit just above it and are refused
   alt(): Node {
     const a = this.or();
@@ -415,7 +416,7 @@ function* ev(c: Ctx, n: Node, v: J, env: Env): Gen {
     case "rec": yield* recurse(c, v, 0); return;
     case "fmt": yield format(c, n.name, v); return;
     case "pipe": for (const x of ev(c, n.a, v, env)) yield* ev(c, n.b, x, env); return;
-    case "comma": yield* ev(c, n.a, v, env); yield* ev(c, n.b, v, env); return;
+    case "comma": for (const x of n.list) { tick(c); yield* ev(c, x, v, env); } return;
     case "neg": for (const x of ev(c, n.e, v, env)) { if (typeof x !== "number") throw new JqError(`${typeOf(x)} (${show(x)}) cannot be negated`); yield -x; } return;
     case "bin": for (const r of ev(c, n.b, v, env)) for (const l of ev(c, n.a, v, env)) yield binop(c, n.op, l, r); return;
     case "and": for (const l of ev(c, n.a, v, env)) { if (!truthy(l)) { yield false; continue; } for (const r of ev(c, n.b, v, env)) yield truthy(r); } return;
@@ -724,7 +725,7 @@ const BUILTINS: Record<string, Fn> = {
   "ascii_downcase/0": function* (c, _a, v) { yield strOp(c, v, "ascii_downcase", (s) => s.replace(/[A-Z]/g, (x) => x.toLowerCase())); },
   "ascii_upcase/0": function* (c, _a, v) { yield strOp(c, v, "ascii_upcase", (s) => s.replace(/[a-z]/g, (x) => x.toUpperCase())); },
   "explode/0": function* (c, _a, v) { const s = need(v, "string", "explode") as string; tick(c, 1 + s.length, s.length); yield [...s].map((x) => x.codePointAt(0)!); },
-  "implode/0": function* (c, _a, v) { const xs = arr(v, "implode"); c.b.charge(1 + xs.length, 0, 2 * xs.length); yield xs.map((x) => String.fromCodePoint(num(x, "implode"))).join(""); },
+  "implode/0": function* (c, _a, v) { const xs = arr(v, "implode"); c.b.charge(1 + xs.length, 0, 2 * xs.length); yield xs.map((x) => { const n = num(x, "implode"); if (!Number.isInteger(n) || n < 0 || n > 0x10ffff) throw new JqError(`Invalid codepoint literal (implode)`); return String.fromCodePoint(n); }).join(""); },
   "split/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("split input and separator must be strings"); return splitStr(c, v, s); }); },
   "join/1": function* (c, a, v, env) {
     yield* withArgs(c, a, v, env, ([sep]) => {

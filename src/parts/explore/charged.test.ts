@@ -101,3 +101,36 @@ describe("log: the line cap holds in the parsed document",()=>{
   expect(check(d).some(p=>p.message.includes("at most 2"))).toBe(true);
  });
 });
+
+describe("jq: a chain of alternatives costs what it is charged",()=>{
+ const chain=(k:number)=>"[range(300) as $i | ("+Array(k).fill(".").join(",")+")] | length";
+ const best=(f:()=>void)=>{let m=Infinity;for(let i=0;i<3;i++){const t0=performance.now();f();m=Math.min(m,performance.now()-t0);}return m;};
+ test("the work of a chain doubles with its length",()=>{
+  const t=(k:number)=>best(()=>{const b=free();compileJq(chain(k)).run(1,b);});
+  t(100);expect(t(800)/t(400)).toBeLessThan(3);
+ });
+ test("a page of long chains ends quickly",()=>{
+  const q=`[range(1000) as $i | (${Array(480).fill(".").join(",")})] | length`;
+  const doc=Array(20).fill(`\`\`\`json explore query="${q}"\n1\n\`\`\`\n`).join("\n");
+  expect(best(()=>{parse(doc,{path:"p.dh.md",limits:UNTRUSTED_LIMITS});})).toBeLessThan(300);
+ });
+ test("a chain keeps its order and count",()=>{
+  const r=runReaderQuery("[.a,.b,(.a,.b),3]",{a:1,b:2},UNTRUSTED);expect(r.ok&&r.results).toEqual([[1,2,1,2,3]]);
+ });
+});
+
+describe("jq: text tools refuse what they cannot make",()=>{
+ const run=(q:string,v:J)=>runReaderQuery(q,v,UNTRUSTED);
+ const BAD:J[]=[[1114112],[-1],[1.5],[[1]],["a"],[null],[2**40],[0.1]];
+ for(const bad of BAD)test(`implode of ${JSON.stringify(bad)} is a query error`,()=>{
+  let r!:ReturnType<typeof run>;expect(()=>{r=run("implode",bad);}).not.toThrow();
+  expect(r.ok).toBe(false);if(!r.ok){expect(r.kind).toBe("error");expect(r.message).toContain("implode");}
+ });
+ test("try catches a refused implode",()=>{const r=run("try implode catch \"caught\"",[1114112]);expect(r.ok&&r.results).toEqual(["caught"]);});
+ test("implode keeps good code points",()=>{expect(run("implode",[97,128512,0,1114111]).ok).toBe(true);expect((run("implode",[97,128512]) as any).results).toEqual(["a😀"]);});
+ test("its siblings refuse cleanly",()=>{
+  for(const[q,v]of[["explode",5],["explode",[1]],["fromjson","{"],["fromjson","1e999999"],["fromjson",5],["tojson",{a:[1]}],["ascii_downcase",5],["ascii_upcase",null],["tostring",{a:1}],["tonumber","x"],["tonumber","1".repeat(400)],["@base64d","YQ=="],["ltrimstr",1]]as[string,J][]){
+   let r!:ReturnType<typeof run>;expect(()=>{r=run(q,v);},q).not.toThrow();if(!r.ok)expect(["error","unsupported"],q).toContain(r.kind);
+  }
+ });
+});

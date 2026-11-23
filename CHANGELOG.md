@@ -64,7 +64,9 @@ read the same text and draw the same things.
 - An interactive frame reports its body's height, so it also shrinks to fit.
 - explore and log: the query languages and their regular expressions are charged for every step and every character
   they read or make, before the work is done; a log keeps at most `logLines` lines and a CSV table at most
-  `exploreCsvCols` columns in the parsed page.
+  `exploreCsvCols` columns in the parsed page. A long chain of alternatives in a query is charged for the work it does
+  (a page of them stays within the explore figures in SECURITY.md), and a text tool given a value it cannot make
+  (a bad code point) is refused as a query error that `try` can catch.
 
 ## 0.6.2
 

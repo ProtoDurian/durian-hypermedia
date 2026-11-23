@@ -57,6 +57,9 @@ read the same text and draw the same things.
 - The CSP check and part-check serve on a port the system says is free, stop when their page server did not start, and
   their headless browser never outlives its runner and removes its own profile and temporary folders.
 - An interactive frame reports its body's height, so it also shrinks to fit.
+- explore and log: the query languages and their regular expressions are charged for every step and every character
+  they read or make, before the work is done; a log keeps at most `logLines` lines and a CSV table at most
+  `exploreCsvCols` columns in the parsed page.
 
 ## 0.6.2
 

@@ -19,9 +19,9 @@ export function readCsv(text: string, line0: number, budget?: Budget, caps = LIM
  if(head.length>caps.exploreCsvCols)errors.push({line:line0,msg:`csv has ${head.length} columns; at most ${caps.exploreCsvCols}`});
  if(records.length-1>caps.exploreCsvRows)errors.push({line:line0,msg:`csv has ${records.length-1} rows; at most ${caps.exploreCsvRows}`});
  if(new Set(head).size!==head.length)errors.push({line:line0,msg:"csv has two columns with the same name in its header"});
- const rows:J[]=[];
+ const rows:J[]=[],cols=Math.min(head.length,caps.exploreCsvCols); // past the caps, rows and columns are never kept
  for(let i=1;i<Math.min(records.length,caps.exploreCsvRows+1);i++){const r=records[i];budget?.charge(r.length+1,r.length);if(r.length!==head.length){errors.push({line:line0+i,msg:`csv row ${i} has ${r.length} fields; the header has ${head.length}`});continue;}
- const o:{[k:string]:J}=Object.create(null);for(let j=0;j<head.length;j++){budget?.charge(r[j].length+head[j].length);o[head[j]]=/^-?(?:0|[1-9]\d{0,14})(?:\.\d+)?$/.test(r[j])?Number(r[j]):r[j];}rows.push(o);}
+ const o:{[k:string]:J}=Object.create(null);for(let j=0;j<cols;j++){budget?.charge(r[j].length+head[j].length);o[head[j]]=/^-?(?:0|[1-9]\d{0,14})(?:\.\d+)?$/.test(r[j])?Number(r[j]):r[j];}rows.push(o);}
  return{rows,errors};
 }
 /** Bound depth before any recursive rendering or query, and charge all expanded values. */

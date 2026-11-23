@@ -299,25 +299,83 @@ export function compare(a: J, b: J, budget?: Budget): number {
   return 0;
 }
 const truthy = (v: J) => v !== null && v !== false;
-const show = (v: J): string => { const s = JSON.stringify(v); return s.length > 11 ? s.slice(0, 10) + "..." : s; };
 const tojson = (v: J): string => JSON.stringify(v, (_, x) => (typeof x === "number" && !isFinite(x) ? null : x));
-const tostr = (v: J): string => (typeof v === "string" ? v : tojson(v));
 const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
+// the budget of the query running now, for error messages made where no context is passed (a query runs synchronously)
+let meter: Budget | null = null;
+/** jq's short form of a value in a message: the first characters of its JSON, made without writing the rest */
+const show = (v: J): string => { const s = preview(v, 12); return s.length > 11 ? s.slice(0, 10) + "..." : s; };
+function preview(v: J, max: number): string {
+  let out = "";
+  const put = (s: string) => { out += s; return out.length >= max; };
+  const go = (x: J): boolean => {
+    if (typeof x === "string") return put(JSON.stringify(x.length > max ? x.slice(0, max) : x));
+    if (x === null || typeof x !== "object") return put(tojson(x));
+    if (Array.isArray(x)) { if (put("[")) return true; for (let i = 0; i < x.length; i++) if ((i && put(",")) || go(x[i])) return true; return put("]"); }
+    const ks = Object.keys(x); meter?.charge(ks.length);
+    if (put("{")) return true;
+    for (let i = 0; i < ks.length; i++) if ((i && put(",")) || go(ks[i]) || put(":") || go(x[ks[i]])) return true;
+    return put("}");
+  };
+  go(v);
+  return out;
+}
+/** Charge reading s and making its escaped form (`extra` more characters for each code unit, `fixed` around it), before it is made. */
+function chargeEscape(c: Ctx, s: string, extra: (u: number) => number, fixed = 0): void {
+  c.b.charge(1 + s.length);
+  let n = s.length + fixed;
+  for (let i = 0; i < s.length; i++) n += extra(s.charCodeAt(i));
+  c.b.charge(0, 0, n);
+}
+const jsonExtra = (u: number) => (u === 34 || u === 92 || u === 8 || u === 9 || u === 10 || u === 12 || u === 13 ? 1 : u < 32 ? 5 : 0);
+/** Charge tojson(v) before it is made: one step for each value and character it would write, and each character it would make.
+ *  A value held in several places is paid for each time it would be written, so the charge follows the text's real size. */
+function chargeJson(c: Ctx, v: J): void {
+  const todo: J[] = [v];
+  while (todo.length) {
+    const x = todo.pop()!;
+    if (typeof x === "string") { chargeEscape(c, x, jsonExtra, 2); continue; }
+    if (x === null || typeof x !== "object") { c.b.charge(1, 0, typeof x === "number" && isFinite(x) ? String(x).length : 5); continue; }
+    if (Array.isArray(x)) { c.b.charge(1 + x.length, 0, 1 + x.length); for (let i = x.length - 1; i >= 0; i--) todo.push(x[i]); continue; }
+    const ks = Object.keys(x); c.b.charge(1 + ks.length, 0, 1 + 2 * ks.length);
+    for (let i = ks.length - 1; i >= 0; i--) { todo.push(x[ks[i]]); todo.push(ks[i]); }
+  }
+}
+const tojsonC = (c: Ctx, v: J): string => { chargeJson(c, v); return tojson(v); };
+/** tostring: a string as it is, any other value as its JSON, charged before it is made */
+const tostr = (c: Ctx, v: J): string => (typeof v === "string" ? v : tojsonC(c, v));
 
 const FORMATS = ["text", "json", "csv", "tsv", "html", "uri", "sh"];
-function format(name: string, v: J): string {
+const HTML: Record<string, string> = { "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&#39;", '"': "&quot;" };
+const htmlExtra = (u: number) => (u === 60 || u === 62 ? 3 : u === 38 || u === 39 ? 4 : u === 34 ? 5 : 0);
+const URI = Array.from({ length: 256 }, (_, b) => (/[A-Za-z0-9\-_.~]/.test(String.fromCharCode(b)) ? String.fromCharCode(b) : "%" + b.toString(16).toUpperCase().padStart(2, "0")));
+const shExtra = (u: number) => (u === 39 ? 3 : 0), csvExtra = (u: number) => (u === 34 ? 1 : 0), tsvExtra = (u: number) => (u === 92 || u === 9 || u === 10 || u === 13 ? 1 : 0);
+function format(c: Ctx, name: string, v: J): string {
   switch (name) {
-    case "text": return tostr(v);
-    case "json": return tojson(v);
-    case "html": return tostr(v).replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&#39;", '"': "&quot;" }[c]!));
-    case "uri": return [...new TextEncoder().encode(tostr(v))].map((b) => (/[A-Za-z0-9\-_.~]/.test(String.fromCharCode(b)) ? String.fromCharCode(b) : "%" + b.toString(16).toUpperCase().padStart(2, "0"))).join("");
-    case "sh": { const q = (x: J) => { if (Array.isArray(x) || (x && typeof x === "object")) throw new JqError(`${typeOf(x)} (${show(x)}) can not be escaped for shell`); return typeof x === "string" ? `'${x.replace(/'/g, `'\\''`)}'` : tojson(x); }; return Array.isArray(v) ? v.map(q).join(" ") : q(v); }
+    case "text": return tostr(c, v);
+    case "json": return tojsonC(c, v);
+    case "html": { const s = tostr(c, v); chargeEscape(c, s, htmlExtra); return s.replace(/[<>&'"]/g, (x) => HTML[x]); }
+    case "uri": {
+      const s = tostr(c, v); c.b.charge(1 + s.length);
+      const bytes = new TextEncoder().encode(s); let n = 0;
+      for (const b of bytes) n += URI[b].length;
+      c.b.charge(bytes.length, 0, n);
+      const out: string[] = new Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) out[i] = URI[bytes[i]];
+      return out.join("");
+    }
+    case "sh": {
+      const q = (x: J) => { if (Array.isArray(x) || (x && typeof x === "object")) throw new JqError(`${typeOf(x)} (${show(x)}) can not be escaped for shell`); if (typeof x !== "string") return tojsonC(c, x); chargeEscape(c, x, shExtra, 2); return `'${x.replace(/'/g, `'\\''`)}'`; };
+      if (!Array.isArray(v)) return q(v);
+      c.b.charge(v.length, 0, v.length); return v.map(q).join(" ");
+    }
     case "csv": case "tsv": {
       if (!Array.isArray(v)) throw new JqError(`${typeOf(v)} (${show(v)}) cannot be ${name}-formatted, only an array can be`);
+      c.b.charge(v.length, 0, v.length);
       return v.map((x) => {
         if (x === null) return ""; if (x === true) return "true"; if (x === false) return "false";
-        if (typeof x === "number") return tojson(x);
-        if (typeof x === "string") return name === "csv" ? `"${x.replace(/"/g, '""')}"` : x.replace(/\\/g, "\\\\").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+        if (typeof x === "number") return tojsonC(c, x);
+        if (typeof x === "string") { if (name === "csv") { chargeEscape(c, x, csvExtra, 2); return `"${x.replace(/"/g, '""')}"`; } chargeEscape(c, x, tsvExtra); return x.replace(/\\/g, "\\\\").replace(/\t/g, "\\t").replace(/\n/g, "\\n").replace(/\r/g, "\\r"); }
         throw new JqError(`${typeOf(x)} (${show(x)}) is not valid in a csv row`);
       }).join(name === "csv" ? "," : "\t");
     }
@@ -355,7 +413,7 @@ function* ev(c: Ctx, n: Node, v: J, env: Env): Gen {
     case "lit": yield n.v; return;
     case "var": { const x = lookup(env, n.n); if (x === undefined) throw new JqError(`$${n.n} is not defined`); yield x; return; }
     case "rec": yield* recurse(c, v, 0); return;
-    case "fmt": yield format(n.name, v); return;
+    case "fmt": yield format(c, n.name, v); return;
     case "pipe": for (const x of ev(c, n.a, v, env)) yield* ev(c, n.b, x, env); return;
     case "comma": yield* ev(c, n.a, v, env); yield* ev(c, n.b, v, env); return;
     case "neg": for (const x of ev(c, n.e, v, env)) { if (typeof x !== "number") throw new JqError(`${typeOf(x)} (${show(x)}) cannot be negated`); yield -x; } return;
@@ -371,12 +429,12 @@ function* ev(c: Ctx, n: Node, v: J, env: Env): Gen {
     }
     case "as": for (const x of ev(c, n.src, v, env)) yield* ev(c, n.body, v, { v: new Map([[n.name, x]]), up: env }); return;
     case "idx": {
-      const run = function* (): Gen { for (const k of ev(c, n.key, v, env)) for (const b of ev(c, n.base, v, env)) yield index(b, k); };
+      const run = function* (): Gen { for (const k of ev(c, n.key, v, env)) for (const b of ev(c, n.base, v, env)) yield index(b, k, c); };
       yield* guard(n.opt, run()); return;
     }
     case "slice": {
       const run = function* (): Gen {
-        for (const to of n.to ? ev(c, n.to, v, env) : [null as J]) for (const from of n.from ? ev(c, n.from, v, env) : [null as J]) for (const b of ev(c, n.base, v, env)) yield slice(b, from, to);
+        for (const to of n.to ? ev(c, n.to, v, env) : [null as J]) for (const from of n.from ? ev(c, n.from, v, env) : [null as J]) for (const b of ev(c, n.base, v, env)) yield slice(c, b, from, to);
       };
       yield* guard(n.opt, run()); return;
     }
@@ -394,12 +452,12 @@ function* ev(c: Ctx, n: Node, v: J, env: Env): Gen {
       // the first interpolation varies fastest, like jq
       const parts = n.parts;
       const go = function* (i: number, acc: string[]): Generator<string> {
-        if (i < 0) { yield acc.join(""); return; }
+        if (i < 0) { let len = 0; for (const s of acc) len += s.length; c.b.charge(1 + acc.length, 0, len); yield acc.join(""); return; }
         const p = parts[i];
         if (typeof p === "string") { acc[i] = p; yield* go(i - 1, acc); return; }
-        for (const x of ev(c, p, v, env)) { acc[i] = n.fmt ? format(n.fmt, x) : tostr(x); yield* go(i - 1, acc); }
+        for (const x of ev(c, p, v, env)) { acc[i] = n.fmt ? format(c, n.fmt, x) : tostr(c, x); yield* go(i - 1, acc); }
       };
-      for (const s of go(parts.length - 1, new Array(parts.length))) { tick(c, 1, s.length); yield s; }
+      for (const s of go(parts.length - 1, new Array(parts.length))) { tick(c); yield s; }
       return;
     }
     case "arr": {
@@ -432,7 +490,7 @@ function* recurse(c: Ctx, v: J, depth: number): Gen {
   if (Array.isArray(v)) for (const x of v) yield* recurse(c, x, depth + 1);
   else if (v && typeof v === "object") for (const k of Object.keys(v)) yield* recurse(c, v[k], depth + 1);
 }
-function index(b: J, k: J): J {
+function index(b: J, k: J, c: Ctx): J {
   if (typeof k === "string") {
     if (b === null) return null;
     if (b && typeof b === "object" && !Array.isArray(b)) return own(b, k) ? b[k] : null;
@@ -443,19 +501,23 @@ function index(b: J, k: J): J {
     if (Array.isArray(b)) { let i = Math.floor(k); if (i < 0) i += b.length; return i >= 0 && i < b.length ? b[i] : null; }
     throw new JqError(`Cannot index ${typeOf(b)} with number`);
   }
-  if (k && typeof k === "object" && !Array.isArray(k) && (b === null || Array.isArray(b))) return slice(b, k.start ?? null, k.end ?? null);
+  if (k && typeof k === "object" && !Array.isArray(k) && (b === null || Array.isArray(b))) return slice(c, b, k.start ?? null, k.end ?? null);
   throw new JqError(`Cannot index ${typeOf(b)} with ${typeOf(k)}`);
 }
-function slice(b: J, from: J, to: J): J {
+// a string is cut by code point (read whole, charged by its length); an array slice is charged by what it copies
+function slice(c: Ctx, b: J, from: J, to: J): J {
   if (b === null) return null;
   if (typeof b !== "string" && !Array.isArray(b)) throw new JqError(`Cannot index ${typeOf(b)} with object`);
   if ((from !== null && typeof from !== "number") || (to !== null && typeof to !== "number")) throw new JqError("Start and end indices of an array slice must be numbers");
+  if (typeof b === "string") c.b.charge(1 + b.length, b.length);
   const chars = typeof b === "string" ? [...b] : b;
   const len = chars.length;
   let s = from === null ? 0 : Math.floor(from), e = to === null ? len : Math.ceil(to);
   if (s < 0) s += len; if (e < 0) e += len;
   s = Math.max(0, Math.min(len, s)); e = Math.max(s, Math.min(len, e));
-  return typeof b === "string" ? (chars as string[]).slice(s, e).join("") : (chars as J[]).slice(s, e);
+  if (typeof b === "string") { c.b.charge(e - s, 0, 2 * (e - s)); return (chars as string[]).slice(s, e).join(""); }
+  c.b.charge(1 + e - s, e - s);
+  return (chars as J[]).slice(s, e);
 }
 function binop(c: Ctx, op: string, a: J, b: J): J {
   switch (op) {
@@ -469,8 +531,8 @@ function binop(c: Ctx, op: string, a: J, b: J): J {
       if (a === null) return b; if (b === null) return a;
       if (typeof a === "number" && typeof b === "number") return a + b;
       if (typeof a === "string" && typeof b === "string") { tick(c, 1, a.length + b.length); return a + b; }
-      if (Array.isArray(a) && Array.isArray(b)) { tick(c, 1, a.length + b.length); return [...a, ...b]; }
-      if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) { tick(c, 1, Object.keys(a).length + Object.keys(b).length); return { ...a, ...b }; }
+      if (Array.isArray(a) && Array.isArray(b)) { tick(c, 1 + a.length + b.length, a.length + b.length); return [...a, ...b]; }
+      if (a && b && typeof a === "object" && typeof b === "object" && !Array.isArray(a) && !Array.isArray(b)) { const n = Object.keys(a).length + Object.keys(b).length; tick(c, 1 + n, n); return { ...a, ...b }; }
       break;
     case "-":
       if (typeof a === "number" && typeof b === "number") return a - b;
@@ -546,20 +608,21 @@ function contains(a: J, b: J, budget?: Budget): boolean {
   if (typeOf(a) === typeOf(b)) return compare(a, b, budget) === 0;
   throw new JqError(`${typeOf(a)} (${show(a)}) and ${typeOf(b)} (${show(b)}) cannot have their containment checked`);
 }
+/** a string function that reads its whole input and makes at most as much text: charged by the length before it runs */
+const strOp = (c: Ctx, v: J, what: string, f: (s: string) => string): string => { const s = need(v, "string", what) as string; c.b.charge(1 + s.length, 0, s.length); return f(s); };
 const num = (v: J, what: string): number => { if (typeof v !== "number") throw new JqError(`${typeOf(v)} (${show(v)}) number required for ${what}`); return v; };
 const mathFn = (f: (x: number) => number): Fn => function* (c, _a, v) { yield f(num(v, "this math function")); };
 const selector = (p: (v: J) => boolean): Fn => function* (_c, _a, v) { if (p(v)) yield v; };
 
 const BUILTINS: Record<string, Fn> = {
   "empty/0": function* () {},
-  "error/0": function* (_c, _a, v) { throw new JqError(typeof v === "string" ? v : `${tojson(v)} (not a string)`, v); },
-  "error/1": function* (c, a, v, env) { for (const m of ev(c, a[0], v, env)) throw new JqError(typeof m === "string" ? m : `${tojson(m)} (not a string)`, m); },
+  "error/0": function* (c, _a, v) { throw new JqError(typeof v === "string" ? v : `${tojsonC(c, v)} (not a string)`, v); },
+  "error/1": function* (c, a, v, env) { for (const m of ev(c, a[0], v, env)) throw new JqError(typeof m === "string" ? m : `${tojsonC(c, m)} (not a string)`, m); },
   "not/0": function* (_c, _a, v) { yield !truthy(v); },
   "length/0": function* (c, _a, v) {
     if (v === null) yield 0; else if (typeof v === "boolean") throw new JqError("boolean (" + v + ") has no length");
-    else if (typeof v === "number") yield Math.abs(v); else if (typeof v === "string") yield [...v].length;
-    else if (Array.isArray(v)) yield v.length; else yield Object.keys(v).length;
-    tick(c);
+    else if (typeof v === "number") yield Math.abs(v); else if (typeof v === "string") { tick(c, 1 + v.length); yield [...v].length; }
+    else if (Array.isArray(v)) { tick(c); yield v.length; } else { const n = Object.keys(v).length; tick(c, 1 + n); yield n; }
   },
   "keys/0": function* (c, _a, v) { yield keysOf(v,true,c.b) as J[]; },
   "keys_unsorted/0": function* (c, _a, v) { yield keysOf(v, false, c.b) as J[]; },
@@ -589,8 +652,8 @@ const BUILTINS: Record<string, Fn> = {
   "recurse/0": function* (c, _a, v) { yield* recurse(c, v, 0); },
   "add/0": function* (c, _a, v) { yield addAll(c, Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : arr(v, "add")); },
   "add/1": function* (c, a, v, env) { yield addAll(c, [...ev(c, a[0], v, env)]); },
-  "any/0": function* (_c, _a, v) { yield arr(v, "any").some(truthy); },
-  "all/0": function* (_c, _a, v) { yield arr(v, "all").every(truthy); },
+  "any/0": function* (c, _a, v) { tick(c, arr(v, "any").length); yield (v as J[]).some(truthy); },
+  "all/0": function* (c, _a, v) { tick(c, arr(v, "all").length); yield (v as J[]).every(truthy); },
   "any/1": function* (c, a, v, env) { for (const x of arr(v, "any")) for (const y of ev(c, a[0], x, env)) if (truthy(y)) { yield true; return; } yield false; },
   "all/1": function* (c, a, v, env) { for (const x of arr(v, "all")) for (const y of ev(c, a[0], x, env)) if (!truthy(y)) { yield false; return; } yield true; },
   "flatten/0": function* (c, _a, v) { yield flatten(c, arr(v, "flatten"), 1e9, []); },
@@ -638,12 +701,12 @@ const BUILTINS: Record<string, Fn> = {
   "max/0": function* (c, _a, v) { const x = arr(v, "max"); tick(c, x.length); yield x.length ? x.reduce((m, e) => (compare(e, m, c.b) >= 0 ? e : m)) : null; },
   "min_by/1": function* (c, a, v, env) { const s = sortBy(c, a[0], v, env); yield s.length ? s[0][1] : null; },
   "max_by/1": function* (c, a, v, env) { const s = sortBy(c, a[0], v, env); if (!s.length) { yield null; return; } let m = s[0]; for (const e of s) if (compare(e[0], m[0], c.b) >= 0) m = e; yield m[1]; },
-  "reverse/0": function* (c, _a, v) { if (typeof v === "string") yield [...v].reverse().join(""); else if (v === null) yield []; else { tick(c, arr(v, "reverse").length); yield [...(v as J[])].reverse(); } },
-  "first/0": function* (_c, _a, v) { yield index(v, 0); },
-  "last/0": function* (_c, _a, v) { yield index(v, -1); },
+  "reverse/0": function* (c, _a, v) { if (typeof v === "string") { tick(c, 1 + v.length, v.length); c.b.charge(0, 0, v.length); yield [...v].reverse().join(""); } else if (v === null) yield []; else { const n = arr(v, "reverse").length; tick(c, 1 + n, n); yield [...(v as J[])].reverse(); } },
+  "first/0": function* (c, _a, v) { yield index(v, 0, c); },
+  "last/0": function* (c, _a, v) { yield index(v, -1, c); },
   "first/1": function* (c, a, v, env) { for (const x of ev(c, a[0], v, env)) { yield x; return; } },
   "last/1": function* (c, a, v, env) { let any = false, l: J = null; for (const x of ev(c, a[0], v, env)) { any = true; l = x; } if (any) yield l; },
-  "nth/1": function* (c, a, v, env) { for (const n of ev(c, a[0], v, env)) yield index(v, n); },
+  "nth/1": function* (c, a, v, env) { for (const n of ev(c, a[0], v, env)) yield index(v, n, c); },
   "nth/2": function* (c, a, v, env) { for (const n of ev(c, a[0], v, env)) { const k = num(n, "nth"); if (k < 0) throw new JqError("Out of bounds negative array index"); let i = 0; for (const x of ev(c, a[1], v, env)) { if (i++ === k) { yield x; break; } } } },
   "limit/2": function* (c, a, v, env) { for (const n of ev(c, a[0], v, env)) { const k = num(n, "limit"); if (k <= 0) continue; let i = 0; for (const x of ev(c, a[1], v, env)) { yield x; if (++i >= k) break; } } },
   "isempty/1": function* (c, a, v, env) { for (const _ of ev(c, a[0], v, env)) { yield false; return; } yield true; },
@@ -651,31 +714,34 @@ const BUILTINS: Record<string, Fn> = {
   "inside/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([b]) => contains(b, v, c.b)); },
   "test/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([re]) => testRe(c, v, re, null)); },
   "test/2": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([re, fl]) => testRe(c, v, re, fl)); },
-  "startswith/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("startswith() requires string inputs"); return v.startsWith(s); }); },
-  "endswith/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("endswith() requires string inputs"); return v.endsWith(s); }); },
-  "ltrimstr/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => (typeof v === "string" && typeof s === "string" && v.startsWith(s) ? v.slice(s.length) : v)); },
-  "rtrimstr/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => (typeof v === "string" && typeof s === "string" && s !== "" && v.endsWith(s) ? v.slice(0, v.length - s.length) : v)); },
-  "trim/0": function* (_c, _a, v) { yield (need(v, "string", "trim") as string).trim(); },
-  "ltrim/0": function* (_c, _a, v) { yield (need(v, "string", "ltrim") as string).trimStart(); },
-  "rtrim/0": function* (_c, _a, v) { yield (need(v, "string", "rtrim") as string).trimEnd(); },
-  "ascii_downcase/0": function* (_c, _a, v) { yield (need(v, "string", "ascii_downcase") as string).replace(/[A-Z]/g, (x) => x.toLowerCase()); },
-  "ascii_upcase/0": function* (_c, _a, v) { yield (need(v, "string", "ascii_upcase") as string).replace(/[a-z]/g, (x) => x.toUpperCase()); },
-  "explode/0": function* (_c, _a, v) { yield [...(need(v, "string", "explode") as string)].map((x) => x.codePointAt(0)!); },
-  "implode/0": function* (_c, _a, v) { yield arr(v, "implode").map((x) => String.fromCodePoint(num(x, "implode"))).join(""); },
+  "startswith/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("startswith() requires string inputs"); tick(c, 1 + s.length); return v.startsWith(s); }); },
+  "endswith/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("endswith() requires string inputs"); tick(c, 1 + s.length); return v.endsWith(s); }); },
+  "ltrimstr/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") return v; c.b.charge(1 + v.length, 0, v.length); return v.startsWith(s) ? v.slice(s.length) : v; }); },
+  "rtrimstr/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") return v; c.b.charge(1 + v.length, 0, v.length); return s !== "" && v.endsWith(s) ? v.slice(0, v.length - s.length) : v; }); },
+  "trim/0": function* (c, _a, v) { yield strOp(c, v, "trim", (s) => s.trim()); },
+  "ltrim/0": function* (c, _a, v) { yield strOp(c, v, "ltrim", (s) => s.trimStart()); },
+  "rtrim/0": function* (c, _a, v) { yield strOp(c, v, "rtrim", (s) => s.trimEnd()); },
+  "ascii_downcase/0": function* (c, _a, v) { yield strOp(c, v, "ascii_downcase", (s) => s.replace(/[A-Z]/g, (x) => x.toLowerCase())); },
+  "ascii_upcase/0": function* (c, _a, v) { yield strOp(c, v, "ascii_upcase", (s) => s.replace(/[a-z]/g, (x) => x.toUpperCase())); },
+  "explode/0": function* (c, _a, v) { const s = need(v, "string", "explode") as string; tick(c, 1 + s.length, s.length); yield [...s].map((x) => x.codePointAt(0)!); },
+  "implode/0": function* (c, _a, v) { const xs = arr(v, "implode"); c.b.charge(1 + xs.length, 0, 2 * xs.length); yield xs.map((x) => String.fromCodePoint(num(x, "implode"))).join(""); },
   "split/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([s]) => { if (typeof v !== "string" || typeof s !== "string") throw new JqError("split input and separator must be strings"); return splitStr(c, v, s); }); },
   "join/1": function* (c, a, v, env) {
     yield* withArgs(c, a, v, env, ([sep]) => {
       const xs = arr(v, "join"); if (!xs.length) return ""; if (typeof sep !== "string") throw new JqError("join separator must be a string");
       tick(c, xs.length, xs.length);
-      return xs.map((x) => { if (x === null) return ""; if (typeof x === "string") return x; if (typeof x === "number" || typeof x === "boolean") return tojson(x); throw new JqError(`Cannot join with ${typeOf(x)}`); }).join(sep);
+      const parts = xs.map((x) => { if (x === null) return ""; if (typeof x === "string") return x; if (typeof x === "number" || typeof x === "boolean") return tojson(x); throw new JqError(`Cannot join with ${typeOf(x)}`); });
+      let len = sep.length * (parts.length - 1); for (const p of parts) len += p.length;
+      c.b.charge(len, 0, len);
+      return parts.join(sep);
     });
   },
   "indices/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([x]) => indices(c, v, x)); },
   "index/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([x]) => { const r = indices(c, v, x) as J[]; return r.length ? r[0] : null; }); },
   "rindex/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([x]) => { const r = indices(c, v, x) as J[]; return r.length ? r[r.length - 1] : null; }); },
-  "tostring/0": function* (_c, _a, v) { yield tostr(v); },
-  "tonumber/0": function* (_c, _a, v) { if (typeof v === "number") yield v; else if (typeof v === "string" && v.trim() !== "" && isFinite(Number(v))) yield Number(v); else throw new JqError(`Cannot parse ${typeOf(v)} (${show(v)}) as a number`); },
-  "tojson/0": function* (c, _a, v) { const s = tojson(v); tick(c, 1, s.length); yield s; },
+  "tostring/0": function* (c, _a, v) { yield tostr(c, v); },
+  "tonumber/0": function* (c, _a, v) { if (typeof v === "number") yield v; else if (typeof v === "string" && (tick(c, 1 + v.length), v.trim() !== "") && isFinite(Number(v))) yield Number(v); else throw new JqError(`Cannot parse ${typeOf(v)} (${show(v)}) as a number`); },
+  "tojson/0": function* (c, _a, v) { yield tojsonC(c, v); },
   "fromjson/0": function* (c, _a, v) { const s = need(v, "string", "fromjson") as string; tick(c, s.length, s.length); if (s.length > c.caps.jsonChars) throw new JqError("the text is too long for fromjson"); try { yield JSON.parse(s); } catch { throw new JqError(`${show(s)} (while parsing '${s.slice(0, 20)}') is not valid JSON`); } },
   "type/0": function* (_c, _a, v) { yield typeOf(v); },
   "floor/0": mathFn(Math.floor), "ceil/0": mathFn(Math.ceil), "round/0": mathFn((x) => (x < 0 ? -Math.round(-x) : Math.round(x))), "sqrt/0": mathFn(Math.sqrt), "fabs/0": mathFn(Math.abs), "abs/0": mathFn(Math.abs),
@@ -683,8 +749,8 @@ const BUILTINS: Record<string, Fn> = {
   "pow/2": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([x, y]) => Math.pow(num(x, "pow"), num(y, "pow"))); },
   "infinite/0": function* () { yield Infinity; }, "nan/0": function* () { yield NaN; },
   "isinfinite/0": function* (_c, _a, v) { yield num(v, "isinfinite") === Infinity || v === -Infinity; }, "isnan/0": function* (_c, _a, v) { yield Number.isNaN(num(v, "isnan")); },
-  "transpose/0": function* (c, _a, v) { const rows = arr(v, "transpose").map((r) => arr(r, "transpose")); const w = Math.max(0, ...rows.map((r) => r.length)); tick(c, w * rows.length, w * rows.length); yield Array.from({ length: w }, (_, i) => rows.map((r) => (i < r.length ? r[i] : null))); },
-  "getpath/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([p]) => { let x: J = v; for (const k of arr(p, "getpath")) { if (x === null) return null; x = index(x, k); } return x; }); },
+  "transpose/0": function* (c, _a, v) { const rows = arr(v, "transpose"); tick(c, 1 + rows.length); let w = 0; for (const r of rows) w = Math.max(w, arr(r, "transpose").length); tick(c, w * rows.length, w * rows.length); yield Array.from({ length: w }, (_, i) => rows.map((r) => (i < (r as J[]).length ? (r as J[])[i] : null))); },
+  "getpath/1": function* (c, a, v, env) { yield* withArgs(c, a, v, env, ([p]) => { let x: J = v; tick(c, arr(p, "getpath").length); for (const k of arr(p, "getpath")) { if (x === null) return null; x = index(x, k, c); } return x; }); },
 };
 const NAMES = new Set(Object.keys(BUILTINS).map((k) => k.split("/")[0]));
 const ARITIES: Record<string, Set<number>> = {};
@@ -728,11 +794,14 @@ export function compileJq(q: string, caps: QueryCaps = DEFAULT_CAPS, compileBudg
     run(input, budget) {
       const c: Ctx = { b: budget, results: 0, caps };
       const out: J[] = [];
-      for (const x of ev(c, root, input, { v: new Map(), up: null })) {
-        if (out.length >= caps.maxResults) throw new BudgetError(`${budget.name ?? "the jq query"} makes too many results; make it smaller`);
-        meterResult(c, x);
-        out.push(x);
-      }
+      const before = meter; meter = budget;
+      try {
+        for (const x of ev(c, root, input, { v: new Map(), up: null })) {
+          if (out.length >= caps.maxResults) throw new BudgetError(`${budget.name ?? "the jq query"} makes too many results; make it smaller`);
+          meterResult(c, x);
+          out.push(x);
+        }
+      } finally { meter = before; }
       return out;
     },
   };

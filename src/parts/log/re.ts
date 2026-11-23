@@ -103,9 +103,14 @@ function parse(src: string, f: { i: boolean; s: boolean; m: boolean }, caps: Que
       let min = 0, max = Infinity;
       if (c === 42) p++; else if (c === 43) { p++; min = 1; } else if (c === 63) { p++; max = 1; }
       else if (c === 123) {
-        const m = cs.slice(p).map((x) => String.fromCodePoint(x)).join("").match(/^\{(\d+)(,(\d*))?\}/);
-        if (!m) { return x; }
-        p += [...m[0]].length; min = +m[1]; max = m[2] === undefined ? min : m[3] === "" ? Infinity : +m[3];
+        // `{n}`, `{n,}` or `{n,m}`, read where it stands (only its own characters, each charged); anything else is a literal `{`
+        let i = p + 1, lo = 0, hi = 0;
+        const digits = () => { const s = i; let v = 0; while (i < cs.length && isDigit(cs[i])) v = v * 10 + cs[i++] - 48; return i > s ? v : -1; };
+        lo = digits();
+        if (lo >= 0 && cs[i] === 44) { i++; hi = digits(); if (hi < 0) hi = Infinity; } else hi = lo;
+        budget?.charge(i - p);
+        if (lo < 0 || cs[i] !== 125) { return x; }
+        p = i + 1; min = lo; max = hi;
         if (max < min) throw new RegexError("regex subset: `{n,m}` has m smaller than n");
         if (min > caps.regexRepeat || (max !== Infinity && max > caps.regexRepeat)) throw new RegexError(`regex subset: a repeat count over ${caps.regexRepeat} is too large`);
       } else return x;

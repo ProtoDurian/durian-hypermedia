@@ -81,11 +81,13 @@ export function parseLog(body: string, bodyLine: number, attrs: Record<string, s
     if (!l.trim()) return;
     if (/^@highlight\b/.test(l)) { hls.push({ text: l, line: bodyLine + i }); return; }
     n++;
+    if (n > cap) return; // counted for the problem, never kept in the document
     budget.charge(1 + (l.length >> 6), 1);
     entries.push(parseLogLine(l.trim(), n));
     (entries[entries.length - 1] as any).src = bodyLine + i;
   });
   if (n > cap) errors.push({ line: bodyLine, msg: `log has ${n} lines; at most ${cap} (cut it, or keep the lines that matter)` });
+  const kept = Math.min(n, cap);
   const labels = parseLabels(attrs.labels);
   const highlights: Highlight[] = [];
   for (const h of hls) { budget.charge(h.text.length+1);
@@ -94,7 +96,7 @@ export function parseLog(body: string, bodyLine: number, attrs: Record<string, s
     const hl: Highlight = { ...r.hl, matched: [] };
     if (hl.kind === "lines") {
       if (hl.from! > n || hl.to! > n) errors.push({ line: h.line, msg: `@highlight line ${hl.from}${hl.to !== hl.from ? "-" + hl.to : ""} is past the end: the log has ${n} lines` });
-      for (let k = hl.from!; k <= Math.min(hl.to!, n); k++) { budget.charge(1,1); hl.matched.push(k); };
+      for (let k = hl.from!; k <= Math.min(hl.to!, kept); k++) { budget.charge(1,1); hl.matched.push(k); };
     } else {
       try {
         const q = parseLogQL(hl.query!, budget, caps);
@@ -111,7 +113,7 @@ export function parseLog(body: string, bodyLine: number, attrs: Record<string, s
   const folded: Entry[] = [];
   const key = (e: Entry) => `${e.level}|${e.msg}|${JSON.stringify(e.fields)}`;
   for (const e of entries) { budget.charge(1+e.raw.length); const last = folded[folded.length - 1]; if (attrs.fold !== "off" && last && key(last) === key(e)) { last.repeat++; (last as any).last = e.n; } else folded.push(e); }
-  return { entries: folded, labels, highlights, errors, filter, lines: n };
+  return { entries: folded, labels, highlights, errors, filter, lines: kept };
 }
 
 // @highlight <LogQL filter> [colour] "why"      @highlight line 3[-5] [colour] "why"

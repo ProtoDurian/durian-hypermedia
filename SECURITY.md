@@ -144,6 +144,10 @@ replies, against budgets), and the CI workflow that runs them.
   a unit is some tens of nanoseconds. Over a cap the animation is an error block naming it (past the page's cap, every
   later animation too) and the rest of the page draws. Each animation is compiled once per `parse()`; the renderer's
   phone and narrow layouts draw from a budget of twice `LIMITS.maxAnimWork`.
+- **Data explorer and log queries** (the jq and LogQL subsets and their regular expressions) are charged for every step
+  and for every character they read or make, before the work is done, from the part's budget (an author's `query=`) or
+  a reader's own budget. A log keeps at most `logLines` lines and a CSV table at most `exploreCsvRows` rows and
+  `exploreCsvCols` columns; past them `check()` names the cap.
 
 **Two sets of caps.** `LIMITS` (the default) is for authored pages: the largest real pages measured need about half of
 its YAML and animation caps. `UNTRUSTED_LIMITS` is for text nobody reviewed (a chat reply, a streamed message): the same
@@ -166,6 +170,10 @@ process, and the slowest best warm parse):
 | YAML, with the yaml package 2.9.0 | 573 ms, 442 ms warm | 105 ms, 42 ms warm |
 | YAML, with a bounded reader | 309 ms, 167 ms warm | 96 ms, 27 ms warm |
 | animations (a page that spends the page cap) | 2.2 s, 1.8 s warm | 0.51 s, 0.48 s warm |
+| explore and log parts (a page that spends each part's cap), measured for 0.7.0 | 40 ms, 7 ms warm | 52 ms, 9 ms warm |
+
+A reader's query in the explore box or the log filter runs on its own budget (`exploreReaderSteps`, `logReaderSteps`);
+the slowest measured for 0.7.0 ended within 25 ms in either set.
 
 A host may lower any cap further: `parse(text, { limits: { ...UNTRUSTED_LIMITS, maxPageAnimWork: 2_000_000 } })`.
 

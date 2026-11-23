@@ -13,6 +13,8 @@ import inline from "./inline";
 import { allTerms, defPlain, defSegs, glossaryLlm, matcher, parseGlossaryBlock, parseGlossaryFront, slug, termLine, type Term } from "./terms";
 import GlossaryView from "./view";
 import GlossaryInline from "./inline-view";
+import { DhContext, DEFAULT_SLOTS } from "../../react/context";
+import { UI } from "../../ui/ui";
 
 const big = () => new Budget({ steps: 1e12, values: 1e12, chars: 1e12 });
 const L = LIMITS;
@@ -70,6 +72,22 @@ describe("glossary: the block", () => {
     const b = doc.blocks.find((x) => x.type === "glossary") as any;
     const h = renderToStaticMarkup(React.createElement(GlossaryView, { data: b.data, block: b, ui: {} as any, static: undefined, stage: { width: 600, theme: "light", motion: "on", report() {} } }));
     expect(h).toContain('id="dh-term-ul"'); expect(h).toContain("Words"); expect(h).toContain("also ubiquitous language"); expect(h).toContain('<a href="https://example.com"');
+  });
+});
+
+describe("glossary: meaning links go through the host urlPolicy", () => {
+  const data = () => { const doc = parse(fence("term \"Z\": a [l](https://example.com/x)"), { path: "p.dh.md" }); return (doc.blocks.find((x) => x.type === "glossary") as any).data; };
+  const view = (urlPolicy?: (u: string, k: string) => string | null) => renderToStaticMarkup(React.createElement(DhContext.Provider, { value: { ui: UI.en, slots: DEFAULT_SLOTS, components: {}, hostBlocks: new Map(), hostInlines: new Map(), llmPeek: false, demoteHeadings: 0, urlPolicy: urlPolicy as any } }, React.createElement(GlossaryView, { data: data(), block: {} as any, ui: {} as any, static: undefined, stage: { width: 600, theme: "light", motion: "on", report() {} } })));
+  test("a policy that refuses links leaves the text without a link", () => {
+    const h = view(() => null);
+    expect(h).not.toContain("<a ");
+    expect(h).toContain("l");
+  });
+  test("a policy that rewrites a link is applied; the policy is asked for a link", () => {
+    const asked: string[] = [];
+    const h = view((u, k) => { asked.push(k + ":" + u); return u + "?r=1"; });
+    expect(h).toContain(`href="https://example.com/x?r=1"`);
+    expect(asked).toEqual(["link:https://example.com/x"]);
   });
 });
 

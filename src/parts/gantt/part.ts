@@ -18,7 +18,7 @@
 import { definePart } from "../types";
 import { COLOUR_WORDS, isSpace, mdTable, scanLines } from "../kit/text";
 import type { Budget } from "../../core/budget";
-import { DAY, add, addLength, fmtTime, isDateOnly, nextWorkday, parseLength, parsePercent, parseTime, partsOf, scanIso, validZone } from "./time";
+import { DAY, withZoneMeter, add, addLength, fmtTime, isDateOnly, nextWorkday, parseLength, parsePercent, parseTime, partsOf, scanIso, validZone } from "./time";
 
 /** a label longer than this gets a warning */
 export const GANTT_LABEL = 60;
@@ -104,6 +104,9 @@ interface Row { text: string; line: number; appear: number; head: boolean }
 
 /** The gantt's data from the part's input. Wrong input still returns data (its errors inside). */
 export function parseGantt(input: GanttInput, lim: GanttLimits, budget?: Budget): GanttSpec {
+  return withZoneMeter(budget, () => parseGanttIn(input, lim, budget));
+}
+function parseGanttIn(input: GanttInput, lim: GanttLimits, budget?: Budget): GanttSpec {
   const errors: GIssue[] = [], warnings: GIssue[] = [];
   const attrs = input.attrs;
   const spec: GanttSpec = { title: attrs.title ?? "", tz: "UTC", workdays: attrs.workdays === "on", critical: attrs.critical === "on", sections: [], tasks: [], ops: [], steps: input.steps.map((s) => s.title), order: [], extent: { min: 0, max: DAY }, errors, warnings };
@@ -112,6 +115,7 @@ export function parseGantt(input: GanttInput, lim: GanttLimits, budget?: Budget)
   for (const k of ["workdays", "critical"]) if (attrs[k] !== undefined && attrs[k] !== "on" && attrs[k] !== "off") errors.push({ line: input.line, msg: `${k}= is on or off (got "${q(attrs[k])}")` });
   if (attrs.tz !== undefined) { if (validZone(attrs.tz)) spec.tz = attrs.tz; else errors.push({ line: input.line, msg: `tz="${q(attrs.tz)}" is not an IANA zone name such as America/Los_Angeles` }); }
   const tz = spec.tz;
+  if (tz !== "UTC") budget?.charge(60);
   if (attrs.today !== undefined) { const t = parseTime(attrs.today, tz); if (t === null) errors.push({ line: input.line, msg: `today="${q(attrs.today)}" is not a date; write today=2026-12-09` }); else spec.today = t; }
   budget?.charge(2 + input.steps.length, 0, 0);
   if (input.steps.length > lim.ganttSteps) { errors.push({ line: input.steps[0].line, msg: `at most ${lim.ganttSteps} steps (this one has ${input.steps.length}); merge some` }); return spec; }

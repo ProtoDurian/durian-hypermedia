@@ -86,12 +86,30 @@ describe("every refusal names the line and the fix", () => {
     expect(run(dl(`media/data.csv ${csv.length} B`))).toEqual([]);
     expect(run(dl("media/data.csv 0.008 KB"))).toEqual([]); // 8 bytes, written at 3 decimals of KB
   });
-  test("a wrong checksum says what it is and how to write it", () => {
+  test("a wrong checksum says it differs and how to write it, and prints no hash", () => {
     const bad = "0".repeat(64);
-    expect(msgs(dl(`media/data.csv sha256=${bad}`))).toEqual([`downloads: the sha256 of media/data.csv is ${sha(csv)}, not ${bad}; update the checksum (shasum -a 256 data.csv)`]);
+    expect(msgs(dl(`media/data.csv sha256=${bad}`))).toEqual(["downloads: media/data.csv: the sha256 checksum differs; write what `shasum -a 256 data.csv` prints"]);
     const bad5 = "0".repeat(128);
-    expect(has(msgs(dl(`media/data.csv sha512=${bad5}`)), /the sha512 of media\/data\.csv is .*; update the checksum \(shasum -a 512 data\.csv\)/)).toBe(true);
+    const m5 = msgs(dl(`media/data.csv sha512=${bad5}`));
+    expect(has(m5, /media\/data\.csv: the sha512 checksum differs; write what `shasum -a 512 data\.csv` prints/)).toBe(true);
+    expect(m5.join(" ")).not.toContain(sha(csv, "sha512"));
     expect(run(dl(`media/data.csv sha512=${sha(csv, "sha512")}`))).toEqual([]);
+  });
+  test("a wrong checksum never prints a hash of the file", () => {
+    const out = msgs(dl(`media/data.csv sha256=${"0".repeat(64)}`)).join(" ");
+    expect(out).not.toContain(sha(csv));
+    expect(out.replace(/0{64}/, "")).not.toMatch(/[0-9a-f]{40,}/);
+  });
+  test("an encoded .. is refused before anything is read", () => {
+    const reads: string[] = [];
+    const reader: FileReader = { stat: (p) => { reads.push("stat " + p); return { size: 1 }; }, read: (p) => { reads.push("read " + p); return new Uint8Array(1); } };
+    writeFileSync(join(tmp, ".env"), "SECRET=1");
+    const paths = ["%2e%2e/.env", "%2E%2E/.env", "..%2f.env", "%2e%2e%2f.env", "media/%2e%2e/%2e%2e/.env", "%252e%252e/.env", "%25252e%25252e/.env", "%2e./.env", ".%2e/.env", "%5c..%5c.env", "..%5c.env", "%2fetc/passwd", "a%00b.csv", "%2e%2e/%2e%2e/%2e%2e/.env"];
+    const out = run(paths.map((p) => dl(`${p} 1 B sha256=${"0".repeat(64)}`)).join("\n\n"), { reader });
+    expect(reads).toEqual([]);
+    expect(out.length).toBe(paths.length);
+    expect(out.every((i) => i.level === "error" && /is an absolute path|has a \.\. in it|has a null character/.test(i.message) && /it is not read/.test(i.message))).toBe(true);
+    expect(out.map((i) => i.message).join(" ")).not.toMatch(/[0-9a-f]{40,}/);
   });
   test("a Lottie that is not JSON, has an expression, or lacks a colour slot", () => {
     expect(msgs(lot("media/broken.json"))).toEqual(["lottie: media/broken.json is not valid JSON"]);
@@ -122,6 +140,8 @@ describe("every refusal names the line and the fix", () => {
     expect(refusal("media/a.png")).toBeNull();
     expect(refusal("a/../b")).toMatch(/\.\./); expect(refusal("/a")).toMatch(/absolute/); expect(refusal("C:\\a")).toMatch(/absolute/); expect(refusal("a\0b")).toMatch(/null/);
     expect(refusal("a..b/c")).toBeNull();
+    expect(refusal("%2e%2e/x")).toMatch(/\.\./); expect(refusal("a%2F..%2fb")).toMatch(/\.\./); expect(refusal("%252e%252e/x")).toMatch(/\.\./); expect(refusal("%2fetc")).toMatch(/absolute/); expect(refusal("a%00b")).toMatch(/null/);
+    expect(refusal("100%.csv")).toBeNull(); expect(refusal("a%2eb/c%20d.png")).toBeNull();
   });
 });
 

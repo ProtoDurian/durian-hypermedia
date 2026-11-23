@@ -76,19 +76,32 @@ export function isRemote(p: string): boolean {
 }
 /** the path without its ?query and #fragment */
 const cleanPath = (p: string) => { let e = 0; while (e < p.length && p[e] !== "?" && p[e] !== "#") e++; return p.slice(0, e); };
-/** why a written path is refused, or null */
-export function refusal(p: string): string | null {
+const DECODES = 4;
+/** the path with its %-escapes decoded once; a path with a bad escape is kept as written (the same rule locate() reads it by) */
+const decodeOnce = (p: string) => { try { return decodeURIComponent(p); } catch { return p; } };
+const refusalOf = (p: string): string | null => {
   if (p.includes("\0")) return "has a null character";
   if (isAbsolute(p) || p.startsWith("/") || p.startsWith("\\") || (p.length > 1 && p[1] === ":")) return "is an absolute path";
   for (const seg of p.split(/[\\/]/)) if (seg === "..") return "has a .. in it";
   return null;
+};
+/** why a written path is refused, or null: the path as written and after every %-decoding (a few rounds) is checked */
+export function refusal(p: string): string | null {
+  let cur = p;
+  for (let i = 0; i <= DECODES; i++) {
+    const bad = refusalOf(cur);
+    if (bad) return bad;
+    const next = decodeOnce(cur);
+    if (next === cur) return null;
+    cur = next;
+  }
+  return refusalOf(cur) ?? "is encoded too deeply";
 }
 const inside = (root: string, p: string) => { const r = relative(root, p); return r === "" || (!r.startsWith("..") && !isAbsolute(r)); };
 
 /** Find the file a path means: beside the page, then in each extra root. null when there is none; throws a reason (a string) when a link leads out. */
 function locate(written: string, bases: { dir: string; root: string }[], fs: FileReader): { file: string; size: number } | null {
-  let decoded = cleanPath(written);
-  try { decoded = decodeURIComponent(decoded); } catch { /* keep it as written */ }
+  const decoded = decodeOnce(cleanPath(written));
   for (const { dir, root } of bases) {
     const file = resolve(dir, decoded);
     if (!inside(root, file)) continue;
@@ -158,8 +171,7 @@ export function checkLocalFiles(doc: Document, opts: FileCheckOptions = {}): Fil
         try { json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { say(ref.line, "error", `${written} is not valid JSON`); continue; }
       }
       if (ref.hash && bytes) {
-        const got = createHash(ref.hash.algo).update(bytes).digest("hex");
-        if (got !== ref.hash.hex) say(ref.line, "error", `the ${ref.hash.algo} of ${written} is ${got}, not ${ref.hash.hex}; update the checksum (shasum -a ${ref.hash.algo === "sha256" ? 256 : 512} ${clean.slice(clean.lastIndexOf("/") + 1)})`);
+        if (createHash(ref.hash.algo).update(bytes).digest("hex") !== ref.hash.hex) say(ref.line, "error", `${written}: the ${ref.hash.algo} checksum differs; write what \`shasum -a ${ref.hash.algo === "sha256" ? 256 : 512} ${clean.slice(clean.lastIndexOf("/") + 1)}\` prints`);
       }
       if (ref.check) for (const m of ref.check({ size: found.size, json, bytes: ref.bytes ? bytes : undefined })) say(ref.line, "error", m);
     }

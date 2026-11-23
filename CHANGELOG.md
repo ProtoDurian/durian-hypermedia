@@ -53,6 +53,10 @@ read the same text and draw the same things.
 
 ### Fixed
 
+- A gantt in a named time zone charges its zone work to the part's budget.
+- The built `dist/` uses production JSX (`react/jsx-runtime`), so it imports under `NODE_ENV=production`.
+- The Node entry checks the paths it is given more strictly, and its checksum message says only that the checksum differs.
+- A glossary meaning's links go through the host's `urlPolicy`.
 - A backslash-quote inside a double-quoted attribute is a quote, read by one linear scan.
 - The CSP check and part-check serve on a port the system says is free, stop when their page server did not start, and
   their headless browser never outlives its runner and removes its own profile and temporary folders.

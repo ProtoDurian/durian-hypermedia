@@ -18,13 +18,24 @@ export function validZone(tz: string): boolean {
   if (tz === "UTC") return true;
   try { fmtFor(tz); return true; } catch { return false; }
 }
+// The work of a named zone is Intl work (some microseconds a call, 20 times a UTC call), so it is charged: every call in a
+// zone that is not UTC pays TZ_STEPS from the budget that is metering (parseGantt sets it), before the call is made.
+export const TZ_STEPS = 8;
+let meter: Budget | null = null;
+/** Run fn with every named-zone call in it charged to b. */
+export function withZoneMeter<T>(b: Budget | undefined, fn: () => T): T {
+  const before = meter;
+  meter = b ?? before;
+  try { return fn(); } finally { meter = before; }
+}
 export interface Parts { y: number; mo: number; d: number; h: number; mi: number; s: number; ms: number; dow: number }
-/** the wall-clock parts of an instant in a zone (dow: 0 is Sunday) */
+/** the wall-clock parts of an instant in a zone (dow: 0 is Sunday). */
 export function partsOf(t: number, tz = "UTC"): Parts {
   if (tz === "UTC") {
     const d = new Date(t);
     return { y: d.getUTCFullYear(), mo: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds(), ms: d.getUTCMilliseconds(), dow: d.getUTCDay() };
   }
+  meter?.charge(TZ_STEPS);
   const o: Record<string, string> = {};
   for (const p of fmtFor(tz).formatToParts(new Date(t))) o[p.type] = p.value;
   let y = +o.year; if (o.era === "B") y = 1 - y;

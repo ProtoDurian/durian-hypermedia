@@ -148,6 +148,9 @@ replies, against budgets), and the CI workflow that runs them.
   and for every character they read or make, before the work is done, from the part's budget (an author's `query=`) or
   a reader's own budget. A log keeps at most `logLines` lines and a CSV table at most `exploreCsvRows` rows and
   `exploreCsvCols` columns; past them `check()` names the cap.
+- **Gantt time zones.** A gantt in a named time zone charges its zone work to its part's budget before the work is
+  done. On the measuring machine a page of gantts in named zones, up to 730 KB, parsed in about 0.5 s with
+  `UNTRUSTED_LIMITS` (about 0.3 s in UTC); past that the page's work cap stops the rest.
 
 **Two sets of caps.** `LIMITS` (the default) is for authored pages: the largest real pages measured need about half of
 its YAML and animation caps. `UNTRUSTED_LIMITS` is for text nobody reviewed (a chat reply, a streamed message): the same

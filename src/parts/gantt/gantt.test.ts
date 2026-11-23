@@ -335,6 +335,34 @@ describe("gantt: linear (the doubling test, charges counted)", () => {
   });
 });
 
+describe("gantt: a named zone is charged", () => {
+  // every task at its own minute, so no two asks of a zone are the same instant
+  const dated = (n: number) => Array.from({ length: n }, (_, k) => `t${k} "T" ${new Date(Date.UTC(2026, 0, 1) + k * 3_600_000 * 7 + k * 60_000).toISOString().slice(0, 16)} 1d`).join("\n");
+  const steps = (body: string, attrs: Record<string, string>) => { const b = big(); const g = get(body, attrs, NOCAP as typeof LIMITS, b); layoutGantt(g, scheduleGantt(g, 0), 900, null, b); ganttLlm(g); return b.steps; };
+  test("a zone costs more steps than UTC for the same text", () => {
+    expect(steps(dated(100), { tz: "America/Los_Angeles", workdays: "on" })).toBeGreaterThan(2 * steps(dated(100), { tz: "UTC", workdays: "on" }));
+  });
+  test("twice the lines in a zone cost at most about twice", () => {
+    for (const n of [50, 200, 800]) { const r = steps(dated(2 * n), { tz: "Asia/Kolkata", workdays: "on" }) / steps(dated(n), { tz: "Asia/Kolkata", workdays: "on" }); expect(r).toBeGreaterThan(1.5); expect(r).toBeLessThan(2.3); }
+  });
+  test("one part budget runs out in a zone where it holds in UTC", () => {
+    const body = dated(100), attrs = { workdays: "on" };
+    const used = (tz: string) => { const b = big(); get(body, { ...attrs, tz }, NOCAP as typeof LIMITS, b); return b.steps; };
+    const mid = (used("UTC") + used("America/Los_Angeles")) / 2;
+    expect(used("America/Los_Angeles")).toBeGreaterThan(used("UTC") * 1.5);
+    const lim = () => new Budget({ steps: mid, values: 1e9, chars: 1e9 }, null, null, "the gantt part");
+    expect(() => get(body, { ...attrs, tz: "UTC" }, NOCAP as typeof LIMITS, lim())).not.toThrow();
+    expect(() => get(body, { ...attrs, tz: "America/Los_Angeles" }, NOCAP as typeof LIMITS, lim())).toThrow(BudgetError);
+  });
+  test("a page of gantts in a zone is cut off by the page cap, quickly", () => {
+    const one = "```gantt tz=America/Los_Angeles workdays=on\n" + dated(100) + "\n```\n";
+    const t = performance.now();
+    const doc = parse(Array(64).fill(one).join("\n"), { limits: UNTRUSTED_LIMITS });
+    expect(performance.now() - t).toBeLessThan(1500);
+    expect(doc.blocks.some((b) => b.type === "error")).toBe(true);
+  });
+});
+
 describe("gantt: the layout", () => {
   const g = get(G, { today: "2026-12-09" }), s0 = scheduleGantt(g, 0);
   test("one height at every width, so the box is the same before and after the script", () => {

@@ -15,6 +15,7 @@ import { documentJson } from "../src/react/hydrate";
 import { buildCss } from "../scripts/build-css";
 import { taskBlock, hostInlines } from "./host-block";
 import { exampleRefs } from "./refs-store";
+import { exampleSections } from "./catalog";
 
 const HERE = import.meta.dir;
 const PKG = resolve(HERE, "..");
@@ -54,7 +55,7 @@ for (const p of pages) {
   writeFileSync(join(OUT, p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · ${esc(p.group)} · <code>${esc(p.file)}</code></p>${probs}${views}<div id="dh-root">${html}</div>`, documentJson(doc)));
   n++;
 }
-const list = groups.map(([, g]) => `<h2>${esc(g)}</h2><ul class="ex-list">${pages.filter((p) => p.group === g).map((p) => `<li><a href="${p.href}">${esc(p.title)}</a> <code>${esc(p.file)}</code></li>`).join("")}</ul>`).join("");
+const list = exampleSections(pages, groups.map(([, g]) => g)).map(({ title, pages: entries }) => `<h2>${esc(title)}</h2><ul class="ex-list">${entries.map((p) => `<li><a href="${p.href}">${esc(p.title)}</a> <code>${esc(p.file)}</code></li>`).join("")}</ul>`).join("");
 // a control page that breaks the CSP on purpose (an inline script and an inline handler): the checker must see it
 writeFileSync(join(OUT, "_control.html"), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>control</title></head><body><div class="dh-doc"><script>window.__inline = 1</script><img src="nope.png" onerror="window.__inline = 2" alt=""></div></body></html>`);
 // the Trusted Types control page: its script puts a plain string into innerHTML; under the policy that must be refused

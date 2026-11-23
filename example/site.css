@@ -31,3 +31,7 @@ body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif
 .fy-task[data-state="doing"] { border-left-color: var(--warn); }
 .fy-ref { font: 500 .92em/1 var(--font-mono); padding: 1px 6px; border-radius: 6px; background: var(--acc-softer); color: var(--acc-ink); text-decoration: none; }
 .fy-ref-task { border: 1px solid var(--acc-soft); }
+
+/* Source and LLM panels keep long lines inside the example's column. */
+.ex-views .ex-view-pre { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ex-views .ex-view-pre code { white-space: inherit; overflow-wrap: inherit; }

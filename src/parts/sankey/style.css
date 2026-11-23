@@ -22,8 +22,10 @@
 .sk-node { cursor: pointer; transition: opacity var(--dur) var(--ease); outline: none; }
 .sk-node.is-hidden { opacity: 0; pointer-events: none; }
 .sk-node.is-dim { opacity: var(--sankey-node-dim); }
-.sk-label { font: 500 12px var(--font-sans); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.sk-label { font: 500 12px var(--font-sans); fill: var(--ink); pointer-events: none; }
+.sk-plate { fill: var(--surface); stroke: none; pointer-events: none; }
 .sk-flow:focus-visible .sk-band, .sk-node:focus-visible .sk-rect { stroke: var(--ink); stroke-width: 2px; }
 @media (prefers-reduced-motion: reduce) { .sk-band, .sk-node { transition: none; } }
 [data-dh-motion="off"] .sk-band, [data-dh-motion="off"] .sk-node { transition: none; }
+.sankey[data-dh-static] .sk-band, .sankey[data-dh-static] .sk-node { transition: none; }
 @container (max-width: 600px) { .sankey { padding: 12px; } }

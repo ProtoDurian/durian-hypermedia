@@ -107,7 +107,7 @@ describe("jq: a chain of alternatives costs what it is charged",()=>{
  const best=(f:()=>void)=>{let m=Infinity;for(let i=0;i<3;i++){const t0=performance.now();f();m=Math.min(m,performance.now()-t0);}return m;};
  test("the work of a chain doubles with its length",()=>{
   const t=(k:number)=>best(()=>{const b=free();compileJq(chain(k)).run(1,b);});
-  t(100);expect(t(800)/t(400)).toBeLessThan(3);
+  t(100);const small=t(400),large=t(800);expect(large/small).toBeLessThan(3);
  });
  test("a page of long chains ends quickly",()=>{
   const q=`[range(1000) as $i | (${Array(480).fill(".").join(",")})] | length`;

@@ -16,6 +16,9 @@ The third release candidate of 0.7.0. The format number stays 10.
   nothing). They need no script, and they sit above the part, so a part that grows as it loads moves nothing it did
   not move before.
 
+- Fishbone and Sankey lead the example index, with live and static examples in both themes. Source and LLM panels wrap long lines within the page.
+- Sankey node labels keep every word on measured, theme-coloured backing plates; narrow layouts wrap labels without ellipsis and reserve their positions across steps.
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this

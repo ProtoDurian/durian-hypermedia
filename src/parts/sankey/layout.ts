@@ -7,13 +7,13 @@ import { SANKEY_ITERATIONS, type SankeySpec } from "./part";
 export interface LNode { id: string; label: string; colour: string; x: number; y: number; w: number; h: number; col: number; inV: number; outV: number }
 export interface LLink { i: number; d: string; width: number; from: string; to: string; amount: number; appear: number; colour: string; mid: [number, number] }
 export interface SankeyLayout { nodes: LNode[]; links: LLink[]; columns: number; vertical: boolean; width: number; height: number }
-export function layoutSankey(spec: SankeySpec, width: number, height: number, vertical: boolean, nodeW = 14, pad = 12, margin = { l: 0, r: 0 }): SankeyLayout {
-  const oy = vertical ? 22 : 0; // a vertical sankey keeps room above and below for the labels of its first and last rows
+export function layoutSankey(spec: SankeySpec, width: number, height: number, vertical: boolean, nodeW = 14, pad = 12, margin: { l: number; r: number; t?: number; b?: number } = { l: 0, r: 0 }): SankeyLayout {
+  const oy = vertical ? margin.t ?? 22 : 0;
   const idx = new Map(spec.nodes.map((n, k) => [n.id, k]));
   const nodes = spec.nodes.map((n) => ({ id: n.id }));
   const links = spec.flows.map((f) => ({ source: idx.get(f.from)!, target: idx.get(f.to)!, value: f.amount }));
   // along: the way the flow runs; cross: the way the nodes stack
-  const along = vertical ? height - 2 * oy : width - margin.l - margin.r, cross = vertical ? width : height;
+  const along = vertical ? height - oy - (margin.b ?? 22) : width - margin.l - margin.r, cross = vertical ? width : height;
   const g = d3sankey().nodeId((d: any) => d.index).nodeAlign(sankeyJustify).nodeWidth(nodeW).nodePadding(pad).iterations(SANKEY_ITERATIONS).extent([[0, 0], [along, cross]]);
   const r = g({ nodes: nodes.map((n) => ({ ...n })), links: links.map((l) => ({ ...l })) });
   const cols = Math.max(0, ...r.nodes.map((n: any) => n.depth)) + 1;
@@ -40,7 +40,7 @@ export function pathOf(spec: SankeySpec, i: number): Set<number> {
   return out;
 }
 
-/** a character of the 12 px label, estimated a little wide so a label is cut by us, never by the box */
+/** a character of the 12 px label, estimated before the browser measures the host font */
 export const LABEL_PX = 7.2;
 /** the room the drawing has inside the card (its border and side padding, which follow the same stage width the card's CSS does) */
 export function innerWidth(stageWidth: number): number {
@@ -51,10 +51,4 @@ export function innerWidth(stageWidth: number): number {
 export function labelMargins(firstLens: number[], lastLens: number[], width: number): { l: number; r: number } {
   const cap = Math.floor(width * 0.3), need = (lens: number[]) => (lens.length ? Math.max(...lens) * LABEL_PX + 10 : 0);
   return { l: Math.min(cap, Math.ceil(need(firstLens))), r: Math.min(cap, Math.ceil(need(lastLens))) };
-}
-/** a label cut with an ellipsis to the pixels it has; whole when it fits */
-export function fitLabel(text: string, room: number): string {
-  const chars = Math.floor(room / LABEL_PX);
-  if (text.length <= chars) return text;
-  return chars <= 1 ? "…" : text.slice(0, chars - 1) + "…";
 }

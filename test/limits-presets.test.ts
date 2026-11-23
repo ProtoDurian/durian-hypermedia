@@ -19,7 +19,7 @@ const yamlRefused = (d: ReturnType<typeof parse>) => d.problems.filter((p) => /Y
 
 describe("the two sets of caps", () => {
   test("UNTRUSTED_LIMITS is LIMITS with smaller YAML and animation caps", () => {
-    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork"] as const;
+    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork", "maxChartAnnotations", "maxChartSteps", "maxChartHeatCells", "maxCalcRows", "maxCalcInputs"] as const;
     for (const k of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
       if (k in PART_LIMITS) continue; // a folder part's own caps: test/parts.test.ts checks the strict one is no higher
       if ((smaller as readonly string[]).includes(k)) expect(UNTRUSTED_LIMITS[k]).toBeLessThan(LIMITS[k]);

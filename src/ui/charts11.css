@@ -1,0 +1,32 @@
+/* chart steps, annotations (a real button over the canvas), the heatmap key. Tokens only; light and dark follow the theme. */
+.chart { position: relative; }
+.chart-steps { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.step-cap { margin: 10px 0 0; font-size: var(--fs-s); color: var(--ink-2); font-weight: 400; min-height: 1.5em; }
+.part-hint { margin: 8px 0 0; font-size: var(--fs-xs); color: var(--faint); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.chart-anns ul { margin: 8px 0 0; padding-left: 20px; font-size: var(--fs-s); }
+
+/* annotations: a real button over the canvas */
+.chart-canvas .ann { position: absolute; z-index: 2; height: 24px; min-width: 24px; padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; align-items: flex-end; justify-content: center; color: var(--acc); }
+.ann i { display: block; pointer-events: none; }
+.ann-event i { width: var(--chart-ann-marker); height: var(--chart-ann-marker); background: currentColor; clip-path: polygon(50% 0, 100% 100%, 0 100%); margin-bottom: 3px; }
+.ann-range i { width: 100%; height: 6px; border-radius: 3px; background: currentColor; opacity: .8; margin-bottom: 3px; }
+.ann-threshold { height: 24px; width: auto; padding: 0 8px; border-radius: var(--r-pill); background: var(--surface); border: 1px solid currentColor; font: 500 var(--fs-xs)/1 var(--font-sans); align-items: center; box-shadow: var(--shadow-sm); }
+.ann-threshold span { color: var(--ink); }
+.ann.tone-acc, .ann.tone-accent { color: var(--acc); }
+.ann.tone-good { color: var(--good); } .ann.tone-warn { color: var(--warn); } .ann.tone-bad { color: var(--bad); } .ann.tone-muted { color: var(--faint); }
+.ann.tone-c1, .ann.tone-1 { color: var(--c1); } .ann.tone-c2, .ann.tone-2 { color: var(--c2); } .ann.tone-c3, .ann.tone-3 { color: var(--c3); } .ann.tone-c4, .ann.tone-4 { color: var(--c4); }
+.ann.tone-c5, .ann.tone-5 { color: var(--c5); } .ann.tone-c6, .ann.tone-6 { color: var(--c6); } .ann.tone-c7, .ann.tone-7 { color: var(--c7); } .ann.tone-c8, .ann.tone-8 { color: var(--c8); }
+.ann:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); border-radius: 4px; }
+.ann[aria-expanded="true"] { filter: drop-shadow(0 0 0 currentColor) brightness(1.1); }
+
+/* heatmap key */
+.heat-key { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-xs); color: var(--muted); }
+.heat-bar { flex: 0 1 180px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--heat-lo), var(--heat-hi)); background: linear-gradient(90deg in oklab, var(--heat-lo), var(--heat-hi)); border: 1px solid var(--line); }
+.heat-bar.is-diverge { background: linear-gradient(90deg in oklab, var(--heat-neg), var(--heat-mid), var(--heat-hi)); }
+.heat-bar.tone-1, .heat-bar.tone-c1 { --heat-hi: var(--c1); } .heat-bar.tone-2, .heat-bar.tone-c2 { --heat-hi: var(--c2); } .heat-bar.tone-3, .heat-bar.tone-c3 { --heat-hi: var(--c3); } .heat-bar.tone-4, .heat-bar.tone-c4 { --heat-hi: var(--c4); }
+.heat-bar.tone-5, .heat-bar.tone-c5 { --heat-hi: var(--c5); } .heat-bar.tone-6, .heat-bar.tone-c6 { --heat-hi: var(--c6); } .heat-bar.tone-7, .heat-bar.tone-c7 { --heat-hi: var(--c7); } .heat-bar.tone-8, .heat-bar.tone-c8 { --heat-hi: var(--c8); }
+.heat-bar.tone-good { --heat-hi: var(--good); } .heat-bar.tone-warn { --heat-hi: var(--warn); } .heat-bar.tone-bad { --heat-hi: var(--bad); } .heat-bar.tone-accent, .heat-bar.tone-acc { --heat-hi: var(--acc); } .heat-bar.tone-muted { --heat-hi: var(--faint); }
+
+@media (max-width: 600px) { .ann-event, .ann-range { height: 24px; } }
+.chart .ctl-range { min-height: 24px; }

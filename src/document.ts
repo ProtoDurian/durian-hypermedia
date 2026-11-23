@@ -283,7 +283,10 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         }
         case "chart": {
           if (blk.initial?.limit) return refuse(p, blk.initial.error);
-          const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
+          const cellsOf = (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
+          // a heatmap's cells count against the heat cap only (its rows are drawn as series, which the point limit would count twice)
+          if (blk.initial?.ext?.heat !== undefined) { if (cellsOf > lim.maxChartHeatCells) return refuse(p, `${cellsOf.toLocaleString("en-US")} heatmap cells; the limit is ${lim.maxChartHeatCells.toLocaleString("en-US")}`); break; }
+          const pts = (blk.initial?.x?.length ?? 0) + cellsOf;
           if (pts > lim.maxChartPoints) return refuse(p, `${pts.toLocaleString("en-US")} data points; the limit is ${lim.maxChartPoints.toLocaleString("en-US")}`);
           break;
         }

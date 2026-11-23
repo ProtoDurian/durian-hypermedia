@@ -50,7 +50,7 @@ export interface CodeWalkStep {
 }
 export interface CodeWalkBlock extends PartBase { type: "codewalk"; steps: CodeWalkStep[]; walkFiles: Record<string, string | null>; /** packed whole files for still steps (highlight()) */ walkHl?: Record<string, unknown> }
 
-export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string } }
+export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: "part" | "page"; /** the facts of a chart written with steps, a time axis, annotations, formats, a heatmap or the page-chart words (core/chart11.ts) */ ext?: any } }
 export interface MermaidBlock extends PartBase { type: "mermaid"; steps: { title: string; src: string }[] }
 export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
   /** what a reader sees as text in this animation, in story order: quoted labels, captions, say and note texts (animationTexts(block)) */

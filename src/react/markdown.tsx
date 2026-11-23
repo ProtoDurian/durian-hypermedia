@@ -6,7 +6,7 @@ import { mark, add, del, lineTokens } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
 import { inlineText } from "../markdown";
-import { FOLDER_INLINE_COMPONENTS } from "../parts/generated/react";
+import { FOLDER_INLINE_COMPONENTS } from "../parts/generated/inline";
 import { ReferenceInline } from "./reference";
 import type { MdBlock, MdInline, MarkdownBlock } from "../types";
 

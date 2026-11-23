@@ -15,7 +15,7 @@ const PARTS = join(PKG, "src/parts");
 const folders = readdirSync(PARTS).filter((n) => !NOT_PARTS.has(n) && statSync(join(PARTS, n)).isDirectory());
 /** the folders with a part.ts (a fenced part) and the folders with an inline.ts (a part of a sentence) */
 const fenced = folders.filter((n) => existsSync(join(PARTS, n, "part.ts"))), inlined = folders.filter((n) => existsSync(join(PARTS, n, "inline.ts")));
-const GENERATED = ["src/parts/generated/registry.ts", "src/parts/generated/limits.ts", "src/parts/generated/react.tsx", "src/parts/generated/css.ts", "fixtures/parts/samples.dh.md"];
+const GENERATED = ["src/parts/generated/registry.ts", "src/parts/generated/limits.ts", "src/parts/generated/react.tsx", "src/parts/generated/inline.tsx", "src/parts/generated/css.ts", "fixtures/parts/samples.dh.md"];
 
 describe("parts: the generated files", () => {
   test("are current (run bun scripts/parts.ts) and every folder is complete", () => {

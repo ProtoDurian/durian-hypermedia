@@ -4,7 +4,7 @@
 //   bun scripts/parts.ts            write the generated files
 //   bun scripts/parts.ts --check    exit 1 and name the stale files (a test runs this)
 //   bun scripts/parts.ts --root <dir>   work on another copy of the package (the "adds no shared file" test)
-// Written: src/parts/generated/{registry.ts, limits.ts, react.tsx, css.ts}, fixtures/parts/samples.dh.md, and the part
+// Written: src/parts/generated/{registry.ts, limits.ts, react.tsx, inline.tsx, css.ts}, fixtures/parts/samples.dh.md, and the part
 // sections of SPEC.md between its parts markers. Pure text: it imports no part, so it runs before anything is built.
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -133,12 +133,19 @@ export function generate(root: string, all: Folder[]): Map<string, string> {
   out.set("src/parts/generated/react.tsx", [
     ts + "// The folder parts' components, for DocumentView: import FOLDER_PART_COMPONENTS, or only the parts you use.",
     `import { partComponent } from "../react";`,
-    ...(inlines.length ? [`import { inlineComponent } from "../inline-react";`] : []),
     ...folders.map((f) => imp(f, "view", `${pascal(f.name)}View`)),
-    ...inlines.map((f) => imp(f, "inline-view", `${pascal(f.name)}InlineView`)),
     "",
     ...folders.map((f) => `export const ${pascal(f.name)}Part = partComponent("${f.name}", ${pascal(f.name)}View);`),
     `export const FOLDER_PART_COMPONENTS = { ${folders.map((f) => `"${f.name}": ${pascal(f.name)}Part`).join(", ")} };`,
+    `export { FOLDER_INLINE_COMPONENTS${inlines.map((f) => `, ${pascal(f.name)}InlinePart`).join("")} } from "./inline";`,
+    "",
+  ].join("\n"));
+  // the inline parts' views alone: the Markdown renderer imports this file, so text never loads the block parts' views (and their libraries)
+  out.set("src/parts/generated/inline.tsx", [
+    ts + "// The inline parts' components (parts of a sentence), for the Markdown renderer: only these, never the block parts' views.",
+    ...(inlines.length ? [`import { inlineComponent } from "../inline-react";`] : []),
+    ...inlines.map((f) => imp(f, "inline-view", `${pascal(f.name)}InlineView`)),
+    "",
     ...inlines.map((f) => `export const ${pascal(f.name)}InlinePart = inlineComponent("${f.name}", ${pascal(f.name)}InlineView);`),
     `/** what the document draws a ref node of an inline part with, by the part's name */`,
     `export const FOLDER_INLINE_COMPONENTS: Record<string, import("react").ComponentType<{ text: string; data: any }>> = { ${inlines.map((f) => `"${f.name}": ${pascal(f.name)}InlinePart`).join(", ")} };`,

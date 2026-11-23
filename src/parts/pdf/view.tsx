@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Budget, partLimitsOf } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, STR, clamp, useMediaUrl } from "../downloads/media-ui";
+import { mediaBytes } from "../downloads/media-fetch";
 import type { PdfSpec } from "./part";
 
 const H = { s: 380, m: 560, l: 760 } as const;
@@ -89,7 +90,7 @@ function PageView({ doc, num, scale, pdfjs, hits, cur, size, onSize, eager, root
 const TEXT_UP = 4;
 export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
   const url = useMediaUrl();
-  const src = url(spec.src) ?? "", caps = spec.caps;
+  const src = url(spec.src, "image") ?? "", caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null), pages = useRef<HTMLDivElement>(null), qin = useRef<HTMLInputElement>(null);
   const [pdfjs, setPdfjs] = useState<any>(null), [doc, setDoc] = useState<any>(null), [n, setN] = useState(0), [page, setPage] = useState(spec.page), [err, setErr] = useState(""), [note, setNote] = useState("");
   const [mode, setMode] = useState<"fitw" | "fitp" | number>("fitw"), [box, setBox] = useState({ w: 0, h: 0 }), [dims, setDims] = useState<Record<number, { w: number; h: number }>>({});
@@ -100,17 +101,14 @@ export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
 
   // ---- load: fetch the file ourselves, check the caps, then let pdf.js read it
   useEffect(() => {
-    let dead = false, task: any = null;
+    let dead = false, task: any = null; const controller = new AbortController();
     (async () => {
       try {
         if (!src) throw new Error(STR.addressRefused);
-        const res = await fetch(src); if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const len = +(res.headers.get("content-length") ?? 0);
-        if (len > caps.bytes) throw new Error(`the file is ${Math.round(len / 1048576)} MB; PDFs may be at most ${Math.round(caps.bytes / 1048576)} MB`);
-        const buf = await res.arrayBuffer();
-        if (buf.byteLength > caps.bytes) throw new Error(`the file is ${Math.round(buf.byteLength / 1048576)} MB; PDFs may be at most ${Math.round(caps.bytes / 1048576)} MB`);
+        const buf = await mediaBytes(src, caps.bytes, controller.signal);
+        if (dead) return;
         const lj = await lib(); if (dead) return;
-        task = lj.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, enableScripting: false, useWorkerFetch: false, verbosity: 0 });
+        task = lj.getDocument({ data: buf, isEvalSupported: false, enableScripting: false, useWorkerFetch: false, verbosity: 0 });
         const d = await task.promise; if (dead) { d.destroy(); return; }
         if (d.numPages > caps.pages) { try { d.destroy(); } catch {} throw new Error(`the document has ${d.numPages} pages; the most is ${caps.pages}`); }
         setPdfjs(lj); setDoc(d); setN(d.numPages); setPage(clamp(spec.page, 1, d.numPages)); setReady(true);
@@ -122,7 +120,7 @@ export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
         } catch {}
       } catch (e: any) { if (!dead) setErr(`${spec.src}: ${e?.message ?? e}`); }
     })();
-    return () => { dead = true; try { task?.destroy(); } catch {} };
+    return () => { dead = true; controller.abort(); try { task?.destroy(); } catch {} };
   }, [src, caps]); // eslint-disable-line
   useEffect(() => {
     const el = body.current; if (!el) return;

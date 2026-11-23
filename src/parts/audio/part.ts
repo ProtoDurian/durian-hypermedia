@@ -16,12 +16,12 @@ import { durationOf, parseTimedBody, skipOf, speedsOf, startOf, transcriptMode, 
 export const WAVE_STYLES = ["bars", "line", "mirror", "dots", "live"];
 export const AUDIO_KEYS = ["id", "src", "title", "wave", "height", "compact", "tone", "speed", "speeds", "skip", "start", "loop", "volume", "download", "transcript", "duration", "autoplay", "llm"];
 /** the caps the browser checks when a file loads, copied into the data by parse (the view never reads a constant) */
-export interface AudioCaps { peaksBytes: number; waveformSamples: number; decodeBytes: number; vttCues: number; transcriptLines: number }
+export interface AudioCaps { peaksBytes: number; waveformSamples: number; decodeBytes: number; vttCues: number; transcriptLines: number; transcriptBytes: number }
 export interface AudioSpec extends Timed {
   src: string; title: string; wave: string; height: string; compact: boolean; tone: string; speed: boolean; speeds: number[]; skip: number; start: number; loop: boolean;
   volume: boolean; download: boolean; transcript: "open" | "closed" | "off"; duration: number | null; caps: AudioCaps; errors: Err[];
 }
-export type AudioLimits = { audioTranscriptLines: number; audioChapters: number; audioMarkers: number; audioVttCues: number; audioWaveformSamples: number; audioPeaksBytes: number; audioDecodeBytes: number };
+export type AudioLimits = { audioTranscriptLines: number; audioChapters: number; audioMarkers: number; audioVttCues: number; audioWaveformSamples: number; audioPeaksBytes: number; audioDecodeBytes: number; audioTranscriptBytes: number };
 
 export function parseAudio(body: string, baseLine: number, attrs: Record<string, string>, line: number, lim: AudioLimits, budget: Budget): AudioSpec {
   const errors: Err[] = [];
@@ -39,7 +39,7 @@ export function parseAudio(body: string, baseLine: number, attrs: Record<string,
     speed: onOff(attrs, "speed", true, "audio", line, errors), speeds: speedsOf(attrs, "audio", line, errors), skip: attrs.skip === undefined ? 0 : skipOf(attrs, "audio", line, errors),
     start: startOf(attrs, "audio", line, errors, duration), loop: flag(attrs, "loop"), volume: onOff(attrs, "volume", true, "audio", line, errors),
     download: onOff(attrs, "download", false, "audio", line, errors), transcript: transcriptMode(attrs, "audio", line, errors), duration, ...t,
-    caps: { peaksBytes: lim.audioPeaksBytes, waveformSamples: lim.audioWaveformSamples, decodeBytes: lim.audioDecodeBytes, vttCues: lim.audioVttCues, transcriptLines: lim.audioTranscriptLines }, errors,
+    caps: { peaksBytes: lim.audioPeaksBytes, waveformSamples: lim.audioWaveformSamples, decodeBytes: lim.audioDecodeBytes, vttCues: lim.audioVttCues, transcriptLines: lim.audioTranscriptLines, transcriptBytes: lim.audioTranscriptBytes }, errors,
   };
 }
 

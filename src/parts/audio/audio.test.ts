@@ -35,7 +35,7 @@ describe("audio: parse and the LLM view", () => {
     expect(a.cues.map((c) => [c.t, c.speaker, c.text])).toEqual([[0, "Ana", "Welcome back."], [4, "Ben", "Today we look at a crash."], [310, "", "Plain line with no speaker"]]);
     expect(a.peaks).toBe("media/e.peaks.json"); expect(a.duration).toBe(754); expect(a.skip).toBe(15); expect(a.speeds).toEqual([0.75, 1, 2]); expect(a.wave).toBe("mirror"); expect(a.tone).toBe("c3");
     expect(a.transcript).toBe("closed"); expect(a.speed).toBe(true); expect(a.volume).toBe(true); expect(a.download).toBe(false); expect(a.loop).toBe(false);
-    expect(a.caps).toEqual({ peaksBytes: 1_000_000, waveformSamples: 20000, decodeBytes: 20 * 1024 * 1024, vttCues: 5000, transcriptLines: 2000 });
+    expect(a.caps).toEqual({ peaksBytes: 1_000_000, waveformSamples: 20000, decodeBytes: 20 * 1024 * 1024, vttCues: 5000, transcriptLines: 2000, transcriptBytes: 1_000_000 });
   });
   test("a block with plain JSON data; the strict set puts its smaller browser caps into the data", () => {
     const doc = parse(fence(body, 'src="media/e.mp3" duration=12:34'), { path: "p.dh.md", limits: UNTRUSTED_LIMITS });

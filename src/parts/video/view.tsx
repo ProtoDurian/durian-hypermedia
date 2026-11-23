@@ -7,6 +7,7 @@ import { Budget, partLimitsOf } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { extOf, fmtTime } from "../downloads/media";
 import { Icon, Menu, STR, clamp, onButton, pct, typing, useDrag, useMediaUrl, useNear, useReducedMotion } from "../downloads/media-ui";
+import { mediaText } from "../downloads/media-fetch";
 import { Transcript } from "../audio/transcript";
 import { parseVtt, speakerOf, type VttCue } from "../audio/timed";
 import type { VideoSpec } from "./part";
@@ -29,10 +30,10 @@ const scratch = () => new Budget(partLimitsOf(), null, null, "the video part");
 
 export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   const url = useMediaUrl();
-  const src = url(spec.src) ?? "";
+  const src = url(spec.src, "image") ?? "";
   const caps = spec.caps;
   const posterUrl = spec.poster ? url(spec.poster, "image") : null;
-  const sourceUrls = [spec.src, ...spec.sources].map((s) => ({ s, u: url(s) })).filter((x): x is { s: string; u: string } => !!x.u);
+  const sourceUrls = [spec.src, ...spec.sources].map((s) => ({ s, u: url(s, "image") })).filter((x): x is { s: string; u: string } => !!x.u);
   const root = useRef<HTMLDivElement>(null), vid = useRef<HTMLVideoElement>(null), bar = useRef<HTMLDivElement>(null), stage = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(spec.start), [dur, setDur] = useState(spec.duration ?? 0), [playing, setPlaying] = useState(false), [started, setStarted] = useState(false), [buffered, setBuffered] = useState(0);
   const [rate, setRate] = useState(1), [muted, setMuted] = useState(spec.clip), [vol, setVol] = useState(1), [cc, setCc] = useState(-1), [tracks, setTracks] = useState<Record<number, VttCue[]>>({});
@@ -66,25 +67,28 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   // a transcript file
   useEffect(() => {
     if (!spec.transcriptFile || spec.cues.length) return; let dead = false;
-    const tu = url(spec.transcriptFile); if (!tu) return;
-    fetch(tu).then((r) => r.text()).then((txt) => { const l = parseVtt(txt, scratch(), caps.vttCues).map((c) => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; }); if (!dead) setCues(l.slice(0, caps.transcriptLines)); }).catch(() => {});
-    return () => { dead = true; };
+    const tu = url(spec.transcriptFile, "image"); if (!tu) return;
+    const controller = new AbortController();
+    mediaText(tu, caps.transcriptBytes, controller.signal).then((txt) => { if (dead) return; const l = parseVtt(txt, scratch(), caps.vttCues).map((c) => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; }); setCues(l.slice(0, caps.transcriptLines)); }).catch(() => {});
+    return () => { dead = true; controller.abort(); };
   }, [spec.transcriptFile, spec.cues.length, url, caps]);
   // captions: the chosen track is fetched once, and drawn by us
   useEffect(() => {
     if (cc < 0 || tracks[cc]) return; let dead = false;
-    const cu = url(spec.captions[cc].src);
+    const cu = url(spec.captions[cc].src, "image");
     if (!cu) { setTracks((x) => ({ ...x, [cc]: [] })); return; }
-    fetch(cu).then((r) => r.text()).then((txt) => { if (!dead) setTracks((x) => ({ ...x, [cc]: parseVtt(txt, scratch(), caps.vttCues) })); }).catch(() => { if (!dead) setTracks((x) => ({ ...x, [cc]: [] })); });
-    return () => { dead = true; };
+    const controller = new AbortController();
+    mediaText(cu, caps.vttBytes, controller.signal).then((txt) => { if (!dead) setTracks((x) => ({ ...x, [cc]: parseVtt(txt, scratch(), caps.vttCues) })); }).catch(() => { if (!dead) setTracks((x) => ({ ...x, [cc]: [] })); });
+    return () => { dead = true; controller.abort(); };
   }, [cc, spec.captions, url, caps, tracks]);
   useEffect(() => { const d = spec.captions.findIndex((c) => c.default); if (d >= 0) setCc(d); }, [spec.captions]);
   // thumbnails
   useEffect(() => {
     if (!spec.thumbs) return; let dead = false;
-    const th = url(spec.thumbs); if (!th) return;
-    fetch(th).then((r) => r.text()).then((txt) => { if (!dead) setThumbs(parseVtt(txt, scratch(), caps.vttCues).map((c) => ({ start: c.start, end: c.end, text: c.text.trim() }))); }).catch(() => {});
-    return () => { dead = true; };
+    const th = url(spec.thumbs, "image"); if (!th) return;
+    const controller = new AbortController();
+    mediaText(th, caps.thumbsBytes, controller.signal).then((txt) => { if (!dead) setThumbs(parseVtt(txt, scratch(), caps.vttCues).map((c) => ({ start: c.start, end: c.end, text: c.text.trim() }))); }).catch(() => {});
+    return () => { dead = true; controller.abort(); };
   }, [spec.thumbs, url, caps]);
 
   // controls hide after a while of a playing video with no pointer movement

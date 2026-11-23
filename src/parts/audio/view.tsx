@@ -7,6 +7,7 @@ import { Budget, partLimitsOf } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, Menu, STR, clamp, cssVar, onButton, sameOrigin, toneVar, typing, useDrag, useMediaUrl, useReducedMotion, useThemeTick } from "../downloads/media-ui";
 import { fmtTime } from "../downloads/media";
+import { mediaBytes, mediaText } from "../downloads/media-fetch";
 import { Transcript } from "./transcript";
 import { parseVtt, speakerOf, type Cue } from "./timed";
 import { barsOf, peaksOf } from "./peaks-data";
@@ -31,8 +32,8 @@ const readCols = (el: Element, tone: string): Cols => ({
 
 export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
   const url = useMediaUrl();
-  const src = url(spec.src) ?? "";
-  const peaksUrl = spec.peaks ? url(spec.peaks) : null, transcriptUrl = spec.transcriptFile ? url(spec.transcriptFile) : null;
+  const src = url(spec.src, "image") ?? "";
+  const peaksUrl = spec.peaks ? url(spec.peaks, "image") : null, transcriptUrl = spec.transcriptFile ? url(spec.transcriptFile, "image") : null;
   const caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), audioEl = useRef<HTMLAudioElement>(null), canvas = useRef<HTMLCanvasElement>(null), wrap = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(spec.start), [dur, setDur] = useState(spec.duration ?? 0), [playing, setPlaying] = useState(false), [rate, setRate] = useState(1);
@@ -67,43 +68,41 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
 
   // ---- peaks: a peaks file, else decode the file when it is on our own origin and small, else a flat line until it plays
   useEffect(() => {
-    let dead = false;
+    let dead = false; const controller = new AbortController();
     (async () => {
       try {
         if (peaksUrl) {
-          const r = await fetch(peaksUrl); const txt = await r.text();
-          if (txt.length > caps.peaksBytes) throw new Error(`the peaks file is over ${Math.round(caps.peaksBytes / 1000)} KB`);
+          const txt = await mediaText(peaksUrl, caps.peaksBytes, controller.signal);
+          if (dead) return;
           const p = peaksOf(JSON.parse(txt), caps.waveformSamples); if (!p) throw new Error(`the peaks file is not audiowaveform JSON, or has over ${caps.waveformSamples} samples`);
           if (!dead) setPeaks(p); return;
         }
       } catch (e: any) { if (!dead) setNote(`Peaks: ${e.message ?? e}; the wave is drawn from the file instead.`); }
       try {
-        if (!src || !sameOrigin(src)) return;
-        const head = await fetch(src, { method: "HEAD" }).catch(() => null);
-        const len = +(head?.headers.get("content-length") ?? 0);
-        if (len > caps.decodeBytes) { if (!dead) setNote(`The file is over ${Math.round(caps.decodeBytes / 1048576)} MB, so its wave is not drawn before it plays.`); return; }
-        const buf = await (await fetch(src)).arrayBuffer();
-        if (buf.byteLength > caps.decodeBytes) return;
+        if (dead || !src || !sameOrigin(src)) return;
+        const bytes = await mediaBytes(src, caps.decodeBytes, controller.signal);
+        if (dead) return;
         const ctx = new OfflineAudioContext(1, 1, 22050);
-        const au = await ctx.decodeAudioData(buf);
+        const au = await ctx.decodeAudioData(bytes.buffer);
         const ch = au.getChannelData(0), n = Math.min(caps.waveformSamples, 1600), out = new Array<number>(n).fill(0), per = Math.max(1, Math.floor(ch.length / n));
         for (let i = 0; i < n; i++) { let m = 0; for (let k = i * per; k < Math.min(ch.length, (i + 1) * per); k += 4) { const v = Math.abs(ch[k]); if (v > m) m = v; } out[i] = m; }
         const top = Math.max(0.01, ...out); if (!dead) setPeaks(out.map((x) => x / top));
       } catch { /* a flat line until it plays */ }
     })();
-    return () => { dead = true; };
+    return () => { dead = true; controller.abort(); };
   }, [peaksUrl, src, caps]);
 
   // ---- a transcript file (WebVTT or SRT), when the author named one
   useEffect(() => {
     if (!transcriptUrl || spec.cues.length) return;
-    let dead = false;
-    fetch(transcriptUrl).then((r) => r.text()).then((txt) => {
+    let dead = false; const controller = new AbortController();
+    mediaText(transcriptUrl, caps.transcriptBytes, controller.signal).then((txt) => {
+      if (dead) return;
       const budget = new Budget(partLimitsOf(), null, null, "the audio part");
       const list = parseVtt(txt, budget, caps.vttCues).map((c): Cue => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; });
       if (!dead) setCues(list.slice(0, caps.transcriptLines));
     }).catch(() => {});
-    return () => { dead = true; };
+    return () => { dead = true; controller.abort(); };
   }, [transcriptUrl, spec.cues.length, caps]);
 
   // ---- the wave

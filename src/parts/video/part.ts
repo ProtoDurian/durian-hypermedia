@@ -14,9 +14,9 @@ import { durationOf, parseTimedBody, skipOf, speedsOf, startOf, transcriptMode, 
 export const VIDEO_KEYS = ["id", "src", "title", "poster", "clip", "loop", "start", "height", "duration", "speed", "speeds", "skip", "volume", "download", "transcript", "autoplay", "llm"];
 export interface VideoSpec extends Timed {
   src: string; poster: string; title: string; clip: boolean; loop: boolean; start: number; height: string; duration: number | null; speed: boolean; speeds: number[]; skip: number; volume: boolean; download: boolean;
-  transcript: "open" | "closed" | "off"; caps: { vttCues: number; transcriptLines: number }; errors: Err[];
+  transcript: "open" | "closed" | "off"; caps: { vttCues: number; transcriptLines: number; transcriptBytes: number; vttBytes: number; thumbsBytes: number }; errors: Err[];
 }
-export type VideoLimits = { videoTranscriptLines: number; videoChapters: number; videoCaptionFiles: number; videoVttCues: number };
+export type VideoLimits = { videoTranscriptLines: number; videoChapters: number; videoCaptionFiles: number; videoVttCues: number; videoTranscriptBytes: number; videoVttBytes: number; videoThumbsBytes: number };
 
 export function parseVideo(body: string, baseLine: number, attrs: Record<string, string>, line: number, lim: VideoLimits, budget: Budget): VideoSpec {
   const errors: Err[] = [];
@@ -40,7 +40,7 @@ export function parseVideo(body: string, baseLine: number, attrs: Record<string,
     src, poster: attrs.poster ?? "", title: attrs.title ?? "", clip, loop: flag(attrs, "loop") || clip, start: startOf(attrs, "video", line, errors, duration), height, duration,
     speed: onOff(attrs, "speed", true, "video", line, errors), speeds: speedsOf(attrs, "video", line, errors), skip: skipOf(attrs, "video", line, errors), volume: onOff(attrs, "volume", true, "video", line, errors),
     download: onOff(attrs, "download", false, "video", line, errors), transcript: transcriptMode(attrs, "video", line, errors), ...b,
-    caps: { vttCues: lim.videoVttCues, transcriptLines: lim.videoTranscriptLines }, errors,
+    caps: { vttCues: lim.videoVttCues, transcriptLines: lim.videoTranscriptLines, transcriptBytes: lim.videoTranscriptBytes, vttBytes: lim.videoVttBytes, thumbsBytes: lim.videoThumbsBytes }, errors,
   };
 }
 

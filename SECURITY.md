@@ -197,6 +197,27 @@ relative paths. A remote image is a request to someone else's server when the pa
 pages to people who should not be tracked returns `null` for remote images, or rewrites them to its own proxy. The
 renderer runs the policy again at render time.
 
+## Media
+
+Media addresses are checked by the host's `image` policy. Download cards use its `link` policy.
+Media response bytes are capped while reading; file and cue checks apply before drawing. The host may lower these caps:
+
+| Cap | `LIMITS` | `UNTRUSTED_LIMITS` |
+| --- | --- | --- |
+| `lottieBytes` | 1048576 | 262144 |
+| `pdfBytes` | 20971520 | 8388608 |
+| `audioPeaksBytes` | 1000000 | 500000 |
+| `audioDecodeBytes` | 20971520 | 10485760 |
+| `audioTranscriptBytes` | 1000000 | 256000 |
+| `videoVttBytes` | 1000000 | 256000 |
+| `videoThumbsBytes` | 1000000 | 256000 |
+| `videoTranscriptBytes` | 1000000 | 256000 |
+
+Measured doubling ratios for counted work: response copying 2.15, address policy checks 1.85.
+`test/media-fetch.test.ts` and `test/media-loads.test.tsx` check these costs and caps.
+Importing the package leaves the host's Lottie globals and timers alone; the Lottie player initializes when drawn
+(`test/media-imports.test.ts`). Browser-managed audio and video playback use the browser's streaming loader.
+
 ## Content-Security-Policy
 
 Nothing in the browser uses `eval`, `new Function` or WebAssembly (checked on the bundles and at run time). The

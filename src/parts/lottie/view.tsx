@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Budget } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, Menu, STR, cssVar, toneVar, useMediaUrl, useNear, useReducedMotion, useThemeTick } from "../downloads/media-ui";
+import { mediaText } from "../downloads/media-fetch";
 import { checkLottieData, recolourLottie } from "./check";
 import type { LottieSpec } from "./part";
 
@@ -20,7 +21,7 @@ const scratch = (nodes: number) => new Budget({ steps: 2 * nodes + 10_000, value
 
 export default function LottieView({ data: spec }: PartViewProps<LottieSpec>) {
   const url = useMediaUrl();
-  const srcUrl = url(spec.src), caps = spec.caps;
+  const srcUrl = url(spec.src, "image"), caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), holder = useRef<HTMLDivElement>(null), slider = useRef<HTMLInputElement>(null), label = useRef<HTMLSpanElement>(null);
   const anim = useRef<any>(null), raw = useRef<string>(""), total = useRef(0), want = useRef(false);
   const [err, setErr] = useState(""), [ready, setReady] = useState(false), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(spec.speed);
@@ -52,22 +53,19 @@ export default function LottieView({ data: spec }: PartViewProps<LottieSpec>) {
   }, [spec.colours, spec.loop, speed]);
 
   useEffect(() => {
-    let dead = false;
+    let dead = false; const controller = new AbortController();
     (async () => {
       try {
         if (!srcUrl) throw new Error(STR.addressRefused);
-        const res = await fetch(srcUrl);
-        const len = +(res.headers.get("content-length") ?? 0);
-        if (len > caps.bytes) throw new Error(`the file is ${Math.round(len / 1024)} KB; Lottie files may be at most ${Math.round(caps.bytes / 1024)} KB`);
-        const text = await res.text();
-        let json: any = null;
-        if (text.length <= caps.bytes * 2) json = JSON.parse(text);
+        const text = await mediaText(srcUrl, caps.bytes, controller.signal);
+        if (dead) return;
+        const json = JSON.parse(text);
         const why = checkLottieData(json, new Blob([text]).size, scratch(caps.nodes), caps);
         if (why) throw new Error(why);
         if (dead) return; raw.current = text; await build(null);
       } catch (e: any) { if (!dead) setErr(`${spec.src}: ${e.message ?? e}`); }
     })();
-    return () => { dead = true; anim.current?.destroy(); anim.current = null; };
+    return () => { dead = true; controller.abort(); anim.current?.destroy(); anim.current = null; };
   }, [srcUrl, caps]); // eslint-disable-line
   // a theme change repaints the colour slots
   useEffect(() => { if (ready && spec.colours.length) { const f = anim.current?.currentFrame ?? 0; void build(Math.round(f)); } }, [theme]); // eslint-disable-line

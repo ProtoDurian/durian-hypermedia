@@ -58,7 +58,7 @@ export function Icon({ n, size = 22, ...rest }: { n: string; size?: number } & P
 }
 
 /** The address a part may load: the host's urlPolicy, then the default rules again (applyUrlPolicy). null = refused.
- *  kind "link" for a file the reader plays or downloads, "image" for a picture. */
+ *  kind "link" for a download link, "image" for every resource the view loads. */
 export function useMediaUrl(): (url: string, kind?: "link" | "image") => string | null {
   const { urlPolicy } = useDh();
   return useCallback((url: string, kind: "link" | "image" = "link") => applyUrlPolicy(url, kind, urlPolicy), [urlPolicy]);

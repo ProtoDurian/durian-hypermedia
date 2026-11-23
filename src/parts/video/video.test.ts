@@ -31,7 +31,7 @@ describe("video: parse and the LLM view", () => {
     if (!b || b.type !== "video") throw new Error("not video");
     expect(b.llmKind).toBe("own");
     expect(JSON.parse(JSON.stringify(b.data))).toEqual(b.data);
-    expect(b.data.caps).toEqual({ vttCues: 5000, transcriptLines: 2000 });
+    expect(b.data.caps).toEqual({ vttCues: 5000, transcriptLines: 2000, transcriptBytes: 1_000_000, vttBytes: 1_000_000, thumbsBytes: 1_000_000 });
     expect(check(doc)).toEqual([]);
   });
   test("the LLM view, and the page's LLM view carries it", () => {

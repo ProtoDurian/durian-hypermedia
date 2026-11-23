@@ -9,7 +9,7 @@ Who calls whom, in order. A call is a solid arrow, a reply a dashed one.
 actor dev "developer"
 participant cli "CLI"
 participant tc "template container"
-dev -> cli: cyanprint create
+dev -> cli: scaffold create
 cli -> tc: init call, all answers
 tc --> cli: question reply
 note tc: the script stopped at a question

@@ -5,7 +5,7 @@
 actor dev "developer"
 participant cli "CLI"
 participant tc "template container"
-dev -> cli: cyanprint create
+dev -> cli: scaffold create
 cli -> tc: init call, all answers
 tc --> cli: question reply
 note tc: the script stopped at a question

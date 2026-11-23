@@ -9,7 +9,7 @@ import sequence, { declLine, lostLine, msgLine, noteLine, parseSequence, seqLlm 
 import { layoutSequence } from "./layout";
 
 const fence = (body: string, info = 'title="T"') => `# Page\n\n\`\`\`sequence ${info}\n${body}\n\`\`\`\n`;
-const SRC = `actor dev "developer"\nparticipant cli "CLI"\nparticipant tc "template container"\ndev -> cli: cyanprint create\ncli -> tc: init call, all answers\ntc --> cli: question reply\nnote tc: the script stopped at a question\nloop until no question is left\n  cli -> tc: init call, one more answer\n  tc --> cli: question reply\nend\ncli --> dev: project written`;
+const SRC = `actor dev "developer"\nparticipant cli "CLI"\nparticipant tc "template container"\ndev -> cli: scaffold create\ncli -> tc: init call, all answers\ntc --> cli: question reply\nnote tc: the script stopped at a question\nloop until no question is left\n  cli -> tc: init call, one more answer\n  tc --> cli: question reply\nend\ncli --> dev: project written`;
 const big = () => new Budget({ steps: 1e12, values: 1e12, chars: 1e12 });
 const seq = (body: string, title = "", each = false, lim = LIMITS, budget?: Budget) => parseSequence(body, 1, title, each, lim, budget);
 const errorsOf = (src: string) => check(parse(src, { path: "p.dh.md" })).filter((p) => p.level === "error").map((p) => p.message);
@@ -41,7 +41,7 @@ describe("sequence: parse and the LLM view", () => {
   test("the LLM view is the numbered list, and the page's LLM view carries it", () => {
     const want = seqLlm(seq(SRC, "One init call"));
     expect(want).toMatch(/^Sequence: One init call\. Participants: developer \(actor\), CLI, template container\./);
-    expect(want).toContain("1. dev -> cli: cyanprint create");
+    expect(want).toContain("1. dev -> cli: scaffold create");
     expect(want).toMatch(/loop until no question is left:\n {3}4\. cli -> tc: init call, one more answer\n {3}5\. tc --> cli: question reply\n6\. cli --> dev: project written$/);
     expect(parse(fence(SRC, 'title="One init call"'), { path: "p.dh.md" }).llm).toContain(want);
   });

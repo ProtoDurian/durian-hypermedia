@@ -4,7 +4,7 @@
 //   ```sequence title="One init call"
 //   actor dev "developer"
 //   participant cli "CLI"
-//   dev -> cli: cyanprint create
+//   dev -> cli: scaffold create
 //   cli --> dev: project written
 //   ```
 import { definePart } from "../types";

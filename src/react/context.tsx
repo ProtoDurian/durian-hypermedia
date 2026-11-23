@@ -86,6 +86,10 @@ export interface DhSettings {
   static?: import("../parts/types").StaticProp;
   /** the host's setting for interactive parts (DocumentProps.interactive); "off" when not set */
   interactive?: "off" | "static" | "on";
+  /** Optional host base-map and routing capabilities; Markdown cannot select a provider. */
+  map?: import("../parts/map/host").MapHost;
+  /** A host clock in milliseconds, used by calendar's Today command and current-time line. */
+  now?: number;
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

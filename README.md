@@ -117,6 +117,29 @@ budget (SECURITY.md).
 reaches sets an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
 policy in headless Chrome (0 violations).
 
+## Maps and calendars
+
+The `map` fence draws places, written routes, areas, country/state values, flows and an optional globe. Without a
+provider it uses its own drawing and makes no network request. The `calendar` fence expands bounded repeats under
+the page budget and offers day, week, month and list views; narrow parts start with three days. Both have a static form.
+
+Host code can opt in to a base map (install the chosen optional peer dependency and its CSS):
+
+```tsx
+import { mapProvider } from "durian-hypermedia/react/map-providers";
+import "leaflet/dist/leaflet.css";
+const map = mapProvider({ provider: "leaflet", tiles: "https://tiles.example.org/{z}/{x}/{y}.png", attribution: "Map data credit" });
+<DhDocument doc={doc} map={map} now={Date.now()} />
+```
+
+Keep the adapter stable across renders. MapLibre uses its own CSS and a host-served worker; Google needs the host's key.
+No source text can pick a provider, router or key. Leaflet, MapLibre and Google are outside the default/strict import
+graphs and have their own CSP requirements. A host may supply its own `MapHost` capabilities instead. Road routing
+uses only the host's OSRM endpoint or Google service; a missing/failed router leaves an explicitly dashed straight line.
+Static maps call neither providers nor routers, and a static globe becomes a flat map. Static calendars keep every event
+in a complete dated list. Boundary data is Natural Earth 1:50m (public domain), simplified to about 5 km; it describes
+de facto boundaries, omits Antarctica and three disputed areas without ISO codes, and makes no claim about sovereignty.
+
 ## Theming
 
 Every colour, radius, shadow, font and duration is a CSS custom property set on `.dh-doc`; [THEME.md](THEME.md) lists

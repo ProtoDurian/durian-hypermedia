@@ -2,6 +2,7 @@
 // The folder parts' components, for DocumentView: import FOLDER_PART_COMPONENTS, or only the parts you use.
 import { partComponent } from "../react";
 import AudioView from "../audio/view";
+import CalendarView from "../calendar/view";
 import ChartKindsView from "../chart-kinds/view";
 import CompareView from "../compare/view";
 import CompareImageView from "../compare-image/view";
@@ -14,6 +15,7 @@ import GanttView from "../gantt/view";
 import GlossaryView from "../glossary/view";
 import LogView from "../log/view";
 import LottieView from "../lottie/view";
+import MapView from "../map/view";
 import PdfView from "../pdf/view";
 import SankeyView from "../sankey/view";
 import SequenceView from "../sequence/view";
@@ -25,6 +27,7 @@ import VideoView from "../video/view";
 import WardleyView from "../wardley/view";
 
 export const AudioPart = partComponent("audio", AudioView);
+export const CalendarPart = partComponent("calendar", CalendarView);
 export const ChartKindsPart = partComponent("chart-kinds", ChartKindsView);
 export const ComparePart = partComponent("compare", CompareView);
 export const CompareImagePart = partComponent("compare-image", CompareImageView);
@@ -37,6 +40,7 @@ export const GanttPart = partComponent("gantt", GanttView);
 export const GlossaryPart = partComponent("glossary", GlossaryView);
 export const LogPart = partComponent("log", LogView);
 export const LottiePart = partComponent("lottie", LottieView);
+export const MapPart = partComponent("map", MapView);
 export const PdfPart = partComponent("pdf", PdfView);
 export const SankeyPart = partComponent("sankey", SankeyView);
 export const SequencePart = partComponent("sequence", SequenceView);
@@ -46,5 +50,5 @@ export const TracePart = partComponent("trace", TraceView);
 export const VennPart = partComponent("venn", VennView);
 export const VideoPart = partComponent("video", VideoView);
 export const WardleyPart = partComponent("wardley", WardleyView);
-export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "chart-kinds": ChartKindsPart, "compare": ComparePart, "compare-image": CompareImagePart, "downloads": DownloadsPart, "explore": ExplorePart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "glossary": GlossaryPart, "log": LogPart, "lottie": LottiePart, "pdf": PdfPart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "timeline": TimelinePart, "trace": TracePart, "venn": VennPart, "video": VideoPart, "wardley": WardleyPart };
+export const FOLDER_PART_COMPONENTS = { "audio": AudioPart, "calendar": CalendarPart, "chart-kinds": ChartKindsPart, "compare": ComparePart, "compare-image": CompareImagePart, "downloads": DownloadsPart, "explore": ExplorePart, "fishbone": FishbonePart, "flame": FlamePart, "gallery": GalleryPart, "gantt": GanttPart, "glossary": GlossaryPart, "log": LogPart, "lottie": LottiePart, "map": MapPart, "pdf": PdfPart, "sankey": SankeyPart, "sequence": SequencePart, "stacktrace": StacktracePart, "timeline": TimelinePart, "trace": TracePart, "venn": VennPart, "video": VideoPart, "wardley": WardleyPart };
 export { FOLDER_INLINE_COMPONENTS, GlossaryInlinePart, SparkInlinePart } from "./inline";

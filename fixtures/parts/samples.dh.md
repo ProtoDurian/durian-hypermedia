@@ -41,6 +41,27 @@ peaks: media/talk.peaks.json
 peaks: media/talk.peaks.json
 ```
 
+## Calendar
+
+The host supplies no clock here: Today returns to the authored date. Explore the views, switch calendars and open events. A narrow part starts with three days.
+
+```calendar title="Release week" tz=Europe/London date=2026-11-23 view=week hours=08-18
+calendar team "Team" [c2]
+2026-11-23 09:00-09:20 Stand-up in team every weekday times=5
+2026-11-24 10:00-11:30 Design review @ Studio in team note="Bring the mock-ups"
+2026-11-24 10:30-11:00 Review notes in team
+2026-11-25 all day Code freeze [warn]
+2026-11-26 18:00-19:00 Sydney call tz=Australia/Sydney
+```
+
+The static form keeps a complete dated list without controls.
+
+```calendar title="Release checklist" tz=Europe/London date=2026-11-23 static
+calendar team "Team" [c2]
+2026-11-23 09:00-09:20 Stand-up in team every weekday times=3
+2026-11-25 all day Code freeze [warn]
+```
+
 ## Chart kinds
 
 Eight more kinds of a `chart`, each a YAML map with `kind:` at the top: raw values are counted, quartiled or smoothed when the page is built, so a model reads the table. Hover, tap or focus a bin, box, stage, block or day for its card; the arrow keys walk the data.
@@ -385,6 +406,45 @@ A Lottie file is a drawing that moves. This one was written by hand for the samp
 ```lottie src="media/build.json" title="What happens while it builds" loop
 alt: A box fills with blocks, one row at a time, then a tick appears.
 colours: dh-c1 = c1, dh-c2 = c2, dh-c3 = c3, dh-good = good
+```
+
+## Map and routes
+
+Places and written routes work without a tile provider. A dashed route has no road geometry; the host may supply its own router.
+
+```map title="Walk to the garden"
+place start "Library" 51.507, -0.128 [c1] note="Meet by the entrance"
+place garden "Garden" 51.511, -0.117 [c2]
+route walk "Morning walk" by=walk [c2]: start -> 51.508, -0.123 -> garden
+@step Meet at the library.
+focus start
+@step Follow the written route.
+show walk
+focus walk
+```
+
+Country values, US states and flows share the same map and value list.
+
+```map title="Daily flow" unit="units per day" scale=steps steps=4
+fill DE 83.2
+fill FR 68.4
+fill US-CA 39.5
+arc DE -> FR 24 "Daily flow" [c2]
+```
+
+The globe uses the same data; with no WebGL it falls back to the flat map.
+
+```map title="Global flow" view=globe spin=off unit="units per day"
+fill DE 83.2
+fill FR 68.4
+arc DE -> FR 24 "Daily flow" [c2]
+```
+
+A static globe is a flat map with all its values, ready to print.
+
+```map title="A still map" view=globe static
+fill DE 83.2
+fill FR 68.4
 ```
 
 ## PDF

@@ -20,6 +20,10 @@ import { useTableMore } from "./table-more";
 
 export interface DocumentProps {
   doc: Document;
+  /** Host-owned base-map/routing adapters, created by react/map-providers or supplied by the host. */
+  map?: import("../parts/map/host").MapHost;
+  /** A host clock in milliseconds for calendars; without it, Today returns to the authored date. */
+  now?: number;
   /** a component per part type; parts without one show their LLM text */
   components?: Components;
   /** host blocks (their Component draws them); added to the ones registered with registerBlock */
@@ -94,7 +98,10 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     // the host's option first, then the page's front matter `static: true` (the finished state of every part)
     static: p.static !== undefined ? p.static : pageStatic(p.doc.frontMatter) ? "" : undefined,
     interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter]);
+    map: p.map,
+    now: p.now,
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now]);
+
   const { doc } = p;
   // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)
   const root = useRef<HTMLDivElement>(null);

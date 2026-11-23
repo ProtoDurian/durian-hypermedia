@@ -21,6 +21,10 @@ export function usePopover(host: React.RefObject<HTMLElement | null>, closeLabel
     openedAt.current = Date.now();
     setOpen({ id, data, x: ab.left - hb.left + ab.width / 2, y: ab.top - hb.top, w: hb.width, h: hb.height });
   }, [host]);
+  const showAt = useCallback((id: string, data: PopData, at: {x:number;y:number}) => {
+    const box = host.current?.getBoundingClientRect(); if (!box) return;
+    openedAt.current = Date.now(); setOpen({id,data,...at,w:box.width,h:box.height});
+  },[host]);
   const hide = useCallback(() => { clear(); setOpen(null); }, []);
   useEffect(() => {
     if (!open) return;
@@ -31,14 +35,14 @@ export function usePopover(host: React.RefObject<HTMLElement | null>, closeLabel
   }, [open?.id, hide]);
   useEffect(() => () => clear(), []);
   /** props for the thing that opens the card */
-  const bind = (id: string, data: PopData) => ({
+  const bind = (id: string, data: PopData, at?: {x:number;y:number}) => ({
     "data-pop-id": id,
     "aria-expanded": open?.id === id,
-    onPointerEnter: (e: React.PointerEvent) => { if (e.pointerType !== "mouse") return; clear(); const el = e.currentTarget; timer.current = window.setTimeout(() => show(id, data, el), 150); },
+    onPointerEnter: (e: React.PointerEvent) => { if (e.pointerType !== "mouse") return; clear(); const el = e.currentTarget; timer.current = window.setTimeout(() => at ? showAt(id,data,at) : show(id, data, el), 150); },
     onPointerLeave: (e: React.PointerEvent) => { if (e.pointerType !== "mouse") return; clear(); timer.current = window.setTimeout(() => { if (openId.current === id) hide(); }, 160); },
-    onFocus: (e: React.FocusEvent) => show(id, data, e.currentTarget),
+    onFocus: (e: React.FocusEvent) => at ? showAt(id,data,at) : show(id, data, e.currentTarget),
     onBlur: (e: React.FocusEvent) => { const to = e.relatedTarget as Node | null; if (to && card.current?.contains(to)) return; if (openId.current === id) hide(); },
-    onClick: (e: React.MouseEvent) => { if (openId.current === id && Date.now() - openedAt.current > 500) hide(); else show(id, data, e.currentTarget); }, // a click that follows the focus which just opened it keeps it open
+    onClick: (e: React.MouseEvent) => { if (openId.current === id && Date.now() - openedAt.current > 500) hide(); else if(at)showAt(id,data,at);else show(id, data, e.currentTarget); }, // a click that follows the focus which just opened it keeps it open
   });
   const phone = typeof window !== "undefined" && open ? open.w < 560 : false;
   const node = open ? (
@@ -56,7 +60,7 @@ export function usePopover(host: React.RefObject<HTMLElement | null>, closeLabel
       ) : null}
     </div>
   ) : null;
-  return { bind, node, hide, openId: open?.id ?? null };
+  return { bind, node, hide, showAt, openId: open?.id ?? null };
 }
 const CARD_W = 300;
 function placed(o: NonNullable<Open>): React.CSSProperties {

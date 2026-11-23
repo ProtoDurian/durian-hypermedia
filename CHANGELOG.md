@@ -25,6 +25,7 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Added
 
+- Map and routes, country/state choropleths, directed flow arcs and an optional globe; bounded calendar repeats with time zones, overlap packing and narrow layouts. Both parts include static output, LLM summaries, checks and host-lowerable caps. Optional base-map providers are an explicit host entry; source text cannot select them or a router.
 - **`state`, `class` and `er` parts (SPEC.md 3.3, 6.15).** Three diagrams, each in a small language of its own, drawn by
   the animation engine instead of a diagram library: a state machine that its steps walk (`at`, `fire`), a class
   diagram from members and relations written in words (`extends`, `implements`, `owns`, `has`, `uses`, `->`), and an

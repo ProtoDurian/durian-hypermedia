@@ -4,6 +4,18 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.7.0-rc.3 (not yet released)
+
+The third release candidate of 0.7.0. The format number stays 10.
+
+### Added
+
+- **The example site shows each fixture's source and LLM view:** every fixture page (the hand-written ones, the
+  Format page samples, the composed stage samples, the folder parts and the hostile pages) opens with two closed
+  toggles, `Source` (the fixture as written) and `LLM view` (what `llmView` returns, or a line saying an LLM reads
+  nothing). They need no script, and they sit above the part, so a part that grows as it loads moves nothing it did
+  not move before.
+
 ## 0.7.0-rc.2
 
 The second release candidate of 0.7.0 adds one new part: the composed stage. The format number stays 10 in this
@@ -73,7 +85,6 @@ none of the package's own animations changes (checked on every fixture and the e
   blank: it shows its title, a message that names the budget and the fix, and every step in
   words; every other stage draws. In a parse, a stage over the page's budget is an error block and a problem, like any
   part over its budget.
-
 ## 0.7.0-rc.1
 
 A release candidate of 0.7.0. It holds what has passed review so far; 0.7.0 itself may still change before it is final,

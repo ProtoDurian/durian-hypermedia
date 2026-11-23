@@ -8,7 +8,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { parse } from "../src/index";
+import { parse, llmView } from "../src/index";
 import { highlight } from "../src/server";
 import { DhDocument } from "../src/react/index";
 import { documentJson } from "../src/react/hydrate";
@@ -41,13 +41,17 @@ for (const p of pages) {
   const doc = await highlight(parse(text, { blocks: [taskBlock], inlines: hostInlines, path: p.file, ...(/references\.dh\.md$/.test(p.file) ? { resolveReference: exampleRefs } : {}) }));
   p.title = doc.title ?? p.file;
   const html = renderToString(<DhDocument doc={doc} blocks={[taskBlock]} inlines={hostInlines} />);
+  // every fixture shows its source and what an LLM reads, each behind a closed toggle above its part: no script, and a part
+  // that grows as it loads moves nothing it did not move before (under the part they moved with it)
+  const llm = llmView(doc).trim();
+  const views = `<section class="ex-views" aria-label="Source and LLM view"><details class="ex-view"><summary>Source</summary><pre class="ex-view-pre"><code>${esc(text)}</code></pre></details><details class="ex-view"><summary>LLM view</summary>${llm ? `<pre class="ex-view-pre"><code>${esc(llm)}</code></pre>` : `<p class="ex-view-none">Nothing: an LLM reads no text here.</p>`}</details></section>`;
   const probs = doc.problems.length ? `<details class="ex-problems"><summary>${doc.problems.length} problem(s) parse() reported</summary><ul>${doc.problems.map((x) => `<li>line ${x.line}: ${esc(x.message)}</li>`).join("")}</ul></details>` : "";
   // the same page rendered only in the browser (no server HTML), for the strict style-src test
   if (/^(codewalk|markdown|host-block|format-(10|12|21|26|31|33|38|39|43|57))/.test(p.href)) writeFileSync(join(OUT, "csr-" + p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · rendered in the browser only</p><div id="dh-root" data-mode="csr"></div>`, documentJson(doc)));
   // every page again, rendered in the browser only, for the Trusted Types check: the strict entry, and the full one to compare
   writeFileSync(join(OUT, "tt-" + p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · strict entry, rendered in the browser only</p><div id="dh-root"></div>`, documentJson(doc), "client-tt"));
   writeFileSync(join(OUT, "ttfull-" + p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · full entry, rendered in the browser only</p><div id="dh-root"></div>`, documentJson(doc), "client-ttfull"));
-  writeFileSync(join(OUT, p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · ${esc(p.group)} · <code>${esc(p.file)}</code></p>${probs}<div id="dh-root">${html}</div>`, documentJson(doc)));
+  writeFileSync(join(OUT, p.href), shell(p.title, `<p class="ex-crumb"><a href="index.html">All fixtures</a> · ${esc(p.group)} · <code>${esc(p.file)}</code></p>${probs}${views}<div id="dh-root">${html}</div>`, documentJson(doc)));
   n++;
 }
 const list = groups.map(([, g]) => `<h2>${esc(g)}</h2><ul class="ex-list">${pages.filter((p) => p.group === g).map((p) => `<li><a href="${p.href}">${esc(p.title)}</a> <code>${esc(p.file)}</code></li>`).join("")}</ul>`).join("");

@@ -67,6 +67,10 @@ function applyStep(prev: any, st: any, i: number, errors: string[]): any {
   const mine = isObj(st) && Array.isArray(st.series) ? st.series.length : 0;
   charge(2 + 2 * have.length + 2 * mine, have.length + mine); // the copy, the name map, and a look-up and maybe an add for each series the step names
   let spec: any = { ...prev, series: have.map((s: any) => (isObj(s) ? { ...s } : s)) };
+  let names: string | null = null, missing = 0;
+  const MISSING_SHOWN = 10;
+  // the names the chart has, said in the refusal: built at most once per step, charged, and cut short
+  const nameList = () => names ?? (names = (() => { charge(have.length + 2, have.length); const o: string[] = []; for (const s of have) { if (isObj(s) && s.name !== undefined) { o.push(String(s.name)); if (o.length >= 20) { o.push("..."); break; } } } return o.join(", ") || "none"; })());
   const at = new Map<string, number>(); // series name to its place (the first with that name), built once per step
   spec.series.forEach((s: any, j: number) => { if (isObj(s)) { const k = String(s.name ?? s.label); if (!at.has(k)) at.set(k, j); } });
   if (!isObj(st)) { errors.push(`step ${i + 1} must be an object with a title (and series, annotations or y when it changes them)`); return spec; }
@@ -81,9 +85,10 @@ function applyStep(prev: any, st: any, i: number, errors: string[]): any {
       if (ss.add === true) {
         if (found >= 0) errors.push(`step ${i + 1}: series "${ss.name}" already exists; remove add: true to change its data`);
         else { const { add, ...rest } = ss; at.set(ss.name, spec.series.length); spec.series.push(rest); }
-      } else if (found < 0) errors.push(`step ${i + 1}: series "${ss.name}" is not in the chart; add add: true to bring in a new series (series: ${spec.series.map((s: any) => s?.name).filter(Boolean).join(", ") || "none"})`);
+      } else if (found < 0) { if (++missing <= MISSING_SHOWN) errors.push(`step ${i + 1}: series "${ss.name.length > 60 ? ss.name.slice(0, 59) + "…" : ss.name}" is not in the chart; add add: true to bring in a new series (series: ${nameList()})`); }
       else { const { add, name, ...rest } = ss; spec.series[found] = { ...spec.series[found], ...rest }; }
     }
+    if (missing > MISSING_SHOWN) errors.push(`step ${i + 1}: and ${missing - MISSING_SHOWN} more series are not in the chart`);
   }
   if (st.annotations !== undefined) spec.annotations = st.annotations;
   if (st.y !== undefined) spec.y = isObj(st.y) ? { ...(isObj(spec.y) ? spec.y : {}), ...st.y } : st.y;
@@ -348,8 +353,8 @@ export function prepareOne(d: any, step = 0, steps = 0, title?: string): Prepare
 }
 
 /** the chart as every step shows it, checked: `base` is step 1's plain chart, for the evaluator's own checks */
-export function prepareChart(d: any): { base: any; errors: string[]; warnings: string[]; steps: Prepared[] } { return withChartBudget(() => prepareChartIn(d)); }
-function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string[]; steps: Prepared[] } {
+export function prepareChart(d: any): { base: any; errors: string[]; warnings: string[]; steps: Prepared[]; schema1?: string[] } { return withChartBudget(() => prepareChartIn(d)); }
+function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string[]; steps: Prepared[]; schema1?: string[] } {
   const errors: string[] = [], warnings: string[] = [];
   const steps: any[] = Array.isArray(d?.steps) ? d.steps : [];
   if (isObj(d) && d.steps !== undefined) {
@@ -363,39 +368,51 @@ function prepareChartIn(d: any): { base: any; errors: string[]; warnings: string
   const n = Math.max(1, steps.length);
   const out: Prepared[] = [];
   let cur = baseSpec(d); // each step is built from the one before, once
-  let first: string[] = [];
+  // what is already said is kept in sets, so saying a problem once costs one look-up
+  const seenE = new Set<string>(errors), seenW = new Set<string>();
+  const addE = (m: string) => { if (!seenE.has(m)) { seenE.add(m); errors.push(m); } };
+  let first = new Set<string>(), firstErrs = new Set<string>(), schema1: string[] = [];
   for (let k = 0; k < n; k++) {
     const es: string[] = [];
     if (steps.length) cur = applyStep(cur, steps[k], k, es);
+    charge(2 + es.length, es.length);
     const spec = cur;
     // a step's own mistakes are reported once (at the step that makes them)
-    if (k === 0 || es.length) for (const e of es) if (!errors.includes(e)) errors.push(e);
+    if (k === 0 || es.length) for (const e of es) addE(e);
     const title = steps[k]?.title;
     const p = prepareOne(spec, k, steps.length, typeof title === "string" ? title : undefined);
     out.push(p);
-    if (k === 0 && !p.errors.length) first = chartCheck(p.base);
-    for (const e of p.errors) { const msg = n > 1 ? `step ${k + 1}: ${e}` : e; if (!errors.includes(msg) && !(k > 0 && out[0].errors.includes(e))) errors.push(msg); }
-    for (const w of p.warnings) { const msg = k === 0 || n < 2 ? w : `step ${k + 1}: ${w}`; if (!warnings.includes(w) && !warnings.includes(msg)) warnings.push(msg); }
-    // later steps are checked like the first chart: the plain chart's schema, then its data lengths and numbers with the evaluator;
-    // a problem of one step does not hide another step's, and a problem the first chart has is not said again
-    if (k > 0 && !p.errors.length && !es.length) {
-      charge(2 + (p.base?.series?.length ?? 0), p.base?.series?.length ?? 0);
-      for (const e of chartCheck(p.base)) { if (!first.includes(e)) { const msg = `step ${k + 1}: ${e}`; if (!errors.includes(msg)) errors.push(msg); } }
-      const r = evalChart(p.base); if (r.error) errors.push(`step ${k + 1}: ${r.error}`);
+    charge(2 + p.errors.length + p.warnings.length, p.errors.length + p.warnings.length);
+    if (k === 0) firstErrs = new Set(p.errors);
+    for (const e of p.errors) if (!(k > 0 && firstErrs.has(e))) addE(n > 1 ? `step ${k + 1}: ${e}` : e);
+    // every step's warning stands, with its step number (only an exact repeat in one step is dropped)
+    for (const w of p.warnings) { const msg = n > 1 ? `step ${k + 1}: ${w}` : w; if (!seenW.has(msg)) { seenW.add(msg); warnings.push(msg); } }
+    // every step's plain chart is checked: its schema, then (later steps) its data lengths and numbers with the evaluator; one step's
+    // problem never hides another's, and a problem the first chart has is not said again
+    if (!p.errors.length && !es.length) {
+      const sn = p.base?.series?.length ?? 0;
+      charge(2 + sn, sn); // before the schema pass of this step
+      const found = chartCheck(p.base);
+      charge(1 + found.length, found.length); // and before the diagnostics are looked through
+      if (k === 0) { schema1 = found; first = new Set(found); }
+      else {
+        for (const e of found) if (!first.has(e)) addE(`step ${k + 1}: ${e}`);
+        const r = evalChart(p.base); if (r.error) addE(`step ${k + 1}: ${r.error}`);
+      }
     }
   }
-  return { base: out[0].base, errors, warnings, steps: out };
+  return { base: out[0].base, errors, warnings, steps: out, schema1 };
 }
 /** what doccheck calls first for a chart: the new words checked, and the plain chart left for the evaluator's own checks */
-export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[] } { return withChartBudget(() => chart11CheckIn(d)); }
-function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[] } {
-  if (!isObj(d)) return { base: d, errors: [], warnings: [] };
+export function chart11Check(d: any): { base: any; errors: string[]; warnings: string[]; first: string[] } { return withChartBudget(() => chart11CheckIn(d)); }
+function chart11CheckIn(d: any): { base: any; errors: string[]; warnings: string[]; first: string[] } {
+  if (!isObj(d)) return { base: d, errors: [], warnings: [], first: [] };
   let p: ReturnType<typeof prepareChart>;
-  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; }
+  try { p = prepareChart(d); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], first: [] }; throw e; }
   const errors = [...p.errors];
-  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
+  if (!p.errors.length) { try { errors.push(...pcDeepCheck(d, p.steps.map((x) => x.base), p.steps[0].ext.pc)); } catch (e) { if (e instanceof BudgetError) return { base: d, errors: [e.message], warnings: [], first: [] }; throw e; } } // p11 pagecharts: scale toggle views, calculator rows
   for (const k of Object.keys(d)) if (!CHART11_KEYS.includes(k)) errors.push(`unknown key "${k}" (keys: ${CHART11_KEYS.join(", ")})`);
-  return { base: p.base, errors, warnings: p.warnings };
+  return { base: p.base, errors, warnings: p.warnings, first: p.schema1 ?? [] };
 }
 export const usesChart11 = (d: any) => isObj(d) && (d.kind === "heatmap" || d.steps !== undefined || d.annotations !== undefined || d.tz !== undefined || d.layout !== undefined || d.inputs !== undefined || d.formulas !== undefined || d.calc !== undefined || [d.x, d.y, d.y2].some((a) => isObj(a) && (a.format !== undefined || a.currency !== undefined || a.scale === "time" || a.toggle !== undefined)) || (Array.isArray(d.series) && d.series.some((s: any) => isObj(s) && (s.line !== undefined || s.marker !== undefined))));
 

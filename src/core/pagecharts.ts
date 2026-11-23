@@ -72,11 +72,13 @@ export function ticksEvery(min: number, max: number, unit: string, every: number
   if (!Number.isFinite(min) || !Number.isFinite(max)) return out;
   const room = Math.max(0, Math.min(MAX_TICKS, Math.ceil((max - min) / (UNIT_MS[u] * every)) + 2));
   if (pay) charge(room + 8, room);
-  let t = startOf(min, u, tz);
+  // minutes are seeded from the exact start instant (the start of its real minute), not from a wall clock time that a
+  // repeated hour could read an hour early
+  let t = u === "minute" ? Math.floor(min / MIN) * MIN : startOf(min, u, tz);
   const p = partsOf(t, tz);
   if (every > 1) {
     if (u === "hour") t = wallToMs(p.y, p.mo, p.d, Math.floor(p.h / every) * every, 0, 0, 0, tz);
-    else if (u === "minute") t = wallToMs(p.y, p.mo, p.d, p.h, Math.floor(p.mi / every) * every, 0, 0, tz);
+    else if (u === "minute") t -= (p.mi - Math.floor(p.mi / every) * every) * MIN;
     else if (u === "month") t = wallToMs(p.y, Math.floor((p.mo - 1) / every) * every + 1, 1, 0, 0, 0, 0, tz);
     else if (u === "year") t = wallToMs(Math.floor(p.y / every) * every, 1, 1, 0, 0, 0, 0, tz);
   }

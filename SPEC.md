@@ -1775,6 +1775,10 @@ light u1                                                   (a card takes the foc
 
 **Static** (SPEC 4.1) on the graph engine: `static`, `static=<n or title>` on the fence, or the page's or host's static, draws one step whole and flat, with no player, camera, hint or motion, a closed thing's inside in full, the step's caption and every caption in a closed list (open in print). Print and reduced motion switch it on. Its root carries `data-dh-static`.
 
+**Nothing moves on load.** A still or static scene's stage height is in the server's page: its heights, one for each layout it takes, are custom properties in the part's `style` attribute (`--wh`, `--wh-a` ...; no `<style>` element and no HTML string, so strict Trusted Types holds), and the stylesheet picks the one for the stage's width with a container query for each layout width (240 to 1200 px, in 16 px steps), the width the browser lays the scene out at. On a phone (560 px or less) the part is edge to edge before any script runs: the page's width, its left edge at a centred column's, moved by `--col-skew` in a container that adds space on its left only (a human-only segment); the script then measures the real column.
+
+**A sent token's label and speech point the right way.** A sent token is drawn as its dot in a halo; its label pill keeps 3 px or more off the halo (at rest, and so on the whole way, since it rides with the dot). Speech has a tail towards the thing that speaks on whichever side it sits: under or over it, and on its left or right edge when it sits beside the thing (a phone puts it there when above is taken).
+
 ### 6.15 Records and line ends (format version 11, graph engine)
 
 The state, class and ER parts (section 3.3) stand on three words of the graph engine, which an `animation layout=graph` may use too.

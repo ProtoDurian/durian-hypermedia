@@ -371,9 +371,11 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    of the scene beyond it is shaded, with a small arrow (anim.tsx); 3D words are 11 px or more */
 @media (max-width: 560px) {
   /* --page-w: the page's width without a scrollbar (100vw would count the scrollbar); --bleed-l: where the part's
-     column starts on the screen (a column need not be centred). Both set by anim.tsx; until then the part keeps its
-     column's width */
-  .scn { display: flex; flex-direction: column; width: var(--page-w, 100%); max-width: var(--page-w, 100%); margin-left: calc(-1 * var(--bleed-l, 0px)); margin-right: 0; border-radius: 0; border-inline: 0; box-shadow: none; }
+     column starts on the screen (a column need not be centred). Both set by anim.tsx. Until then (the server's page; no
+     load shift, SPEC 6.14) a centred column is assumed, moved by --col-skew: half of what a container adds on its left
+     only (a human-only segment's rule and padding) */
+  .scn { display: flex; flex-direction: column; width: var(--page-w, 100vw); max-width: var(--page-w, 100vw); margin-left: calc(-1 * var(--bleed-l, calc(50vw - 50% + var(--col-skew, 0px)))); margin-right: 0; border-radius: 0; border-inline: 0; box-shadow: none; }
+  .human { --col-skew: 10.5px; }
   .scn > .scn-stage { order: -1; }
   .scn-bar { border-bottom: 0; border-top: 1px solid var(--line); padding: 6px 8px 6px 14px; }
   .scn-tools { gap: 6px; }
@@ -384,6 +386,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
   /* (format version 10) .scn raises it over the general 10.5 px rule further down, which won before */
   .scn .scn3-l.is-cont.sz-s { font-size: 11px; }
 }
+@media (max-width: 520px) { .human { --col-skew: 7.5px; } }
 .scn-more { position: absolute; inset: 0; pointer-events: none; }
 .scn-more span { position: absolute; display: grid; place-items: center; color: var(--muted); }
 .scn-more-l, .scn-more-r { top: 0; bottom: 0; width: 24px; }
@@ -522,6 +525,73 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-chip-t.is-mute { opacity: 0 !important; }
 /* the line under a zoomed step's caption */
 .scn-cap .scn-zoomed { display: block; margin-top: 2px; font-style: normal; font-size: var(--fs-xs); color: var(--muted); }
+/* no load shift (SPEC 6.14, src/core/whole.ts wholeHeightVars): a whole scene's stage height for the width its stage lays out at,
+   from the custom properties the server wrote on the part; one rule per layout width (WHOLE_WS), the widest that fits wins */
+.scn[data-wq] { container-type: inline-size; }
+@media screen {
+.scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh240, var(--wh)); }
+@container (min-width: 240px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh240, var(--wh)); } }
+@container (min-width: 256px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh256, var(--wh)); } }
+@container (min-width: 272px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh272, var(--wh)); } }
+@container (min-width: 288px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh288, var(--wh)); } }
+@container (min-width: 304px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh304, var(--wh)); } }
+@container (min-width: 320px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh320, var(--wh)); } }
+@container (min-width: 336px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh336, var(--wh)); } }
+@container (min-width: 352px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh352, var(--wh)); } }
+@container (min-width: 368px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh368, var(--wh)); } }
+@container (min-width: 384px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh384, var(--wh)); } }
+@container (min-width: 400px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh400, var(--wh)); } }
+@container (min-width: 416px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh416, var(--wh)); } }
+@container (min-width: 432px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh432, var(--wh)); } }
+@container (min-width: 448px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh448, var(--wh)); } }
+@container (min-width: 464px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh464, var(--wh)); } }
+@container (min-width: 480px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh480, var(--wh)); } }
+@container (min-width: 496px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh496, var(--wh)); } }
+@container (min-width: 512px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh512, var(--wh)); } }
+@container (min-width: 528px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh528, var(--wh)); } }
+@container (min-width: 544px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh544, var(--wh)); } }
+@container (min-width: 560px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh560, var(--wh)); } }
+@container (min-width: 576px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh576, var(--wh)); } }
+@container (min-width: 592px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh592, var(--wh)); } }
+@container (min-width: 608px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh608, var(--wh)); } }
+@container (min-width: 624px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh624, var(--wh)); } }
+@container (min-width: 640px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh640, var(--wh)); } }
+@container (min-width: 656px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh656, var(--wh)); } }
+@container (min-width: 672px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh672, var(--wh)); } }
+@container (min-width: 688px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh688, var(--wh)); } }
+@container (min-width: 704px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh704, var(--wh)); } }
+@container (min-width: 720px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh720, var(--wh)); } }
+@container (min-width: 736px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh736, var(--wh)); } }
+@container (min-width: 752px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh752, var(--wh)); } }
+@container (min-width: 768px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh768, var(--wh)); } }
+@container (min-width: 784px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh784, var(--wh)); } }
+@container (min-width: 800px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh800, var(--wh)); } }
+@container (min-width: 816px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh816, var(--wh)); } }
+@container (min-width: 832px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh832, var(--wh)); } }
+@container (min-width: 848px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh848, var(--wh)); } }
+@container (min-width: 864px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh864, var(--wh)); } }
+@container (min-width: 880px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh880, var(--wh)); } }
+@container (min-width: 896px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh896, var(--wh)); } }
+@container (min-width: 912px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh912, var(--wh)); } }
+@container (min-width: 928px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh928, var(--wh)); } }
+@container (min-width: 944px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh944, var(--wh)); } }
+@container (min-width: 960px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh960, var(--wh)); } }
+@container (min-width: 976px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh976, var(--wh)); } }
+@container (min-width: 992px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh992, var(--wh)); } }
+@container (min-width: 1008px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1008, var(--wh)); } }
+@container (min-width: 1024px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1024, var(--wh)); } }
+@container (min-width: 1040px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1040, var(--wh)); } }
+@container (min-width: 1056px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1056, var(--wh)); } }
+@container (min-width: 1072px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1072, var(--wh)); } }
+@container (min-width: 1088px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1088, var(--wh)); } }
+@container (min-width: 1104px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1104, var(--wh)); } }
+@container (min-width: 1120px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1120, var(--wh)); } }
+@container (min-width: 1136px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1136, var(--wh)); } }
+@container (min-width: 1152px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1152, var(--wh)); } }
+@container (min-width: 1168px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1168, var(--wh)); } }
+@container (min-width: 1184px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1184, var(--wh)); } }
+@container (min-width: 1200px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1200, var(--wh)); } }
+}
 
 /* ---- static (SPEC 4.1) and print: a terminal, file tree, editor or code walk prints whole, as its static state, with
    no control row; its panes grow to what they hold instead of scrolling. A part the reader never reached is drawn for

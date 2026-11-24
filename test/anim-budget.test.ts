@@ -105,7 +105,9 @@ describe("the page's work budget", () => {
   });
 
   test("a page of many animations stays within the page's cap at the default caps", () => {
-    const text = Array(60).fill(scene(30, 40, true)).join("\n\n");
+    // each scene is over its own cap (about 24 million units at 0.7.0-rc.3; scene(30, 40) was 30 million until a sent
+    // token's label kept off its dot's halo, and costs 5.6 million now: its label no longer lands among the lines)
+    const text = Array(60).fill(scene(60, 60, true)).join("\n\n");
     const [d, total] = counted(() => parse(text));
     expect(errors(d).length).toBe(60);
     expect(total).toBeLessThan(LIMITS.maxPageAnimWork + 2 * OVER);

@@ -1027,6 +1027,9 @@ export const chipOf = (phone?: boolean) => (phone ? PHONE_CHIP : CHIP);
 // tokens, sends, speech and connector labels are small whatever the size: a dot and a short chip
 export const CHIP = { font: 11, lh: 14, h: 18, px: 7, maxW: 132, dot: 4.5, gap: 5, sayW: 200, edgeW: 170 };
 export const PHONE_CHIP = { ...CHIP, sayW: 118, edgeW: 120 };
+/** a sent token as drawn (anim.tsx): its dot, CHIP.dot + 1, in a halo of the surface's colour this wide; its pill keeps
+ *  SEND_CLEAR off the halo, at rest and so on the whole way (the pill rides with the dot) */
+export const SEND_HALO = CHIP.dot + 4, SEND_CLEAR = 3;
 // lines have room (format version 9): a connector, or a list's or a bucket's arrow, shows at least MIN_LINE units of
 // line between its two shapes; things side by side that a line joins get LINK_GAP between them
 export const MIN_LINE = 32;
@@ -1852,11 +1855,17 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
       // the token rests at its end, by the side it came in on; its chip sits next to it, off every label
       const text = cut(snd.label, CHIP.font, CHIP.maxW);
       const w = chipW(text, CHIP.font) + 2 * CHIP.px, h = CHIP.h;
-      const dot: Rect = { x: last.Q.x - 6, y: last.Q.y - 6, w: 12, h: 12 };
+      // the dot as drawn, halo and all (it was 12 px across, and a pill 3 px off it touched the 17 px halo)
+      const dot: Rect = { x: last.Q.x - SEND_HALO, y: last.Q.y - SEND_HALO, w: 2 * SEND_HALO, h: 2 * SEND_HALO };
       // format version 10: then a ring of spots near the dot, before the spots around the thing it rests at
       const ring: { r: Rect; side: "up" | "down" | "left" | "right" }[] = [];
-      for (const d of [8, 14, 20, 26]) for (let k = 0; k < 16; k++) { const ang = (k * Math.PI) / 8, ux = Math.cos(ang), uy = Math.sin(ang); const cx = last.Q.x + ux * (d + w / 2), cy = last.Q.y + uy * (d + h / 2); ring.push({ r: { x: cx - w / 2, y: cy - h / 2, w, h }, side: Math.abs(ux) > Math.abs(uy) ? (ux > 0 ? "right" : "left") : uy > 0 ? "down" : "up" }); }
-      const best = pick([...around(dot, w, h, ["up", "right", "down", "left"], 3), ...ring, ...around(end, w, h, ["up", "down", "right", "left"])], labels, shapes, soft, lines, nearTo([last.Q], f.boxes));
+      // d: the pill's nearest edge from the dot's centre (on a slant it is farther): the first ring is clear of the halo
+      for (const d of [0, 6, 12, 18].map((x) => SEND_HALO + SEND_CLEAR + x)) for (let k = 0; k < 16; k++) { const ang = (k * Math.PI) / 8, ux = Math.cos(ang), uy = Math.sin(ang); const cx = last.Q.x + ux * (d + w / 2), cy = last.Q.y + uy * (d + h / 2); ring.push({ r: { x: cx - w / 2, y: cy - h / 2, w, h }, side: Math.abs(ux) > Math.abs(uy) ? (ux > 0 ? "right" : "left") : uy > 0 ? "down" : "up" }); }
+      // every spot keeps off the halo: a spot by the thing the token rests at can lie beside the dot on that thing's edge
+      // (scored out, not left out: the same spots are tried, so the work counted stays the same)
+      const offHalo = (r: Rect) => Math.hypot(Math.max(r.x - last.Q.x, 0, last.Q.x - r.x - r.w), Math.max(r.y - last.Q.y, 0, last.Q.y - r.y - r.h)) >= SEND_HALO + SEND_CLEAR - 0.01;
+      const near = nearTo([last.Q], f.boxes);
+      const best = pick([...around(dot, w, h, ["up", "right", "down", "left"], SEND_CLEAR), ...ring, ...around(end, w, h, ["up", "down", "right", "left"])], labels, shapes, soft, lines, (r) => near(r) + (offHalo(r) ? 0 : 1e9));
       g.chip = mark({ kind: "send", at: end.key, text: snd.label, lines: [text], r: best.r, side: best.side });
     } else if (snd.label && !snd.as) {
       // an arrow's label sits by the middle of the arrow, beside it if the middle is taken

@@ -56,6 +56,30 @@ export function staticView(c: Compiled, ar: number, px: number): { x: number; y:
   const w = Math.max(s.w, s.h * ar, px ? px / MOST : 0), h = w / ar;
   return { x: all.x + all.w / 2 - w / 2, y: all.y + all.h / 2 - h / 2, w, h };
 }
+/** wholeAspect's height as CSS, for a container whose width is the stage's (100cqw) */
+export const wholeHeightCss = (s: { w: number; h: number }): string => `clamp(${LOW}px, min(${+(MOST * s.h).toFixed(3)}px, ${+(s.h / s.w).toFixed(6)} * 100cqw), ${HIGH}px)`;
+/** the same height in pixels for a stage w wide (what the browser draws; the test holds the two together) */
+export const wholeHeightPx = (s: { w: number; h: number }, w: number): number => Math.min(HIGH, Math.max(LOW, Math.min(MOST * s.h, (s.h / s.w) * w)));
+/** the layout widths a whole scene's height is known at on the server (layoutWidth's 16 px steps, phone to wide) */
+export const WHOLE_WS: number[] = Array.from({ length: 61 }, (_, k) => 240 + 16 * k);
+/** No load shift (SPEC 6.14): a whole scene's stage height for every layout width, as custom properties for the part's
+ *  style attribute (no <style> element, no HTML string: strict Trusted Types holds). --wh is the height at the widest
+ *  width; --wh-a, --wh-b ... the other layouts' heights; --wh<width> names the one a width takes where it is not --wh.
+ *  src/ui/parts.css picks the one for the stage's width with a container query per width in WHOLE_WS. i: static's step */
+export function wholeHeightVars(wide: Compiled, i?: number): Record<string, string> {
+  const at = (b: number) => { const c = wholeLayout(wide, b); return c.frames.length ? wholeHeightCss(wholeSize(i == null ? c : oneStep(c, i))) : null; };
+  const top = at(WHOLE_WS[WHOLE_WS.length - 1]);
+  if (!top) return {};
+  const out: Record<string, string> = { "--wh": top }, named = new Map<string, string>([[top, "--wh"]]);
+  for (const b of WHOLE_WS) {
+    const h = at(b);
+    if (!h || h === top) continue;
+    let n = named.get(h);
+    if (!n) { n = `--wh-${String.fromCharCode(97 + named.size - 1)}`; named.set(h, n); out[n] = h; }
+    out[`--wh${b}`] = `var(${n})`;
+  }
+  return out;
+}
 // the stage's shape that shows it whole
 export function wholeAspect(c: Compiled, px: number): number {
   if (!c.frames.length) return c.aspect;

@@ -128,6 +128,14 @@ The third release candidate of 0.7.0. The format number stays 10.
   only on paper, and writes that drawing's print sizes and shape into the stage's `style` attribute as custom
   properties (`cssVars`, `src/ui/css-vars.ts`; no style element, so strict Trusted Types holds). A stage's server
   markup grows by one plan (8 instead of 7).
+- **A still or static graph-engine scene does not move on load** (SPEC.md 6.14). Its stage height was set by the script,
+  so the server's page drew it at the default shape and the page below jumped when the script ran (4 to 11 px on a
+  laptop, up to 287 px on a phone); its heights are now custom properties in the part's `style` attribute, picked by
+  container queries. On a phone every animation is edge to edge before the script runs (it was its column's width).
+- **A sent token's label pill no longer touches the moving dot** (SPEC.md 6.14). It was placed off the dot's own
+  size, 0.5 px from the halo drawn around it; it now keeps 3 px off the halo.
+- **Speech beside a thing points at it** (SPEC.md 6.14). Only speech above or below had a tail; on a phone, where speech
+  often sits beside the thing, it pointed at nothing.
 - **An issue in Markdown that follows a plain code block points at the Markdown's first line**, as every Markdown issue
   does, not at the line after the code block (a code reference above a ```` ```ts ```` block was reported 30 lines
   below itself).

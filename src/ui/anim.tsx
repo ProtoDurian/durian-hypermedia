@@ -6,11 +6,12 @@
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { baseY as geoBase, floorY, SLAB } from "./geo3d";
-import { sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { SEND_HALO, sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
 import { stageScene, phoneScene, leastScale } from "../core/readable";
 // format version 11: a still scene and a static one show whole (core/whole.ts); a calm story (core/calm.ts): only
 // items that pass each other arc, one held view from a camera word to the next, one token's words at a time
-import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeLayout, wholeSize, wholeView } from "../core/whole";
+import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeHeightVars, wholeLayout, wholeSize, wholeView } from "../core/whole";
+import { cssVars } from "./css-vars";
 import { calmHeight, heldViews, tokenSubject, passing, stepT } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
@@ -119,6 +120,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const natS = oneS ? wholeSize(oneS) : null;
   const swipeW = natS && leastS && !st.print && natS.w * leastS > px0 + 1 ? Math.ceil(natS.w * leastS) : 0;
   const [swipeMore, setSwipeMore] = useState("r");
+  // no load shift (SPEC 6.14): a whole scene's stage height for every layout width, in the part's style attribute, so the
+  // server's page already has the height the browser keeps (parts.css picks one by the stage's width)
+  const wqVars = useMemo(() => (whole ? wholeHeightVars(cWide, st.on ? st.i : undefined) : null), [whole, st.on, st.i]);
   const stageAr = swipeW ? px0 / (natS!.h * leastS) : st.on && c.frames.length ? wholeAspect(oneStep(c, st.i), px0) : whole ? wholeAspect(c, px0) : c.aspect;
   // on a phone, a stage a little taller where that, and only that, keeps the camera still between two zooms (core/calm.ts)
   const tall = useMemo(() => (!whole && phone && c.frames.length && typeof window !== "undefined" ? calmHeight(c, px0, window.innerHeight) : null), [c, px0, whole]);
@@ -566,7 +570,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
     </div>
   );
   return (
-    <div ref={root} data-dh-part={src.part} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
+    <div ref={root} data-dh-part={src.part} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-wq={wqVars ? "" : undefined} style={wqVars ? cssVars(wqVars) : undefined} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
       tabIndex={st.on || fixed ? undefined : 0} onKeyDown={st.on || fixed ? undefined : onKey} aria-roledescription={st.on ? undefined : "animation"}>
       {srText && <p className="sr-only">{srText}</p>}
       {/* the controls sit in a bar above the stage, so they never cover what the story shows */}
@@ -755,7 +759,7 @@ function Send({ g, at, fin, marks, p, o = 1, still }: { g: SendGeom; at: Map<num
     <g className={cx("scn-send", arrow && "is-arrow", g.cc && `cc cc-${g.cc}`)} style={{ opacity: p === 0 ? 0 : 1 }}>
       {arrow && geo.map((gg, k) => (k < seg || k === seg) && <path key={k} className="scn-arrow" d={bezPath(gg)} pathLength={1} strokeDasharray="1 1" strokeDashoffset={k < seg ? 0 : 1 - f} />)}
       {arrow && <path className="scn-arrow-head" d={`M${tip.x} ${tip.y}l${-tan.x * 9 - tan.y * 4.5} ${-tan.y * 9 + tan.x * 4.5}l${tan.y * 9} ${-tan.x * 9}z`} />}
-      {token && !(g.landed && p >= 0.999) && <><circle className="scn-send-halo" cx={dot.x} cy={dot.y} r={CHIP.dot + 4} /><circle className="scn-send-dot" cx={dot.x} cy={dot.y} r={CHIP.dot + 1} /></>}
+      {token && !(g.landed && p >= 0.999) && <><circle className="scn-send-halo" cx={dot.x} cy={dot.y} r={SEND_HALO} /><circle className="scn-send-dot" cx={dot.x} cy={dot.y} r={CHIP.dot + 1} /></>}
       {chipR && <g className="scn-send-chip"><rect x={chipR.x} y={chipR.y} width={chipR.w} height={chipR.h} rx={chipR.h / 2} /><text x={chipR.x + chipR.w / 2} y={chipR.y + chipR.h / 2} textAnchor="middle" dominantBaseline="central">{chip!.lines[0]}</text></g>}
       {al && alp && <g className="scn-arrow-l" style={{ opacity: alo }}><rect x={alp.x - al.r.w / 2} y={alp.y - al.r.h / 2} width={al.r.w} height={al.r.h} rx={Math.min(9, al.r.h / 2)} /><Words lines={al.lines} x={alp.x} y={alp.y} z={DESIGN.s} cls="scn-arrow-t" font={CHIP.font} /></g>}
     </g>
@@ -780,13 +784,22 @@ function Stream({ g, geo, lenGeo, marks, p, o = 1, still: stands }: { g: SendGeo
     </g>
   );
 }
+/** a speech bubble's outline, with its tail on the side that faces the thing that speaks: below it when the bubble
+ *  is above, and so on. Beside the thing (a phone puts speech there when above is taken) the tail is on its left or right
+ *  edge (it had none, so a bubble beside a thing pointed at nothing) */
+export function sayPath(m: { dx: number; dy: number; side: Mark["side"]; r: { w: number; h: number } }, r: Rect): string {
+  const c = center(r), x = c.x + m.dx, y = c.y + m.dy, w = m.r.w, h = m.r.h;
+  const tx = Math.max(x + 10, Math.min(x + w - 10, c.x)), ty = Math.max(y + 6, Math.min(y + h - 6, c.y));
+  return m.side === "up" ? `M${x} ${y}h${w}v${h}H${tx + 6}l-6 6l-6 -6H${x}z`
+    : m.side === "down" ? `M${x} ${y}H${tx - 6}l6 -6l6 6H${x + w}v${h}h${-w}z`
+    : m.side === "right" ? `M${x} ${y}h${w}v${h}h${-w}V${ty + 6}l-6 -6l6 -6z`
+    : m.side === "left" ? `M${x} ${y}h${w}V${ty - 6}l6 6l-6 6V${y + h}h${-w}z`
+    : `M${x} ${y}h${w}v${h}h${-w}z`;
+}
 // speech for this step, where the engine placed it (above the thing if that is free), with a tail towards it
 function Say({ m, r, o }: { m: Mark; r: Rect; o: number }) {
   const c = center(r), x = c.x + m.dx, y = c.y + m.dy, w = m.r.w, h = m.r.h;
-  const tx = Math.max(x + 10, Math.min(x + w - 10, c.x));
-  const d = m.side === "up" ? `M${x} ${y}h${w}v${h}H${tx + 6}l-6 6l-6 -6H${x}z`
-    : m.side === "down" ? `M${x} ${y}H${tx - 6}l6 -6l6 6H${x + w}v${h}h${-w}z`
-    : `M${x} ${y}h${w}v${h}h${-w}z`;
+  const d = sayPath(m, r);
   return (
     <g className="scn-say" style={{ opacity: o }}>
       <path d={d} />

@@ -1550,8 +1550,10 @@ The Format page shows it with the seven OSI layers: a request goes down one mach
 | `map <id> ["label"]: key: value, ...` | a dictionary: a table with the columns key and value, one row per entry, named `<id>.<key>`: `map cache "session cache": u7: Ana, u12: Ben` |
 | `map ... buckets=<n>: ...` | the same map drawn as a hash table: n buckets (`<id>.b0` ...), each entry a box "key: value" in bucket hash(key) mod n, where hash(key) is the sum of the key's character codes (a real map uses a stronger hash; one key, one bucket, every time, is the same idea); two keys in one bucket make a chain: `map cache buckets=4: ana: cart 3, cy: cart 9` |
 | `put <map> <key>: <value>` | adds the entry (in its bucket), or gives the key its new value: `put cache dee: cart 4` |
-| `get <map> <key>` | a lookup: the entry, and its bucket in a hash table, are lit for this step and framed: `get cache ana` |
+| `get <map> <key>` | a lookup: the entry is lit for this step and kept in view; in a hash table its bucket is framed, not lit (a thin outline in the faint ink colour, not the accent: its fill, words and border stay), so a lookup is one focus: `get cache ana` |
 | `get <array> <index>` | an array read by index: `get ids 3` |
+
+For example, after `map cart "cart sizes" buckets=3: ana: 3, ben: 7, cy: 9`, the step `get cart ana` lights one thing, the entry `cart.ana`, and frames its bucket `cart.b1` (ana and cy share it: 97 + 110 + 97 = 304, and 304 mod 3 is 1).
 
 A key becomes part of an id, so it is letters, digits, `-` and `_`. doccheck refuses: an entry that is not `key: value`, a key that is not an id, a key twice, `buckets=` that is not 1 to 16 or that is on anything but a map, a key that looks like a bucket's id (`b1`), `get` of a key the map does not hold (it lists the keys) or of an index past the end, `get` on what is neither a map nor an array, `put` on what is not a map, and a `get` inside a closed thing that the story has not zoomed into (zoom in, in that step or before).
 

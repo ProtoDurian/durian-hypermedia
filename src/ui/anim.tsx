@@ -491,7 +491,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   };
 
   // ---- draw: containers (outer first), connectors, shapes, tokens; then this step's speech and travelling tokens
-  const hl = new Map(fx.highlights.map((h) => [h.key, h.tone]));
+  const hl = new Map(fx.highlights.map((h) => [h.key, h.tone])), framed = new Set(fx.framed ?? []);
   const conts = shown.filter((s) => s.box.container).sort((a, b) => a.box.depth - b.box.depth);
   const leaves = shown.filter((s) => !s.box.container && !["token", "pointer"].includes(s.box.kind));
   const overlays = shown.filter((s) => ["token", "pointer"].includes(s.box.kind));
@@ -576,7 +576,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       items, edges: edgesNow.map(({ e, o }) => ({ ...e, o: o * stageO })),
       sends: (mv ? [] : B.sends).map((g, k) => ({ label: g.label, path: g.path, show: g.show, cc: g.cc, p: sendPOf(g, k), offs: g.offs, bends: g.bends, rts: g.rts })),
       says: fx.says.map((sy, k) => ({ key: sy.key, text: sy.text, o: sayO(k) })),
-      hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), sel,
+      hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), framed: new Set(fx.framed ?? []), sel,
       layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
       cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
       part: quiet && B.part ? B.part : null,
@@ -640,9 +640,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
             {families.map((_, k) => <marker key={k} id={`${mk}-c${k + 1}`} className={`scn-mk cc cc-${k + 1}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>)}
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
-          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} framed={framed.has(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector sl={lineSlots(src.part)} key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
-          {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} framed={framed.has(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} still={st.on} />)}
           {(mv ? [] : edgesNow).filter(({ e }) => e.lr && B.sends.some((g) => g.path.some((_, k) => k + 1 < g.path.length && ridesOn(B, g, k)?.key === e.key))).map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector sl={lineSlots(src.part)} key={`l-${e.key}`} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} labelOnly /> : null; })}
           {endingStreams.map((g, k) => <Send key={`end-${streamKey(g)}-${k}`} g={g} at={at} fin={prev} marks={A.marks} p={1} o={1 - te} />)}
@@ -679,7 +679,7 @@ function Words({ lines, x, y, z, cls = "scn-label", font }: { lines: string[]; x
   const y0 = y - ((lines.length - 1) * lh) / 2;
   return <text x={x} y={y0} className={cls} dominantBaseline="central" textAnchor="middle" style={{ fontSize: font ?? z.font }}>{lines.map((l, k) => <tspan key={k} x={x} y={y0 + k * lh}>{l}</tspan>)}</text>;
 }
-function Shape({ s, hl, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: Shown; hl?: string; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
+function Shape({ s, hl, framed, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: Shown; hl?: string; framed?: boolean; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
   const { box: b, r } = s;
   const o = s.o * (s.g ?? 1), wo = wordsO(s.g);
   const e = b.ent;
@@ -688,7 +688,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: S
   // a family's colour, when the thing has no tone (a tone is a state: good, warn, hot ... and wins)
   // fill-none: the border only; is-same: inside a container of its own family, it drops the tint to stand out
   const cc = b.cc && e.tone === "plain" ? cx(`cc cc-${b.cc}`, b.fill === "none" && "fill-none", b.pcc === b.cc && "is-same") : null;
-  const cls = cx("scn-ent", `k-${b.kind}`, `sz-${b.size}`, tone, cc, e.dim && "is-dim", e.down && "is-down", hl && `is-hl hl-${hl}`, sel && "is-sel");
+  const cls = cx("scn-ent", `k-${b.kind}`, `sz-${b.size}`, tone, cc, e.dim && "is-dim", e.down && "is-down", hl && `is-hl hl-${hl}`, !hl && framed && "is-framed", sel && "is-sel");
   const tx = r.x + r.w / 2, ty = r.y + r.h / 2;
   const lb = labelBox(b.kind, r, b.lines, z, e.level != null);
   // a meter (level=): a bar along the bottom in an outlined track, filled to the level (format version 10 fix: taller,
@@ -746,7 +746,7 @@ function Shape({ s, hl, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: S
   const rr = b.kind === "field" ? 4 : b.kind === "circle" ? Math.min(r.w, r.h) / 2 + 4 : b.kind === "pill" ? Math.min((r.h + 8) / 2, 22) : z.r + 3;
   // cells of an array sit 4 apart: their rings hug them, so two lit neighbours do not run into each other
   const rp = b.kind === "field" ? 0.5 : b.parentKind && ["array", "stack", "queue"].includes(b.parentKind) ? 1.5 : 4;
-  const ring = (hl || sel) && !["text", "token", "pointer"].includes(b.kind) ? <rect className="scn-ring" x={r.x - rp} y={r.y - rp} width={r.w + 2 * rp} height={r.h + 2 * rp} rx={rr - 4 + rp} /> : null;
+  const ring = (hl || sel || framed) && !["text", "token", "pointer"].includes(b.kind) ? <rect className="scn-ring" x={r.x - rp} y={r.y - rp} width={r.w + 2 * rp} height={r.h + 2 * rp} rx={rr - 4 + rp} /> : null;
   const x = e.down ? <path className="scn-x" d={`M${r.x + 6} ${r.y + 6}L${r.x + r.w - 6} ${r.y + r.h - 6}M${r.x + r.w - 6} ${r.y + 6}L${r.x + 6} ${r.y + r.h - 6}`} /> : null;
   const idx = b.index != null && wo > 0.02 ? <text x={b.x + b.w / 2} y={b.y + b.h + 11} className="scn-idx" textAnchor="middle" dominantBaseline="central">{b.index}</text> : null;
   return <g className={cls} data-key={b.key} data-dh-slot={slot} style={{ opacity: o }}>{title}{ring}{body}{meter}{idx}{x}</g>;

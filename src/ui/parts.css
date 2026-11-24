@@ -277,6 +277,8 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .hl-good .scn-ring { stroke: var(--good); } .hl-warn .scn-ring { stroke: var(--warn); } .hl-hot .scn-ring { stroke: var(--hot); } .hl-muted .scn-ring { stroke: var(--line-2); }
 .is-hl .scn-shape, .is-hl .scn-frame { stroke-width: 2.4; }
 .is-sel .scn-ring { stroke-dasharray: 5 4; }
+/* (0.7.0-rc.3) framed, not lit: a lookup's bucket around its lit entry; a quiet outline, its fill, ink and border stay */
+.is-framed .scn-ring { stroke: var(--faint); stroke-width: 1.5; opacity: 1; }
 .scn-ent:hover .scn-shape, .scn-ent:hover .scn-frame { stroke: var(--acc); }
 /* connectors follow their ends */
 .scn-conn path { stroke: var(--muted); stroke-width: 1.6; fill: none; }

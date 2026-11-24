@@ -316,6 +316,8 @@ The third release candidate of 0.7.0. The format number stays 10.
   and the mesh moves one token per step; its control plane pushes the retry rule to the orders proxy, the one that retries.
 - **One focus per step in the array, map and tree scene too** (fixture 63): finding 40 in the tree lights 50, then 40,
   in steps of their own (it lit both in one step).
+- **A lookup in a hash table is one focus.** `get <map> <key>` lights the entry only; its bucket is framed (a thin
+  outline in the faint ink colour, not the accent; its fill, words and border stay) and still kept in view, in 2D and 3D. It lit both.
 - **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`
   under it, both following the scroll (`DocumentView`; `src/react/table-more.ts`); neither shows in print.
 - **A table wider than the text column leaves it on a wide screen** (a Markdown table of the document itself, not one

@@ -38,6 +38,8 @@ export interface View3 {
   sends: { label: string; path: number[]; show: string; cc: number; p: number; offs?: number[]; bends?: number[]; rts?: (Route | null)[] }[];
   says: { key: number; text: string; o: number }[];
   hl: Map<number, string>; sel: number | null;
+  // (0.7.0-rc.3) framed, not lit: a lookup's bucket; a quiet outline in the faint ink colour, nothing lifts
+  framed?: Set<number>;
   layers: Layer[]; levels: number; spread: number; focus: number | null; look: number[] | null; touched: number[];
   // the held view (core/calm.ts): the things of each step that shares it, at rest, and what those steps touch
   hold?: { frames: Item3[][]; touched: number[]; least: number; spread: number };
@@ -459,8 +461,9 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       for (const e of o.extra) { const m = e.material as THREE.MeshBasicMaterial; m.color.copy(k === "pointer" ? C.hot : t.line.clone().lerp(t.fill, 0.35)); m.opacity = op; solid(m, op); }
       // ring: highlight (solid) or selection (dashed) around the foot
       const rm = o.ring.material as THREE.LineDashedMaterial;
-      o.ring.visible = !!(hlt || sel);
-      if (o.ring.visible) { const fw = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.x : it.w, fd = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.z : k === "pill" ? Math.min(it.h, 26) : it.h; o.ring.scale.set(fw + 8, 1, fd + 8); o.ring.position.y = 1; rm.color.copy(hlt ? toneLine(hlt) : C.acc); rm.opacity = op; rm.dashSize = sel && !hlt ? 0.04 : 10; rm.gapSize = sel && !hlt ? 0.03 : 0; }
+      const fr = !hlt && !!v.framed?.has(it.key);
+      o.ring.visible = !!(hlt || sel || fr);
+      if (o.ring.visible) { const fw = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.x : it.w, fd = o.body && (k === "cylinder" || k === "cloud" || k === "circle") ? o.body.scale.z : k === "pill" ? Math.min(it.h, 26) : it.h; o.ring.scale.set(fw + 8, 1, fd + 8); o.ring.position.y = 1; rm.color.copy(hlt ? toneLine(hlt) : fr && !sel ? C.faint : C.acc); rm.opacity = op; rm.dashSize = sel && !hlt ? 0.04 : 10; rm.gapSize = sel && !hlt ? 0.03 : 0; }
       // a lifted thing's old place: a thin outline on the floor it rose from, so the reader sees where it goes back
       o.sock.visible = (it.lift ?? 0) > 0.02;
       if (o.sock.visible) { o.sock.scale.set(it.w + 4, 1, (k === "pill" ? Math.min(it.h, 26) : it.h) + 4); o.sock.position.y = -(it.lift ?? 0) * LIFT_UP - pop + 1; const sm = o.sock.material as THREE.LineBasicMaterial; sm.color.copy(C["line-2"]); sm.opacity = it.o * (it.lift ?? 0); }

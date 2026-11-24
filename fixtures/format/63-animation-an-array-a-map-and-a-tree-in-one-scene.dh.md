@@ -5,7 +5,7 @@ description: A fixture made from the Format page section of the same name.
 
 ## Animation: an array, a map and a tree in one scene
 
-Data structures are things like any other, and live in one scene with a person, a service and a database. Each is `closed=yes`: small and faint until the story zooms into it. `map cart "cart sizes" buckets=3: ana: 3, ...` is a map of keys and values, drawn as a hash table: a key's bucket is the sum of its letters' codes, mod 3. `get cart ana` looks a key up (its bucket and entry light up), `get ids 3` reads an array by index, and `put cart dee: 4` adds an entry. `dir=down` on the fence runs the scene top to bottom. Without `buckets=`, a map is a table of keys and values.
+Data structures are things like any other, and live in one scene with a person, a service and a database. Each is `closed=yes`: small and faint until the story zooms into it. `map cart "cart sizes" buckets=3: ana: 3, ...` is a map of keys and values, drawn as a hash table: a key's bucket is the sum of its letters' codes, mod 3. `get cart ana` looks a key up (its entry lights up, and its bucket is framed), `get ids 3` reads an array by index, and `put cart dee: 4` adds an entry. `dir=down` on the fence runs the scene top to bottom. Without `buckets=`, a map is a table of keys and values.
 
 ```animation dir=down size=s
 family svc "the service"

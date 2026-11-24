@@ -3,7 +3,7 @@
 // all steps (nothing moves), the narrow layout, the dispatch from ```animation, roles, linear work and hostile input.
 import { beforeEach, describe, expect, test } from "bun:test";
 import { compileStage, layoutStage, stageLlm, isStage, edgeSteps, type Compiled } from "../../src/core/stage";
-import { forbidden, FONT, measure, type Item , wrapRoom, setPhoneFont } from "../../src/core/stage-core";
+import { forbidden, FONT, measure, type Item , wrapRoom, setPhoneFont, drawnW } from "../../src/core/stage-core";
 import { pageRoles } from "../../src/core/stage-roles";
 import { sectionsOutsideFences, isStagePart } from "../../src/core/stage-part";
 import { jsonOf, llmView, parseDoc } from "../../src/core/dh-lib";
@@ -169,7 +169,7 @@ describe("parse", () => {
     const p1 = fr(356, 1)[0], p2 = fr(356, 2)[0], w1 = fr(1000, 1)[0], w2 = fr(1000, 2)[0];
     expect(p1.h).toBeLessThan(p2.h - 100);
     expect(w1.h).toBe(w2.h);
-    setPhoneFont(true); expect(wrapRoom("words that fit on one line", 400, "sub")).toEqual(["words that fit on one line"]); const tok = "web-arm-7f9c8d6b5-k2m4p-x"; expect(wrapRoom(tok, measure(tok, "sub") + 1, "sub").length).toBe(2); setPhoneFont(false); expect(wrapRoom(tok, measure(tok, "sub") + 1, "sub").length).toBe(1);
+    setPhoneFont(true); expect(wrapRoom("words that fit on one line", 400, "sub")).toEqual(["words that fit on one line"]); const tok = "web-arm-7f9c8d6b5-k2m4p-x"; expect(wrapRoom(tok, measure(tok, "sub") + 1, "sub").length).toBe(2); setPhoneFont(false); expect(wrapRoom(tok, drawnW(tok, "sub") + 1, "sub").length).toBe(1); // off a phone: one line where its drawn width fits (rc.3 review MUST 4)
   });
   test("on a phone, a grid shown again with the same cards keeps their height when they lose their value chip (zero movement between steps); the wide stage keeps its own heights", () => {
     const g = (v: boolean) => "grid 3\n  client: field 1 | from web-1" + (v ? " [= (a=1)]" : "") + "\n  client: field 2 | from web-2" + (v ? " [= (a=2)]" : "") + "\n  client: field 3 | from web-3" + (v ? " [= (a=3)]" : "");

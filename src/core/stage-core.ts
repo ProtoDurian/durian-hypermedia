@@ -53,7 +53,9 @@ export function drawnW(s: string, f: Font): number {
  * stays inside the border, keeps its place, so nothing grows where it already fits */
 export function wrapRoom(s: string, w: number, f: Font, max = 4, slack = 0): string[] {
   const ls = wrap(s, w, f, max);
-  if (!phoneFont) return ls;
+  // p11 (rc.3 review MUST 4: the layers story's routing table T3 at 1280): off a phone, where a line's drawn width (digits
+  // draw wider than the table says) would cross the border, the text breaks again by drawn width; else it keeps its lines
+  if (!phoneFont) return ls.some((l) => drawnW(l, f) > w + slack) ? wrap(s, w, f, max, true) : ls;
   return ls.flatMap((l) => {
     if (l.includes(" ") || drawnW(l, f) <= w + slack) return [l];
     const out: string[] = []; let cur = "";
@@ -79,17 +81,18 @@ export const most = (n: number) => (phoneLines ? n + 8 : n);
 // phone): a line holding one breaks as if it were 15% wider
 const HEXRUN = /[0-9A-Fa-f]{2}[:.-][0-9A-Fa-f]{2}[:.-][0-9A-Fa-f]{2}/;
 const fitW = (x: string, f: Font) => measure(x, f) * (phoneLines && HEXRUN.test(x) ? 1.15 : 1); // on a phone, where the cards are narrow
-export function wrap(s: string, w: number, f: Font, max = 4): string[] {
+export function wrap(s: string, w: number, f: Font, max = 4, drawn = false): string[] {
+  const fitW2 = drawn ? (x: string, f2: Font) => Math.max(fitW(x, f2), drawnW(x, f2)) : fitW;
   docBudget().charge("stage words", s.length + 1, s.length);
   const words = s.split(" ").filter((x) => x !== ""), out: string[] = [];
   let cur = "";
   const push = (x: string) => { out.push(x); };
   for (let word of words) {
     const tryW = cur ? cur + " " + word : word;
-    if (fitW(tryW, f) <= w) { cur = tryW; continue; }
+    if (fitW2(tryW, f) <= w) { cur = tryW; continue; }
     if (cur) { push(cur); cur = ""; }
-    while (fitW(word, f) > w && word.length > 1) {
-      let k = 1; while (k < word.length && fitW(word.slice(0, k + 1), f) <= w) k++;
+    while (fitW2(word, f) > w && word.length > 1) {
+      let k = 1; while (k < word.length && fitW2(word.slice(0, k + 1), f) <= w) k++;
       // break after a "-", ".", "/", "_" or ":" when one falls in the part that fits (host names, paths)
       let b = k; while (b > 1 && !"-./_:".includes(word[b - 1])) b--;
       if (b > k / 3) k = b;

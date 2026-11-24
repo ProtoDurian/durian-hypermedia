@@ -129,6 +129,9 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Fixed
 
+- **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
+  1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
+  again by its drawn width; lines that fit keep their places.
 - **A connector's chip slides off an upright line** (SPEC.md 6.13). In the stacked form at 480 px and wider, a chip
   that an upright line ran through moves along its row to the nearest place 6 px clear of every upright, where there
   is one.

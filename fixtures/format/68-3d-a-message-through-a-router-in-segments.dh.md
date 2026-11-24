@@ -11,13 +11,14 @@ A thing can have an inside. `group r "router" closed=yes` draws the router's ins
 layer net "one network"
 family a "host A"
 family b "host B"
+family rr "router"
 group ha "host A" layout=column is=a
-group r "router" closed=yes layout=free
-queue q "input queue" in r pos=0,0
-table rt "routing table" in r pos=0,2.2: to, port
+group r "router" closed=yes layout=free is=rr
+queue q "input queue" in r pos=0,0 is=rr
+table rt "routing table" in r pos=0,2.2 is=rr: to, port
 row r1 in rt: host B, 2
 row r2 in rt: host C, 1
-group p2 "port 2" in r layout=column pos=4.4,2.2
+group p2 "port 2" in r layout=column pos=4.4,2.2 is=rr
 group hb "host B" layout=column is=b
 ha -> q
 p2 -> hb

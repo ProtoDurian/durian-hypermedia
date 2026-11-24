@@ -113,6 +113,10 @@ The third release candidate of 0.7.0. The format number stays 10.
   hairline (1.3:1 in dark, so they disappeared). They now draw it in `--scn-faint-edge`, 3:1 on the stage, the page and
   every family fill in both themes. Frames, cells with words and guides keep the hairline. A bin's empty slot has the
   class `stg-slot`.
+- The layers example tells layer 3's things apart: packets and headers, routers, and the routing and NAT tables are
+  three families (each labelled layer 3), so a router, its table and the packet are no longer one colour. The 3D router
+  of "a message through a router, in segments" is a family of its own: zoomed in it shows that family's fill and border,
+  and its input queue, routing table and port 2 carry its border, told apart from the two hosts.
 
 ### Removed (breaking)
 

@@ -7,7 +7,9 @@ roles:
   app: { label: "HTTP and the browser (layer 7)", colour: c1 }
   sec: { label: "TLS (layers 6 and 5, loosely)", colour: c2 }
   tcp: { label: "TCP (layer 4)", colour: c3 }
-  ip: { label: "IP and routing (layer 3)", colour: c4 }
+  ip: { label: "IP packets and headers (layer 3)", colour: c4 }
+  router: { label: "routers (layer 3)", colour: c7 }
+  table: { label: "routing and NAT tables (layer 3)", colour: c8 }
   link: { label: "Ethernet and ARP (layer 2)", colour: c5 }
   signal: { label: "bits as a signal (layer 1)", colour: c6 }
 ---
@@ -29,12 +31,12 @@ title: The next hop's MAC | ARP on the home network
 ## Laptop
 app lap: laptop | 192.0.2.10/24 | MAC 00:00:5E:00:53:0A
   app know: what it knows | example.com is 203.0.113.80 (DNS, still cached) | neighbour cache: empty (entries age out in minutes)
-  ip t1: routing table T1 | 192.0.2.0/24: connected, next hop on this network, out copper to the switch | * 0.0.0.0/0: default (from DHCP), next hop 192.0.2.1, out copper to the switch: matches, longest, chosen
+  table t1: routing table T1 | 192.0.2.0/24: connected, next hop on this network, out copper to the switch | * 0.0.0.0/0: default (from DHCP), next hop 192.0.2.1, out copper to the switch: matches, longest, chosen
 ## Switch
 link sw: switch | ports 1 and 5 | copper to each
   link mac: MAC table | empty (entries age out, often after 5 minutes)
 ## Home router
-ip hr: home router, home side | 192.0.2.1/24 | MAC 00:00:5E:00:53:01
+router hr: home router, home side | 192.0.2.1/24 | MAC 00:00:5E:00:53:01
   link nc: neighbour cache | 192.0.2.10 is 00:00:5E:00:53:0A (from the question)
 nest: On the link
   link fr: Ethernet frame | 64 bytes | to FF:FF:FF:FF:FF:FF (broadcast); from 00:00:5E:00:53:0A; type 0x0806 (ARP); 18 bytes of padding; > FCS 4f 32 f5 0b
@@ -79,8 +81,8 @@ app lap: laptop | 192.0.2.10
   tcp lc: connection | 192.0.2.10:51514 to 203.0.113.80:443: established
   sec ls: session | TLS 1.3 with example.com, checked | application keys: a key and IV for sending, a key and IV for receiving | record counters: 0 and 0 | next byte to send: 1001; next expected: 4001
 ## Home router
-ip hr: home router | outside 198.51.100.7
-  ip nat: NAT table | TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443 | state: SYN seen | expected back: 203.0.113.80:443 to 198.51.100.7:40001
+router hr: home router | outside 198.51.100.7
+  table nat: NAT table | TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443 | state: SYN seen | expected back: 203.0.113.80:443 to 198.51.100.7:40001
 ## Server
 app sv: server | 203.0.113.80
   tcp sc: connection | 203.0.113.80:443 to 198.51.100.7:40001: established (it only ever sees the public address)
@@ -238,10 +240,10 @@ app lap: laptop | 192.0.2.10
 ## Switch
 link sw: switch | ports 1 and 5
 ## Home router
-ip hr: home router | 192.0.2.1 at home | 198.51.100.7 to the provider
+router hr: home router | 192.0.2.1 at home | 198.51.100.7 to the provider
   link gone: dropped here | the frame: to 00:00:5E:00:53:01, from 00:00:5E:00:53:0A, FCS 0e be 36 b7 | its job is done
 ## Router A
-ip ra: router A | 198.51.100.6
+router ra: router A | 198.51.100.6
 nest: The packet | layer 2 outside, layer 3 inside
   link fr: Ethernet frame | 117 bytes | to 00:00:5E:00:53:01; from 00:00:5E:00:53:0A; type 0x0800 (IPv4); > FCS 0e be 36 b7, at the end
   ip pk: IP packet | 99 bytes | version 4; header 20; DSCP 0; total length 99; ID 0x1c46; flag DF, offset 0; TTL 64; protocol 6 (TCP); header checksum 0x1ff4; from 192.0.2.10; to 203.0.113.80
@@ -282,7 +284,7 @@ rows
 @step NAT: NAT happens here: the source becomes the public 198.51.100.7, port 40001, from the entry the SYN made. The destination stays.
 set pk: from 192.0.2.10 => from 198.51.100.7
 set sg: ports 51514 to 443 => ports 40001 to 443
-card ip: NAT table T8 | TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443
+card table: NAT table T8 | TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443
   state: established (written by the SYN)
   expected back: 203.0.113.80:443 to 198.51.100.7:40001
 @step Checksums: The router fixes the IP checksum, and the TCP one too, because that one also covers the addresses and ports.
@@ -299,7 +301,7 @@ show fr
 fields fr: * to 00:00:5E:00:53:A1; * from 00:00:5E:00:53:02; type 0x0800 (IPv4); > FCS 40 44 8d ca, at the end
 light fr
 hr -> ra: link 3, fibre
-card ip: What the home router used | three tables
+card table: What the home router used | three tables
   neighbour cache: 198.51.100.6 is 00:00:5E:00:53:A1
   0.0.0.0/0: default (from the provider), next hop 198.51.100.6, out fibre to A: matches, longest, chosen
   TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443
@@ -312,16 +314,16 @@ card ip: What the home router used | three tables
 ```animation
 title: Two internet routers: how they know the way | BGP between A and B; OSPF inside each AS
 ## AS 64496
-ip ra: router A | 198.51.100.6/31 to the home | 198.51.100.200/31 to B | 198.51.100.197/30 to its core
+router ra: router A | 198.51.100.6/31 to the home | 198.51.100.200/31 to B | 198.51.100.197/30 to its core
   link ga: dropped here | the frame from the home router: to 00:00:5E:00:53:A1, from 00:00:5E:00:53:02
-  ip t3: routing table T3 | 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link
-ip ca: core router | inside AS 64496
+  table t3: routing table T3 | 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link
+router ca: core router | inside AS 64496
 ## AS 64497
-ip rb: router B | 198.51.100.201/31 to A | 203.0.113.65/26 to the server | 203.0.113.1/30 to its core
+router rb: router B | 198.51.100.201/31 to A | 203.0.113.65/26 to the server | 203.0.113.1/30 to its core
   link gb: dropped here | the radio link's frame: to 00:00:5E:00:53:B1, from 00:00:5E:00:53:A2
-  ip t4: routing table T4 | 203.0.113.64/26: connected, next hop on this network, out copper to the server — matches | 203.0.113.0/30: connected, next hop on this network, out core link | 198.51.100.200/31: connected, next hop on this network, out radio to A | 203.0.113.0/24: OSPF, next hop 203.0.113.2, out core link — matches | 198.51.100.0/24: BGP, from AS 64496, next hop 198.51.100.200, out radio to A | 0.0.0.0/0: default (set by hand), next hop 203.0.113.2, out core link — matches
+  table t4: routing table T4 | 203.0.113.64/26: connected, next hop on this network, out copper to the server — matches | 203.0.113.0/30: connected, next hop on this network, out core link | 198.51.100.200/31: connected, next hop on this network, out radio to A | 203.0.113.0/24: OSPF, next hop 203.0.113.2, out core link — matches | 198.51.100.0/24: BGP, from AS 64496, next hop 198.51.100.200, out radio to A | 0.0.0.0/0: default (set by hand), next hop 203.0.113.2, out core link — matches
 app sv: server | 203.0.113.80/26
-ip cb: core router | inside AS 64497
+router cb: core router | inside AS 64497
 nest: The packet | layer 2 outside, layer 3 inside
   link fr: Ethernet frame | 117 bytes | to 00:00:5E:00:53:A1; from 00:00:5E:00:53:02; type 0x0800 (IPv4); > FCS 40 44 8d ca, at the end
   ip pk: IP packet | 99 bytes | version 4; header 20; DSCP 0; total length 99; ID 0x1c46; flag DF, offset 0; TTL 63; protocol 6 (TCP); header checksum 0xb8c3; from 198.51.100.7; to 203.0.113.80
@@ -427,11 +429,11 @@ light ans: cut: seq 4001 (1,460 bytes), seq 5461 (1,460 bytes), seq 6921 (1,080 
 title: The way back | followed: answer segment 1
 ## AS 64497
 app sv: server | 203.0.113.80
-ip rb: router B | AS 64497
+router rb: router B | AS 64497
 ## AS 64496
-ip ra: router A | AS 64496
+router ra: router A | AS 64496
 ## Home
-ip hr: home router | 198.51.100.7 outside
+router hr: home router | 198.51.100.7 outside
 link sw: switch | ports 1 and 5
 app lap: laptop | 192.0.2.10
 nest: The packet | layer 2 outside, layer 3 inside
@@ -594,7 +596,7 @@ ip i5: layer 3 | IP from 198.51.100.7 | * IP to 203.0.113.80 | TTL 61, changed |
 tcp t5: layer 4 | source port 40001 | TCP checksum 0x19e6
 ## Who changed what across 1. laptop to switch..5. B to server
 link w1: switch | nothing
-ip w2: home router | frame, TTL, IP checksum; by NAT the source address, the source port and the TCP checksum
-ip w3: router A | frame, TTL, IP checksum
-ip w4: router B | frame, TTL, IP checksum
+router w2: home router | frame, TTL, IP checksum; by NAT the source address, the source port and the TCP checksum
+router w3: router A | frame, TTL, IP checksum
+router w4: router B | frame, TTL, IP checksum
 ```

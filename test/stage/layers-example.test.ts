@@ -31,11 +31,20 @@ describe("the layers example", () => {
     const last = stages.at(-1)!; expect(last.type === "animation" && last.attrs?.static).toBe("");
   });
 
-  test("six roles, one per layer, each its own colour", () => {
+  // rc.3 review (Row 3): routers, routing tables, the NAT table and the packet were all the one layer-3 family, so in a
+  // scene they were one purple; layer 3 is now three families (packets and headers, routers, tables), each told apart
+  test("eight roles, one per layer and three for layer 3 (packets, routers, tables), each its own colour", () => {
     const fm = text.slice(0, text.indexOf("\n---\n", 4));
     const roles = [...fm.matchAll(/^  ([a-z]+): \{ label: "[^"]*", colour: c(\d) \}$/gm)].map((m) => [m[1], m[2]]);
-    expect(roles.map(([r]) => r)).toEqual(["app", "sec", "tcp", "ip", "link", "signal"]);
-    expect(new Set(roles.map(([, c]) => c)).size).toBe(6);
+    expect(roles.map(([r]) => r)).toEqual(["app", "sec", "tcp", "ip", "router", "table", "link", "signal"]);
+    expect(new Set(roles.map(([, c]) => c)).size).toBe(8);
+  });
+
+  test("in a scene, a router, its routing table and the packet are three families", () => {
+    const doc = parse(text, { path: "example-layers.dh.md" });
+    const used = doc.blocks.filter((b: any) => b.type === "animation" && b.stage).map((b: any) => new Set([...b.stage.src.head.matchAll(/^\s*(ip|router|table) [a-z0-9]+:/gm)].map((m: RegExpMatchArray) => m[1])));
+    expect(used.filter((u) => u.has("ip") && u.has("router") && u.has("table")).length).toBeGreaterThan(0);
+    expect(used.every((u) => !u.has("ip") || u.size === 1 || u.has("router") || u.has("table"))).toBe(true);
   });
 
   test("it draws on the server, every scene a stage, the tenth still", () => {

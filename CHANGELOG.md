@@ -249,8 +249,14 @@ The third release candidate of 0.7.0. The format number stays 10.
   kernel, then web-2's veth; the reply comes back the same hops and node 1's conntrack undoes the rewrite. The old
   3D-only scene ("goes straight to web-2: pod to pod") is kept as a test fixture of the 3D engine.
 - **The other Kubernetes and service-mesh samples say the same:** a service is a stable name and address whose calls
-  rules on every node spread over its pods (fixtures 52 and 72); mutual TLS runs from one pod's IP to the other's,
-  through both nodes and the network under them (fixture 53).
+  rules on every node spread over its pods (fixtures 52 and 72).
+- **The service mesh draws the real hop too** (fixture 53), laid out as kube-proxy: node 1 (the control plane's pod,
+  pod orders, its network card), the network under the cluster, node 2 (its card, pod payments); on a phone they stack.
+  The encrypted call leaves the orders proxy, goes out of node 1's card, across the network and into node 2's card
+  before the payments proxy decrypts it, and the retry takes the same hops. No line runs proxy to proxy any more, and
+  the camera no longer moves.
+- **One focus per step** in both scenes: kube-proxy's opening steps light one thing (kube-proxy, not its rules too),
+  and the mesh moves one token per step; its control plane pushes the retry rule to the orders proxy, the one that retries.
 - **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`
   under it, both following the scroll (`DocumentView`; `src/react/table-more.ts`); neither shows in print.
 - **A table wider than the text column leaves it on a wide screen** (a Markdown table of the document itself, not one

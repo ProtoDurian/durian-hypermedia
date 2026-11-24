@@ -55,7 +55,7 @@ describe("the other Kubernetes and service-mesh samples: no shortcut either", ()
       expect(read(f)).toMatch(/rules on every node pick one/); expect(read(f)).toMatch(/The rules now pick among the running pods only/);
     }
   });
-  test("the service mesh: mutual TLS from pod IP to pod IP, through both nodes and the network under them (53)", () => {
-    expect(read("53-animation-a-service-mesh.dh.md")).toMatch(/from one pod's IP to the other's \(on the wire through both nodes and the network under them\)/);
+  test("the service mesh: mutual TLS out of node 1's card, across the network, into node 2's card (53)", () => {
+    expect(read("53-animation-a-service-mesh.dh.md")).toMatch(/sends it from its pod.s IP, out through node 1.s network card/); expect(read("53-animation-a-service-mesh.dh.md")).toMatch(/The network under the cluster carries the encrypted bytes toward node 2/);
   });
 });

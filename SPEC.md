@@ -1262,7 +1262,7 @@ move k4 to s3
 ```
 ````
 
-The Format page shows 8 scenes, each in this language: an array sorted, a binary search tree insert, a hash table with a collision, sharding then rebalancing, replicas and a failover, pods in nodes in a cluster behind a service (a node dies, a pod is rescheduled), a service mesh with sidecars, and how a bill becomes a law.
+The Format page shows 8 scenes, each in this language: an array sorted, a binary search tree insert, a hash table with a collision, sharding then rebalancing, replicas and a failover, pods in nodes in a cluster behind a service (a node dies, a pod is rescheduled), a service mesh with sidecars on two nodes (the call crosses both network cards and the network under them), and how a bill becomes a law.
 
 ### 6.7 What doccheck refuses
 

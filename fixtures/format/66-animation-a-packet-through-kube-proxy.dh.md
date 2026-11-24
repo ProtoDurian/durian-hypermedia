@@ -34,11 +34,8 @@ e1 -> vr
 vr -> e2
 @step Two nodes and the VPC, the network under them.
 @step On each node: its pods at the top, its kernel, and its network card at the bottom, where packets leave and enter the node.
-highlight e1
-highlight e2
-@step kube-proxy runs on every node. It watches the API for the service web and writes rules into the kernel's iptables (both lit). It never carries a packet.
+@step kube-proxy runs on every node. It watches the API for the service web and writes rules into the kernel's iptables. It never carries a packet.
 highlight kp1
-highlight r1
 @step The frontend calls the service web at 192.0.2.10. No pod and no machine has that address: it lives only in rules.
 highlight fe
 @step The packet leaves the frontend through its veth, into node 1's kernel.

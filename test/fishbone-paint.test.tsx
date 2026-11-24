@@ -29,13 +29,16 @@ test("fishbone paints every current-step cause within 300 ms, in both layouts an
     });
     expect(built.success).toBe(true);
     const css = buildCss() + readFileSync(join(root, "example/site.css"), "utf8");
-    const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><script type="module" src="/client.js"></script></head><body><main class="ex-main"><div id="dh-root">${renderToString(<DhDocument doc={doc} />)}</div></main><script type="application/json" id="dh-doc">${documentJson(doc)}</script></body></html>`;
+    // the example's font hold (example/font-hold.ts) is not under test here: the page starts with it over (class fonts-ready)
+    const html = `<!doctype html><html class="fonts-ready"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><script type="module" src="/client.js"></script></head><body><main class="ex-main"><div id="dh-root">${renderToString(<DhDocument doc={doc} />)}</div></main><script type="application/json" id="dh-doc">${documentJson(doc)}</script></body></html>`;
     server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(req) {
       const path = new URL(req.url).pathname;
       if (path === "/favicon.ico") return new Response(null, { status: 204 });
       const headers = { "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; require-trusted-types-for 'script'" };
       if (path === "/") return new Response(html, { headers: { ...headers, "content-type": "text/html" } });
       if (path === "/style.css") return new Response(css, { headers: { ...headers, "content-type": "text/css" } });
+      // the faces example/site.css declares (url fonts/... beside the stylesheet), so the causes draw in Poppins as on the example
+      if (path.startsWith("/fonts/") && /^[a-z0-9-]+\.woff2$/.test(path.slice(7))) return new Response(Bun.file(join(root, "example", path.slice(1))), { headers: { ...headers, "content-type": "font/woff2" } });
       return new Response(Bun.file(join(dir, path.slice(1))), { headers: { ...headers, "content-type": "text/javascript" } });
     }});
     page = await launch();

@@ -239,10 +239,17 @@ describe("glossary: linear (the doubling test, charges counted; and time)", () =
       expect(b.steps / a.steps).toBeLessThan(2.3);
     }
   });
-  test("the segments of one long meaning: time at n and 2n (best of five)", () => {
+  test("the segments of one long meaning: time at n and 2n (best of nine, the two sizes in turn)", () => {
+    // the fastest run of each size, the two sizes timed in turn after a warm-up, so a busy machine slows both alike
+    // (the bar is the same 3.5; the strings are built outside the timing)
     for (const unit of ["*a ", "[a](http://", "`a ", "**a *a "]) {
-      const best = (n: number) => { let m = Infinity; for (let k = 0; k < 5; k++) { const t0 = performance.now(); defSegs(unit.repeat(n)); m = Math.min(m, performance.now() - t0); } return m; };
-      expect(best(40_000) / Math.max(best(20_000), 0.3)).toBeLessThan(3.5);
+      const s1 = unit.repeat(20_000), s2 = unit.repeat(40_000); defSegs(s1); defSegs(s2);
+      let t1 = Infinity, t2 = Infinity;
+      for (let k = 0; k < 9; k++) {
+        let t0 = performance.now(); defSegs(s1); t1 = Math.min(t1, performance.now() - t0);
+        t0 = performance.now(); defSegs(s2); t2 = Math.min(t2, performance.now() - t0);
+      }
+      expect(t2 / Math.max(t1, 0.3)).toBeLessThan(3.5);
     }
   });
   const names = (n: number) => Array.from({ length: n }, (_, k) => term(`name ${k} x`, { id: `n${k}` }));

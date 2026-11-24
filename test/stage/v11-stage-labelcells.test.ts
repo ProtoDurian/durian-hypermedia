@@ -38,3 +38,17 @@ for (const w of [1180, 800, 766]) test(`'The way back' at ${w}, step 3: routing 
   for (const p of ["198.51.100.6/31", "198.51.100.200/31", "198.51.100.196/30", "198.51.100.128/26", "198.51.100.0/24", "203.0.113.0/24", "0.0.0.0/0"]) expect(words.has(p)).toBe(true);
   expect(its.map((t) => t.s).join(" ")).toContain("longest: chosen");
 });
+// 0.7.0-rc.3 review: the column minimum by the wider drawn estimate narrowed T4's other columns and wrapped cells that
+// fit; widths go by measure() (the page font's): T4's cells stay one line each at 732
+test("'The way back' at 732, step 2: routing table T4's cells stay one line each", () => {
+  const its = lay(section("8. The way back"), 732).filter((i): i is Text => i.k === "text" && shown(i, 2) && /^r\d$/.test(String((i as { bar?: Record<string, string> }).bar?.column)));
+  expect(its.length).toBe(4 * 7);
+  for (const s of ["BGP, from AS 64496", "radio to A: matches, longest: chosen", "default (set by hand)"]) expect(its.map((t) => t.s)).toContain(s);
+});
+// 0.7.0-rc.3 review: on a phone the floating footer never hides the step's lit items: after a step changes, the page scrolls them above it
+test("on a phone a step change scrolls the lit items above the footer (never on load)", () => {
+  const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
+  expect(tsx).toMatch(/if \(firstK\.current\) \{ firstK\.current = false; return; \}/);
+  expect(tsx).toMatch(/querySelectorAll\("\.stg-plan \.stg-hot"\)[\s\S]{0,400}querySelector|root\?\.querySelector\("\.stg-foot"\)[\s\S]{0,600}scrollBy\(/);
+  expect(tsx).toMatch(/matchMedia\("screen and \(max-width: 560px\)"\)/);
+});

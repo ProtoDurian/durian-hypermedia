@@ -272,6 +272,23 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
     const t = setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200);
     return () => clearTimeout(t);
   }, [playing, kLive, n, st.on]);
+  // 0.7.0-rc.3 review: on a phone the footer floats over a tall stage; after a step changes (a button, a key or
+  // Play) the step's lit items are scrolled above the footer when they sit under it or above the screen (never on load)
+  const firstK = useRef(true);
+  useEffect(() => {
+    if (firstK.current) { firstK.current = false; return; }
+    if (st.on || typeof window === "undefined" || !matchMedia("screen and (max-width: 560px)").matches) return;
+    const raf = requestAnimationFrame(() => {
+      const root = box.current?.closest(".stg"), foot = root?.querySelector(".stg-foot"); if (!root || !foot) return;
+      const hot = [...root.querySelectorAll(".stg-plan .stg-hot")].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0 && b.height > 0);
+      if (!hot.length) return;
+      const top = Math.min(...hot.map((b) => b.top)), bottom = Math.max(...hot.map((b) => b.bottom)), ft = foot.getBoundingClientRect().top, lo = 72;
+      if (top >= lo && bottom <= ft - 8) return;
+      const by = bottom - top <= ft - 8 - lo ? (top < lo ? top - lo : bottom - (ft - 8)) : top - lo;
+      scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [kLive]);
   if (laid === null) return <StageOver m={m} />;
   const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;

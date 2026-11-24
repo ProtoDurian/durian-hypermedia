@@ -307,6 +307,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   if (laid === null) return <StageOver m={m} />;
   const go = (x: number) => { setPlaying(false); wantFollow.current = true; setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
+  const pauseLabel = ui.pause.replace(/^❚❚ /, "");
   return (
     <div className={`stg${st.on ? " stg-static" : ""}`} style={pp ? cssVars({ "--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((pp.h * PRINT_BOX_W) / pp.w) + 83 + 18 * n + 10}px` }) : undefined} suppressHydrationWarning data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
       tabIndex={n && !st.on ? 0 : undefined} aria-label={m.title || undefined}
@@ -318,7 +319,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
             <span className="stg-ctl" role="group" aria-label={ui.step}>
               <button type="button" className="stg-btn" onClick={() => go(k - 1)} disabled={k <= 1} aria-label={ui.back}>◀</button>
               <button type="button" className="stg-btn" onClick={() => go(k + 1)} disabled={k >= n} aria-label={ui.next}>▶</button>
-              <button type="button" className="stg-btn stg-play" aria-pressed={playing} onClick={() => { if (playing) { setPlaying(false); return; } if (k >= n) setK(1); setPlaying(true); }}>{playing ? ui.pause : ui.play}</button>
+              <button type="button" className="stg-btn stg-play" aria-label={playing ? pauseLabel : ui.play.replace(/^▶ /, "")} aria-pressed={playing} onClick={() => { if (playing) { setPlaying(false); return; } if (k >= n) setK(1); setPlaying(true); }}><span aria-hidden={playing}>{ui.play}</span><span aria-hidden={!playing}>{pauseLabel !== ui.pause && <span className="stg-pause-symbol" aria-hidden="true">{"❚❚ "}</span>}{pauseLabel}</span></button>
               <span className="stg-count" aria-live="polite" data-bar-count="">{k} / {n}</span>
             </span>
           )}

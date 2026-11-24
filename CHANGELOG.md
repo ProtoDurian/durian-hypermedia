@@ -126,6 +126,11 @@ The third release candidate of 0.7.0. The format number stays 10.
   on its fence the reader had no way to see the rest (a word 110 px past the stage's edge). At the least size it now
   lays out top to bottom when that fits, else it can be dragged sideways, with the shaded edge saying so. The server
   writes the stage's shape for each laptop width, so it does not move on load.
+- **Tabs and accordions print every panel.** A sheet cannot be clicked, so a scene or table in a tab the reader never
+  opened, or in a closed accordion row, did not print at all. In print every tab panel shows under its own title (the
+  tab bar is not printed) and every accordion row is open: CSS only for the tabs (each panel carries its title in
+  `data-title`); the rows open by `::details-content` where the browser has it, and `AccordionPart` opens the closed
+  rows on `beforeprint` and closes them again after. The screen is unchanged.
 - **A stage printed before it hydrated prints whole.** A stage waiting for its turn to hydrate, or on a page with
   scripts off, had no print height: the print rule held it to one sheet and its drawing ran over the text below it
   (on a long page, most of its stages). The server now also draws each stage at the print width (`PRINT_W`), shown

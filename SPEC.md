@@ -1125,7 +1125,7 @@ A page or host static draws each part's finished state, unless the part's own fe
 
 **What a static part shows.** The chosen state, drawn whole and at rest; the caption of that step under it; and, when the part has steps, every step's caption in a closed list ("All steps (4)") so a reader still has the whole story. The box keeps the size it has when live, so a page lays out the same.
 
-**Print** is static for every part, whether or not the reader has scrolled to it: before the page prints, every part switches to its static state, and a part still waiting for its turn to hydrate (`hydrateDocument`) is drawn at once, static, in a `.dh-print-copy` box where the server's HTML stood (that HTML is hidden while printing); after printing, the copies go and each part goes back to where the reader left it. A scene prints whole at the width of the printed page, with no scroll bars, buttons or hints.
+**Print** shows every tab panel, each under its own title (no tab bar), and every accordion row open: a sheet cannot be clicked. **Print** is static for every part, whether or not the reader has scrolled to it: before the page prints, every part switches to its static state, and a part still waiting for its turn to hydrate (`hydrateDocument`) is drawn at once, static, in a `.dh-print-copy` box where the server's HTML stood (that HTML is hidden while printing); after printing, the copies go and each part goes back to where the reader left it. A scene prints whole at the width of the printed page, with no scroll bars, buttons or hints.
 
 **The LLM view does not change.** It is already static: it lists every step.
 

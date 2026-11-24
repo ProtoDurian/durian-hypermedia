@@ -73,7 +73,7 @@ export function graphStyle(el: HTMLElement, manyEdges: boolean): { style: any[];
     { selector: "node.gr-anchor", style: { width: 10, height: 10, shape: "ellipse", "border-width": 2.5, "background-color": surface, label: "", "corner-radius": 5 } },
     { selector: "node.gr-folded", style: { height: FOLD_H, "corner-radius": FOLD_H / 2, "border-width": 4.5, "border-style": "double", "font-weight": 600, "font-size": fs + 1 } },
     { selector: "edge", style: { width: ew, "line-color": edge, "target-arrow-color": edge, "target-arrow-shape": manyEdges ? "none" : "triangle", "arrow-scale": 0.85, opacity: ea, "curve-style": manyEdges ? "haystack" : "bezier", "control-point-step-size": 24, "line-cap": "round", "font-family": font, "font-size": 12, color: ink2, "text-background-color": surface, "text-background-opacity": 0.94, "text-background-padding": 3, "text-background-shape": "round-rectangle", "min-zoomed-font-size": MIN_PX, "transition-property": "opacity", "transition-duration": dur } },
-    { selector: "edge[count > 1]", style: { width: `mapData(count, 1, 24, ${ew}, ${ew * 4})`, "arrow-scale": "mapData(count, 1, 8, 0.85, 0.22)" } },
+    { selector: "edge[count > 1]", style: { width: `mapData(count, 1, 24, ${ew}, ${ew * 2.2})`, "arrow-scale": "mapData(count, 1, 8, 0.85, 0.3)", opacity: ea * 0.75, "control-point-step-size": 44 } },
     { selector: "edge.gr-dashed", style: { "line-style": "dashed", "line-dash-pattern": [6, 4] } },
     { selector: ".gr-faded", style: { opacity: fade } },
     { selector: "edge.gr-out", style: { "line-color": out, "target-arrow-color": out, opacity: 1, width: ew * 1.9, label: "data(label)", "z-index": 10 } },

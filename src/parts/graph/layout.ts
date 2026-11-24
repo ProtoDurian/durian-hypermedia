@@ -236,6 +236,11 @@ export function stillOf(spec: GraphSpec, B: Budget): Still {
     edges: edges.map((e) => ({ from: e.a, to: e.b, label: "", tone: null, dashed: false, line: 0 })) };
   if (items.length) layersLayout(small, B);
   small.nodes.forEach((nd, i) => { items[i].x = nd.x; items[i].y = nd.y; items[i].w = nd.w; });
+  // a tall single column of groups: every line would run behind the boxes between, one bar on top of another. Alternate the boxes left and right a little so each line has its own path
+  if (items.length >= 4) {
+    const xs = items.map((it) => it.x), spread = Math.max(...xs) - Math.min(...xs), widest = Math.max(...items.map((it) => it.w));
+    if (spread < widest * 0.5) { const mid = xs.reduce((p, q) => p + q, 0) / xs.length, off = widest * 0.3; items.forEach((it, i) => { it.x = mid + (i % 2 ? off : -off); }); }
+  }
   let minX = 0, minY = 0; for (const it of items) { minX = Math.min(minX, it.x - it.w / 2); minY = Math.min(minY, it.y - 22); }
   for (const it of items) { it.x -= minX - 12; it.y -= minY - 12; }
   let w = 120, h = 60; for (const it of items) { w = Math.max(w, it.x + it.w / 2 + 12); h = Math.max(h, it.y + 34); }

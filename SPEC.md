@@ -2036,6 +2036,11 @@ Time blocks:
 - Time states combining [dashed] with a tone retain that tone as a faded preview (fill and border faint, words readable); bare [dashed] stays neutral. A counted cell group may end with one declared role, e.g. `cells a: 32 (eval), +4 new (warm)`, including groups without +.
 - A span may use [bare] for words at its range in the same reserved slot, without a stroke; [bare] cannot combine with [line] or [bar]. Bottom-ruler marker captions follow the unit header and meet their own lines. Card body identifiers wrap at =, -, _,. and comma boundaries; a single part shrinks only when necessary, to no less than 11 px.
 - `band role id "Title": first..last | compact` packs the band's rows under a name and a sub title. `time: a..b | caption | beside`: the caption on the tick-number line.
+- `time: a..b | caption | waits`: only the caption until the first step that shows a row, span, tag, arrow or dot of the block (no empty grid before it), and each row (its frame, label and words) waits for its own first state, span, tag or mark.
+- `time: a..b | caption | tight`: the time block hugs the lanes above it: 8 px less gap under the lanes and, on a desktop, 8 px less room over the tick numbers and 8 px less under the tick ruler, e.g. `time: -0.5..27 | minutes | beside | waits | tight`.
+- A bar too narrow for its name: the name under the row, centred on the bar, tied to it by a leader in the bar's ink (never the source range).
+- `[x]` on a row's state is a point state: an X on the row's line at one time (a range: at its middle), with the state's words beside it and one tone at most, e.g. `row job r1 "tray A": +rise 0..8; +bake 8..20; burnt 21 [x] [bad]` (`_ 21 [x]` has no words). Refused: `[x]` twice in a state, a cell style or a role with it, a time off the axis.
+- `at <row> N [tone]: words` (a step word) puts the words on that row's line at N, a short stroke across the row and no marker line, for that step (`keep at r1 8 [good]: in` keeps them from then on). Refused: N off the axis, no words, more than one tone.
 - Simple time blocks with the same number of columns share their default label gutter on a wide stage; explicit row-label layouts retain their own gutter. Plot labels sit beside their own value where space permits; a displaced label has a visible leader to its datum.
 
 Phone rules (no new words):

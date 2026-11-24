@@ -6,11 +6,11 @@
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { baseY as geoBase, floorY, SLAB } from "./geo3d";
-import { SEND_HALO, sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { MARGIN, SEND_HALO, sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
 import { stageScene, phoneScene, leastScale } from "../core/readable";
 // format version 11: a still scene and a static one show whole (core/whole.ts); a calm story (core/calm.ts): only
 // items that pass each other arc, one held view from a camera word to the next, one token's words at a time
-import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeHeightVars, wholeLayout, wholeSize, wholeView } from "../core/whole";
+import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeHeightVars, wholeLayout, wholeSize, wholeView, WHOLE_WS } from "../core/whole";
 import { cssVars } from "./css-vars";
 import { calmHeight, heldViews, tokenSubject, passing, stepT } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
@@ -68,6 +68,22 @@ export type SceneSrc = { head: string; steps: { title: string; raw: string; line
 type Shown = { box: Box; r: Rect; o: number; enter: boolean; ly: number; L: number; anchorY?: number; lv?: number; g?: number; lift?: number; slab?: number };
 // every token id a scene ever has, once per compiled scene (a token that has left still counts as named)
 const tokCache = new WeakMap<Compiled, Set<string>>();
+/** a scene with steps is cut on a stage px wide when a step's whole scene, with its margin, is wider than the stage at
+ *  the least scale (its smallest words at 11 px): the story camera never draws it smaller */
+export const cutAt = (c: Compiled | null, px: number): boolean => !!c && px > 0 && c.frames.some((f) => pad(f.bounds, MARGIN).w * leastScale(f, px) > px + 1);
+/** on a laptop, a scene with steps cut at the least size lays out top to bottom (narrow) when that is not cut */
+export const laptopKey = (wide: Compiled, narrow: Compiled | null, px: number): "wide" | "narrow" => (cutAt(wide, px) && narrow && !cutAt(narrow, px) ? "narrow" : "wide");
+/** No load shift (SPEC 6.14): the stage's shape at every laptop layout width (16 px steps, as the browser picks it,
+ *  layoutWidth) where the scene takes the narrow layout, as custom properties for the part's style attribute
+ *  (--ar<width>; parts.css picks one with a container query). null: the wide layout at every width */
+export function laptopArVars(wide: Compiled): Record<string, string> | null {
+  const bs = WHOLE_WS.filter((b) => b >= NARROW && cutAt(wide, b));
+  const narrow = bs.length ? phoneScene(wide, true) : null;
+  if (!narrow) return null;
+  const out: Record<string, string> = {};
+  for (const b of bs) if (laptopKey(wide, narrow, b) === "narrow") out[`--ar${b}`] = narrow.aspect.toFixed(3);
+  return Object.keys(out).length ? out : null;
+}
 function tokenIds(c: Compiled): Set<string> {
   let s = tokCache.get(c);
   if (!s) { s = new Set(c.frames.flatMap((f) => f.boxes.filter((b) => b.kind === "token").map((b) => b.id))); tokCache.set(c, s); }
@@ -110,9 +126,18 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const steady = !st.on && src.info.zoom !== "yes" && src.info.view !== "3d" && !cWide.scene.attrs.only3d;
   const fixed = steady && still;
   const cWhole = useMemo(() => (whole ? wholeLayout(cWide, wpx, !!src.part) : null), [wpx, whole]);
-  const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : "wide";
+  // a scene with steps wider than its stage at the least size (11 px words), on a laptop: it lays out top to bottom (the
+  // narrow layout) when that fits; else the reader may drag it sideways, and the shaded edge says there is more (it was
+  // cut at the stage's edge, with no way to see the rest, when the fence had no zoom)
+  // (at the layout width, 16 px steps: the server wrote the stage's shape for each, laptopArVars)
+  const wideCut = !whole && !phone && cutAt(cWide, layoutWidth(px0));
+  const cNarrow = useMemo(() => (wideCut ? phoneScene(cWide, true) : null), [wideCut]);
+  const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : laptopKey(cWide, cNarrow, layoutWidth(px0));
+  const waVars = useMemo(() => (whole ? null : laptopArVars(cWide)), [whole]);
   const cPhone = useMemo(() => (whole || pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey, whole]);
   const c = cWhole ?? cPhone ?? cWide;
+  // steadyCam: no reader's camera; a steady scene still cut at the least size may be dragged sideways (panCut)
+  const panCut = steady && !whole && cutAt(c, px0), steadyCam = steady && !panCut;
   // a still or static drawing that cannot show whole with words at the least size is never shrunk under it and never
   // cut: it keeps the least size and scrolls sideways in its own box, as a table does. Print still fits the paper
   const oneS = (st.on || fixed) && c.frames.length ? oneStep(c, st.on ? st.i : 0) : null;
@@ -199,7 +224,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   // (or a trackpad's two-finger scroll) moves the view once the reader has taken the stage; before that it scrolls the
   // page, so a reader scrolling past the stage is never caught by it. Shift + wheel moves sideways
   useEffect(() => {
-    const el = svg.current; if (!el || st.on || steady) return;
+    const el = svg.current; if (!el || st.on || steadyCam) return;
     const wheel = (e: WheelEvent) => {
       const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       if (e.ctrlKey || e.metaKey) {
@@ -389,7 +414,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   cam0.current = cam;
   const onDown = (e: React.PointerEvent) => {
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (!steady) (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+    if (!steadyCam) (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     const ps = [...ptrs.current.values()];
     // the entity under the finger, read now: after pointer capture the release is aimed at the stage itself
     const key = (e.target as Element).closest?.("[data-key]")?.getAttribute("data-key") ?? null;
@@ -397,7 +422,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   };
   const onMove = (e: React.PointerEvent) => {
     const d = drag.current; if (!d || !ptrs.current.has(e.pointerId)) return;
-    if (steady) { if (Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 5) d.moved = true; return; }
+    if (steadyCam) { if (Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 5) d.moved = true; return; }
     ptrs.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const ps = [...ptrs.current.values()];
     if (ps.length === 2 && d.dist) {
@@ -549,7 +574,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   // (format version 10, tools/edge10.ts: a side where the view cuts a thing is shaded too)
   const more: ("l" | "r" | "t" | "b")[] = mode === "2d" ? moreSides(B, cam) : [];
   // (format version 11) a scene taller than its frame says so in words, where it is cut
-  const downMore = more.includes("b") ? "b" : more.includes("t") ? "t" : null;
+  const downMore = more.includes("b") ? "b" : more.includes("t") ? "t" : panCut && more.includes("r") ? "r" : panCut && more.includes("l") ? "l" : null;
   const U = ui as any;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
@@ -570,7 +595,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
     </div>
   );
   return (
-    <div ref={root} data-dh-part={src.part} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-wq={wqVars ? "" : undefined} style={wqVars ? cssVars(wqVars) : undefined} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
+    <div ref={root} data-dh-part={src.part} className={cx("scn", !st.on && !fixed && active && "is-active", fixed && "is-fixed", steady && "is-steady", still && "is-still", whole && "is-whole", st.on && "is-static", swipeW > 0 && "is-swipe", !!tall && "is-tall")} data-variant={pKey} data-wq={wqVars ? "" : undefined} data-wa={waVars ? "" : undefined} style={wqVars || waVars ? cssVars({ ...wqVars, ...waVars }) : undefined} data-static={st.on ? String(i + 1) : undefined} data-dh-static={st.on || undefined}
       tabIndex={st.on || fixed ? undefined : 0} onKeyDown={st.on || fixed ? undefined : onKey} aria-roledescription={st.on ? undefined : "animation"}>
       {srText && <p className="sr-only">{srText}</p>}
       {/* the controls sit in a bar above the stage, so they never cover what the story shows */}
@@ -600,7 +625,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
           {overlays.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
-        {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{downMore === "b" ? "↓" : "↑"} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
+        {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{({ b: "↓", t: "↑", r: "→", l: "←" } as const)[downMore]} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
         {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{wordOf(src.part, selBox)}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note"><Rich text={selBox.ent.note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
         {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note"><Rich text={B.layers[pickL].note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>

@@ -601,3 +601,55 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
   .term-body, .ide-code .ch-pre, .cw-code { height: auto !important; max-height: none !important; overflow: visible !important; }
   .term, .fx, .ide, .cw, .dh-print-copy { break-inside: avoid; }
 }
+
+/* no load shift (SPEC 6.14, src/ui/anim.tsx laptopArVars): a scene with steps that takes the narrow layout at some laptop
+   widths has its stage shape for each in the style attribute; one rule per layout width, the widest that fits wins */
+.scn[data-wa] { container-type: inline-size; }
+@media screen {
+@container (min-width: 480px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar480, var(--ar)); } }
+@container (min-width: 496px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar496, var(--ar)); } }
+@container (min-width: 512px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar512, var(--ar)); } }
+@container (min-width: 528px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar528, var(--ar)); } }
+@container (min-width: 544px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar544, var(--ar)); } }
+@container (min-width: 560px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar560, var(--ar)); } }
+@container (min-width: 576px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar576, var(--ar)); } }
+@container (min-width: 592px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar592, var(--ar)); } }
+@container (min-width: 608px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar608, var(--ar)); } }
+@container (min-width: 624px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar624, var(--ar)); } }
+@container (min-width: 640px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar640, var(--ar)); } }
+@container (min-width: 656px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar656, var(--ar)); } }
+@container (min-width: 672px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar672, var(--ar)); } }
+@container (min-width: 688px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar688, var(--ar)); } }
+@container (min-width: 704px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar704, var(--ar)); } }
+@container (min-width: 720px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar720, var(--ar)); } }
+@container (min-width: 736px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar736, var(--ar)); } }
+@container (min-width: 752px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar752, var(--ar)); } }
+@container (min-width: 768px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar768, var(--ar)); } }
+@container (min-width: 784px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar784, var(--ar)); } }
+@container (min-width: 800px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar800, var(--ar)); } }
+@container (min-width: 816px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar816, var(--ar)); } }
+@container (min-width: 832px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar832, var(--ar)); } }
+@container (min-width: 848px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar848, var(--ar)); } }
+@container (min-width: 864px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar864, var(--ar)); } }
+@container (min-width: 880px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar880, var(--ar)); } }
+@container (min-width: 896px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar896, var(--ar)); } }
+@container (min-width: 912px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar912, var(--ar)); } }
+@container (min-width: 928px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar928, var(--ar)); } }
+@container (min-width: 944px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar944, var(--ar)); } }
+@container (min-width: 960px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar960, var(--ar)); } }
+@container (min-width: 976px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar976, var(--ar)); } }
+@container (min-width: 992px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar992, var(--ar)); } }
+@container (min-width: 1008px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1008, var(--ar)); } }
+@container (min-width: 1024px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1024, var(--ar)); } }
+@container (min-width: 1040px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1040, var(--ar)); } }
+@container (min-width: 1056px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1056, var(--ar)); } }
+@container (min-width: 1072px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1072, var(--ar)); } }
+@container (min-width: 1088px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1088, var(--ar)); } }
+@container (min-width: 1104px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1104, var(--ar)); } }
+@container (min-width: 1120px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1120, var(--ar)); } }
+@container (min-width: 1136px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1136, var(--ar)); } }
+@container (min-width: 1152px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1152, var(--ar)); } }
+@container (min-width: 1168px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1168, var(--ar)); } }
+@container (min-width: 1184px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1184, var(--ar)); } }
+@container (min-width: 1200px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1200, var(--ar)); } }
+}

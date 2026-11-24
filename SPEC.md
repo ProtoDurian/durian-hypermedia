@@ -1768,6 +1768,8 @@ light u1                                                   (a card takes the foc
 
 **The reader's camera comes only when asked.** An animation with steps shows the 3D button, zoom in and out, show everything, drag and wheel to move, and the line that tells how, only when its fence says `zoom` or `3d`. Without them its own camera still follows the story, the steps keep their player and keys, and a note still opens by a tap.
 
+**A scene wider than its stage is never cut.** The story camera never draws words under 11 px, so on a laptop a scene with steps can be wider than its stage at that size. It then lays out top to bottom (the phone's narrow layout) when that fits; when even that is too wide, the reader may drag it sideways (without `zoom` too), and the shaded edge with "→ more beyond the edge" says there is more. The layout is chosen at the stage's layout width (16 px steps), and the server writes the stage's shape for each laptop width that takes the narrow layout in the part's `style` attribute (`--ar<width>`, picked by a container query), so nothing moves on load.
+
 **A calm story.** On every scene:
 - A thing that takes no part in a step keeps its place to the pixel. Items of an array, list, queue or bucket travel on an arc only when they pass another item of their row (a queue that moves up when one leaves goes straight; two that trade places arc), on the step's own beat.
 - A step's first frame is its start: a step never runs back first, and a step with beats never flashes its end.

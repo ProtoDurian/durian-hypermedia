@@ -97,7 +97,7 @@ by a variant (below). This file is made from the stylesheets by \`bun scripts/th
 - **Map a host theme:** set the tokens on \`.dh-doc\` in the host's CSS, after \`styles.css\`:
   \`.dh-doc { --acc: var(--host-accent); --surface: var(--host-card); }\` and the same under the host's dark selector.
 - **Fonts:** the package loads no font. \`--font-sans\`, \`--font-mono\` and \`--font-display\` name the host's fonts (the default lists
-  fall back to the system fonts).
+  fall back to the system fonts). The composed stage measures its words with Poppins metrics: map \`--font-sans\` (or \`--stg-font\`) to Poppins, or a font of the same widths, else lines can run past their boxes. The package ships no font; its example self-hosts Poppins and IBM Plex Mono (SIL OFL 1.1).
 - The 3D stage and the charts read the tokens from their own element when they draw and again when \`data-theme\` changes on
   \`<html>\`; after changing tokens any other way, toggle \`data-theme\` or re-mount.
 

@@ -1,4 +1,6 @@
 // The example site's page script: hydrate the document, then wire the style and theme buttons (no inline script).
+import { holdFonts } from "./font-hold";
+holdFonts();
 import React from "react";
 import { hydrateRoot, createRoot, type Root } from "react-dom/client";
 import { DhDocument } from "../src/react/index";

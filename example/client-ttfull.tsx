@@ -1,4 +1,6 @@
 // For comparison only (ttfull-*.html): the same pages through the full entry.
+import { holdFonts } from "./font-hold";
+holdFonts();
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { DhDocument } from "../src/react/index";

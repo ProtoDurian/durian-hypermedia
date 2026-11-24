@@ -164,7 +164,7 @@ Map these first; the rest follow from them:
 | `--c1` ... `--c8` (and `-soft`, `-ink`) | families in animations, tier lists, alignment grids, charts | a categorical palette of 8 |
 | `--series-1` ... `--series-5` | chart series | a chart palette |
 | `--term`, `--term-2`, `--term-ink`, `--ch-1` ... `--ch-26` | the terminal and code colours | a code theme |
-| `--font-sans`, `--font-mono`, `--font-display` | text, code, headings | the host's fonts (the package loads none) |
+| `--font-sans`, `--font-mono`, `--font-display` | text, code, headings | the host's fonts (the package loads none); the composed stage measures with Poppins metrics: map `--font-sans` to Poppins or a font of the same widths, else its lines can run past their boxes |
 | `--r-s`, `--r-m`, `--r-l`, `--shadow-sm`, `--shadow-md`, `--dur` | corners, shadows, motion | the style's shape |
 
 A host with several styles and palettes: one `variant` per style (a block of token overrides and selectors under

@@ -1,4 +1,18 @@
 /* The example site's own page (not part of the package): a header and a column. Colours come from the package's tokens. */
+/* The faces the package measures its words with (the composed stage's widths are Poppins's), self-hosted from
+   assets/fonts (SIL OFL 1.1, licences there). The package itself loads no font (ADOPT.md): a host maps --font-sans.
+   The regular faces are preloaded, and the page column is held hidden until they load, 1 s at most (example/font-hold.ts
+   ends the hold early), so text does not move when its face swaps in. */
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 300; font-display: swap; src: url("fonts/poppins-300-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/poppins-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/poppins-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/poppins-600-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibmplexmono-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/ibmplexmono-600-latin.woff2") format("woff2"); }
+@keyframes ex-font-hold { from, to { visibility: hidden; } }
+html:not(.fonts-ready) .ex-main { animation: ex-font-hold 1s step-end; }
+@media print { html .ex-main { animation: none; } }
 html, body { margin: 0; }
 body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif; }
 :root[data-theme="dark"] body { background: #0B1020; color: #D3D9E6; }

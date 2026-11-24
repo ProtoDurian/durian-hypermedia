@@ -25,6 +25,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "assets"), { recursive: true });
 cpSync(join(PKG, "src/parts/audio/media"), join(OUT, "media"), { recursive: true });
+// the example self-hosts the faces the package measures its words with (Poppins, IBM Plex Mono; SIL OFL 1.1, licences beside them)
+cpSync(join(HERE, "fonts"), join(OUT, "assets/fonts"), { recursive: true });
 writeFileSync(join(OUT, "assets/styles.css"), buildCss() + "\n" + readFileSync(join(HERE, "site.css"), "utf8"));
 const r = await Bun.build({ entrypoints: [join(HERE, "client.tsx"), join(HERE, "client-tt.tsx"), join(HERE, "client-ttfull.tsx"), join(HERE, "tt-control.ts")], outdir: join(OUT, "assets"), splitting: true, format: "esm", minify: true, target: "browser", naming: { entry: "[name].[ext]", chunk: "c-[hash].[ext]" }, define: { "process.env.NODE_ENV": '"production"' } });
 if (!r.success) { console.error(r.logs); process.exit(1); }
@@ -38,7 +40,7 @@ for (const [dir, group] of groups) {
   const d = join(PKG, "fixtures", dir);
   for (const f of readdirSync(d).filter((x) => x.endsWith(".md")).sort()) pages.push({ group: groupOf(dir, f, group), file: join(dir, f), title: "", href: `${(dir ? dir + "-" : "") + f.replace(/\.(dh\.)?md$/, "")}.html` });
 }
-const shell = (title: string, body: string, json = "", script = "client") => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)} · durian-hypermedia example</title><link rel="stylesheet" href="assets/styles.css"><script type="module" src="assets/${script}.js"></script></head><body><header class="ex-head"><a class="ex-brand" href="index.html">durian-hypermedia</a><span class="ex-tools"><span class="ex-label">Style</span><button type="button" data-variant="">soft</button><button type="button" data-variant="flat">flat</button><button type="button" data-variant="bold">bold</button><button type="button" data-theme-toggle aria-label="Switch light or dark">◐</button></span></header><main class="ex-main">${body}</main>${json ? `<script type="application/json" id="dh-doc">${json}</script>` : ""}</body></html>`;
+const shell = (title: string, body: string, json = "", script = "client") => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)} · durian-hypermedia example</title><link rel="preload" href="assets/fonts/poppins-400-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fonts/poppins-500-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="assets/fonts/poppins-600-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="assets/styles.css"><script type="module" src="assets/${script}.js"></script></head><body><header class="ex-head"><a class="ex-brand" href="index.html">durian-hypermedia</a><span class="ex-tools"><span class="ex-label">Style</span><button type="button" data-variant="">soft</button><button type="button" data-variant="flat">flat</button><button type="button" data-variant="bold">bold</button><button type="button" data-theme-toggle aria-label="Switch light or dark">◐</button></span></header><main class="ex-main">${body}</main>${json ? `<script type="application/json" id="dh-doc">${json}</script>` : ""}</body></html>`;
 
 let n = 0;
 for (const p of pages) {

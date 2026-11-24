@@ -1,5 +1,7 @@
 // Trusted Types pages (tt-*.html): every fixture rendered in the browser only (createRoot, so every element is made
 // on the page, not hydrated) by the strict entry, under require-trusted-types-for 'script'.
+import { holdFonts } from "./font-hold";
+holdFonts();
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { DhDocument } from "../src/react/strict";

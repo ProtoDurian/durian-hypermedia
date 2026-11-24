@@ -139,6 +139,10 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.
+- **The example draws in the faces the composed stage measures with:** it self-hosts Poppins (300 to 600) and IBM Plex
+  Mono (SIL OFL 1.1, licences beside them), preloads the regular faces and holds the page column hidden until they load,
+  1 s at most, so stage lines no longer run past their boxes on a machine without Poppins. The package still loads no
+  font; SPEC 6.13, ADOPT.md and THEME.md say the stage measures with Poppins metrics and a host maps `--font-sans` to it.
 - **A fishbone paints its causes in the step they belong to** on a desktop: a nested group no longer fades in a step
   late (its opacity was animated); the causes of the current step are drawn at once, in both themes.
 - **Parts keep their room when the page loads:** the server reserves a gantt's rows and a venn's or map's list and

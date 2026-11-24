@@ -185,6 +185,12 @@ The third release candidate of 0.7.0. The format number stays 10.
   through both nodes and the network under them (fixture 53).
 - **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`
   under it, both following the scroll (`DocumentView`; `src/react/table-more.ts`); neither shows in print.
+- **A table wider than the text column leaves it on a wide screen** (a Markdown table of the document itself, not one
+  in a list, a quote or a part): as wide as its columns need, at most the page less 16 px each side, centred on the
+  column, so a wide screen shows every column (at 1680 px a 6-column table had lost its last 3). A table that fits
+  keeps the column exactly; one still wider than the page scrolls with the fade and the swipe line. CSS only
+  (`src/styles/dh.css`): it paints at its final width, so nothing moves on load; print keeps the column. A host whose
+  text column is not centred on the page caps it with `--dh-table-max` (`100%` turns it off).
 
 ## 0.7.0-rc.2
 

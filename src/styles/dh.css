@@ -46,6 +46,13 @@
 
 /* ---- phones: nothing pushes the page sideways ---- */
 .dh-doc .table-wrap, .dh-doc .code-block, .dh-doc .ch-pre { max-width: 100%; overflow-x: auto; }
+/* a table wider than the text column (0.7.0-rc.3): a table of the document's own (not one inside a list, a quote or a
+   part) leaves the column on a wide screen, as wide as its columns need and at most the page less 16 px each side,
+   centred on the column, so a wide screen shows every column. A table that fits keeps the column's width; one wider than
+   the page still scrolls, its hidden side fading (table-more.ts). CSS only: the page paints at its final width, nothing
+   moves on load. --dh-table-max caps it (a host whose column is not centred on the page sets it, 100% turns it off). */
+.dh-doc > .table-wrap { width: fit-content; min-width: 100%; max-width: var(--dh-table-max, calc(var(--page-w, 100vw) - 32px)); position: relative; left: 50%; translate: -50% 0; }
+@media print { .dh-doc > .table-wrap { width: auto; min-width: 0; max-width: 100%; left: auto; translate: none; } }
 .dh-doc figure.part { min-width: 0; max-width: 100%; }
 /* the hydration queue's marker: no height, at the top of a part (hydrateDocument) */
 .dh-doc .dh-turn { display: block; height: 0; overflow: hidden; }

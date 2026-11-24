@@ -30,7 +30,7 @@ describe("the stage samples (fixtures/stage)", () => {
     expect(llmView(doc).length).toBeGreaterThan(100);
     const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
     expect(html).toContain('class="stg');
-  });
+  }, 15_000); // it checks each page, not speed: a page draws ten screen plans per stage (about 5 s for the layers example on a loaded machine)
 });
 
 describe("an animation that asks for the graph engine keeps it", () => {

@@ -15,7 +15,7 @@ describe("render", () => {
       expect(a).toContain('class="dh-doc"');
       const h = html(await highlight(d));
       expect(h).toContain('class="dh-doc"');
-    });
+    }, 15_000); // it checks the render, not speed: a page of stages draws ten screen plans each (about 5 s on a loaded machine)
   }
 });
 

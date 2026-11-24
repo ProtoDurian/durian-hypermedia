@@ -233,7 +233,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--state-dot` | read by .k-initial .scn-dot-fill, .k-final .scn-ring-out, .k-final .scn-dot-fill | `-` | `-` |
 | `--state-event` | read by [data-dh-part="state"] .scn-conn-t | `-` | `-` |
 | `--stg-ar` | read by .stg > .stg-box-wrap.stg-ratio-print, stage (code) | `-` | `-` |
-| `--stg-bg` | read by .stg, .stg-t.stg-halo | `-` | `-` |
+| `--stg-bg` | read by .stg, .stg-foot, .stg-t.stg-halo | `-` | `-` |
 | `--stg-boxmin` | read by .stg > .stg-box-wrap, stage (code) | `-` | `-` |
 | `--stg-btn-bg` | read by .stg-btn, .stg-stepbtn | `-` | `-` |
 | `--stg-btn-edge` | read by .stg-btn, .stg-stepbtn | `-` | `-` |
@@ -242,7 +242,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--stg-cross-w` | read by .stg-cross-line | `-` | `-` |
 | `--stg-dash` | read by .stg-edge.stg-dash .stg-line | `-` | `-` |
 | `--stg-dim` | read by .stg-dim | `-` | `-` |
-| `--stg-edge` | read by .stg | `-` | `-` |
+| `--stg-edge` | read by .stg, .stg-foot | `-` | `-` |
 | `--stg-f0-d` | read by :root:not([data-theme="light"]) .stg-svg, :root[data-theme="dark"] .stg-svg[data-f | `-` | `-` |
 | `--stg-f0-l` | read by .stg-svg[data-fills~="c0"] | `-` | `-` |
 | `--stg-f1-d` | read by :root:not([data-theme="light"]) .stg-svg, :root[data-theme="dark"] .stg-svg[data-f | `-` | `-` |

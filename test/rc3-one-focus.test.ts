@@ -1,6 +1,6 @@
 // 0.7.0-rc.3 review, row 4 (one focus per step) and row 6 (the service mesh takes the real path, as kube-proxy does):
 // in the kube-proxy scene (format 66) and the service mesh (format 53) a step lights one thing or moves one token, never
-// two; the mesh's encrypted call leaves node 1 through its network card, crosses the network under the cluster and
+// two (and the array, map and tree scene, format 63: the tree's last two nodes light in steps of their own); the mesh's encrypted call leaves node 1 through its network card, crosses the network under the cluster and
 // enters node 2 through its card: the scene draws that hop instead of a straight proxy-to-proxy line.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { compileScene } from "../src/core/scene";
 
 const FIX = join(import.meta.dir, "../fixtures/format");
-const MESH = "53-animation-a-service-mesh.dh.md", KP = "66-animation-a-packet-through-kube-proxy.dh.md";
+const MESH = "53-animation-a-service-mesh.dh.md", KP = "66-animation-a-packet-through-kube-proxy.dh.md", DATA = "63-animation-an-array-a-map-and-a-tree-in-one-scene.dh.md";
 const parse = (name: string) => {
   const m = readFileSync(join(FIX, name), "utf8").match(/^```animation([^\n]*)\n([\s\S]*?)^```$/m)!;
   const [head, ...rest] = m[2].split(/^@step /m);
@@ -20,7 +20,7 @@ const parse = (name: string) => {
 const focus = (raw: string) => raw.split("\n").filter((l) => /^(highlight|send) /.test(l.trim()));
 
 describe("one focus per step (row 4)", () => {
-  for (const name of [KP, MESH]) test(`${name.slice(0, 2)}: no step lights two things or sends two tokens`, () => {
+  for (const name of [KP, MESH, DATA]) test(`${name.slice(0, 2)}: no step lights two things or sends two tokens`, () => {
     const { steps } = parse(name);
     expect(steps.filter((s) => focus(s.raw).length > 1).map((s) => s.title)).toEqual([]);
   });

@@ -306,6 +306,8 @@ The third release candidate of 0.7.0. The format number stays 10.
   the camera no longer moves.
 - **One focus per step** in both scenes: kube-proxy's opening steps light one thing (kube-proxy, not its rules too),
   and the mesh moves one token per step; its control plane pushes the retry rule to the orders proxy, the one that retries.
+- **One focus per step in the array, map and tree scene too** (fixture 63): finding 40 in the tree lights 50, then 40,
+  in steps of their own (it lit both in one step).
 - **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`
   under it, both following the scroll (`DocumentView`; `src/react/table-more.ts`); neither shows in print.
 - **A table wider than the text column leaves it on a wide screen** (a Markdown table of the document itself, not one

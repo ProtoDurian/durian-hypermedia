@@ -42,9 +42,9 @@ then
 zoom into idx
 @step Find 40: at the root, 30, go right.
 highlight p30
-@step At 50, go left: 40 is found.
+@step At 50, go left.
 highlight p50
-then
+@step 40 is found.
 highlight p40 tone=good
 @step Back out: the service answered from memory, not the database.
 zoom out

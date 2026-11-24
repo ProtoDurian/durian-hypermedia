@@ -461,19 +461,23 @@ registerBlock({
 // retries: 3
 // - the old flag
 // list Replays | roomy (rows with the reference design's thick spacing; filling a card)
-type ListP = { title: string; tone?:string; roomy?: boolean; rows: (({ k: string; v: string } | { ok: boolean; s: string })&{tone?:string;rowTone?:string})[] };
+type ListP = { title: string; tone?:string; roomy?: boolean; role?: string /* "list Title | <role>": the list's box in that family's fill and border */; rows: (({ k: string; v: string } | { ok: boolean; s: string })&{tone?:string;rowTone?:string})[] };
 /** "| roomy" rows, measured on the reference design's a scene (at a 1178 px stage: title to first row and row
  * pitch 28 px; 42 px under the last row; its phone is the same drawing scaled to 0.73: 21 and 31): the gap between rows,
  * the first row's top and the room under the last row's baseline */
 const ROOMY = { wide: { gap: 12, top: 36, under: 42 }, phone: { gap: 5, top: 29, under: 31 } };
 registerBlock({
   word: "list", kind: "panel",
-  parse(inp): ListP {
+  parse(inp, ctx): ListP {
     if (!inp.body.length) throw new StageError(inp.line, "a list has its lines indented under it: key: value, + kept, - struck");
-    const m = /^(.*?)\s*\|\s*(\S+)$/.exec(inp.arg);
-    if (m && m[2] !== "roomy") throw new StageError(inp.line, `a list takes one option after "|": roomy ("list ${m[1]} | roomy"), not "${m[2]}"`);
+    // after "|": roomy, a role (the list in that family's colours) or both: "list NAT table T8 | table", "list Replays | roomy job"
+    const m = /^(.*?)\s*\|\s*(\S+(?:\s+\S+)?)$/.exec(inp.arg), opts = m ? m[2].split(/\s+/) : [];
+    const named = opts.filter((o) => o !== "roomy"), roomy = opts.length > named.length;
+    if (named.length > 1 || opts.length - named.length > 1) throw new StageError(inp.line, `a list takes roomy, a role or both after "|" ("list ${m![1]} | roomy", "list ${m![1]} | <role>"), not "${m![2]}"`);
+    const role = named[0];
+    if (role && !ctx.roles.has(role)) ctx.problem(inp.line, `"${role}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"} (a list takes one option after "|": roomy or a role)`);
     const title=boxTone(m?m[1]:inp.arg,inp.line);
-    return { title:title.text,...(title.tone?{tone:title.tone}:{}), ...(m ? { roomy: true } : {}), rows: inp.body.map((l) => { if (l.t.startsWith("- ") || l.t.startsWith("+ ")) return { ok: l.t[0] === "+", s: l.t.slice(2) }; const rowTone=/^\((good|bad|warn|accent)\)\s+/.exec(l.t),line=rowTone?l.t.slice(rowTone[0].length):l.t;const c = colon(line); if (!c) throw new StageError(l.n, `a list line is "key: value", "+ kept" or "- struck"`); const toned=/^\((good|bad|warn|accent)\)\s+/.exec(c[1]);return { k:c[0], v:toned?c[1].slice(toned[0].length):c[1],...(rowTone?{rowTone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}),...(toned?{tone:toned[1]==="accent"?"acc":toned[1]}:rowTone?{tone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}) }; }) };
+    return { title:title.text,...(title.tone?{tone:title.tone}:{}), ...(roomy ? { roomy: true } : {}), ...(role && ctx.roles.has(role) ? { role } : {}), rows: inp.body.map((l) => { if (l.t.startsWith("- ") || l.t.startsWith("+ ")) return { ok: l.t[0] === "+", s: l.t.slice(2) }; const rowTone=/^\((good|bad|warn|accent)\)\s+/.exec(l.t),line=rowTone?l.t.slice(rowTone[0].length):l.t;const c = colon(line); if (!c) throw new StageError(l.n, `a list line is "key: value", "+ kept" or "- struck"`); const toned=/^\((good|bad|warn|accent)\)\s+/.exec(c[1]);return { k:c[0], v:toned?c[1].slice(toned[0].length):c[1],...(rowTone?{rowTone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}),...(toned?{tone:toned[1]==="accent"?"acc":toned[1]}:rowTone?{tone:rowTone[1]==="accent"?"acc":rowTone[1]}:{}) }; }) };
   },
   layout(p: ListP, box: Box): LayoutOut {
     const kw = Math.min(box.w * 0.4, Math.max(0, ...p.rows.map((r) => ("k" in r ? measure(r.k, "small-b") + 16 : 0))));
@@ -489,7 +493,7 @@ registerBlock({
     }
     // roomy: the room under the last row's baseline (y - rg - 3) as measured; else 6 px under the last row
     const h = R ? y - rg - 3 + R.under : y + 6;
-    items.unshift({ k: "box", x: 0, y: 0, w: box.w, h, fill:p.tone?`${p.tone}:soft`:"surface", stroke:p.tone?`${p.tone}:ink`:"line-2", r: 9, cls: "scn-frame", ...(p.title?{bar:{kind:"card",label:p.title,...(p.tone?{tone:p.tone}:{})}}:{}) });
+    items.unshift({ k: "box", x: 0, y: 0, w: box.w, h, fill:p.tone?`${p.tone}:soft`:p.role?`role:${p.role}:plane`:"surface", stroke:p.tone?`${p.tone}:ink`:p.role?`role:${p.role}:line`:"line-2", ...(p.role && !p.tone ? { role: p.role } : {}), r: 9, cls: "scn-frame", ...(p.title?{bar:{kind:"card",label:p.title,...(p.tone?{tone:p.tone}:{})}}:{}) });
     return { h, items };
   },
   facts: (p: ListP) => [`${p.title ? p.title + ": " : ""}${p.rows.map((r) => ("k" in r ? `${r.k}: ${r.v}` : `${r.ok ? "kept" : "struck"}: ${r.s}`)).join("; ")}.`],

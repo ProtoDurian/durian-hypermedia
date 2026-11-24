@@ -743,7 +743,7 @@ rows plain table
 unwrap fr
 set pk: to 198.51.100.7 => to 192.0.2.10; TTL 62 => TTL 61; header checksum 0x3680 => header checksum 0x9fb0
 set sg: ports 443 to 40001 => ports 443 to 51514; checksum 0xaba2 => checksum 0xe6d9
-list NAT table T8
+list NAT table T8 | table
   TCP: 192.0.2.10:51514 is 198.51.100.7:40001, toward 203.0.113.80:443
   state: established
   expected back: 203.0.113.80:443 to 198.51.100.7:40001
@@ -753,7 +753,7 @@ list NAT table T8
 hr -> sw: copper
 show fr
 fields fr: * to 00:00:5E:00:53:0A; from 00:00:5E:00:53:01; type 0x0800 (IPv4); > FCS eb 7e fa 64, at the end
-list neighbour cache
+list neighbour cache | link
   192.0.2.10 is 00:00:5E:00:53:0A: kept since the ARP question
 @step Unchanged: The switch sends the same frame out of port 1. The laptop gets a packet whose source is still the server.
 sw -> lap: port 1

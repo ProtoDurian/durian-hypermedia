@@ -138,6 +138,9 @@ The third release candidate of 0.7.0. The format number stays 10.
 - A composed stage's `rows` takes a role: `rows <role>` draws each row's box in that family's fill and border, `rows plain
   <role>` a plain row's words in its ink (SPEC 6.13); doccheck refuses a role the page does not declare. The layers example's
   routing tables are `rows table` and the switch's MAC table `rows link`, so they are told apart like the cards beside them.
+- A composed stage's `list` takes a role after `|`: `list Title | <role>` draws its box in that family's fill and border
+  (`roomy` and a role may go together; doccheck refuses a role the page does not declare). The layers example's NAT table
+  list is `| table` and its neighbour cache list `| link`.
 
 ### Removed (breaking)
 

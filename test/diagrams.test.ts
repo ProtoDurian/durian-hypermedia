@@ -6,7 +6,7 @@ import { check, llmView as viewOf, parse } from "../src/index";
 import { html } from "./helpers";
 import { compileScene, edgeGeom, phoneInfo, sampleGeom, sceneLlm, type Compiled } from "../src/core/scene";
 import { END_MARKS } from "../src/core/line-ends";
-import { wholeLayout } from "../src/core/whole";
+import { fitsWide, wholeHeightCss, wholeHeightVars, wholeLayout, wholeSize } from "../src/core/whole";
 import { jsonOf, llmView, parseDoc, structureOf, type PartNode } from "../src/core/dh-lib";
 import { diagramOf } from "../src/core/diagrams";
 import { Budget } from "../src/core/budget";
@@ -463,4 +463,18 @@ describe("the diagrams in a rendered page", () => {
     expect(v).toContain("customer");
     expect(v).not.toContain("scn-");
   });
+});
+
+describe("a diagram on a phone: the words stay 11 px, the stage is shaped for the layout the browser draws", () => {
+  const FIX = join(import.meta.dir, "../fixtures");
+  for (const [name, type] of [["90-state-diagram", "state"], ["91-class-diagram", "class"], ["92-er-diagram", "er"]] as const) {
+    test(`${type}: at 352 px the rows layout fits at the least word, and the server's stage height is that layout's`, () => {
+      const d: any = parse(readFileSync(join(FIX, `format/${name}.dh.md`), "utf8")), b = d.blocks.find((x: any) => x.type === type);
+      const wide = compileScene(b.anim.head, b.anim.steps, b.anim.base, b.anim.info);
+      const c = wholeLayout(wide, 352, true);
+      expect(fitsWide(c, 352)).toBe(true);
+      const vars = wholeHeightVars(wide, undefined, true), pick = (w: number) => { const k = vars[`--wh${w}`] ?? "var(--wh)"; const m = k.match(/^var\((--wh[-\w]*)\)$/); return vars[m![1]]; };
+      expect(pick(352)).toBe(wholeHeightCss(wholeSize(c)));
+    });
+  }
 });

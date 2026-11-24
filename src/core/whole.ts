@@ -66,8 +66,8 @@ export const WHOLE_WS: number[] = Array.from({ length: 61 }, (_, k) => 240 + 16 
  *  style attribute (no <style> element, no HTML string: strict Trusted Types holds). --wh is the height at the widest
  *  width; --wh-a, --wh-b ... the other layouts' heights; --wh<width> names the one a width takes where it is not --wh.
  *  src/ui/parts.css picks the one for the stage's width with a container query per width in WHOLE_WS. i: static's step */
-export function wholeHeightVars(wide: Compiled, i?: number): Record<string, string> {
-  const at = (b: number) => { const c = wholeLayout(wide, b); return c.frames.length ? wholeHeightCss(wholeSize(i == null ? c : oneStep(c, i))) : null; };
+export function wholeHeightVars(wide: Compiled, i?: number, rows = false): Record<string, string> {
+  const at = (b: number) => { const c = wholeLayout(wide, b, rows); return c.frames.length ? wholeHeightCss(wholeSize(i == null ? c : oneStep(c, i))) : null; };
   const top = at(WHOLE_WS[WHOLE_WS.length - 1]);
   if (!top) return {};
   const out: Record<string, string> = { "--wh": top }, named = new Map<string, string>([[top, "--wh"]]);

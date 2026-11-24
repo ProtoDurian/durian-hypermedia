@@ -163,7 +163,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const [swipeMore, setSwipeMore] = useState("r");
   // no load shift (SPEC 6.14): a whole scene's stage height for every layout width, in the part's style attribute, so the
   // server's page already has the height the browser keeps (parts.css picks one by the stage's width)
-  const wqVars = useMemo(() => (whole ? wholeHeightVars(cWide, st.on ? st.i : undefined) : null), [whole, st.on, st.i]);
+  const wqVars = useMemo(() => (whole ? wholeHeightVars(cWide, st.on ? st.i : undefined, !!src.part) : null), [whole, st.on, st.i]);
   const stageAr = swipeW ? px0 / (natS!.h * leastS) : st.on && c.frames.length ? wholeAspect(oneStep(c, st.i), px0) : whole ? wholeAspect(c, px0) : c.aspect;
   // on a phone, a stage a little taller where that, and only that, keeps the camera still between two zooms (core/calm.ts)
   // (at the layout width and for PHONE_WIN, as the server wrote it: stageArVars)

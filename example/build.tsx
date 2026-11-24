@@ -6,7 +6,7 @@
 // The style switch (soft, flat, bold) and the theme switch are in the page script (client.tsx).
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse, llmView } from "../src/index";
 import { highlight } from "../src/server";
@@ -24,6 +24,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "assets"), { recursive: true });
+cpSync(join(PKG, "src/parts/audio/media"), join(OUT, "media"), { recursive: true });
 writeFileSync(join(OUT, "assets/styles.css"), buildCss() + "\n" + readFileSync(join(HERE, "site.css"), "utf8"));
 const r = await Bun.build({ entrypoints: [join(HERE, "client.tsx"), join(HERE, "client-tt.tsx"), join(HERE, "client-ttfull.tsx"), join(HERE, "tt-control.ts")], outdir: join(OUT, "assets"), splitting: true, format: "esm", minify: true, target: "browser", naming: { entry: "[name].[ext]", chunk: "c-[hash].[ext]" }, define: { "process.env.NODE_ENV": '"production"' } });
 if (!r.success) { console.error(r.logs); process.exit(1); }

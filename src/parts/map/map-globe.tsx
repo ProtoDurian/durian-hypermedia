@@ -237,6 +237,7 @@ export const GlobeStage = forwardRef<GlobeHandle, GlobeProps>(function GlobeStag
   }, [boxes, initial, flyTo, setCam]);
 
   const r = R(size, cam.k);
+  const haloScale = (r * 2 + 40) / 100;
   const api: GlobeApi = {
     w: size.w, h: size.h, R: r, cam,
     proj: (lat, lng, h = 0) => project(lat, lng, h, cam, size.w, size.h, r),
@@ -251,7 +252,7 @@ export const GlobeStage = forwardRef<GlobeHandle, GlobeProps>(function GlobeStag
   })();
   return (
     <div className="map-stage is-globe" ref={stage} tabIndex={0} role="group" aria-label={p.label} data-dh-slot="globe" data-lat={cam.lat.toFixed(3)} data-lng={cam.lng.toFixed(3)} data-k={cam.k.toFixed(3)}>
-      <div className="map-halo" aria-hidden="true" style={{ width: r * 2 + 40, height: r * 2 + 40, left: size.w / 2 - r - 20, top: size.h / 2 - r - 20 }} />
+      <div className="map-halo" aria-hidden="true" style={{ width: 100, height: 100, left: "50%", top: "50%", transform: `translate(-50%, -50%) scale(${haloScale})`, filter: `blur(${5 / haloScale}px)` }} />
       <canvas className="map-gl" ref={canvas} aria-hidden="true" />
       {!ready ? <div className="map-gl-wait" role="status">Loading the globe…</div> : null}
       <svg className="map-svg map-gsvg" viewBox={`0 0 ${size.w} ${size.h}`} width="100%" height="100%" aria-hidden="true">

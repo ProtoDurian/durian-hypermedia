@@ -17,6 +17,9 @@ describe("example site: source and LLM view on every fixture", () => {
     try {
       const r = Bun.spawnSync(["bun", join(PKG, "example/build.tsx"), out], { cwd: PKG, stdout: "pipe", stderr: "pipe", env: { ...process.env } });
       expect(r.exitCode).toBe(0);
+      for (const name of ["talk.mp3", "talk.peaks.json"]) {
+        expect(readFileSync(join(out, "media", name))).toEqual(readFileSync(join(PKG, "src/parts/audio/media", name)));
+      }
       let pages = 0;
       for (const dir of ["", "format", "parts", "stage", "hostile"]) {
         for (const f of readdirSync(join(PKG, "fixtures", dir)).filter((x) => x.endsWith(".md")).sort()) {

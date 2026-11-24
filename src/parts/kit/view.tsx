@@ -37,13 +37,19 @@ export function useSteps(n: number, stp: StaticProp, titles: string[] = []) {
 }
 export type Steps = ReturnType<typeof useSteps>;
 
+export function StepTitle({ titles, index }: { titles: string[]; index: number }) {
+  return <span className="dh-step-title">
+    {titles.map((title, i) => <span key={i} aria-hidden={i !== index || undefined} className={i === index ? undefined : "dh-step-hidden"}>{title}</span>)}
+  </span>;
+}
+
 /** Under a stepping part: the caption and the control row, or (static) the chosen caption and the list of all. */
 export function Stepper({ n, titles, st, ui, label }: { n: number; titles: string[]; st: Steps; ui: Ui; label?: string }) {
   if (n < 2) return null;
   if (st.sx.on) return <StaticSteps titles={titles} i={st.i} print={st.sx.print} />;
   return (
     <>
-      <div className="anim-cap dh-cap" aria-live="polite"><span className="cw-num">{st.i + 1}</span><span>{titles[st.i]}</span></div>
+      <div className="anim-cap dh-cap" aria-live="polite"><span className="cw-num" style={{ minWidth: `max(22px, calc(${String(n).length}ch + 12px))` }}>{st.i + 1}</span><StepTitle titles={titles} index={st.i} /></div>
       <Controls ui={ui} i={st.i} n={n} onGo={st.go} playing={st.playing} onPlay={st.play} label={label ?? ui.step} />
     </>
   );

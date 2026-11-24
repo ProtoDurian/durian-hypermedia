@@ -19,9 +19,14 @@ const H = { s: 56, m: 96, l: 140 } as const;
 export function waveMap(dur: number, width: number, chapterT: number[], gap: number) {
   const starts = chapterT.filter((t) => t > 0 && t < dur);
   const usable = Math.max(1, width - gap * starts.length);
-  const xOf = (t: number) => { const tt = clamp(t, 0, dur); let k = 0; while (k < starts.length && starts[k] <= tt) k++; return (tt / Math.max(dur, 1e-6)) * usable + k * gap; };
+  const gapsBefore = (t: number) => { let k = 0; while (k < starts.length && starts[k] <= t) k++; return k * gap; };
+  const xOf = (t: number) => { const tt = clamp(t, 0, dur); return (tt / Math.max(dur, 1e-6)) * usable + gapsBefore(tt); };
+  const cssXOf = (t: number) => {
+    const tt = clamp(t, 0, dur), fraction = tt / Math.max(dur, 1e-6);
+    return `calc(max(${fraction}px, ${100 * fraction}% - ${fraction * gap * starts.length}px) + ${gapsBefore(tt)}px)`;
+  };
   const tOf = (x: number) => { let lo = 0, hi = dur; for (let i = 0; i < 28; i++) { const mid = (lo + hi) / 2; if (xOf(mid) < x) lo = mid; else hi = mid; } return hi; };
-  return { xOf, tOf, usable, starts };
+  return { xOf, cssXOf, tOf, usable, starts };
 }
 
 type Cols = { wave: string; played: string; played2: string; head: string; buffer: string; marker: string };
@@ -228,7 +233,7 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
           <div className="am-wave" ref={wrap} data-dh-slot="wave" role="slider" tabIndex={0} aria-label={`${STR.seek}${spec.title ? `: ${spec.title}` : ""}`} aria-valuemin={0} aria-valuemax={Math.round(D)} aria-valuenow={Math.round(t)} aria-valuetext={valueText} {...drag}>
             <canvas ref={canvas} aria-hidden="true" />
             {spec.markers.map((m, i) => (
-              <button key={i} type="button" className={`am-flag tone-${m.tone}${map.xOf(m.t) > (w || 600) * 0.5 ? " is-right" : ""}`} data-dh-slot="marker" style={{ left: spec.wave === "live" ? undefined : `${map.xOf(m.t)}px`, ...(spec.wave === "live" ? { display: "none" } : {}) }} onPointerDown={(e) => e.stopPropagation()} onClick={() => seek(m.t)} aria-label={`${STR.markers}: ${fmtTime(m.t)} ${m.title}`}>
+              <button key={i} type="button" className={`am-flag tone-${m.tone}${map.xOf(m.t) > (w || 600) * 0.5 ? " is-right" : ""}`} data-dh-slot="marker" style={{ left: spec.wave === "live" ? undefined : map.cssXOf(m.t), ...(spec.wave === "live" ? { display: "none" } : {}) }} onPointerDown={(e) => e.stopPropagation()} onClick={() => seek(m.t)} aria-label={`${STR.markers}: ${fmtTime(m.t)} ${m.title}`}>
                 <Icon n="flag" size={14} /><span className="am-flag-tip">{fmtTime(m.t)} {m.title}</span>
               </button>
             ))}

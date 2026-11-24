@@ -71,7 +71,10 @@ export default function VennView({ data: spec, ui, static: stp, stage }: PartVie
         </div>
       </div>
       <ul className="venn-legend" data-dh-slot="legend">
-        {spec.regions.filter((r) => shownAt(r.step, i, n)).sort((a, b) => bits(a.mask) - bits(b.mask)).map((r) => <li key={r.mask}><strong>{regionWords(spec, r.mask)}:</strong> {regionText(r)}</li>)}
+        {spec.regions.filter(r => !st.sx.on || shownAt(r.step, i, n)).sort((a, b) => bits(a.mask) - bits(b.mask)).map(r => {
+          const visible = shownAt(r.step, i, n);
+          return <li key={r.mask} className={visible ? undefined : "dh-step-hidden"} aria-hidden={!visible || undefined}><strong>{regionWords(spec, r.mask)}:</strong> {regionText(r)}</li>;
+        })}
       </ul>
       <Stepper n={n} titles={titles} st={st} ui={ui} />
       {pop.node}

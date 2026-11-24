@@ -8,6 +8,9 @@
 .dh-svg { display: block; width: 100%; height: auto; font-family: var(--font-sans); font-size: 12px; fill: var(--ink); overflow: visible; }
 .dh-svg text { fill: var(--ink); }
 .dh-cap { padding-top: 6px; }
+.dh-step-title { display: grid; flex: 1; min-width: 0; }
+.dh-step-title > span { grid-area: 1 / 1; }
+.dh-step-hidden { visibility: hidden; }
 .dh-dg .ctl { border-top: 0; }
 .dh-dg [tabindex]:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 1px; }
 @keyframes dh-fade { from { opacity: 0; } to { opacity: 1; } }

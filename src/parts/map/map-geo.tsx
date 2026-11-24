@@ -135,37 +135,42 @@ export function ScaleLegend({ spec, range, lowIsNone }: { spec: MapSpec; range: 
 }
 
 // ---------- the list of values (a way in for keys and phones: every region and arc is a button) ----------
-export function ValuesPanel({ spec, fills, arcs, onShow, onArc, open, still=false }: { still?:boolean; spec: MapSpec; fills: MFill[]; arcs: MArc[]; onShow: (code: string) => void; onArc: (id: string) => void; open: string | null }) {
-  const sorted = [...fills].sort((a, b) => b.value - a.value);
+export function ValuesPanel({ spec, fills, arcs, onShow, onArc, open, still=false }: { still?: boolean; spec: MapSpec; fills: MFill[]; arcs: MArc[]; onShow: (code: string) => void; onArc: (id: string) => void; open: string | null }) {
+  const reserve = !still && spec.steps.length > 1;
+  const fillRows = [...(reserve ? spec.fills : fills)].sort((a, b) => b.value - a.value);
+  const arcRows = [...(reserve ? spec.arcs : arcs)].sort((a, b) => b.value - a.value);
+  const shownFills = new Set(fills), shownArcs = new Set(arcs);
   const max = Math.max(...fills.map((f) => Math.abs(f.value)), 1e-9), amax = Math.max(...arcs.map((a) => a.value), 1e-9);
   const unit = spec.scale.unit;
   return (
     <>
-      {fills.length ? (
-        <details className="map-values" data-dh-slot="values" open={still || fills.length <= 12}>
+      {fillRows.length ? (
+        <details className={fills.length ? "map-values" : "map-values dh-step-hidden"} aria-hidden={!fills.length || undefined} data-dh-slot="values" open={still || fillRows.length <= 12}>
           <summary>Values · {fills.length} region{fills.length === 1 ? "" : "s"}{unit ? ` · ${unit}` : ""}</summary>
           <ul>
-            {sorted.map((f) => (
-              <li key={f.code}><button disabled={still} type="button" className={`map-vrow ${open === f.code ? "is-on" : ""}`} onClick={() => onShow(f.code)} aria-label={`Show ${f.name} on the map: ${valueWords(f.raw, unit)}`}>
+            {fillRows.map(f => {
+              const shown = shownFills.has(f);
+              return <li key={f.code} className={shown ? undefined : "dh-step-hidden"} aria-hidden={!shown || undefined}><button disabled={still || !shown} type="button" className={`map-vrow ${open === f.code ? "is-on" : ""}`} onClick={() => onShow(f.code)} aria-label={`Show ${f.name} on the map: ${valueWords(f.raw, unit)}`}>
                 <span className="map-vname">{f.name}</span>
-                <span className="map-vbar" aria-hidden="true"><i style={{ width: `${Math.max(2, (Math.abs(f.value) / max) * 100)}%` }} /></span>
+                <span className="map-vbar" aria-hidden="true"><i style={{ width: shown ? `${Math.max(2, (Math.abs(f.value) / max) * 100)}%` : undefined }} /></span>
                 <span className="map-vval">{f.raw}</span>
-              </button></li>
-            ))}
+              </button></li>;
+            })}
           </ul>
         </details>
       ) : null}
-      {arcs.length ? (
-        <details className="map-values" data-dh-slot="arcs" open={still || arcs.length <= 12}>
+      {arcRows.length ? (
+        <details className={arcs.length ? "map-values" : "map-values dh-step-hidden"} aria-hidden={!arcs.length || undefined} data-dh-slot="arcs" open={still || arcRows.length <= 12}>
           <summary>Flows · {arcs.length} arc{arcs.length === 1 ? "" : "s"}{unit ? ` · ${unit}` : ""}</summary>
           <ul>
-            {[...arcs].sort((a, b) => b.value - a.value).map((a) => (
-              <li key={a.id}><button disabled={still} type="button" className={`map-vrow pl-${a.colour} ${open === a.id ? "is-on" : ""}`} onClick={() => onArc(a.id)} aria-label={`Show the arc ${arcTitle(a)}: ${valueWords(a.raw, unit)}`}>
+            {arcRows.map(a => {
+              const shown = shownArcs.has(a);
+              return <li key={a.id} className={shown ? undefined : "dh-step-hidden"} aria-hidden={!shown || undefined}><button disabled={still || !shown} type="button" className={`map-vrow pl-${a.colour} ${open === a.id ? "is-on" : ""}`} onClick={() => onArc(a.id)} aria-label={`Show the arc ${arcTitle(a)}: ${valueWords(a.raw, unit)}`}>
                 <span className="map-vname">{arcTitle(a)}</span>
-                <span className="map-vbar" aria-hidden="true"><i style={{ width: `${Math.max(2, (a.value / amax) * 100)}%`, background: "var(--map-colour)" }} /></span>
+                <span className="map-vbar" aria-hidden="true"><i style={{ width: shown ? `${Math.max(2, (a.value / amax) * 100)}%` : undefined, background: "var(--map-colour)" }} /></span>
                 <span className="map-vval">{a.raw}</span>
-              </button></li>
-            ))}
+              </button></li>;
+            })}
           </ul>
         </details>
       ) : null}

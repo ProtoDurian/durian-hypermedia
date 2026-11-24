@@ -12,6 +12,7 @@ import { ArcDraw, Filled, Land, ScaleLegend, ValuesPanel, arcGeom, arcTitle, fil
 import type { GlobeApi, GlobeHandle } from "./map-globe";
 import type { Basemap, MapHost } from "./host";
 import { Controls, reducedMotion } from "../../ui/parts";
+import { StepTitle } from "../kit/view";
 import { usePop } from "../kit/places-pop";
 import { useStatic, StaticSteps, type StaticProp } from "../kit/static"; 
 import type { Ui } from "../../ui/ui";
@@ -240,7 +241,6 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
   }, [spec, setView, fly, mode, sx.on]);
 
   const px = (p: LL) => toPx(p, view, size.w, size.h);
-  const pct = (p: LL) => { const q = px(p); return { left: `${(q.x / size.w) * 100}%`, top: `${(q.y / size.h) * 100}%` }; };
   const pts = (ps: LL[]) => ps.map((p) => { const q = px(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ");
   const placesNow = spec.places.filter((p) => visible(p.from < 0 ? 0 : p.from));
   const routesNow = spec.routes.filter((r) => r.shownAt <= step), areasNow = spec.areas.filter((a) => a.shownAt <= step);
@@ -320,10 +320,12 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
       </svg>
       <div className="map-pins" data-dh-slot="pins">
         {placesNow.map((p) => { const q = api.proj(p.lat, p.lng, 0); return (
-          <button disabled={sx.on} key={p.id} type="button" className={`map-pin pl-${p.colour} ${openId === p.id ? "is-on" : ""} ${q.x>api.w*.6?"is-left":""}`} style={{ left: q.x, top: q.y, display: q.vis ? undefined : "none" }} data-dh-slot="pin" aria-label={`${p.label}, ${p.lat}, ${p.lng}${p.note ? `. ${p.note}` : ""}`} {...pop.anchor(p.id, () => ({ ...openPlace(p), at: { x: q.x, y: q.y } }))}>
+          <div key={p.id} className="map-pin-anchor" style={{ transform: `translate(${q.x}px, ${q.y}px)`, display: q.vis ? undefined : "none" }}>
+          <button disabled={sx.on} type="button" className={`map-pin pl-${p.colour} ${openId === p.id ? "is-on" : ""} ${q.x>api.w*.6?"is-left":""}`} data-dh-slot="pin" aria-label={`${p.label}, ${p.lat}, ${p.lng}${p.note ? `. ${p.note}` : ""}`} {...pop.anchor(p.id, () => ({ ...openPlace(p), at: { x: q.x, y: q.y } }))}>
             <span className="map-dot" aria-hidden="true">{p.label.trim().slice(0, 1).toUpperCase()}</span>
             <span className="map-pin-label" aria-hidden="true">{p.label}</span>
           </button>
+          </div>
         ); })}
       </div>
     </>
@@ -395,12 +397,14 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
           </svg>
         ) : null}
         <div className="map-pins" data-dh-slot="pins">
-          {placesNow.map((p) => (
-            <button disabled={sx.on} key={p.id} type="button" className={`map-pin pl-${p.colour} ${pop.open?.data.id === p.id ? "is-on" : ""} ${toPx(p,view,size.w,size.h).x>size.w*.6?"is-left":""}`} style={pct(p)} data-dh-slot="pin" aria-label={`${p.label}, ${p.lat}, ${p.lng}${p.note ? `. ${p.note}` : ""}`} {...pop.anchor(p.id, () => openPlace(p))}>
+          {placesNow.map((p) => { const q = px(p); return (
+            <div key={p.id} className="map-pin-anchor" style={{ transform: `translate(${q.x / size.w * 100}%, ${q.y / size.h * 100}%)` }}>
+            <button disabled={sx.on} type="button" className={`map-pin pl-${p.colour} ${pop.open?.data.id === p.id ? "is-on" : ""} ${q.x > size.w * .6 ? "is-left" : ""}`} data-dh-slot="pin" aria-label={`${p.label}, ${p.lat}, ${p.lng}${p.note ? `. ${p.note}` : ""}`} {...pop.anchor(p.id, () => openPlace(p))}>
               <span className="map-dot" aria-hidden="true">{p.label.trim().slice(0, 1).toUpperCase()}</span>
               <span className="map-pin-label" aria-hidden="true">{p.label}</span>
             </button>
-          ))}
+            </div>
+          ); })}
         </div>
         {!sx.on && <div className="map-ctl" role="group" aria-label="Zoom">
           <button disabled={sx.on} type="button" className="map-btn" aria-label="Zoom in" onClick={() => zoom(1)}>+</button>
@@ -418,17 +422,17 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
       {hasRegions ? <ScaleLegend spec={spec} range={range} lowIsNone={lowIsNone} /> : null}
       {n ? (
         <>
-          {sx.on ? <StaticSteps titles={spec.steps.map((x) => x.title)} i={step} print={sx.print} /> : <><p className="map-cap" aria-live="polite">{spec.steps[step].title}</p>
+          {sx.on ? <StaticSteps titles={spec.steps.map((x) => x.title)} i={step} print={sx.print} /> : <><p className="map-cap" aria-live="polite"><StepTitle titles={spec.steps.map(x => x.title)} index={step} /></p>
           <Controls ui={ui} i={step} n={n} onGo={goStep} label="Map steps" /></>}
         </>
       ) : null}
-      {(routesNow.length || areasNow.length) ? (
-        <ul className="map-legend" data-dh-slot="legend">
-          {routesNow.map((r) => (
-            <li key={r.id} className={`pl-${r.colour}`}><span className={`map-sw ${r.way === "flight" || hasWrittenPath(r) || routed[r.id] ? "" : "is-dashed"}`} aria-hidden="true" />
+      {((sx.on ? routesNow.length + areasNow.length : spec.routes.length + spec.areas.length) > 0) ? (
+        <ul className="map-legend" data-dh-slot="legend" aria-hidden={!(routesNow.length || areasNow.length) || undefined}>
+          {(sx.on ? routesNow : spec.routes).map((r) => (
+            <li key={r.id} className={`pl-${r.colour}${r.shownAt > step ? " dh-step-hidden" : ""}`} aria-hidden={r.shownAt > step || undefined}><span className={`map-sw ${r.way === "flight" || hasWrittenPath(r) || routed[r.id] ? "" : "is-dashed"}`} aria-hidden="true" />
               <b>{r.label}</b> {WAY_WORDS[r.way]} · about {kmWords(routeLength(r))}{routed[r.id] ? " · follows the roads" : r.way === "flight" ? " · great-circle arc" : hasWrittenPath(r) ? " · path as written" : " · straight line"}</li>
           ))}
-          {areasNow.map((a) => <li key={a.id} className={`pl-${a.colour}`}><span className="map-sw is-area" aria-hidden="true" /><b>{a.label}</b> area, {a.corners.length} corners</li>)}
+          {(sx.on ? areasNow : spec.areas).map((a) => <li key={a.id} className={`pl-${a.colour}${a.shownAt > step ? " dh-step-hidden" : ""}`} aria-hidden={a.shownAt > step || undefined}><span className="map-sw is-area" aria-hidden="true" /><b>{a.label}</b> area, {a.corners.length} corners</li>)}
         </ul>
       ) : null}
       <ValuesPanel still={sx.on} spec={spec} fills={visibleFills} arcs={arcsNow} onShow={showRegion} onArc={showArc} open={openId} />

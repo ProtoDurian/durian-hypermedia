@@ -33,6 +33,11 @@ export default function GanttView({ data: spec, ui, static: stp, stage }: PartVi
   // the stage's width less the part's own border and padding (12 px each side on a phone, 16 px otherwise)
   const room = Math.max(240, (stage.width || FIRST_WIDTH) - (stage.width && stage.width < 600 ? 26 : 34));
   const failed = spec.errors.length > 0 || !spec.tasks.length;
+  const bodyHeight = useMemo(() => {
+    const tasks = spec.tasks.filter(task => task.appear <= Math.max(0, nSteps - 1));
+    const sections = new Set(tasks.filter(task => spec.sections[task.section]).map(task => task.section));
+    return GANTT.head + tasks.length * GANTT.row + sections.size * GANTT.section + 6;
+  }, [spec, nSteps]);
   const sched = useMemo(() => (failed ? [] : scheduleGantt(spec, step)), [spec, step, failed]);
   const L = useMemo(() => (failed ? null : layoutGantt(spec, sched, room, scale, scratch())), [spec, sched, room, scale, failed]);
   if (!L) return <div className="gantt dh-pop-host"><div className="cw-error">{W.cannot} {spec.errors[0]?.msg ?? "it has no tasks"}</div></div>;
@@ -62,7 +67,7 @@ export default function GanttView({ data: spec, ui, static: stp, stage }: PartVi
           {SCALE_LIST.map((s) => <button key={s} type="button" className="btn btn-s" aria-pressed={L.scale === s} onClick={() => setScale(s)}>{W[s]}</button>)}
         </div>
       )}
-      <div className="gantt-body" style={{ minHeight: L.totalH + 1 }}>
+      <div className="gantt-body" style={{ minHeight: (st.sx.on ? L.totalH : bodyHeight) + 1 }}>
         {!phone && (
           <div className="gantt-names" style={{ width: GANTT.namesW, paddingTop: GANTT.head }} aria-hidden="true">
             {L.rows.map((r, k) => r.kind === "section" ? <div key={k} className="gn-section" style={{ height: GANTT.section }}>{r.name}</div> : <div key={k} className="gn-task" style={{ height: GANTT.row }} title={r.s.label}><span>{r.s.label}</span></div>)}

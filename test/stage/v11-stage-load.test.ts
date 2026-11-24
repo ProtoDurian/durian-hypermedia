@@ -1,14 +1,11 @@
 // @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
-// Pass 11 sphone: no stage moves on load at the windows readers use most. The server lays out at
-// each box width of those windows (SSR_W: box = min(1180, window - 32) - 2), stage.css shows the widest plan that fits
-// the box (a container query), and the browser lays out again at that same width (stageW), so its plan is the one
-// already painted. Weight: one plan per width, kept under a per-stage cap.
+// The server and client use the same plan across the screen-width range.
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { Stage, SSR_W, PRINT_FLOOR, PRINT_W } from "../../src/ui/stage";
+import { Stage, SSR_W, screenPlanWidth, PRINT_FLOOR, PRINT_W } from "../../src/ui/stage";
 import { UI } from "../../src/ui/ui";
 import { beginDocument, BudgetError, docBudget, newBudget } from "../../src/core/stage-budget";
 
@@ -18,8 +15,28 @@ const html = (head: string, steps: [string, string][]) => { beginDocument(); ret
 const HEAD = "title: Merger | x\n## Pods\npod p1, p2: pod 1; pod 2 | pushes\n## Eval\neval ev: evaluator | runs rules\n## Store\nstore db: store | keeps\n";
 const STEPS: [string, string][] = [["One", "p1 --> ev\np2 --> ev"], ["Two", "ev -> db: writes"]];
 
-test("the box widths of 360, 375, 390, 414, 768 and 1024 px windows and of every window of 1212 px or more", () => {
-  expect([360, 375, 390, 414, 768, 1024, 1280].map((v) => Math.min(1180, v - 32) - 2)).toEqual([...SSR_W]);
+const switchWidth = (narrow: number, wide: number) => Math.round(2 * narrow * wide / (narrow + wide));
+
+test("the phone reference sizes, the 800 px drawing box and the desktop keep their native plan", () => {
+  const widths = [326, 341, 356, 380, 800, 1178];
+  expect(widths.map(screenPlanWidth)).toEqual(widths);
+});
+
+test("the screen plan always scales between 0.90 and 1.10 from 320 to 1280 px", () => {
+  const check = (width: number, plan: number) => {
+    expect(width * 100).toBeGreaterThanOrEqual(plan * 90);
+    expect(width * 100).toBeLessThanOrEqual(plan * 110);
+  };
+  for (let width = 320; width <= 1280; width++) check(width, screenPlanWidth(width));
+  for (let i = 1; i < SSR_W.length; i++) {
+    const narrow = SSR_W[i - 1], wide = SSR_W[i];
+    const boundary = switchWidth(narrow, wide);
+    // Check both limits at the switch, including fractional widths just before it.
+    check(boundary, narrow);
+    check(boundary, wide);
+    expect(screenPlanWidth(boundary - 0.01)).toBe(narrow);
+    expect(screenPlanWidth(boundary)).toBe(wide);
+  }
 });
 
 test("the server paints one plan per width, in order, each laid out at its own width", () => {
@@ -29,31 +46,31 @@ test("the server paints one plan per width, in order, each laid out at its own w
   expect(plans.map((m) => +m[2])).toEqual([...SSR_W]);
 });
 
-test("stage.css shows the widest server plan that fits the box: the first below the second width, each from its own width up", () => {
+test("stage.css switches server drawings at the same widths as the browser", () => {
   const css = readFileSync(join(import.meta.dir, "../../src/ui/stage.css"), "utf8");
   expect(css).toContain("container: stgbox / inline-size");
   expect(css).toContain(`.stg-plan-ssr[data-w="${SSR_W[0]}"] { display: block; }`);
-  for (let i = 1; i < SSR_W.length; i++) expect(css).toContain(`@container stgbox (min-width: ${SSR_W[i]}px) { .stg-plan-ssr[data-w="${SSR_W[i - 1]}"] { display: none; } .stg-plan-ssr[data-w="${SSR_W[i]}"] { display: block; } }`);
+  for (let i = 1; i < SSR_W.length; i++) expect(css).toContain(`@container stgbox (min-width: ${switchWidth(SSR_W[i - 1], SSR_W[i])}px) { .stg-plan-ssr[data-w="${SSR_W[i - 1]}"] { display: none; } .stg-plan-ssr[data-w="${SSR_W[i]}"] { display: block; } }`);
   expect(css).not.toMatch(/stg-plan-(wide|narrow)/);
 });
 
-test("weight: a stage's server markup stays under its cap (7 plans: about 3.4 times the old 2; the Format page's median stage is 90 KB)", () => {
+test("weight: a stage's server markup stays under its cap", () => {
   const h = html(HEAD, STEPS);
-  expect(h.length).toBeLessThan(60_000);
+  expect(h.length).toBeLessThan(66_000); // ten screen plans and one print plan
   // each plan costs about the same: no plan is drawn twice
   const each = h.split('<div class="stg-plan stg-plan-ssr"').slice(1).map((p) => p.length);
   expect(each.length).toBe(SSR_W.length + 1); // and the print plan
 });
 
 // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
-test.skip("hydrating, the browser keeps the server's plans as drawn: no layout at the server's widths (one layout per stage, so 7 plans never charge the page's budget 7 times)", () => {
+test.skip("hydrating, the browser keeps the server's plans as drawn: no layout at the server's widths (one layout per stage, so the plans never charge the page's budget once per plan)", () => {
   const g = globalThis as { document?: unknown };
   const had = "document" in g, keep = g.document;
   g.document = {};
   try {
     beginDocument();
     const src = { head: HEAD, steps: STEPS.map(([title, raw], i) => ({ title, raw, line: 20 + i })), base: 1, info: {} };
-    // the hydrating render: seven plan boxes, each empty (React adopts the server's markup inside them), and no drawing made
+    // the hydrating render: the screen and print plan boxes, each empty (React adopts the server's markup inside them), and no drawing made
     const h = renderToString(React.createElement(Stage, { src, roles: ROLES, ui: UI.en, hydrate: true }));
     const plans = [...h.matchAll(/<div class="stg-plan stg-plan-ssr" data-w="(\d+)"><\/div>/g)].map((m) => +m[1]);
     expect(plans).toEqual([...SSR_W]);

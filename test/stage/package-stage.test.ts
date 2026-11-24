@@ -100,7 +100,7 @@ describe("each stage's own layout budget (STAGE_WORK), as in the prototype", () 
       expect(html).not.toContain("stg-over");
     }
     expect(docBudget().left()).toEqual({ work: 0, memory: 0 });
-  });
+  }, 15_000); // render the full set of screen plans for each fixture page
   test("a layout over one stage's cap is refused", () => {
     beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY));
     expect(() => docBudget().charge("stage layout", STAGE_WORK + 1)).toThrow(BudgetError);

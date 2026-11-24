@@ -1,5 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy of the private prototype's composed stage (0.7.0).
-// The composed stage (format version 11, 0.7.0; src/core/stage.ts lays it out): one stage at the column's own width,
+// The composed stage (format version 11, 0.7.0; src/core/stage.ts lays it out): one stage sized to the column,
 // laid out once for every step, so a thing that stays never moves; a step only shows, hides and lights things.
 // No camera, pan or zoom. The player is one row: the title and its note, Back, Next, Play, the count; the named steps
 // as numbered buttons; one caption. Static (SPEC 4.1): one step, drawn whole, no player.
@@ -7,13 +7,28 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
 import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
-/** the widths the server lays out at: the stage's drawing width (its box: the figure, min(1180, window - 32), less its 2 px
- * border) at the windows readers use most: 360, 375, 390 and 414 px phones, 768 and 1024 px tablets, every window of 1212 px
- * or more. stage.css shows the widest plan that fits the box at its own size, so where the box is one of these widths the
- * page the server paints is the page the browser keeps (no jump on load; one width source: stageW) */
-export const SSR_W = [326, 341, 356, 380, 734, 990, 1178] as const;
-/** the one width source: the width a stage lays out at, its box's content width (the client's layout and the server's set agree on it) */
-export const stageW = (el: HTMLElement) => { const cs = getComputedStyle(el); return Math.floor(el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)); };
+/** The screen plans cover common viewport widths, less the figure's gutters and border.
+ * CSS and hydration use the same thresholds to limit changes in scale. */
+export const SSR_W = [326, 341, 356, 380, 458, 551, 664, 800, 971, 1178] as const;
+export function screenPlanWidth(width: number): number {
+  for (let i = SSR_W.length - 1; i > 0; i--) {
+    const narrow = SSR_W[i - 1], wide = SSR_W[i];
+    // At the harmonic mean the plans have equal relative scale error.
+    if (width >= Math.round(2 * narrow * wide / (narrow + wide))) return wide;
+  }
+  return SSR_W[0];
+}
+
+function screenStageWidth(el: HTMLElement): number {
+  if (!el.clientWidth) return 0;
+  const cs = getComputedStyle(el);
+  const px = (value: string) => parseFloat(value) || 0;
+  let width = px(cs.width);
+  if (cs.boxSizing === "border-box") {
+    width -= px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
+  }
+  return width > 0 ? screenPlanWidth(width) : 0;
+}
 import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "../core/stage-core";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import { cssVars } from "./css-vars";
@@ -172,9 +187,9 @@ export function printRelayout(el: HTMLElement, setW: (w: number) => void, cur: (
   const now = (w: number) => { if (w > 0 && w !== cur()) flushSync(() => setW(w)); };
   const width = () => Math.floor(el.clientWidth);
   const before = () => now(Math.min(width() || PRINT_W, PRINT_W));
-  const after = () => now(width());
+  const after = () => now(screenStageWidth(el));
   const mq = window.matchMedia ? window.matchMedia("print") : null;
-  const change = (e: { matches: boolean }) => { const cw = width(); if (!e.matches) now(cw); else if (cw > 0 && cw / (cur() || cw) < 0.97) now(cw); };
+  const change = (e: { matches: boolean }) => { const cw = width(); if (!e.matches) after(); else if (cw > 0 && cw / (cur() || cw) < 0.97) now(cw); };
   addEventListener("beforeprint", before); addEventListener("afterprint", after);
   try { mq?.addEventListener("change", change); } catch { /* old Safari: beforeprint is enough */ }
   return () => { removeEventListener("beforeprint", before); removeEventListener("afterprint", after); try { mq?.removeEventListener("change", change); } catch { /* as above */ } };
@@ -230,16 +245,18 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   }, []);
   useEffect(() => {
     const el = box.current; if (!el) return;
-    const set = () => { const cw = stageW(el); if (cw > 0) setW((o) => (Math.abs(o - cw) > 1 ? cw : o)); };
+    const set = () => {
+      const width = screenStageWidth(el);
+      if (width > 0 && !window.matchMedia?.("print").matches) setW(width);
+    };
     set();
     let ro: ResizeObserver | null = null;
     try { ro = new ResizeObserver(() => requestAnimationFrame(set)); ro.observe(el); } catch { addEventListener("resize", set); }
     const pr = printRelayout(el, setW, () => wNow.current);
     return () => { ro?.disconnect(); removeEventListener("resize", set); pr(); };
   }, []);
-  // the server draws a plan at each width of SSR_W (CSS shows the widest that fits); the browser lays out at its own width
-  // the browser never lays out the server's widths: until it knows its own (the first effect) it keeps the server's drawn
-  // plans as they are (hydration adopts them; one layout per stage, so 7 plans x 27 stages never charge the page's budget)
+  // Keep the same screen plan through hydration, including when the drawing box is between plan widths.
+  // The client replaces the server's alternatives with one plan; CSS scales both the same way.
   const browser = false; // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
   // over one stage's budget (STAGE_WORK) the stage is refused: a note in its place, never an error out of render
   const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return w ? [stageWork(() => layoutStage(m, w))] : browser ? [] : [...SSR_W, PRINT_W].map((x) => stageWork(() => layoutStage(m, x))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);

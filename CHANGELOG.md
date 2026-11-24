@@ -152,6 +152,10 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.
+- **A composed stage is drawn near its own size at every screen width** (SPEC.md 6.13): the server draws ten plans
+  (326, 341, 356, 380, 458, 551, 664, 800, 971 and 1178 px) instead of seven, and hydration and print choose among them by
+  the same CSS rule, so between 320 and 1280 px a stage is drawn at 0.90 to 1.10 times its plan (it could be stretched
+  1.92 times, a 380 px plan in a 731 px box) and keeps its height when it hydrates (it shrank up to 22 px at 800 px).
 - **The example draws in the faces the composed stage measures with:** it self-hosts Poppins (300 to 600) and IBM Plex
   Mono (SIL OFL 1.1, licences beside them), preloads the regular faces and holds the page column hidden until they load,
   1 s at most, so stage lines no longer run past their boxes on a machine without Poppins. The package still loads no

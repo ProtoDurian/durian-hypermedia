@@ -171,11 +171,12 @@ describe("sprint: region labels for the bar", () => {
 // a stand-in browser for printRelayout: window events, matchMedia("print"), an element with a width
 function fakeBrowser() {
   const ls = new Map<string, Set<(e: any) => void>>(), mqLs = new Set<(e: any) => void>();
-  const g = globalThis as any, saved = { window: g.window, addEventListener: g.addEventListener, removeEventListener: g.removeEventListener };
+  const g = globalThis as any, saved = { window: g.window, addEventListener: g.addEventListener, removeEventListener: g.removeEventListener, getComputedStyle: g.getComputedStyle };
   g.window = { matchMedia: () => ({ addEventListener: (_: string, f: any) => mqLs.add(f), removeEventListener: (_: string, f: any) => mqLs.delete(f) }) };
   g.addEventListener = (t: string, f: any) => { (ls.get(t) ?? ls.set(t, new Set()).get(t)!).add(f); };
   g.removeEventListener = (t: string, f: any) => { ls.get(t)?.delete(f); };
   const el = { clientWidth: 1178 } as any as HTMLElement & { clientWidth: number };
+  g.getComputedStyle = (element: HTMLElement) => ({ width: element.clientWidth + "px", boxSizing: "content-box" });
   let w = 1178; const calls: number[] = [];
   const stop = printRelayout(el, (x) => { w = x; calls.push(x); }, () => w);
   return {
@@ -193,6 +194,15 @@ describe("sprint: print lays the stage out again", () => {
       b.fire("beforeprint"); expect(b.width()).toBe(PRINT_W);
       b.el.clientWidth = 620; b.media(true); expect(b.calls).toEqual([PRINT_W]);
       b.el.clientWidth = 1178; b.fire("afterprint"); b.media(false); expect(b.calls).toEqual([PRINT_W, 1178]);
+    } finally { b.done(); }
+  });
+  test("after printing a screen between plan widths restores its screen plan", () => {
+    const b = fakeBrowser();
+    try {
+      b.fire("beforeprint");
+      b.el.clientWidth = 786;
+      b.fire("afterprint"); b.media(false);
+      expect(b.calls).toEqual([PRINT_W, 800]);
     } finally { b.done(); }
   });
   test("a slightly wider sheet (Letter) keeps the PRINT_W layout: it only scales up a little, and the page count stays right", () => {

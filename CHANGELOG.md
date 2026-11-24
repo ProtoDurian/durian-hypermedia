@@ -159,6 +159,12 @@ The third release candidate of 0.7.0. The format number stays 10.
   middle, else the edge's left end, else its right end, off every word the drawing has (its names, the numbers of
   cells and buckets, arrow labels, chips and speech); where each spot would cover one, only the shaded edge and its
   arrow say so. Over the fixtures with steps it lay on a word on 4 steps at 390 and 4 at 360; now on none.
+- **Speech stands by the thing that says it** (SPEC.md 6.14; the rc.3 review: the service mesh at 1280). A bubble could
+  take a free spot nearer another thing than its speaker, and read as that thing's words ("retries twice on failure"
+  36 px from the other proxy, 72 px from its own). Such a spot now costs more than resting on a line, so it is taken
+  only when every spot by the speaker covers a word or a thing. Over the fixtures (laptop, phone and narrow layouts, every
+  step): bubbles nearer another thing than their speaker 8 to 0; none of the 8 moved bubbles covers a word, a thing
+  or a line.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.

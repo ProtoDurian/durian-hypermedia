@@ -1361,13 +1361,14 @@ const area = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - 
 export const LINE_CLEAR = 4;
 // near (format version 10): what straying costs (a tag far from its dot, or in a box its dot is not in), so a near
 // spot with a small fault beats a clean one 60 units off
-function pick<T extends { r: Rect }>(cands: T[], labels: Rect[], shapes: Rect[], soft: Rect[] = [], lines: Pt[][] = [], near?: (r: Rect) => number): T {
+function pick<T extends { r: Rect }>(cands: T[], labels: Rect[], shapes: Rect[], soft: Rect[] = [], lines: Pt[][] = [], near?: (r: Rect) => number, extra?: (r: Rect) => number): T {
   let best = cands[0], bestScore = Infinity;
   // (each line a candidate tests is counted by lineThrough)
   const per = 2 + soft.length + labels.length + shapes.length + lines.length;
   for (const c of cands) {
     work(per);
-    let s = near ? near(c.r) : 0;
+    // (extra: a cost of its own, which leaves the weights below as they are)
+    let s = (near ? near(c.r) : 0) + (extra ? extra(c.r) : 0);
     // format version 10: resting on a line (closer than LINE_CLEAR, by an arrowhead) costs; with near, more than straying (a tag stays clear of lines first, then near)
     for (const ln of lines) if (lineThrough(ln, c.r, 0)) s += near ? 490 : 90; else if (lineThrough(ln, c.r, -LINE_CLEAR)) s += near ? 250 : 45;
     for (const e of soft) if (hit(c.r, e, 2)) s += 6;
@@ -1383,6 +1384,16 @@ function pick<T extends { r: Rect }>(cands: T[], labels: Rect[], shapes: Rect[],
 // in a container that does not hold what it names
 export const NEAR_OK = 18, NEAR_COST = 2, STRAY_COST = 40;
 const gapPt = (p: Pt, r: Rect) => Math.hypot(Math.max(r.x - p.x, 0, p.x - r.x - r.w), Math.max(r.y - p.y, 0, p.y - r.y - r.h));
+export const gapRect = (a: Rect, b: Rect) => Math.hypot(Math.max(0, a.x - (b.x + b.w), b.x - (a.x + a.w)), Math.max(0, a.y - (b.y + b.h), b.y - (a.y + a.h)));
+// speech is read as said by the thing nearest it: a spot nearer another thing than its speaker costs more than resting on
+// a line (90) or by another thing's words (6), so it is taken only when every spot by its speaker covers a word or a thing
+export const SAY_ELSEWHERE = 500;
+/** what a bubble at r would be read as said by, if not its own speaker a: the things nearer r than a (and a's words) */
+export function saidByOther(r: Rect, a: Box, boxes: Box[]): Box[] {
+  const own = a.lbl ? union([a, a.lbl]) : a, d = gapRect(r, own);
+  const inA = (b: Box) => b.x >= a.x && b.y >= a.y && b.x + b.w <= a.x + a.w && b.y + b.h <= a.y + a.h;
+  return boxes.filter((b) => b.key !== a.key && b.key > 0 && !b.hidden && !b.container && b.kind !== "token" && b.kind !== "text" && !inA(b) && gapRect(r, b) < d - 0.5);
+}
 function nearTo(pts: Pt[], boxes: Box[]): (r: Rect) => number {
   const cs = boxes.filter((b) => b.container && b.key > 0 && b.kind !== "layer" && !b.hidden);
   const at = pts.length === 1 ? pts[0] : null;
@@ -1898,7 +1909,9 @@ export function decorate(f: Frame, fx: Fx | undefined, touchedIds: string[] = []
     // say <id> above|below|left|right: that side first (format version 9); still never over a word
     const want = ({ above: "up", below: "down", left: "left", right: "right" } as const)[sy.at as "above"] ?? null;
     const sides: ("up" | "down" | "left" | "right")[] = want ? [want, ...(["up", "down", "right", "left"] as const).filter((x) => x !== want)] : ["up", "down", "right", "left"];
-    const best = pick([...around(a, w, h, sides, 9), ...(want ? ring.filter((x) => x.side === want) : []), ...ring], labels, shapes, soft, lines);
+    // by its own speaker: a spot nearer another thing reads as that thing's words (SAY_ELSEWHERE)
+    const byOwn = (r: Rect) => { work(f.boxes.length); return saidByOther(r, a, f.boxes).length ? SAY_ELSEWHERE : 0; };
+    const best = pick([...around(a, w, h, sides, 9), ...(want ? ring.filter((x) => x.side === want) : []), ...ring], labels, shapes, soft, lines, undefined, byOwn);
     mark({ kind: "say", at: a.key, text: sy.text, lines: words, r: best.r, side: best.side });
   }
   const touched = [...new Set(touchedIds.map((id) => byId.get(id)?.key).filter((k): k is number => k != null))];

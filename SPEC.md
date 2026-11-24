@@ -1815,6 +1815,21 @@ A layout follows a line from its first end, so inheritance is written parent fir
 
 **A sent item:** `send "seg 1" app -> out as s1` into a queue, stack or list makes an item of it, the same size and place as a pushed item; `pop`, `move`, `split` and `drop` work on it. A `pop`, `move`, `split` or `drop` of a send that has no `as` is refused with the line of the send and the fix ("give the send an id: send ... as <id>"). The sent token's own dot leaves the stage when it arrives.
 
+**A card below the time block.** `role id below time: title` is a band of one card across every lane, laid out under everything else on the stage, so a note that belongs under a timeline sits there; what lay below it moves up, the stage keeps its height, and like any card its place stays when `hide` takes it away:
+
+```
+## _
+layout: row
+job d: draft desk
+server p: printer
+time: 0..27 | seconds
+row job r0 "writer": +copy 0..1 @2
+job note below time: the copy line keeps going | only folding waits
+@step One: The desk.
+@step Two: A copy.
+hide note
+```
+
 ## 7. Charts
 
 - **Kinds.** `bar`, `line`, `area` (a line with its fill): `x` lists the categories and each series' `data` holds one number per category (`null` leaves a gap). `scatter`: no category list; `data` is points `[x, y]`. `bubble`: points `[x, y, size]`; the bubble's area follows the size. `radar`: `x` names the axes (at least three), each series is one outline. `pie`, `doughnut`, `polar` (polar area): `x` names the slices, values are 0 or more, and the slice colours follow the default colour order. `candlestick` (format version 10): `x` lists the periods and the series with no `kind` holds one `[open, high, low, close]` per period (`null` leaves a gap). `x` is always the category (or point-x) axis and `y` always the value axis, also when `horizontal: true` turns them on their side.
@@ -2033,85 +2048,6 @@ Phone rules (no new words):
 - A card or grid item takes its box tone after the role (`card job [bad]: title`, `job [good]: title`); a list takes it after the title (`list Replay [bad] | roomy`), and a value may start `(bad)`, `(good)`, `(warn)` or `(accent)`. A list row prefixed `(bad)` (or `(good)`, `(warn)`, `(accent)`) tones both key and value; `key: (bad) value` tones just the value. A list tone colours its fill and border only; its title and ordinary rows retain neutral ink, and value/kept/struck tones keep their own ink. A grid item ending `[dashed]` has a neutral unfilled dashed outline and muted words. `zoom: a..b [warn] | words` fills the inset and its otherwise untoned intervals. These flags change paint only.
 - `a -> b x2: first | second` gives each copy its own label (`_` leaves one unlabelled); one unsplit label still labels the bundle. Copies retain separate target ports on desktop and phones. This form does not change stage height.
 - On phones, repeated time samples use smaller dots inside an inset ruler, with caption backings contained by the same frame; single arrivals keep their larger dots. Assignment labels keep extra room before a card border. Role dots retain the page theme stroke for solid fills.
-- ### 3.5 Areas coloured by a value (`fill`, format version 11)
-- ````
-- ```map title="Population, millions" unit="million people" scale=steps steps=5
-- fill DE 84
-- fill FR 68 note="Metropolitan France"
-- fill US-CA 39.5
-- ```
-- ````
-- - **A line** `fill <region> <value> [note="..."]`: a region is a country by its ISO 3166-1 alpha-2 code in capitals (`DE`) or a US state (`US-CA`). The value is a number (`1_200_000` and `1.5e6` read). Each region has one value. A `fill` under a step appears in that step; `focus <region>` flies to it.
-- - **Keys on the fence:** `unit="..."` (the unit, shown in the legend and every card), `scale=heat|steps` (a smooth ramp, or `steps=3` to `9` even bands; the default is a smooth ramp), `diverge=<n>` (a neutral middle at `n`, two colours either side: for change, profit and loss), `min=` and `max=` (pin the range; values outside are clamped), `none="No data"` (the legend's word for a region with no value).
-- - **Boundaries are our own file**, packed by `the prototype's notes` from Natural Earth 1:50m (public domain; 236 countries and territories, 51 US states with DC), simplified to about 5 km: about 42 KB compressed for the world and 7 KB for the states, loaded only by a map that has a `fill` or a globe. Antarctica is left out (Web Mercator cannot draw it); Somaliland, Northern Cyprus and Siachen have no ISO code and are not regions. With many other states filled, the default view leaves out Alaska and Hawaii (the list under the map has every value, and the reader can zoom out).
-- - **Drawn** on the still picture (the land with no value is drawn as "no data"), on any provider's tiles (the filled regions only, 78% opaque) and on the globe, in the `--heat-*` colours of the theme (light and dark), with our own legend (a ramp with its ends and middle, or the bands), a list of values highest first (each row is a button that flies to the region and opens its card), and a card on hover, focus and tap with the value and its rank. With 12 regions or fewer each region is also a tab stop.
-- - **The LLM view:** a table `region | value (unit)` in the order written, the range, and for arcs a list `from -> to: value`.
-- - **doccheck refuses:** an unknown region code (it names the likely ones: `Germany` gives `DE (Germany)`); a value that is not a number; a region filled twice; text after the value; an unknown key, scale or view; `steps=` outside 3 to 9; `min` not below `max`; `diverge` that is not a number; a `focus` of an unknown code; caps (300 fills).
-- - **Load-time limits a host can lower** (`GEO_LIMITS` in `tools/geo.ts`, outside the parse budget): `geoPoints: 60000` (over it, every k-th point is kept: the shapes get coarser, never refused), `fills: 300`, `arcs: 200`. Every line is charged to the document's work budget; a wrong code is charged for the search for look-alikes.
-- ### 3.6 Arcs between places (`arc`, format version 11)
-- ````
-- ```map title="Backups" unit="TB per day"
-- place sfo "San Francisco" 37.77, -122.42
-- place fra "Frankfurt" 50.11, 8.68
-- arc sfo -> fra 120 "Primary" [c3] id=a1
-- arc DE -> US 40
-- ```
-- ````
-- - **A line** `arc <from> -> <to> <value> ["label"] [colour] [id=name]`: an end is a place id, a region code (the arc starts at its label point) or a `lat, lng` pair. The value is above 0: the width of the arc is its value (a square root scale, 2 to 14 px). `id=` is for a step's `show`.
-- - **Drawn** as a curve bowed to the left of its travel (a flow and its return take two lanes), with an end dot and moving dots that show the direction (stopped under reduced motion), on any provider, on the still picture and on the globe (a great circle lifted off the sphere). An arc that crosses the date line takes the short way. Hover, tap or Tab (up to 12 arcs; the "Flows" list under the map has every arc) gives a card with the value.
-- - **doccheck refuses:** the wrong shape (it shows the line), a missing value, a value of 0 or below, the same point at both ends, an end that is not a place, a region or a pair (with the likely codes), a bad colour, extra words, an id used twice, over 200 arcs.
-- ### 3.7 The globe (`view=globe`, format version 11)
-- - **`view=globe`** on a `map` fence turns it into a turning globe: three.js draws the sphere with the regions painted in one texture; the pins, arcs, region outline and card are the same DOM as the flat map, so the look is the same. A "Flat map" / "Globe" button switches. `view <lat>, <lng>` sets the first face; `focus` turns to a place, region or arc; `spin=off` keeps it still.
-- - **Reader:** a mouse drags to turn; on a phone one finger scrolls the page and two fingers turn and pinch; Ctrl + scroll zooms; arrows turn, `+` `-` zoom, `0` turns back; a button pauses the slow turn, which also stops when the reader touches it, a card is open, the pointer is over a region, the globe is off screen, or the reader prefers reduced motion. With no WebGL it draws the flat map and says so.
-- - **Tokens** (`/* */` in `theme.css`): `--map-ocean`, `--map-land`, `--map-border`, `--map-graticule`, `--map-region-line`, `--map-region-hover`, `--map-arc-opacity`, `--map-globe-h`, `--map-halo`. Slots: `land`, `regions`, `arc`, `scale`, `values`, `arcs`, `globe`.
-- ### 3.2 Graph: an explorable network graph (format version 11)
-- For finding your way around a big graph: hundreds of nodes, such as calls between services or package dependencies. The animation is for telling a story; a graph is for exploring.
-- ````
-- ```graph title="Package dependencies" layout=layers
-- group core "core" [c1]
-- node parse "parser" in core
-- node check "doccheck" in core
-- node react "react renderer" [c2]
-- check -> parse
-- react -> parse
-- react -> chart.js "lazy"
-- ```
-- ````
-- - **Lines**, one thing a line (`// text` is a comment): `group <id> ["label"] [in <group>] [colour] [note="..."]`; `node <id> ["label"] [in <group>] [colour] [note="..."]`; an edge `a -> b`, with a label in quotes, a `[colour]` and `dashed` after it. Each end may be a list (`web, admin -> auth`), a chain (`a -> b -> c`) or a group's id (the group as a whole). A node an edge names and no line declares is added, in no group.
-- - **Patterns:** an id may carry a numbered range. `node api-{1..8} in api` declares api-1 to api-8; `web-{1..3} -> api-{1..8}` is every pair (24 edges).
-- - **Colours:** `[c1]` to `[c8]`, `[acc]`, `[good]`, `[warn]`, `[bad]`, `[muted]`. A node takes its group's colour unless it names its own; a top-level group with no colour takes the next family colour.
-- - **The info string:** `#id`, `title="..."`, `layout=layers` (the default: each node above what it uses; `dir=down` or `right`), `layout=force` (linked nodes pull together, the clusters show), `layout=radial centre=<node>` (one node in the middle, a ring per step away from it), `size=s|m|l` (the stage's height).
-- - **Explore:** search (the node is framed and lit); tap a node, or Tab to it and press Enter, to focus it with its neighbours 1 or 2 steps out (the rest fade); fold a group into one box with a count, and open it again (beside the graph, a double tap on the group, or "Fold groups" for all); pan and zoom (pinch on a phone, Ctrl + scroll or the buttons on a desktop); the side list (below the graph on a phone) shows the focused node's links in and out, each a button that goes there. Escape clears. Over 300 nodes, every group starts folded.
-- - **How it is drawn:** cytoscape, loaded only when the part scrolls near, on a canvas styled from the theme's tokens (`--graph-*`, which read the shared `--dg-*` diagram tokens): pills in family colours, open groups as tinted boxes, folded groups as double-ringed pills, a DOM label over the focused node. Before it loads, and with no script, a still picture of the groups with their node counts and the edges between them. The canvas draws no word under 11 px; zoom in to read more. Slots: `title`, `toolbar`, `stage`, `still`, `node-label`, `zoom`, `side`, `search-results`.
-- - **Work:** parsing, patterns and our own layouts (layers, radial, the still picture) charge the page's one work budget as they go; the force layout runs in the browser in two stages (each top-level group alone, then the groups as blocks with the nodes in no group, so group areas never overlap), with a fixed number of iterations (`250` at most, fewer for a big graph, and fewer again for one run over many nodes, as each iteration compares every pair: 7 for 2,000 nodes in no group), and is charged up front from the node and edge counts. A spent budget refuses the part (doccheck) or draws a short note in its place (the page).
-- - **The LLM view:** the nodes by group, the edges as `a -> b` lines, and the most connected nodes (`Most connected: parse (2 in), react (2 out),...`). A graph of more than a few dozen edges is over 400 tokens: put a `:::llm` after it.
-- **doccheck on a graph** (each message names the line and the fix): an unknown attribute (it lists them), `center=` (write `centre=`), a layout other than `layers`, `force`, `radial`, `dir=` on a layout that is not `layers`, `layout=radial` with no `centre=` or one that is not a node, `centre=` on another layout; a colour that is not a theme word (a hex value too; it lists the words); a group inside itself or a ring of groups, groups more than 6 deep, `in` a group that does not exist; a node or group declared twice, or one id for a node and a group; a label over 80 characters, one label on a list or pattern of ids; a node that links to a group and to a member of it at once (or a group and its member that both link to one node), an edge from a node to its own group; an edge written twice; a range that counts down; `@step` lines; a line that is not a graph line; an empty graph; over 2,000 nodes or 5,000 edges (a pattern is counted before anything is made). It warns when a graph of over 300 nodes has over 300 of them in no group (the first view would draw them all).
-- **A card below the time block.** `role id below time: title` is a band of one card across every lane, laid out under everything else on the stage, so a note that belongs under a timeline sits there; what lay below it moves up, the stage keeps its height, and like any card its place stays when `hide` takes it away:
-- ```
-- ## _
-- layout: row
-- job d: draft desk
-- server p: printer
-- time: 0..27 | seconds
-- row job r0 "writer": +copy 0..1 @2
-- job note below time: the copy line keeps going | only folding waits
-- @step One: The desk.
-- @step Two: A copy.
-- hide note
-- ```
-- | map regions, arcs and globe (format version 11) | a `fill` of an unknown region code (it names the likely ones), a value that is not a number, a region filled twice; an `arc` with no value, a value of 0 or below, the same point at both ends, an end that is not a place, region or pair, an arc id used twice; an unknown `scale`, `view` or `spin`; `steps=` outside 3 to 9; `min` not below `max`; a `focus` of an unknown code; over 300 fills or 200 arcs |
-- | part data: graph (format version 11) | the graph rules of section 3.2: unknown attributes, layout words, `centre=`, colours that are not theme words, a group inside itself, a node that links to a group and its member at once, an edge to its own group, repeats, over 2,000 nodes or 5,000 edges, a spent work budget; warns when over 300 nodes sit in no group |
-- - **`map` grows** (sections 3.5 to 3.7, helper "places2"): `fill` colours countries and US states by a value on the `--heat-*` ramps with our own legend and a list of values; `arc` draws flows whose width is the value; `view=globe` turns the map into a globe. Boundaries are our own packed file from Natural Earth (public domain), about 42 KB compressed for the world and 7 KB for the states, loaded only when used.
-- ## What changed from version 10
-- ### Layers: one packet through several routers (section 6.13)
-- - A Format page example with no new word: the wrappers of each layer, layer 2 against layer 3, each router's table and the signals, with two still pictures of the same packet.
-- ## What changed from version 10
-- ### Graph: an explorable network graph (section 3.2)
-- - New part ```` ```graph ````: `group`, `node` and `a -> b` lines, lists, chains and numbered patterns (`api-{1..8}`), family colours in square brackets.
-- - Three layouts: `layers` (with `dir=down|right`), `force`, `radial` with `centre=`; `size=s|m|l`.
-- - Explore: search, focus 1 or 2 steps out, fold and open groups, pan and zoom, a side list of links in and out, the keyboard (Tab, Enter, the arrows, Escape). Over 300 nodes, only the groups are drawn first.
-- - The LLM view: nodes by group, edges as `a -> b` lines, the most connected nodes.
-- - Caps: 2,000 nodes, 5,000 edges, groups 6 deep; parsing and our layouts charge the page's work budget, the force layout is charged up front for its fixed iterations.
 
 ### References (section 8a)
 

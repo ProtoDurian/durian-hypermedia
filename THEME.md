@@ -16,7 +16,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 - The 3D stage and the charts read the tokens from their own element when they draw and again when `data-theme` changes on
   `<html>`; after changing tokens any other way, toggle `data-theme` or re-mount.
 
-## Colours (294 tokens)
+## Colours (355 tokens)
 
 | Token | What it is for | Light default | Dark default |
 | --- | --- | --- | --- |
@@ -25,6 +25,67 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--acc-ink` | accent as text (>= 7:1 on surface); read by .btn:hover:not(:disabled), .btn-choice, .seg button[aria-pressed="true"] | `#2E36C5` | `#B9BEFF` |
 | `--acc-soft` | accents; read by .btn-choice, .seg button[aria-pressed="true"], .tone-acc .scn-shape | `#DEE0FF` | `#272D5C` |
 | `--acc-softer` | accents; read by .callout-important, .scn-arrow-l rect, .scn-where | `#EEEFFF` | `#1A1F42` |
+| `--ar240` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar256` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar272` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar288` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar304` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar320` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar336` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar352` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar368` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar384` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar400` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar416` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar432` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar448` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar464` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar480` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar496` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar512` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar528` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar544` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar560` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar576` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar592` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar608` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar624` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar640` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar656` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar672` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar688` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar704` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar720` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar736` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar752` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar768` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar784` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar800` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar816` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar832` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar848` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar864` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar880` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar896` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar912` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar928` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar944` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar960` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar976` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar992` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1008` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1024` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1040` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1056` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1072` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1088` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1104` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1120` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1136` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1152` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1168` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1184` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
+| `--ar1200` | read by .scn[data-wa] > .scn-stage | `-` | `-` |
 | `--axis` | terminal / code; read by .chart .axis, chart-config (code) | `#B6BFD3` | `#36415F` |
 | `--bad` | status; read by .tone-bad, .callout-security, .callout-security .callout-icon | `#F91974` | `#FF4F96` |
 | `--bad-ink` | status; read by .tone-bad, .b-removed, :root | `#980344` | `#FE9FC3` |
@@ -329,7 +390,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--fs-2xl` | h2 band title; read by h2 | `clamp(1.75rem, 5.4vw, 2.75rem)` | `clamp(1.75rem, 5.4vw, 2.75rem)` |
 | `--fs-3xl` | h1 page title; read by h1.title | `clamp(2.25rem, 8vw, 4.25rem)` | `clamp(2.25rem, 8vw, 4.25rem)` |
 | `--fs-l` | 20px: lead; read by .lead, .part-name, .card-t | `1.25rem` | `1.25rem` |
-| `--fs-m` | 17px: body; read by .tl-label, body, .dh-doc | `1.0625rem` | `1.0625rem` |
+| `--fs-m` | 17px: body; read by .tl-label, body, .tab-panel::before | `1.0625rem` | `1.0625rem` |
 | `--fs-s` | 15px: captions, chips; read by .tl-title, .tl-label, .part-intro | `.9375rem` | `.9375rem` |
 | `--fs-xl` | h3; read by .three-h, :root, h3 | `clamp(1.375rem, 3.6vw, 1.75rem)` | `clamp(1.375rem, 3.6vw, 1.75rem)` |
 | `--fs-xs` | 13px: meta, kicker; read by .dh-chip, .dh-note, .al-col | `.8125rem` | `.8125rem` |
@@ -365,7 +426,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--pc-tile` | dark: same family, stepped for a navy page; read by .pc-tile, .pc-tiles[data-per-row] | `14px` | `14px` |
 
 
-Tokens read with no default in the package (a host may set them): `--bleed-l`, `--class-head-bg`, `--class-member`, `--class-static`, `--code-bg`, `--colmin`, `--dg-edge-w`, `--dg-node-bg`, `--dg-node-border`, `--dh-table-max`, `--er-head-bg`, `--er-key-ink`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--scn-paper`, `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--stg-ar`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`, `--swipe-w`, `--wh`, `--wh240`, `--wh256`, `--wh272`, `--wh288`, `--wh304`, `--wh320`, `--wh336`, `--wh352`, `--wh368`, `--wh384`, `--wh400`, `--wh416`, `--wh432`, `--wh448`, `--wh464`, `--wh480`, `--wh496`, `--wh512`, `--wh528`, `--wh544`, `--wh560`, `--wh576`, `--wh592`, `--wh608`, `--wh624`, `--wh640`, `--wh656`, `--wh672`, `--wh688`, `--wh704`, `--wh720`, `--wh736`, `--wh752`, `--wh768`, `--wh784`, `--wh800`, `--wh816`, `--wh832`, `--wh848`, `--wh864`, `--wh880`, `--wh896`, `--wh912`, `--wh928`, `--wh944`, `--wh960`, `--wh976`, `--wh992`, `--wh1008`, `--wh1024`, `--wh1040`, `--wh1056`, `--wh1072`, `--wh1088`, `--wh1104`, `--wh1120`, `--wh1136`, `--wh1152`, `--wh1168`, `--wh1184`, `--wh1200`.
+Tokens read with no default in the package (a host may set them): `--ar240`, `--ar256`, `--ar272`, `--ar288`, `--ar304`, `--ar320`, `--ar336`, `--ar352`, `--ar368`, `--ar384`, `--ar400`, `--ar416`, `--ar432`, `--ar448`, `--ar464`, `--ar480`, `--ar496`, `--ar512`, `--ar528`, `--ar544`, `--ar560`, `--ar576`, `--ar592`, `--ar608`, `--ar624`, `--ar640`, `--ar656`, `--ar672`, `--ar688`, `--ar704`, `--ar720`, `--ar736`, `--ar752`, `--ar768`, `--ar784`, `--ar800`, `--ar816`, `--ar832`, `--ar848`, `--ar864`, `--ar880`, `--ar896`, `--ar912`, `--ar928`, `--ar944`, `--ar960`, `--ar976`, `--ar992`, `--ar1008`, `--ar1024`, `--ar1040`, `--ar1056`, `--ar1072`, `--ar1088`, `--ar1104`, `--ar1120`, `--ar1136`, `--ar1152`, `--ar1168`, `--ar1184`, `--ar1200`, `--bleed-l`, `--class-head-bg`, `--class-member`, `--class-static`, `--code-bg`, `--colmin`, `--dg-edge-w`, `--dg-node-bg`, `--dg-node-border`, `--dh-table-max`, `--er-head-bg`, `--er-key-ink`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--scn-paper`, `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--stg-ar`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`, `--swipe-w`, `--wh`, `--wh240`, `--wh256`, `--wh272`, `--wh288`, `--wh304`, `--wh320`, `--wh336`, `--wh352`, `--wh368`, `--wh384`, `--wh400`, `--wh416`, `--wh432`, `--wh448`, `--wh464`, `--wh480`, `--wh496`, `--wh512`, `--wh528`, `--wh544`, `--wh560`, `--wh576`, `--wh592`, `--wh608`, `--wh624`, `--wh640`, `--wh656`, `--wh672`, `--wh688`, `--wh704`, `--wh720`, `--wh736`, `--wh752`, `--wh768`, `--wh784`, `--wh800`, `--wh816`, `--wh832`, `--wh848`, `--wh864`, `--wh880`, `--wh896`, `--wh912`, `--wh928`, `--wh944`, `--wh960`, `--wh976`, `--wh992`, `--wh1008`, `--wh1024`, `--wh1040`, `--wh1056`, `--wh1072`, `--wh1088`, `--wh1104`, `--wh1120`, `--wh1136`, `--wh1152`, `--wh1168`, `--wh1184`, `--wh1200`.
 
 Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--pct`, `--rows`, `--t`, `--t-ink`, `--t-soft` are set by the components on their own elements (sizes, positions, a tier's colour).
 

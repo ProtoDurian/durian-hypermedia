@@ -1,6 +1,6 @@
 {
   "name": "durian-hypermedia",
-  "version": "0.7.0-rc.2",
+  "version": "0.7.0-rc.3",
   "description": "Durian Hypermedia: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
   "type": "module",
   "sideEffects": [

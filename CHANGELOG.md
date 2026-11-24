@@ -4,7 +4,7 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
-## 0.7.0-rc.3 (not yet released)
+## 0.7.0-rc.3
 
 The third release candidate of 0.7.0. The format number stays 10.
 
@@ -85,6 +85,13 @@ The third release candidate of 0.7.0. The format number stays 10.
   and a still last scene setting layer 2 against layer 3 hop by hop. `scripts/fixtures.ts` makes it from the source's
   `samples/layers.dh.md` with the Format page fixtures (`EXAMPLES`).
 
+- **The composed stage's newest words** (SPEC.md 6.13): the short forms (`arrived 3 [dot]` is a dot at one time,
+  `@2 only` the one-step spelling of `@2..2`, `count 0..31` a row of one state per unit, `keep units` the last
+  step's panel again, a bare tone word after ids); `state ...: gone` dims a thing without printing a reserved word;
+  `role id below time: title` is a band of one card under everything else on the stage; a thing can stay still while
+  a wrapper comes or goes around it (`group layout=free`, `pos=`, `move ... after`). On a phone, time rows keep
+  their words and big crosses stay inside their cells.
+
 ### Changed: the role palette is measured (SPEC.md 6.10)
 
 - **The measured role palette** (SPEC.md 6.10): the eight family colours, light and dark, are new and measured. Any two
@@ -122,6 +129,12 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Fixed
 
+- **A connector's chip slides off an upright line** (SPEC.md 6.13). In the stacked form at 480 px and wider, a chip
+  that an upright line ran through moves along its row to the nearest place 6 px clear of every upright, where there
+  is one.
+- **A graph whose groups start folded draws light lines that do not overlap** (SPEC.md 3.2): a folded group's line is
+  at most 2.2 times as wide as one line and a little fainter, and the folded groups' pills alternate left and right in
+  one column.
 - **A graph-engine scene wider than its laptop stage is no longer cut at the right** (SPEC.md 6.14). Without `zoom`
   on its fence the reader had no way to see the rest (a word 110 px past the stage's edge). At the least size it now
   lays out top to bottom when that fits, else it can be dragged sideways, with the shaded edge saying so. The server

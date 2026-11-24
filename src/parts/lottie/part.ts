@@ -10,7 +10,7 @@ import { HEIGHTS, TONES, afterColon, checkSrc, flag, nameOf, unknownKeys, bodyLi
 import { Budget } from "../../core/budget";
 import { checkLottieData, lottieNames, type LottieCaps } from "./check";
 
-export const LOTTIE_KEYS = ["id", "src", "title", "loop", "speed", "start", "height", "llm"];
+export const LOTTIE_KEYS = ["id", "src", "title", "loop", "speed", "start", "height", "static", "llm"];
 export interface LottieSpec { src: string; title: string; alt: string; loop: boolean; speed: number; paused: boolean; height: string; colours: { name: string; tone: string }[]; caps: LottieCaps; errors: Err[] }
 export type LottieLimits = { lottieBytes: number; lottieFrames: number; lottieLayers: number; lottieNodes: number };
 

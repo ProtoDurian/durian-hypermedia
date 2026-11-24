@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import type { PartViewProps } from "../types";
 import { Icon, STR, clamp, useMediaUrl } from "../downloads/media-ui";
 import type { GallerySpec } from "./part";
+import { useStatic } from "../kit/static";
+
 
 type Im = GallerySpec["images"][number] & { href: string };
 
@@ -113,7 +115,10 @@ function Portal({ root, children }: { root: React.RefObject<HTMLElement | null>;
 }
 // a caption that only repeats the alt text is not shown twice
 const extra = (im: { alt: string; caption?: string }) => !!im.caption && im.caption.trim().toLowerCase() !== im.alt.trim().toLowerCase();
-export default function GalleryView({ data: spec, stage }: PartViewProps<GallerySpec>) {
+export default function GalleryView({ data: spec, stage, static: stp }: PartViewProps<GallerySpec>) {
+  // static (SPEC 4.1: the fence, the page, the host, print or reduce motion): every image at once, as a grid, with no arrows,
+  // dots, swipe or lightbox; a printed carousel shows all its images, not the first one
+  const sx = useStatic(stp, 0);
   const url = useMediaUrl();
   const all = spec.images.map((im) => ({ ...im, href: url(im.src, "image") }));
   const imgs: Im[] = all.filter((im): im is Im => im.href !== null);
@@ -127,7 +132,11 @@ export default function GalleryView({ data: spec, stage }: PartViewProps<Gallery
   const open = (k: number, el: HTMLElement) => { openerRef.current = el; setLb(k); };
   const cap = (im: Im) => (extra(im) ? <figcaption data-dh-slot="caption"><b>{im.alt}</b><span>{im.caption}</span></figcaption> : <figcaption data-dh-slot="caption" className="is-alt"><span>{im.alt}</span></figcaption>);
   const box = n === 0 ? null : (
-    spec.view === "carousel" && n > 1 ? (
+    sx.on && n > 1 ? (
+      <div className="gl-grid" data-dh-slot="grid" style={{ "--gallery-cols": spec.view === "grid" ? spec.columns : Math.min(3, n) } as React.CSSProperties} data-ratio={spec.ratio}>
+        {imgs.map((im, k) => <figure key={k} className="gl-cell" data-dh-slot="image"><img src={im.href} alt={im.alt} draggable={false} style={spec.ratio !== "auto" ? { aspectRatio: spec.ratio.replace(":", " / ") } : undefined} />{cap(im)}</figure>)}
+      </div>
+    ) : spec.view === "carousel" && n > 1 ? (
       <div className="gl-car" data-dh-slot="carousel" role="group" aria-roledescription="carousel" aria-label={spec.title || STR.gallery}
         onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); step(1); } else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); } else if (e.key === "Home") { e.preventDefault(); setI(0); } else if (e.key === "End") { e.preventDefault(); setI(n - 1); } }}>
         <div className="gl-view" tabIndex={0} aria-live="polite"
@@ -169,11 +178,11 @@ export default function GalleryView({ data: spec, stage }: PartViewProps<Gallery
     )
   );
   return (
-    <div ref={rootRef} className={`gl dh-media gl-v-${spec.view}`}>
+    <div ref={rootRef} className={`gl dh-media gl-v-${sx.on && n > 1 ? "grid" : spec.view}`} data-dh-static={sx.on || undefined}>
       {spec.title ? <p className="gl-title">{spec.title}</p> : null}
       {box}
       {refused ? <p className="m-err" role="note">{STR.addressRefused}{refused === all.length ? "" : ` (${refused})`}</p> : null}
-      {lb !== null ? <Portal root={rootRef}><Lightbox images={imgs} index={lb} onIndex={(k) => { setLb(k); setI(k); }} onClose={() => { setLb(null); window.setTimeout(() => openerRef.current?.focus?.(), 0); }} /></Portal> : null}
+      {lb !== null && !sx.on ? <Portal root={rootRef}><Lightbox images={imgs} index={lb} onIndex={(k) => { setLb(k); setI(k); }} onClose={() => { setLb(null); window.setTimeout(() => openerRef.current?.focus?.(), 0); }} /></Portal> : null}
     </div>
   );
 }

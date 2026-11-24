@@ -45,6 +45,7 @@ async function draw(view: any, spec: any, policy: Policy, fetcher: typeof fetch,
       useRef: (v: any) => ({ current: v }),
       useEffect: (f: () => void | (() => void)) => effects.push(f),
       useMemo: (f: () => any) => f(), useCallback: (f: any) => f,
+      useSyncExternalStore: (_s: unknown, get: () => unknown) => get(), // useStatic reads the print flag
     };
     const tree = view({ data: spec });
     internals.ReactCurrentDispatcher.current = previous;

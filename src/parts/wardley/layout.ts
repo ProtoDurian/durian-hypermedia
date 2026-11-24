@@ -7,7 +7,7 @@ import type { WardleySpec } from "./part";
 export const WM = { w: 640, h: 440, l: 44, r: 12, t: 14, b: 44, font: 13, small: 12 };
 export interface Box { l: number; t: number; r: number; b: number }
 export interface Placed { id: string; x: number; y: number; ex?: { x: number; y: number }; box: Box; text: string; anchorEnd: "start" | "end" | "middle"; tx: number; ty: number; evBox?: Box; evText?: string; evAnchor?: "start" | "end" | "middle"; evTx?: number }
-export interface WardleyLayout { w: number; h: number; px: (e: number) => number; py: (v: number) => number; labels: Placed[]; notes: { text: string; x: number; y: number; w: number; lines: string[] }[]; minW: number }
+export interface WardleyLayout { l: number; w: number; h: number; px: (e: number) => number; py: (v: number) => number; labels: Placed[]; notes: { text: string; x: number; y: number; w: number; lines: string[] }[]; minW: number }
 const hitA = (a: Box, b: Box) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
 const segHit = (b: Box, x1: number, y1: number, x2: number, y2: number) => { // a segment against a box, by sampling
   for (let k = 0; k <= 8; k++) { const x = x1 + ((x2 - x1) * k) / 8, y = y1 + ((y2 - y1) * k) / 8; if (x > b.l && x < b.r && y > b.t && y < b.b) return true; } return false;
@@ -39,8 +39,11 @@ class AvoidGrid {
     return { cost, work: work + seen };
   }
 }
-export function layoutWardley(s: WardleySpec, budget?: Budget): WardleyLayout {
-  const { w, h, l, r, t, b, font } = WM;
+/** width: the map's own width; a phone lays it out at the width it has (from MIN_W to WM.w), so its words keep their
+ *  size and nothing runs past the right edge (before, it kept 640 and needed a sideways swipe) */
+export const WARDLEY_MIN_W = 300;
+export function layoutWardley(s: WardleySpec, budget?: Budget, width: number = WM.w): WardleyLayout {
+  const w = Math.max(WARDLEY_MIN_W, Math.min(WM.w, Math.floor(width))), { h, r, t, b, font } = WM, l = w < 400 ? 32 : WM.l; // a phone map gives the side words less room
   const px = (e: number) => l + e * (w - l - r), py = (v: number) => t + (1 - v) * (h - t - b);
   const grid = new AvoidGrid(w, h);
   budget?.charge(10 + s.comps.length + s.needs.length, s.comps.length + s.needs.length);
@@ -85,8 +88,9 @@ export function layoutWardley(s: WardleySpec, budget?: Budget): WardleyLayout {
   }
   const notes = s.notes.map((n) => {
     budget?.charge(4, 4);
-    const lns = wrap(n.text, 150, WM.small, 99, budget), maxW = 150;
-    return { text: n.text, x: Math.min(px(n.e), w - maxW - 6), y: py(n.v), w: maxW, lines: lns };
+    const maxW = Math.min(150, Math.floor((w - l - r) * 0.45)), lns = wrap(n.text, maxW, WM.small, 99, budget);
+    return { text: n.text, x: Math.max(l + 2, Math.min(px(n.e), w - maxW - 6)), y: py(n.v), w: maxW, lines: lns };
   });
-  return { w, h, px, py, labels, notes, minW: Math.ceil((w * 11) / WM.small) };
+  // laid out narrower than WM.w, the map is drawn at its own width (words at their size); at WM.w it may shrink to 11 px words
+  return { l, w, h, px, py, labels, notes, minW: w < WM.w ? w : Math.ceil((w * 11) / WM.small) };
 }

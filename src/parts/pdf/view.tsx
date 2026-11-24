@@ -15,6 +15,7 @@ import type { PartViewProps } from "../types";
 import { Icon, STR, clamp, useMediaUrl } from "../downloads/media-ui";
 import { mediaBytes } from "../downloads/media-fetch";
 import type { PdfSpec } from "./part";
+import { useStatic } from "../kit/static";
 
 const H = { s: 380, m: 560, l: 760 } as const;
 let libP: Promise<any> | null = null;
@@ -88,7 +89,10 @@ function PageView({ doc, num, scale, pdfjs, hits, cur, size, onSize, eager, root
 }
 
 const TEXT_UP = 4;
-export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
+export default function PdfView({ data: spec, static: stp }: PartViewProps<PdfSpec>) {
+  // static (SPEC 4.1): one page (its page=, else the first) at the box's width, drawn at once, with no toolbar, search,
+  // outline or swipe; the file's address stays a plain link under it
+  const sx = useStatic(stp, 0);
   const url = useMediaUrl();
   const src = url(spec.src, "image") ?? "", caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null), pages = useRef<HTMLDivElement>(null), qin = useRef<HTMLInputElement>(null);
@@ -176,14 +180,14 @@ export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
     onPointerUp: (e: React.PointerEvent) => { const s = sw.current; sw.current = null; if (!s || view !== "page") return; const dx = e.clientX - s.x, dy = e.clientY - s.y; const el = pages.current!; if (el.scrollWidth > el.clientWidth + 2) return; if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) go(page + (dx < 0 ? 1 : -1)); },
     onPointerCancel: () => { sw.current = null; },
   };
-  const list = useMemo(() => (view === "scroll" ? Array.from({ length: n }, (_, i) => i + 1) : [page]), [view, n, page]);
+  const list = useMemo(() => (view === "scroll" && !sx.on ? Array.from({ length: n }, (_, i) => i + 1) : [sx.on ? clamp(spec.page, 1, n || 1) : page]), [view, n, page, sx.on]);
   const title = spec.title || spec.src.split("/").pop() || "";
   const cur = hits[hitI] ?? null;
   const wide = box.w > 0 && first.w * scale > box.w - 4;
 
   return (
-    <div ref={root} className="pv dh-media" data-h={spec.height} data-view={view} data-wide={wide ? "1" : "0"} onKeyDown={key}>
-      <div className="pv-bar" data-dh-slot="toolbar" role="toolbar" aria-label={`PDF: ${title}`}>
+    <div ref={root} className="pv dh-media" data-h={spec.height} data-view={sx.on ? "page" : view} data-wide={wide ? "1" : "0"} data-dh-static={sx.on || undefined} onKeyDown={sx.on ? undefined : key}>
+      {!sx.on ? <div className="pv-bar" data-dh-slot="toolbar" role="toolbar" aria-label={`PDF: ${title}`}>
         {outline.length ? <button type="button" className="m-ctl" onClick={() => setShowOutline((o) => !o)} aria-expanded={showOutline} aria-label={STR.outline} title={STR.outline}><Icon n="list" /></button> : null}
         <button type="button" className="m-ctl" onClick={() => go(page - 1)} disabled={!ready || page <= 1} aria-label={STR.prev}><Icon n="left" /></button>
         <span className="pv-pn"><input type="number" min={1} max={n || 1} value={page} disabled={!ready} aria-label={STR.page} onChange={(e) => e.target.value && go(+e.target.value)} /><span>/ {n || "–"}</span></span>
@@ -196,8 +200,8 @@ export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
         <button type="button" className="m-ctl" onClick={() => setMode("fitp")} disabled={!ready} aria-pressed={mode === "fitp"} aria-label={STR.fitPage} title={STR.fitPage}><Icon n="fitp" /></button>
         <button type="button" className="m-ctl" onClick={() => { setSearching((s) => !s); window.setTimeout(() => qin.current?.focus(), 0); }} disabled={!ready} aria-expanded={searching} aria-label={STR.findInPdf} title={STR.findInPdf}><Icon n="search" /></button>
         {src ? <a className="m-ctl" href={src} download aria-label={STR.download} title={STR.download}><Icon n="dl" /></a> : null}
-      </div>
-      {searching ? (
+      </div> : null}
+      {searching && !sx.on ? (
         <div className="pv-find" data-dh-slot="search" role="search">
           <input ref={qin} type="search" value={q} placeholder={STR.findInPdf} aria-label={STR.findInPdf} onChange={(e) => setQ(e.target.value)} />
           <button type="button" className="m-ctl has-text" onClick={() => void find(q)} disabled={busy || !q.trim()}>{busy ? STR.loading : STR.search.split(" ")[0]}</button>
@@ -207,12 +211,12 @@ export default function PdfView({ data: spec }: PartViewProps<PdfSpec>) {
         </div>
       ) : null}
       <div className="pv-body" ref={body} style={{ height: h }}>
-        {showOutline && outline.length ? (
+        {showOutline && outline.length && !sx.on ? (
           <nav className="pv-outline" data-dh-slot="outline" aria-label={STR.outline}>
             {outline.map((o, i) => <button key={i} type="button" style={{ paddingLeft: 10 + o.depth * 14 }} aria-current={o.page === page ? "true" : undefined} onClick={() => { go(o.page); if (matchMedia("(max-width: 640px)").matches) setShowOutline(false); }}><span>{o.title}</span><i>{o.page}</i></button>)}
           </nav>
         ) : null}
-        <div className="pv-pages" ref={pages} tabIndex={0} role="document" aria-label={title} {...swipe}>
+        <div className="pv-pages" ref={pages} tabIndex={sx.on ? undefined : 0} role="document" aria-label={title} {...(sx.on ? {} : swipe)}>
           {ready && doc ? list.map((k) => <PageView key={`${k}-${scale.toFixed(3)}`} doc={doc} num={k} scale={scale} pdfjs={pdfjs} hits={hits} cur={cur} size={{ w: (dims[k] ?? first).w * scale, h: (dims[k] ?? first).h * scale }} onSize={onSize} eager={view === "page"} rootEl={pages.current} />) : <p className="pv-load">{err ? "" : STR.loading}</p>}
         </div>
       </div>

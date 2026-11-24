@@ -218,6 +218,14 @@ The third release candidate of 0.7.0. The format number stays 10.
 - Every fixture renders the same HTML as in 0.7.0-rc.2 (none asks for static on these parts); one new fixture,
   `fixtures/format/81-static-live-and-still.dh.md`, shows the same parts live and static.
 
+### Fixed: static drops the media controls; the Wardley map fits a phone (SPEC 4.1, wardley)
+
+- **Static media.** Under a page's `static: true` (or the host's, print, or the fence's own `static`) the carousel shows
+  every image as a grid, the PDF one page with no toolbar, and the Lottie its still frame with no control row. Before,
+  all three kept their arrows, page buttons and scrubber. Audio and video keep their players.
+- **Wardley map on a phone.** The map is laid out at the width it has (300 px at least), so "Customer" and the
+  evolution words are whole at 390 and no sideways swipe is needed. A wide stage and the server's HTML are unchanged.
+
 ### Changed: the composed stage samples: stories first, edge cases apart
 
 - **Eighteen stage samples that check one edge case of the layout are titled `Test: ...`** (their fixtures are

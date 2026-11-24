@@ -9,7 +9,7 @@ import type { Budget } from "../../core/budget";
 import { IMAGE_EXT, bodyLines, digitsOnly, extOf, flag, unknownKeys, urlRefusal, type Err } from "../downloads/media";
 import { isSpace } from "../kit/text";
 
-export const GALLERY_KEYS = ["id", "title", "view", "ratio", "columns", "loop", "start", "llm"];
+export const GALLERY_KEYS = ["id", "title", "view", "ratio", "columns", "loop", "start", "static", "llm"];
 export interface GalleryImage { alt: string; src: string; caption: string; line: number }
 export interface GallerySpec { title: string; view: "single" | "grid" | "carousel"; ratio: string; columns: number; loop: boolean; start: number; images: GalleryImage[]; errors: Err[] }
 

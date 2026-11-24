@@ -1,6 +1,6 @@
 // The wardley part's view (format version 11): our own SVG, placed by the pure layout (the word placer), so the box is
 // the same before and after the script runs. A step builds the map up; `evolve` under a step moves the component along
-// its dashed arrow; `highlight` rings one. The map scrolls sideways in its own box on a narrow stage. Static draws one
+// its dashed arrow; `highlight` rings one. A phone lays the map out at the width it has (300 px at least; narrower, it scrolls in its own box). Static draws one
 // step whole.
 import React, { useId, useMemo } from "react";
 import { Budget, partLimitsOf } from "../../core/budget";
@@ -13,10 +13,12 @@ import { WM, layoutWardley } from "./layout";
 // page was parsed, and a render (every step click) must never spend it
 const scratch = () => new Budget(partLimitsOf(), null, null, "the wardley part");
 
-export default function WardleyView({ data: spec, ui, static: stp }: PartViewProps<WardleySpec>) {
+export default function WardleyView({ data: spec, ui, static: stp, stage }: PartViewProps<WardleySpec>) {
   const id = useId().replace(/:/g, "");
-  const L = useMemo(() => layoutWardley(spec, scratch()), [spec]), n = spec.steps.length, titles = spec.steps.map((s) => s.title);
-  const st = useSteps(n, stp, titles), i = st.i, { w, h, l, r, t, b } = { ...WM, ...L };
+  // the width inside the box (the card's 1 px border and the box's 8 px side padding, each side): a phone lays the map out at that width (MUST 5, rc.3 review)
+  const room = stage.width > 0 ? Math.floor(stage.width) - 18 : WM.w, lw = Math.min(WM.w, room);
+  const L = useMemo(() => layoutWardley(spec, scratch(), lw), [spec, lw]), n = spec.steps.length, titles = spec.steps.map((s) => s.title);
+  const st = useSteps(n, stp, titles), i = st.i, { h, r, t, b } = WM, w = L.w, l = L.l;
   const by = useMemo(() => new Map(spec.comps.map((c, k) => [c.id, k])), [spec]);
   const evolvesOf = useMemo(() => { const m = new Map<string, Evolve[]>(); for (const e of spec.evolves) { const o = m.get(e.id); if (o) o.push(e); else m.set(e.id, [e]); } return m; }, [spec]);
   // where each component is at this step: moved along its evolve arrow when the step has come
@@ -78,7 +80,7 @@ export default function WardleyView({ data: spec, ui, static: stp }: PartViewPro
           </svg>
         </div>
       </div>
-      <p className="wardley-hint">{ui.hintDiagram ?? "↔ Swipe to see the whole drawing"}</p>
+      {(stage.width <= 0 || L.minW > room) && <p className="wardley-hint">{ui.hintDiagram ?? "↔ Swipe to see the whole drawing"}</p>}
       <Stepper n={n} titles={titles} st={st} ui={ui} />
     </div>
   );

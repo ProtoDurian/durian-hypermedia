@@ -7,7 +7,7 @@ import { definePart, type PartFileRef } from "../types";
 import type { Budget } from "../../core/budget";
 import { HEIGHTS, bodyLines, checkSrc, digitsOnly, titleOf, unknownKeys, type Err } from "../downloads/media";
 
-export const PDF_KEYS = ["id", "src", "title", "page", "height", "view", "llm"];
+export const PDF_KEYS = ["id", "src", "title", "page", "height", "view", "static", "llm"];
 export interface PdfSpec { src: string; title: string; page: number; height: string; view: "page" | "scroll"; caps: { bytes: number; pages: number }; errors: Err[] }
 export type PdfLimits = { pdfPages: number; pdfBytes: number };
 

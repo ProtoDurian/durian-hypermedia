@@ -10,6 +10,8 @@ import { Icon, Menu, STR, cssVar, toneVar, useMediaUrl, useNear, useReducedMotio
 import { mediaText } from "../downloads/media-fetch";
 import { checkLottieData, lottieForDrawing, recolourLottie } from "./check";
 import type { LottieSpec } from "./part";
+import { useStatic } from "../kit/static";
+
 
 const H = { s: 160, m: 260, l: 380 } as const;
 const SPEEDS = [0.5, 1, 1.5, 2];
@@ -20,14 +22,16 @@ function cssToRgb(v: string): [number, number, number] | null {
 /** a budget of its own for reading the file in the browser, sized to the nodes cap (the page's budget was spent when it was parsed) */
 const scratch = (nodes: number) => new Budget({ steps: 2 * nodes + 10_000, values: nodes + 10_000, chars: 0 }, null, null, "the lottie part");
 
-export default function LottieView({ data: spec }: PartViewProps<LottieSpec>) {
+export default function LottieView({ data: spec, static: stp }: PartViewProps<LottieSpec>) {
+  // static (SPEC 4.1): the still frame the part shows with reduce motion, and no control row (no play, slider or speed)
+  const sx = useStatic(stp, 0);
   const url = useMediaUrl();
   const srcUrl = url(spec.src, "image"), caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), holder = useRef<HTMLDivElement>(null), slider = useRef<HTMLInputElement>(null), label = useRef<HTMLSpanElement>(null);
   const anim = useRef<any>(null), raw = useRef<string>(""), total = useRef(0), want = useRef(false);
   const [err, setErr] = useState(""), [ready, setReady] = useState(false), [playing, setPlaying] = useState(false), [speed, setSpeed] = useState(spec.speed);
   const reduced = useReducedMotion(), near = useNear(root, 120), theme = useThemeTick();
-  const still = reduced || spec.paused;
+  const still = reduced || spec.paused || sx.on;
   want.current = !still;
 
   // build (or rebuild after a theme change) the animation from the checked file
@@ -81,16 +85,18 @@ export default function LottieView({ data: spec }: PartViewProps<LottieSpec>) {
   const toggle = () => { const a = anim.current; if (!a) return; if (playing) { a.pause(); userPaused.current = true; setPlaying(false); } else { userPaused.current = false; if (a.currentFrame >= total.current - 1 && !spec.loop) a.goToAndPlay(0, true); else a.play(); setPlaying(true); } };
   const replay = () => { const a = anim.current; if (!a) return; userPaused.current = false; a.goToAndPlay(0, true); setPlaying(true); };
   useEffect(() => { anim.current?.setSpeed(speed); }, [speed]);
+  // turned static while it plays (print, a host): it stops on its still frame
+  useEffect(() => { const a = anim.current; if (sx.on && a && ready) { a.goToAndStop(Math.max(0, Math.floor(total.current * 0.9)), true); setPlaying(false); } }, [sx.on, ready]);
   const h = H[spec.height as keyof typeof H] ?? 260;
   return (
-    <div ref={root} className={`lt dh-media${playing ? " is-playing" : ""}`} data-h={spec.height}>
+    <div ref={root} className={`lt dh-media${playing ? " is-playing" : ""}`} data-h={spec.height} data-dh-static={sx.on || undefined}>
       {spec.title ? <p className="lt-title">{spec.title}</p> : null}
       <div className="lt-stage" style={{ height: h }} data-dh-slot="stage">
         <div ref={holder} className="lt-holder" role="img" aria-label={spec.alt} />
         {!ready && !err ? <span className="lt-load">{STR.loading}</span> : null}
         {err ? <p className="m-err" role="alert">{err}</p> : null}
       </div>
-      {!err ? (
+      {!err && !sx.on ? (
         <div className="m-row lt-row">
           <button type="button" className="m-play m-play-s" data-dh-slot="play" onClick={toggle} disabled={!ready} aria-label={playing ? STR.pause2 : STR.play} title={playing ? STR.pause2 : STR.play}><Icon n={playing ? "pause" : "play"} size={20} /></button>
           <button type="button" className="m-ctl" onClick={replay} disabled={!ready} aria-label={STR.replay} title={STR.replay}><Icon n="replay" /></button>

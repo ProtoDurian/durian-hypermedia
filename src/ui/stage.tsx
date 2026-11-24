@@ -213,7 +213,7 @@ function hookUserScroll() {
   if (userScrollHooked || typeof window === "undefined") return; userScrollHooked = true;
   const mark = () => { userScrollAt = performance.now(); }, opt = { passive: true, capture: true } as const;
   addEventListener("wheel", mark, opt); addEventListener("touchmove", mark, opt);
-  addEventListener("keydown", (e) => { if (["PageUp", "PageDown", "Home", "End", " ", "ArrowUp", "ArrowDown"].includes(e.key)) mark(); }, opt);
+  addEventListener("keydown", (e: KeyboardEvent) => { if (["PageUp", "PageDown", "Home", "End", " ", "ArrowUp", "ArrowDown"].includes(e.key)) mark(); }, opt);
   addEventListener("scroll", () => { if (performance.now() > ownScrollUntil) mark(); }, opt);
 }
 function StageOver({ m }: { m: Model }) {

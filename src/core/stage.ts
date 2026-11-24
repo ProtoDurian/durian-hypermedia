@@ -437,9 +437,12 @@ function moreSteps(m: Model, l: Lane): { from: number; to?: number } {
 let noChannel = false;
 const usesChannel = (p: Plan, w: number) => p.items.some((it) => it.k === "path" && (it as { arrow?: boolean }).arrow && (it as { pts: [number, number][] }).pts.some(([x]) => x > w - NPAD - CHAN + 2));
 export function layoutStage(m: Model, w: number): Plan {
+  return layoutWithGapMode(m, w, {});
+}
+function layoutWithGapMode(m: Model, w: number, gapMode: { narrow?: boolean; clips?: boolean }): Plan {
   try {
     fellGaps.clear(); bandRoom = null;
-    let p = layoutAt(m, w), kept: Map<number, [number, number]> | null = null;
+    let p = layoutAt(m, w, gapMode), kept: Map<number, [number, number]> | null = null;
     // when lines between two stacked rows fall back to the right edge, their gap grows
     // over the upper row's caption ("above") and under the gap's heading row ("below"): each gap tries every 4 px pair up
     // to BAND_GAP_MAX, then the stage takes, within BAND_ROOM_MAX in all, the pairs that send the most lines through
@@ -448,7 +451,7 @@ export function layoutStage(m: Model, w: number): Plan {
       const base = new Map(fellGaps), room = new Map<number, [number, number]>();
       // every try is work the layout does: it counts on the stage's budget (STAGE_WORK), so a stage whose tries run long
       // is refused (its still form) instead of keeping a page busy
-      const tryRoom = (g: number, ab: [number, number]) => { bandRoom = new Map([[g, ab]]); layoutAt(m, w); return fellGaps.get(g) ?? 0; };
+      const tryRoom = (g: number, ab: [number, number]) => { bandRoom = new Map([[g, ab]]); layoutAt(m, w, gapMode); return fellGaps.get(g) ?? 0; };
       // per gap: the best gain for each px spent
       const menus = [...base].slice(0, BAND_GAPS).map(([g, n0]) => { const by = new Map<number, { ab: [number, number]; gain: number }>();
         for (let ra = 0; ra <= BAND_GAP_MAX; ra += 4) for (let rb = 0; ra + rb <= BAND_GAP_MAX; rb += 4) { if (!ra && !rb) continue; const gain = n0 - tryRoom(g, [ra, rb]), px = ra + rb, was = by.get(px); if (gain > 0 && (!was || gain > was.gain)) by.set(px, { ab: [ra, rb], gain }); }
@@ -463,19 +466,71 @@ export function layoutStage(m: Model, w: number): Plan {
       };
       walk(0, 0, 0, []);
       for (const { g, ab } of best.pick) room.set(g, ab);
-      if (room.size) { kept = room; bandRoom = room; p = layoutAt(m, w); }
+      if (room.size) { kept = room; bandRoom = room; p = layoutAt(m, w, gapMode); }
       bandRoom = null;
     }
     if (p.phone && m.steps.some((st) => st.edges.length) && !usesChannel(p, w)) {
-      try { noChannel = true; bandRoom = kept; const q = layoutAt(m, w); if (!q.items.some((it) => it.k === "path" && (it as { pts: [number, number][] }).pts.some(([x]) => x > w - NPAD / 2))) p = q; } finally { noChannel = false; bandRoom = null; }
+      try { noChannel = true; bandRoom = kept; const q = layoutAt(m, w, gapMode); if (!q.items.some((it) => it.k === "path" && (it as { pts: [number, number][] }).pts.some(([x]) => x > w - NPAD / 2))) p = q; } finally { noChannel = false; bandRoom = null; }
     }
+    // A legacy narrow search can finish wide after its retries. Recheck that final choice before accepting a clip.
+    if (!p.narrow && gapMode.clips && !gapMode.narrow) return layoutWithGapMode(m, w, { narrow: true });
     // "hide ## Title" / "show ## Title": a lane heading shows only in its steps; its place stays
     if (m.headOn?.size) for (const [li, on] of m.headOn) { const t = m.lanes[li]?.title; if (!t) continue; p.items = p.items.map((it) => (it.k === "text" && it.f === "lane" && (it.s === t || (it as { tip?: string }).tip === t) ? ({ ...it, on: on.length ? on : [0] } as Item) : it)); }
     const fills = Object.entries(m.theme ?? {}).filter(([k]) => /^fill-c[0-8]$/.test(k)); if (fills.length) p.fills = Object.fromEntries(fills.map(([k, v]) => [k.slice(5), v.split(" ") as [string, string]]));
     return p;
   } finally { setPhone(false); setCardPad(false); setPhoneLines(false); setPhoneFont(false); } // phone badge rows only inside a narrow layout
 }
-function layoutAt(m: Model, w: number): Plan {
+/** The wide layout and its breakpoint share the same card minima and labelled gaps. */
+function wideLaneSizes(m: Model) {
+  const main = m.lanes.map((l, i) => ({ l, i })).filter((x) => !x.l.span);
+  const { tags: tagged } = marksOf(m);
+  const RG = 28; // between the cards of a row: room for an arrow
+  const rowLong = (l: Lane) => Math.max(1, ...(placesOf(m, l.cards) ?? [[l.cards]]).flatMap((p) => p.map((r) => r.length)));
+  const need = main.map(({ l }) => l.row ? Math.max(LANE_MIN, measure(l.title, "lane") + 4, rowLong(l) * Math.max(...l.cards.map(cardNeed(m))) + (rowLong(l) - 1) * RG) : Math.max(LANE_MIN, measure(l.title, "lane") + 4, ...l.cards.map(cardNeed(m))));
+  const minW = main.map(({ l }) => Math.max(LANE_MIN, ...l.cards.map(cardMin(m))));
+  const stackAt = (li: number) => main[li].l.cards.reduce((a, c, j) => a + cardH(m, c, need[li]) + (j ? WVGAP : 0), 0);
+  const H0 = Math.max(0, ...main.map((_, li) => stackAt(li)));
+  const loneRoom = (li: number) => {
+    const c = main[li].l.cards[0], grown = li > 0 && main[li - 1].l.cards.length > 1 ? Math.round(stackAt(li - 1) * 0.75) : 0;
+    const free = (H0 - Math.max(cardH(m, c, need[li]), grown)) / 2;
+    return Math.max(free - (tagged.has(c.id) ? 24 : 0), free - sayRoom(m, c.id, need[li]));
+  };
+  const gaps = main.slice(1).map((_, gi) => {
+    const a = main[gi].i, b = main[gi + 1].i;
+    const labels = m.steps.flatMap((s) => s.edges.filter((e) => { const la = m.cards.get(e.from)!.lane, lb = m.cards.get(e.to)!.lane; return (la === a && lb === b) || (la === b && lb === a); }).map((e) => e.label)).filter(Boolean);
+    // into a lane of one card the label can stand above or below that card, so the gap need not hold it all; only
+    // when that card leaves a label's room above or below it in the lane (else it went over the
+    // lane's heading or above the stage)
+    const one = main[gi + 1].l.cards.length === 1, room = one && loneRoom(gi + 1) >= 26;
+    // a label over a lone card hangs into the gap only by what the card does not hold (the reference design: the gap is the overhang; fault 2)
+    const narrowW = (t: string) => Math.max(64, Math.min(measure(t, "chip") * 0.5 + 24, measure(t, "chip") + 18 - need[gi + 1] + 12)), fits = (t: string) => measure(t, "chip") + 24 <= narrowW(t);
+    return Math.max(64, ...labels.map((t) => (one && (room || fits(t)) ? narrowW(t) : measure(t, "chip") + 50)));
+  });
+  return { need, minW, gaps };
+}
+
+/** Lane groups shown in disjoint panel steps share the same horizontal space. */
+function laneReuse(m: Model) {
+  const cardOn = (id: string, k: number) => m.shownOn?.get(id)?.includes(k) ?? k >= m.cards.get(id)!.from;
+  const panelSteps = new Set(m.steps.flatMap((s, si) => (s.panels.length ? [si + 1] : [])));
+  const laneOn = (l: Lane, k: number) => l.cards.some((c) => cardOn(c.id, k));
+  const nA = m.lanes.findIndex((l) => [...panelSteps].some((k) => laneOn(l, k)));
+  const A = nA < 0 ? m.lanes.length : nA, laterSteps = new Set(panelSteps);
+  for (const l of m.lanes.slice(A)) for (let k = 1; k <= m.steps.length; k++) if (laneOn(l, k)) laterSteps.add(k);
+  const setOf = (ls: Lane[]) => new Set(ls.flatMap((l) => l.cards.map((c) => c.id)));
+  const idsA = setOf(m.lanes.slice(0, A)), idsB = setOf(m.lanes.slice(A));
+  const reuse = m.panelsAt === undefined && m.cards.size > 0 && panelSteps.size > 0 && A > 0 && !m.lanes.some((l) => l.span)
+    && [...laterSteps].every((k) => [...idsA].every((id) => !cardOn(id, k)))
+    && (!idsB.size || m.steps.every((st) => st.edges.every((e) => !idsB.has(topCard(m, e.from)) && !idsB.has(topCard(m, e.to)))));
+  return { cardOn, panelSteps, A, laterSteps, idsB, reuse };
+}
+function laterLanes(m: Model, from: number): Model {
+  const ls = m.lanes.slice(from).map((l) => ({ ...l, cards: l.cards.map((c) => ({ ...c, lane: c.lane - from })) })), cards = new Map(m.cards);
+  for (const l of ls) for (const c of l.cards) cards.set(c.id, c);
+  return { ...m, lanes: ls, cards, steps: m.steps.map((st) => ({ ...st, edges: [] })) };
+}
+
+function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: boolean }): Plan {
   const budget = docBudget();
   moreW.clear();
   budget.charge("stage layout", 50 + m.cards.size * 8 + m.steps.length * 4, m.cards.size * 4);
@@ -483,9 +538,22 @@ function layoutAt(m: Model, w: number): Plan {
   const box: Box = { w: w - 2 * PAD, narrow: false, steps: n, stepTitles: m.steps.map((s) => s.title), theme: m.theme, ...(m.notesLines ? { noteMin: m.notesLines * 18 } : {}) };
   box.noteH = (nw: number) => Math.max(0, ...m.steps.map((s) => stepBand(s, { ...box, w: nw }).h)); // a head block with a side column runs it down beside the notes
   const main = m.lanes.filter((l) => !l.span && l.cards.length + l.more.length > 0 || (!l.span && l.title));
+  // Retain the existing switch for fitting scenes; add the actual wide gaps where they would clip.
   const minLanes = main.reduce((a, l) => a + Math.max(LANE_MIN, ...l.cards.map(cardMin(m))), 0) + Math.max(0, main.length - 1) * 56;
+  // Measure the wide form in its own typography, including on a retry after a phone plan.
+  setPhone(false); setCardPad(false); setPhoneLines(false); setPhoneFont(false);
+  const sizes = wideLaneSizes(m), sharing = laneReuse(m);
+  const groups = sharing.reuse && sharing.idsB.size
+    ? [wideLaneSizes({ ...m, lanes: m.lanes.slice(0, sharing.A) }), wideLaneSizes(laterLanes(m, sharing.A))]
+    : [sizes];
+  // Only the left inset precedes the painted lanes. A smaller right margin still fits; reserve a stroke pixel.
+  const clips = groups.some((g) => PAD + g.minW.reduce((a, b) => a + b, 0) + g.gaps.reduce((a, b) => a + b, 0) > w - 1);
   // a phone stacks lanes; a lone lane takes the phone form too (its cards a row by the least height)
-  const narrow = (main.length > 1 && minLanes > w - 2 * PAD) || (w < 480 && main.some((l) => l.cards.length > 1));
+  const legacyNarrow = (main.length > 1 && minLanes > w - 2 * PAD) || (w < 480 && main.some((l) => l.cards.length > 1));
+  // A fitting narrow scene keeps its existing route-search retries. Only a newly clipped wide form forces them narrow.
+  gapMode.clips ??= main.length > 1 && clips;
+  gapMode.narrow ??= !legacyNarrow && gapMode.clips;
+  const narrow = legacyNarrow || gapMode.narrow;
   box.narrow = narrow || w < 480;
   setPhone(box.narrow); setCardPad(box.narrow); setPhoneLines(box.narrow); setPhoneFont(box.narrow);
   let y = 8;
@@ -594,24 +662,8 @@ function layoutAt(m: Model, w: number): Plan {
   // the first lanes (A) show only before; the later lanes (B, may be none) only from then on, with the panels under them.
   // A and B both start at the lanes' top, the stage is as tall as the taller of the two, and A's own things (headings,
   // regions, connectors) are gone in the later steps. Nothing moves: each thing keeps one place for the whole scene.
-  const cardOn = (id: string, k: number) => m.shownOn?.get(id)?.includes(k) ?? k >= m.cards.get(id)!.from;
-  const panelSteps = new Set(m.steps.flatMap((s, si) => (s.panels.length ? [si + 1] : [])));
-  const laneOn = (l: Lane, k: number) => l.cards.some((c) => cardOn(c.id, k));
-  const nA = m.lanes.findIndex((l) => [...panelSteps].some((k) => laneOn(l, k)));
-  const A = nA < 0 ? m.lanes.length : nA, laterSteps = new Set(panelSteps);
-  for (const l of m.lanes.slice(A)) for (let k = 1; k <= m.steps.length; k++) if (laneOn(l, k)) laterSteps.add(k);
-  const setOf = (ls: Lane[]) => new Set(ls.flatMap((l) => l.cards.map((c) => c.id)));
-  const idsA = setOf(m.lanes.slice(0, A)), idsB = setOf(m.lanes.slice(A));
-  const reuse = m.panelsAt === undefined && m.cards.size > 0 && panelSteps.size > 0 && A > 0 && !m.lanes.some((l) => l.span)
-    && [...laterSteps].every((k) => [...idsA].every((id) => !cardOn(id, k)))
-    && (!idsB.size || m.steps.every((st) => st.edges.every((e) => !idsB.has(topCard(m, e.from)) && !idsB.has(topCard(m, e.to)))));
+  const { cardOn, panelSteps, A, laterSteps, idsB, reuse } = sharing;
   let reused = false, laneItems: [number, number] = [0, 0], laterItems: [number, number] = [0, 0];
-  // a model of some lanes only (B: lanes renumbered from 0, no connectors; its cards keep their own lane in rects)
-  const lanesOnly = (from: number): Model => {
-    const ls = m.lanes.slice(from).map((l) => ({ ...l, cards: l.cards.map((c) => ({ ...c, lane: c.lane - from })) })), cards = new Map(m.cards);
-    for (const l of ls) for (const c of l.cards) cards.set(c.id, c);
-    return { ...m, lanes: ls, cards, steps: m.steps.map((st) => ({ ...st, edges: [] })) };
-  };
   const lanesHere = () => {
     box.footLeft = undefined;
     const top0 = y; laneTop = y;
@@ -622,7 +674,7 @@ function layoutAt(m: Model, w: number): Plan {
         && [...panelSteps].every((k) => cardOn(bLanes[0].cards[0].id, k)) && m.steps.every((st) => !st.beside);
       const bw = lone ? Math.round(0.3 * w) : w;
       // B first (its own items keep their steps), then A last: the narrow connectors read the last lanes' layout
-      const bAt = items.length, rb = lanesLayout(lanesOnly(A), bw, narrow, top0, rects, inner); items.push(...rb.items); laterItems = [bAt, items.length];
+      const bAt = items.length, rb = lanesLayout(laterLanes(m, A), bw, narrow, top0, rects, inner); items.push(...rb.items); laterItems = [bAt, items.length];
       if (lone) {
         for (const id of idsB) { const r = rects.get(id); if (r) rects.set(id, { ...r, lane: r.lane + A }); }
         const at = items.length, ra = lanesLayout({ ...m, lanes: m.lanes.slice(0, A) }, w, narrow, top0, rects, inner); items.push(...ra.items); laneItems = [at, items.length];
@@ -637,7 +689,7 @@ function layoutAt(m: Model, w: number): Plan {
       const at = items.length, ra = lanesLayout({ ...m, lanes: m.lanes.slice(0, A) }, w, narrow, top0, rects, inner); items.push(...ra.items); laneItems = [at, items.length];
       free = undefined; y = rb.bottom + 12; panelRegion(); y = Math.max(y, ra.bottom + 12); reused = true; return;
     }
-    const at = items.length, r = lanesLayout(m, w, narrow, y, rects, inner); items.push(...r.items); laneItems = [at, items.length];
+    const at = items.length, r = lanesLayout(m, w, narrow, y, rects, inner, sizes); items.push(...r.items); laneItems = [at, items.length];
     free = reuse ? undefined : r.free; laneFoot = r.bottom; y = r.bottom + 12;
     if (reuse) { y = top0; panelRegion(); y = Math.max(y, r.bottom + 12); reused = true; }
   };
@@ -838,7 +890,7 @@ function stepBand(s: Step, box: Box, fill = 0): LayoutOut {
   return { h, items };
 }
 
-function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: Map<string, Rect & { lane: number }>, inner: Map<string, Rect>): { items: Item[]; bottom: number; free?: Rect } {
+function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: Map<string, Rect & { lane: number }>, inner: Map<string, Rect>, sizes?: ReturnType<typeof wideLaneSizes>): { items: Item[]; bottom: number; free?: Rect } {
   const items: Item[] = [];
   nav.sayW.clear();
   const main = m.lanes.map((l, i) => ({ l, i })).filter((x) => !x.l.span);
@@ -855,27 +907,7 @@ function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: M
   if (!narrow) {
     // widths: each lane gets what its cards ask, the gaps what their labels ask; then all is scaled to the stage
     const RG = 28; // between the cards of a row: room for an arrow
-    const rowLong = (l: Lane) => Math.max(1, ...(placesOf(m, l.cards) ?? [[l.cards]]).flatMap((p) => p.map((r) => r.length)));
-    const need = main.map(({ l }) => l.row ? Math.max(LANE_MIN, measure(l.title, "lane") + 4, rowLong(l) * Math.max(...l.cards.map(cardNeed(m))) + (rowLong(l) - 1) * RG) : Math.max(LANE_MIN, measure(l.title, "lane") + 4, ...l.cards.map(cardNeed(m))));
-    const minW = main.map(({ l }) => Math.max(LANE_MIN, ...l.cards.map(cardMin(m))));
-    const stackAt = (li: number) => main[li].l.cards.reduce((a, c, j) => a + cardH(m, c, need[li]) + (j ? WVGAP : 0), 0);
-    const H0 = Math.max(0, ...main.map((_, li) => stackAt(li)));
-    const loneRoom = (li: number) => {
-      const c = main[li].l.cards[0], grown = li > 0 && main[li - 1].l.cards.length > 1 ? Math.round(stackAt(li - 1) * 0.75) : 0;
-      const free = (H0 - Math.max(cardH(m, c, need[li]), grown)) / 2;
-      return Math.max(free - (tagged.has(c.id) ? 24 : 0), free - sayRoom(m, c.id, need[li]));
-    };
-    const gaps = main.slice(1).map((_, gi) => {
-      const a = main[gi].i, b = main[gi + 1].i;
-      const labels = m.steps.flatMap((s) => s.edges.filter((e) => { const la = m.cards.get(e.from)!.lane, lb = m.cards.get(e.to)!.lane; return (la === a && lb === b) || (la === b && lb === a); }).map((e) => e.label)).filter(Boolean);
-      // into a lane of one card the label can stand above or below that card, so the gap need not hold it all; only
-      // when that card leaves a label's room above or below it in the lane (else it went over the
-      // lane's heading or above the stage)
-      const one = main[gi + 1].l.cards.length === 1, room = one && loneRoom(gi + 1) >= 26;
-      // a label over a lone card hangs into the gap only by what the card does not hold (the reference design: the gap is the overhang; fault 2)
-      const narrowW = (t: string) => Math.max(64, Math.min(measure(t, "chip") * 0.5 + 24, measure(t, "chip") + 18 - need[gi + 1] + 12)), fits = (t: string) => measure(t, "chip") + 24 <= narrowW(t);
-      return Math.max(64, ...labels.map((t) => (one && (room || fits(t)) ? narrowW(t) : measure(t, "chip") + 50)));
-    });
+    const { need, minW, gaps } = sizes ?? wideLaneSizes(m);
     const room = w - 2 * PAD - gaps.reduce((a, b) => a + b, 0);
     let ws = need.slice(); const sum = ws.reduce((a, b) => a + b, 0);
     if (sum > room) { // shrink the lanes that can wrap, never under their least width

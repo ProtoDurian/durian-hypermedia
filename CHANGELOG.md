@@ -152,6 +152,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.
+- **A class, state or ER diagram on a phone keeps readable words:** the server shapes its stage for the rows layout the
+  browser draws, so a class diagram at 390 px draws 12.6 px words (they were squeezed to 4.3 px) in a stage of its true
+  height.
+- **The graph part's still sample is the live sample,** so its static form shows the same nodes and lines (it was a
+  smaller graph); **the ER sample and its SPEC example light one column per step.**
 - **A composed stage is drawn near its own size at every screen width** (SPEC.md 6.13): the server draws ten plans
   (326, 341, 356, 380, 458, 551, 664, 800, 971 and 1178 px) instead of seven, and hydration and print choose among them by
   the same CSS rule, so between 320 and 1280 px a stage is drawn at 0.90 to 1.10 times its plan (it could be stretched

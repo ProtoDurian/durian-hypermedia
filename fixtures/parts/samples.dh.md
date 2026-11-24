@@ -628,6 +628,9 @@ node sessions, users, mfa, tokens in needs
 node auth "sign-in"
 web, mobile, admin, cli -> auth
 auth -> sessions, users, mfa, tokens
+mfa -> sms "codes"
+tokens -> kms "signing keys"
+sessions, users -> postgres
 ```
 
 ## Http

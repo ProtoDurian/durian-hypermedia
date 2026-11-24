@@ -573,3 +573,21 @@ test("the definition matches its folder", () => {
   expect(graph.steps).toBe(false);
   expect(graph.dependencies).toEqual(["cytoscape"]);
 });
+
+describe("graph: a static form shows the same facts as the live one", () => {
+  test("the still sample is the live sign-in sample: the same nodes and edges, the counts on the page agree", () => {
+    const live = sample("What touches the sign-in"), still = sample("The same sign-in graph");
+    expect(still.nodes.map((n) => n.id)).toEqual(live.nodes.map((n) => n.id));
+    expect(still.edges.length).toBe(live.edges.length);
+    const out = html(still, "true");
+    expect(out).toContain(`${live.nodes.length} ${UI.en.graph?.nodes ?? "nodes"}`);
+    expect(out).toContain(`${live.edges.length} ${UI.en.graph?.edges ?? "edges"}`);
+  });
+  test("every node is counted in the still picture: the boxes' counts and the loose nodes add up to the node total", () => {
+    for (const title of ["What touches the sign-in", "The same sign-in graph", "A shop's packages", "Calls between the services"]) {
+      const s = sample(title);
+      const total = s.still!.items.reduce((n, it) => n + it.count, 0);
+      expect(total).toBe(s.nodes.length);
+    }
+  });
+});

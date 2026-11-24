@@ -15,19 +15,28 @@ const html = (head: string, steps: [string, string][]) => { beginDocument(); ret
 const HEAD = "title: Merger | x\n## Pods\npod p1, p2: pod 1; pod 2 | pushes\n## Eval\neval ev: evaluator | runs rules\n## Store\nstore db: store | keeps\n";
 const STEPS: [string, string][] = [["One", "p1 --> ev\np2 --> ev"], ["Two", "ev -> db: writes"]];
 
-const switchWidth = (narrow: number, wide: number) => Math.round(2 * narrow * wide / (narrow + wide));
-
 test("the phone reference sizes, the 800 px drawing box and the desktop keep their native plan", () => {
-  const widths = [326, 341, 356, 380, 800, 1178];
+  const widths = [286, 326, 341, 356, 380, 800, 1178];
   expect(widths.map(screenPlanWidth)).toEqual(widths);
 });
 
-test("the screen plan always scales between 0.90 and 1.10 from 320 to 1280 px", () => {
+const switchWidth = (narrow: number, wide: number) => wide <= 380 ? wide : Math.round(2 * narrow * wide / (narrow + wide));
+
+test("a phone between 320 and 430 px never shrinks its drawing", () => {
+  // The drawing box has 32 px of gutters and a 2 px border.
+  for (let viewport = 320; viewport <= 430; viewport++) {
+    const boxWidth = viewport - 34;
+    expect(screenPlanWidth(boxWidth)).toBeLessThanOrEqual(boxWidth);
+  }
+});
+
+test("the screen plan always scales between 0.90 and 1.10 from 286 to 1280 px", () => {
+
   const check = (width: number, plan: number) => {
     expect(width * 100).toBeGreaterThanOrEqual(plan * 90);
     expect(width * 100).toBeLessThanOrEqual(plan * 110);
   };
-  for (let width = 320; width <= 1280; width++) check(width, screenPlanWidth(width));
+  for (let width = 286; width <= 1280; width++) check(width, screenPlanWidth(width));
   for (let i = 1; i < SSR_W.length; i++) {
     const narrow = SSR_W[i - 1], wide = SSR_W[i];
     const boundary = switchWidth(narrow, wide);
@@ -56,7 +65,7 @@ test("stage.css switches server drawings at the same widths as the browser", () 
 
 test("weight: a stage's server markup stays under its cap", () => {
   const h = html(HEAD, STEPS);
-  expect(h.length).toBeLessThan(66_000); // ten screen plans and one print plan
+  expect(h.length).toBeLessThan(6_000 * (SSR_W.length + 1));
   // each plan costs about the same: no plan is drawn twice
   const each = h.split('<div class="stg-plan stg-plan-ssr"').slice(1).map((p) => p.length);
   expect(each.length).toBe(SSR_W.length + 1); // and the print plan

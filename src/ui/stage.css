@@ -44,10 +44,12 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 /* the server's print plan (PRINT_W, stage.tsx) shows only on paper, and there it is the only one */
 @media not print { .stg-plan-ssr[data-print] { display: none !important; } }
 @media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }
-.stg-plan-ssr[data-w="326"] { display: block; }
-@container stgbox (min-width: 333px) { .stg-plan-ssr[data-w="326"] { display: none; } .stg-plan-ssr[data-w="341"] { display: block; } }
-@container stgbox (min-width: 348px) { .stg-plan-ssr[data-w="341"] { display: none; } .stg-plan-ssr[data-w="356"] { display: block; } }
-@container stgbox (min-width: 368px) { .stg-plan-ssr[data-w="356"] { display: none; } .stg-plan-ssr[data-w="380"] { display: block; } }
+.stg-plan-ssr[data-w="286"] { display: block; }
+@container stgbox (min-width: 312px) { .stg-plan-ssr[data-w="286"] { display: none; } .stg-plan-ssr[data-w="312"] { display: block; } }
+@container stgbox (min-width: 326px) { .stg-plan-ssr[data-w="312"] { display: none; } .stg-plan-ssr[data-w="326"] { display: block; } }
+@container stgbox (min-width: 341px) { .stg-plan-ssr[data-w="326"] { display: none; } .stg-plan-ssr[data-w="341"] { display: block; } }
+@container stgbox (min-width: 356px) { .stg-plan-ssr[data-w="341"] { display: none; } .stg-plan-ssr[data-w="356"] { display: block; } }
+@container stgbox (min-width: 380px) { .stg-plan-ssr[data-w="356"] { display: none; } .stg-plan-ssr[data-w="380"] { display: block; } }
 @container stgbox (min-width: 415px) { .stg-plan-ssr[data-w="380"] { display: none; } .stg-plan-ssr[data-w="458"] { display: block; } }
 @container stgbox (min-width: 500px) { .stg-plan-ssr[data-w="458"] { display: none; } .stg-plan-ssr[data-w="551"] { display: block; } }
 @container stgbox (min-width: 602px) { .stg-plan-ssr[data-w="551"] { display: none; } .stg-plan-ssr[data-w="664"] { display: block; } }

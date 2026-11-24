@@ -181,6 +181,8 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **A stage drawn smaller or larger than its plan keeps its words inside their boxes:** stage text is drawn with
   geometric precision, so the browser no longer rounds some glyphs at their native width while the box around them
   scales (fixed-width field rows spilled out of their highlights near a 732 px box).
+- **Words on a phone stay readable at every width:** two more screen plans (286 and 312 px) serve viewports from 320
+  to 359 px, so a composed stage keeps its words at 11 px or more on every phone width from 320 to 430 px.
 - **A composed stage is drawn near its own size at every screen width** (SPEC.md 6.13): the server draws ten plans
   (326, 341, 356, 380, 458, 551, 664, 800, 971 and 1178 px) instead of seven, and hydration and print choose among them by
   the same CSS rule, so between 320 and 1280 px a stage is drawn at 0.90 to 1.10 times its plan (it could be stretched

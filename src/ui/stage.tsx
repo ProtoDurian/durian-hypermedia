@@ -7,14 +7,14 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
 import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
-/** The screen plans cover common viewport widths, less the figure's gutters and border.
- * CSS and hydration use the same thresholds to limit changes in scale. */
-export const SSR_W = [326, 341, 356, 380, 458, 551, 664, 800, 971, 1178] as const;
+/** Phone plans are shown at their own size or larger so 11 px words stay at least 11 px.
+ * At larger sizes keep the existing thresholds. CSS uses the same choices before hydration. */
+export const SSR_W = [286, 312, 326, 341, 356, 380, 458, 551, 664, 800, 971, 1178] as const;
 export function screenPlanWidth(width: number): number {
   for (let i = SSR_W.length - 1; i > 0; i--) {
     const narrow = SSR_W[i - 1], wide = SSR_W[i];
-    // At the harmonic mean the plans have equal relative scale error.
-    if (width >= Math.round(2 * narrow * wide / (narrow + wide))) return wide;
+    const threshold = wide <= 380 ? wide : Math.round(2 * narrow * wide / (narrow + wide));
+    if (width >= threshold) return wide;
   }
   return SSR_W[0];
 }

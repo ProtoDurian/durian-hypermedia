@@ -136,6 +136,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.
+- **A fishbone paints its causes in the step they belong to** on a desktop: a nested group no longer fades in a step
+  late (its opacity was animated); the causes of the current step are drawn at once, in both themes.
+- **Parts keep their room when the page loads:** the server reserves a gantt's rows and a venn's or map's list and
+  caption, so nothing moves when the part hydrates; a map's pins and globe move inside its transforms; audio markers
+  sit at a share of the width, and the example ships the audio sample's media.
 - **A connector's chip slides off an upright line** (SPEC.md 6.13). In the stacked form at 480 px and wider, a chip
   that an upright line ran through moves along its row to the nearest place 6 px clear of every upright, where there
   is one.

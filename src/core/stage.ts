@@ -1927,6 +1927,14 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
         for (let d = 4; d <= 120; d += 4) cands.push([cx - d, ly], [cx + d, ly]);
         const ok = cands.find(([x, y]) => clear(x, y)); if (ok) [cx, ly] = ok;
       }
+      // (rc.3): an upright line shown with a chip never runs
+      // through it; the chip slides along its row to the nearest place 6 px clear of every upright, where one is free
+      const upright = (x: number, y: number, pad: number) => items.some((it: any) => it.k === "path" && shownIn(it) && (it.pts as [number, number][]).slice(1).some((q, i) => { const a = it.pts[i]; return Math.abs(a[0] - q[0]) < 1 && a[0] > x - cw / 2 - pad && a[0] < x + cw / 2 + pad && Math.max(a[1], q[1]) > y + 1 && Math.min(a[1], q[1]) < y + 19; }));
+      if (w >= 480 && upright(cx, ly, -2)) { // on a phone the row is too full to slide (the "and more" words take the room): 0.7.x
+        const cands: [number, number][] = [];
+        for (let d = 4; d <= 240; d += 4) cands.push([cx + d, ly], [cx - d, ly]);
+        const ok = cands.find(([x, y]) => clear(x, y) && !upright(x, y, 6)); if (ok) [cx, ly] = ok;
+      }
     }
     // its place just past its line's head, inside the target, when that line took the gap route (sample 15)
     { const ph = pastHead.get(`${e.from}>${e.to}|${e.step}`); if (ph && !e.tone && !taken.some((r) => meets(r) && ph[0] + cw / 2 > r.x && ph[0] - cw / 2 < r.x + r.w && ph[1] + 20 > r.y && ph[1] < r.y + r.h)) { cx = ph[0]; ly = ph[1]; } }

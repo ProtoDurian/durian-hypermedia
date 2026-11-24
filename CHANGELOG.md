@@ -122,6 +122,12 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Fixed
 
+- **A stage printed before it hydrated prints whole.** A stage waiting for its turn to hydrate, or on a page with
+  scripts off, had no print height: the print rule held it to one sheet and its drawing ran over the text below it
+  (on a long page, most of its stages). The server now also draws each stage at the print width (`PRINT_W`), shown
+  only on paper, and writes that drawing's print sizes and shape into the stage's `style` attribute as custom
+  properties (`cssVars`, `src/ui/css-vars.ts`; no style element, so strict Trusted Types holds). A stage's server
+  markup grows by one plan (8 instead of 7).
 - **An issue in Markdown that follows a plain code block points at the Markdown's first line**, as every Markdown issue
   does, not at the line after the code block (a code reference above a ```` ```ts ```` block was reported 30 lines
   below itself).

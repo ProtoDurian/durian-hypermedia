@@ -39,6 +39,9 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 /* the server's plans (site/src/stage.tsx SSR_W): the widest one that fits the box shows, so at those widths it is the plan
  the browser lays out again (no jump on load); a box narrower than the first shows the first */
 .stg-plan-ssr { display: none; }
+/* the server's print plan (PRINT_W, stage.tsx) shows only on paper, and there it is the only one */
+@media not print { .stg-plan-ssr[data-print] { display: none !important; } }
+@media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }
 .stg-plan-ssr[data-w="326"] { display: block; }
 @container stgbox (min-width: 341px) { .stg-plan-ssr[data-w="326"] { display: none; } .stg-plan-ssr[data-w="341"] { display: block; } }
 @container stgbox (min-width: 356px) { .stg-plan-ssr[data-w="341"] { display: none; } .stg-plan-ssr[data-w="356"] { display: block; } }
@@ -140,6 +143,10 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
   .stg > .stg-box-wrap { flex: 0 1 auto; min-height: var(--stg-boxmin, 0px); position: relative; }   /* never below PRINT_FLOOR (0.97, site/src/stage.tsx) of the drawing (an 11 px word stays at 8 pt or more)'s own size: its words stay at 8 pt; a stage that cannot fit a short sheet that way (--stg-need: the drawing at that size plus an allowance for title and steps) may split between its blocks */   /* its aspect-ratio (set from the plan) is the drawing's natural height; the box shrinks below it when the page is short */
   .stg > .stg-box-wrap.stg-ratio > .stg-plan { position: absolute; inset: 0; }
   .stg > .stg-box-wrap.stg-ratio .stg-svg { height: 100%; }
+  /* before hydration: the server's print plan sizes the box the same way (its shape in --stg-ar, stage.tsx) */
+  .stg > .stg-box-wrap.stg-ratio-print { aspect-ratio: var(--stg-ar); }
+  .stg > .stg-box-wrap.stg-ratio-print > .stg-plan-ssr[data-print] { position: absolute; inset: 0; }
+  .stg > .stg-box-wrap.stg-ratio-print > .stg-plan-ssr[data-print] .stg-svg { height: 100%; }
 }
 /* A landscape sheet (A3): the stage keeps its A4 layout (685 px wide) and is scaled up as a whole, drawing, title and steps together (CSS zoom, in force from the first print layout, so Chrome's page count stays true). The scale is the largest at which the stage's height (--stg-hint: drawing at 685 px, title and steps) still fits one sheet and its width fits the sheet; never below 1. The drawing box still gives way by a little when the estimate is short (the cap below, in the stage's own units). */
 @media print and (orientation: landscape) {

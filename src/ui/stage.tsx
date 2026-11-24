@@ -16,6 +16,7 @@ export const SSR_W = [326, 341, 356, 380, 734, 990, 1178] as const;
 export const stageW = (el: HTMLElement) => { const cs = getComputedStyle(el); return Math.floor(el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)); };
 import { type Item, type Paint, FONT, PHONE_FONT, measure, textLayout } from "../core/stage-core";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
+import { cssVars } from "./css-vars";
 import type { Ui } from "./ui";
 
 /** Each compile and each plan (one width) runs on a stage budget of its own (src/core/stage.ts STAGE_WORK, 4x the heaviest
@@ -240,8 +241,12 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   // plans as they are (hydration adopts them; one layout per stage, so 7 plans x 27 stages never charge the page's budget)
   const browser = false; // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
   // over one stage's budget (STAGE_WORK) the stage is refused: a note in its place, never an error out of render
-  const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return w ? [stageWork(() => layoutStage(m, w))] : browser ? [] : SSR_W.map((x) => stageWork(() => layoutStage(m, x))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);
+  const laid = useMemo((): Plan[] | null => { if (!c) return null; try { return w ? [stageWork(() => layoutStage(m, w))] : browser ? [] : [...SSR_W, PRINT_W].map((x) => stageWork(() => layoutStage(m, x))); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [c, m, w, browser]);
   const plans = laid ?? [];
+  // print (SPEC 4.1): the plan a sheet prints and the sizes the print rules read from it (stage.css). In the browser that
+  // is its one plan, laid out at PRINT_W on beforeprint; before it hydrates (the hydration order can keep a stage waiting
+  // for seconds), the server's PRINT_W plan, shown only in print, so a stage printed before its turn prints the same
+  const pp = w ? (plans.length === 1 ? plans[0] : null) : plans[SSR_W.length] ?? null;
   useEffect(() => {
     if (!playing || st.on) return;
     if (kLive >= n) { setPlaying(false); return; }
@@ -252,7 +257,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
   return (
-    <div className={`stg${st.on ? " stg-static" : ""}`} style={plans.length === 1 ? ({ "--stg-boxmin": `${Math.ceil(plans[0].h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(plans[0].h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((plans[0].h * PRINT_BOX_W) / plans[0].w) + 83 + 18 * n + 10}px` } as React.CSSProperties) : undefined} data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
+    <div className={`stg${st.on ? " stg-static" : ""}`} style={pp ? cssVars({ "--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((pp.h * PRINT_BOX_W) / pp.w) + 83 + 18 * n + 10}px` }) : undefined} data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
       tabIndex={n && !st.on ? 0 : undefined} aria-label={m.title || undefined}
       onKeyDown={(e) => { if (st.on || !n) return; if ((e.target as HTMLElement).closest("button") && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; if (e.key === "ArrowRight") { go(k + 1); e.preventDefault(); } if (e.key === "ArrowLeft") { go(k - 1); e.preventDefault(); } }}>
       {(m.title || (n > 0 && !st.on)) && (
@@ -268,9 +273,9 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
           )}
         </div>
       )}
-      <div className={plans.length === 1 ? "stg-box-wrap stg-ratio" : "stg-box-wrap"} ref={box} data-bar-stage="" style={plans.length === 1 ? { aspectRatio: `${plans[0].w} / ${plans[0].h}` } : undefined}>
+      <div className={plans.length === 1 ? "stg-box-wrap stg-ratio" : pp ? "stg-box-wrap stg-ratio-print" : "stg-box-wrap"} ref={box} data-bar-stage="" style={plans.length === 1 ? { aspectRatio: `${plans[0].w} / ${plans[0].h}` } : pp ? cssVars({ "--stg-ar": `${pp.w} / ${pp.h}` }) : undefined}>
         {w ? plans.map((p, i) => <div key={i} className="stg-plan"><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)
-          : plans.map((p, i) => <div key={i} className="stg-plan stg-plan-ssr" data-w={SSR_W[i]}><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)}
+          : plans.map((p, i) => <div key={i} className="stg-plan stg-plan-ssr" data-w={SSR_W[i] ?? PRINT_W} data-print={i === SSR_W.length || undefined}><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)}
       </div>
       {srText && <p className="sr-only">{srText}</p>}
       {n > 0 && !st.on && (

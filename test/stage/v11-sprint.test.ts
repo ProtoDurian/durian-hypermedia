@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Stage, printRelayout, PRINT_W, SSR_W, type StageSrc } from "../../src/ui/stage";
-const NP = SSR_W.length; // the server's plans: one per width
+const NP = SSR_W.length + 1; // the server's plans: one per width, and the print plan
 import { UI } from "../../src/ui/ui";
 import { compileStage, layoutStage, panelTitle } from "../../src/core/stage";
 import { measure } from "../../src/core/stage-core";

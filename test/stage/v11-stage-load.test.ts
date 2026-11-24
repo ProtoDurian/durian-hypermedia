@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { Stage, SSR_W, PRINT_FLOOR } from "../../src/ui/stage";
+import { Stage, SSR_W, PRINT_FLOOR, PRINT_W } from "../../src/ui/stage";
 import { UI } from "../../src/ui/ui";
 import { beginDocument, BudgetError, docBudget, newBudget } from "../../src/core/stage-budget";
 
@@ -42,7 +42,7 @@ test("weight: a stage's server markup stays under its cap (7 plans: about 3.4 ti
   expect(h.length).toBeLessThan(60_000);
   // each plan costs about the same: no plan is drawn twice
   const each = h.split('<div class="stg-plan stg-plan-ssr"').slice(1).map((p) => p.length);
-  expect(each.length).toBe(SSR_W.length);
+  expect(each.length).toBe(SSR_W.length + 1); // and the print plan
 });
 
 // the package hydrates by drawing the server's plans again (no HTML-string sink in its strict entry)
@@ -103,7 +103,29 @@ test("print: a stage's drawing shrinks to fit its sheet no further than PRINT_FL
   expect(11 * 0.75 * PRINT_FLOOR).toBeGreaterThanOrEqual(8);
   expect(PRINT_FLOOR).toBe(0.97);
   const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
-  expect(tsx).toContain('"--stg-boxmin": `${Math.ceil(plans[0].h * PRINT_FLOOR)}px`');
-  expect(tsx).toContain('"--stg-need": `${Math.ceil(plans[0].h * PRINT_FLOOR) + 160}px`');
+  expect(tsx).toContain('"--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`');
+  expect(tsx).toContain('"--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`');
   expect(tsx).not.toContain("h * 0.935");
+});
+
+// 23 Nov: a stage printed before its turn to hydrate (the hydration order can keep it waiting for seconds), or with
+// scripts off, printed from the server's HTML: no print height, the print rule capped it at the sheet, and its drawing
+// ran over the text below. The server now draws a plan at PRINT_W too, shown only in print, and writes its sizes.
+test("print before hydration: the server's PRINT_W plan, shown only on paper, sets the stage's print sizes and box shape", () => {
+  const h = html(HEAD, STEPS);
+  const m = h.match(/<div class="stg-plan stg-plan-ssr" data-w="(\d+)" data-print="true"><svg[^>]*viewBox="0 0 (\d+) (\d+)"/);
+  expect(m).not.toBeNull();
+  expect([+m![1], +m![2]]).toEqual([PRINT_W, PRINT_W]);
+  const ph = +m![3];
+  const style = h.match(/<div class="stg[^"]*" style="([^"]*)"/)![1];
+  expect(style).toContain(`--stg-boxmin:${Math.ceil(ph * PRINT_FLOOR)}px`);
+  expect(style).toContain(`--stg-need:${Math.ceil(ph * PRINT_FLOOR) + 160}px`);
+  expect(h).toMatch(new RegExp(`class="stg-box-wrap stg-ratio-print"[^>]*style="--stg-ar:${PRINT_W} / ${ph}"`));
+  expect(h).not.toContain("<style");
+  const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
+  expect(tsx).toContain('cssVars({ "--stg-ar"'); // the shared helper (src/ui/css-vars.ts): custom properties through React's style prop
+  const css = readFileSync(join(import.meta.dir, "../../src/ui/stage.css"), "utf8");
+  expect(css).toContain("@media not print { .stg-plan-ssr[data-print] { display: none !important; } }");
+  expect(css).toContain("@media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }");
+  expect(css).toContain(".stg > .stg-box-wrap.stg-ratio-print { aspect-ratio: var(--stg-ar); }");
 });

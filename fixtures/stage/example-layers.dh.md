@@ -252,7 +252,7 @@ nest: The packet | layer 2 outside, layer 3 inside
 @step To the switch: Follow that one packet. It crosses the first link as a signal, and is a frame again at the switch.
 lap -> sw: the first link, copper
 @step MACs only: The switch checks the FCS, notes the source on port 1, and looks up the destination: port 5. A plain switch never reads the IP addresses.
-rows
+rows link
   ^ the switch's MAC table | port | _
   00:00:5E:00:53:0A | port 1 | source: seen again
   * 00:00:5E:00:53:01 | * port 5 | => link: destination: used
@@ -269,14 +269,14 @@ clear
 unwrap fr
 show gone
 @step Next hop: For 203.0.113.80 only the default route matches. The next hop is 198.51.100.6, the provider's router A.
-rows
+rows table
   ^ routing table T2 | learned from | next hop | out
   198.51.100.6/31 | connected | on this network | fibre to A
   192.0.2.0/24 | connected | on this network | copper to the switch
   * 0.0.0.0/0 | * default (from the provider) | * 198.51.100.6 | * fibre to A ; * matches, longest: chosen
 @step TTL: It is forwarding, so it takes 1 off the TTL: 64 becomes 63.
 set pk: TTL 64 => TTL 63
-rows
+rows table
   ^ routing table T2 | learned from | next hop | out
   198.51.100.6/31 | connected | on this network | fibre to A
   192.0.2.0/24 | connected | on this network | copper to the switch
@@ -443,7 +443,7 @@ nest: The packet | layer 2 outside, layer 3 inside
   sec dat: the first 1,460 bytes of the sealed answer record | _ | unreadable here
 @step The server sends: Follow the first answer packet. It is wrapped the same way, to 198.51.100.7 with a fresh TTL of 64, in a frame to router B's MAC.
 sv -> rb: copper
-rows
+rows table
   ^ the server's table T5 | learned from | next hop | out
   203.0.113.64/26 | connected | on this network | copper to B
   * 0.0.0.0/0 | * default (set by hand) | * 203.0.113.65 | * copper to B ; * matches, longest: chosen
@@ -451,7 +451,7 @@ rows
 rb -> ra: radio
 fields fr: to 00:00:5E:00:53:A2; from 00:00:5E:00:53:B1; type 0x0800 (IPv4); > FCS a0 9e 7d e2, at the end
 set pk: TTL 64 => TTL 63; header checksum 0x3480 => header checksum 0x3580
-rows plain
+rows plain table
   ^ routing table T4 | learned from | next hop | out
   203.0.113.64/26 | connected | on this network | copper to the server
   203.0.113.0/30 | connected | on this network | core link
@@ -463,7 +463,7 @@ rows plain
 ra -> hr: fibre
 fields fr: to 00:00:5E:00:53:02; from 00:00:5E:00:53:A1; type 0x0800 (IPv4); > FCS e2 0f 29 60, at the end
 set pk: TTL 63 => TTL 62; header checksum 0x3580 => header checksum 0x3680
-rows plain
+rows plain table
   ^ routing table T3 | learned from | next hop | out
   * 198.51.100.6/31 | * connected | * on this network | * fibre to the home: matches, longest: chosen
   198.51.100.200/31 | connected | on this network | radio to B
@@ -492,7 +492,7 @@ list neighbour cache
 sw -> lap: port 1
 fields dat: still sealed
 say lap: at the laptop
-rows
+rows link
   ^ the switch's MAC table | port | _
   * 00:00:5E:00:53:0A | * port 1 | used; the same frame, FCS eb 7e fa 64
   ! the five links, as it crossed them

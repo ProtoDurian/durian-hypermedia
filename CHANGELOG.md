@@ -117,6 +117,9 @@ The third release candidate of 0.7.0. The format number stays 10.
   three families (each labelled layer 3), so a router, its table and the packet are no longer one colour. The 3D router
   of "a message through a router, in segments" is a family of its own: zoomed in it shows that family's fill and border,
   and its input queue, routing table and port 2 carry its border, told apart from the two hosts.
+- A composed stage's `rows` takes a role: `rows <role>` draws each row's box in that family's fill and border, `rows plain
+  <role>` a plain row's words in its ink (SPEC 6.13); doccheck refuses a role the page does not declare. The layers example's
+  routing tables are `rows table` and the switch's MAC table `rows link`, so they are told apart like the cards beside them.
 
 ### Removed (breaking)
 

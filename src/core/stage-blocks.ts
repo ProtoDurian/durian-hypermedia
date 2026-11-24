@@ -280,14 +280,18 @@ function flowLine(segs: { s: string; ink: string; lead?: "sep" | "gap" }[], x0: 
 // ! a line of its own, in the warning tone, between rows
 // A cell's lines are split by "; "; a line that starts "! " is a warning, "* " the accent, "~ " muted; "=> role: text"
 // is a chip in that role. A first line "^ a | b | c" heads the columns. `rows plain` is a compact table: no box per row,
-// one line per row (a cell's lines joined), chips as words in their role's ink.
+// one line per row (a cell's lines joined), chips as words in their role's ink. `rows <role>` (or `rows plain <role>`) draws
+// the rows in that family: each row's box in its fill and border, a plain row's words in its ink.
 type Cell = { lines: string[]; chip?: { role: string; s: string }; role?: string /* "=> role: words" in a [chip] row: the row's boxed cell in that role's colours, its own height */; blank?: boolean /* "_": nothing drawn, the column kept */; dropped?: boolean /* "-...": a dashed chip in a [chip] row */ };
-type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean };
+type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean; role?: string /* "rows <role>": the rows in that family's fill and border, plain rows in its ink */ };
 const toneOf = (l: string): [string, string] => (l.startsWith("! ") ? [l.slice(2), "warn:ink"] : l.startsWith("* ") ? [l.slice(2), "acc:ink"] : l.startsWith("~ ") ? [l.slice(2), "muted"] : [l, ""]);
 registerBlock({
   word: "rows", kind: "panel",
   parse(inp, ctx): Rows {
-    if (inp.arg && inp.arg !== "plain") throw new StageError(inp.line, `rows takes nothing or "plain" (a compact table): "rows plain"`);
+    const words = (inp.arg ?? "").split(/\s+/).filter(Boolean), plain = words.includes("plain"), named = words.filter((w) => w !== "plain");
+    if (named.length > 1 || words.length - named.length > 1) throw new StageError(inp.line, `rows takes "plain" (a compact table), a role (the rows in its colours) or both: "rows plain", "rows table", "rows plain table"`);
+    const role = named[0];
+    if (role && !ctx.roles.has(role)) ctx.problem(inp.line, `"${role}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"} (rows takes "plain", a role or both)`);
     const hl = inp.body[0]?.t.startsWith("^ ") ? inp.body[0] : null, body = hl ? inp.body.slice(1) : inp.body;
     if (!body.length) throw new StageError(inp.line, "rows lists its rows indented under it");
     if (body.length > 40) throw new StageError(inp.line, "rows holds at most 40 rows");
@@ -309,10 +313,13 @@ registerBlock({
     const ns = new Set(rows.flatMap((r) => ("cells" in r ? [r.cells.length] : [])));
     if (ns.size > 1) throw new StageError(inp.line, `every row has the same number of cells (here ${[...ns].join(" and ")})`);
     if (head.length && ns.size && !ns.has(head.length)) throw new StageError(hl!.n, `${head.length} column heads but the rows have ${[...ns][0]} cells`);
-    return { rows, head, plain: inp.arg === "plain" };
+    return { rows, head, plain, ...(role && ctx.roles.has(role) ? { role } : {}) };
   },
   layout(t: Rows, box: Box): LayoutOut {
     const rs = t.rows.filter((r): r is { cells: Cell[] } => "cells" in r), nc = rs[0]?.cells.length ?? 0;
+    // "rows <role>": each row's box in the family's fill and border; a plain row's words in its ink
+    const frame = t.role ? { fill: `role:${t.role}:plane`, stroke: `role:${t.role}:line`, role: t.role } : { fill: "surface", stroke: "line-2" };
+    const plainInk = t.role ? `role:${t.role}:ink` : "ink";
     const one = (c: Cell) => (c.chip ? c.chip.s : c.lines.map((l) => toneOf(l)[0]).join("  "));
     const cellNeed = (c: Cell) => (t.plain ? measure(one(c), "body") + 8 : c.chip ? measure(c.chip.s, "body") + 28 : Math.max(0, ...c.lines.map((l) => measure(toneOf(l)[0], "sub") + 4)));
     const need = Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
@@ -358,10 +365,10 @@ registerBlock({
       if ("note" in r) { const l = textLines(6, y, box.w - 12, [r.note], "sub", "muted"); items.push(...l.items); y += l.h + 4; continue; }
       if (t.plain) {
         // one line per row: a cell's lines joined, chips as words in their role's ink; a phone wraps the joined row
-        const ink = (c: Cell) => (c.chip ? `role:${c.chip.role}:ink` : toneOf(c.lines[0] ?? "")[1] || "ink");
+        const ink = (c: Cell) => (c.chip ? `role:${c.chip.role}:ink` : toneOf(c.lines[0] ?? "")[1] || plainInk);
         if (stacked) {
           // a phone wraps the joined row, each cell's line in its own tone (a moved value stays toned: )
-          const segs = r.cells.flatMap((c, j) => (c.chip ? [{ s: c.chip.s, ink: `role:${c.chip.role}:ink` }] : c.lines.map((l) => ({ s: toneOf(l)[0], ink: toneOf(l)[1] || "ink" }))).map((g, q) => ({ ...g, lead: (q ? "gap" : "sep") as "gap" | "sep" })));
+          const segs = r.cells.flatMap((c, j) => (c.chip ? [{ s: c.chip.s, ink: `role:${c.chip.role}:ink` }] : c.lines.map((l) => ({ s: toneOf(l)[0], ink: toneOf(l)[1] || plainInk }))).map((g, q) => ({ ...g, lead: (q ? "gap" : "sep") as "gap" | "sep" })));
           const fl = flowLine(segs, 12, y, box.w - 24); items.push(...fl.items); y += fl.h + 6; continue;
         }
         // x on a whole pixel: thin stems ("11") at a fractional x blur into grey and lose their role colour
@@ -371,7 +378,7 @@ registerBlock({
       if (stacked) {
         const { its, ly } = compact(r, rowPairs(r), y);
         const h = ly - 4 + 8 - y;
-        items.push({ k: "box", x: 0, y, w: box.w, h, fill: "surface", stroke: "line-2", r: 9, cls: "scn-frame", bar: { kind: "worksheet-row" } }, ...its); y += h + 8; continue;
+        items.push({ k: "box", x: 0, y, w: box.w, h, ...frame, r: 9, cls: "scn-frame", bar: { kind: "worksheet-row" } }, ...its); y += h + 8; continue;
       }
       const chipLines = (c: Cell, w: number) => wrap(c.chip!.s, w - 8, "body", most(1)); // a phone: a long chip takes more lines
       // cells side by side (a wide stage): a cell's lines at the sub line height and a pad of 18, a row of two lines ~50 px
@@ -383,7 +390,7 @@ registerBlock({
       const hs = r.cells.map((c, j) => cellH(c, wOf(j)));
       const slotH = hs.map((x, j) => (pairs.has(j) ? Math.max(x, hs[j + 1] ?? 0) : pairs.has(j - 1) ? 0 : x));
       const h = (stacked ? slotH.reduce((a, b, j) => a + b + (pairs.has(j - 1) ? 0 : 6), 0) : Math.max(...hs)) + pad;
-      const its: Item[] = [{ k: "box", x: 0, y, w: box.w, h, fill: "surface", stroke: "line-2", r: 9, cls: "scn-frame", bar: { kind: "worksheet-row" } }];
+      const its: Item[] = [{ k: "box", x: 0, y, w: box.w, h, ...frame, r: 9, cls: "scn-frame", bar: { kind: "worksheet-row" } }];
       let sy = y + 10;
       r.cells.forEach((c, j) => {
         const cy = stacked ? (pairs.has(j - 1) ? sy - slotH[j - 1] - 6 : sy) : y + pad / 2 + (h - pad - hs[j]) / 2, cw = wOf(j), cx = xOf(j);

@@ -1,6 +1,6 @@
 // 0.7.0-rc.3 review, row 4 (one focus per step): `get <map> <key>` on a hash table lit the entry AND its bucket, two lit
-// things in one step. Now the entry is the one lit thing; its bucket is framed (a thin outline in the faint ink colour, its
-// fill, words and border stay) and still kept in view by the story camera. 2D and 3D both draw the frame.
+// things in one step. Now the entry is the one lit thing; its bucket is framed (a thin grey outline, weaker than the lit ring;
+// its fill, words and border stay) and still kept in view by the story camera. 2D and 3D both draw the frame.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -42,5 +42,30 @@ describe("a lookup in a hash table lights the entry and frames its bucket", () =
     const rule = css.match(/\.is-framed \.scn-ring \{([^}]*)\}/)?.[1] ?? "";
     expect(rule).toContain("var(--faint)");
     expect(css).not.toMatch(/\.is-framed \.scn-(shape|frame|label)/);
+  });
+});
+
+// (0.7.0-rc.3, a MUST) the frame stays clearly weaker than the lit ring in both themes: the faint ink alone was 6.12:1 on
+// the white stage, more than the lit accent ring's 4.70:1, so the bucket out-shone the lit entry. Now a grey halfway
+// between the faint ink and the line colour: about 3:1 (visible), and at least 1.4 below the accent in each theme
+describe("the frame is weaker than the lit ring in light and dark", () => {
+  const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const lin = (c: number) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+  const lum = (c: number[]) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+  const cr = (a: number[], b: number[]) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const theme = read("src/ui/theme.css"), css = read("src/ui/parts.css");
+  // light: the first value of a token in theme.css; dark: the second
+  const tok = (name: string, k: 0 | 1) => [...theme.matchAll(new RegExp(`--${name}: (#[0-9A-Fa-f]{6})`, "g"))][k][1];
+  test("the framed ring is a mix of the faint ink and the line colour, about 3:1, well under the accent ring", () => {
+    const m = css.match(/\.is-framed \.scn-ring \{ stroke: color-mix\(in srgb, var\(--faint\) (\d+)%, var\(--line-2\)\);/);
+    expect(m).not.toBeNull();
+    const p = +m![1] / 100;
+    for (const k of [0, 1] as const) {
+      const bg = hex(tok("surface", k)), f = hex(tok("faint", k)), l = hex(tok("line-2", k));
+      const frame = f.map((v, i) => Math.round(v * p + l[i] * (1 - p))), acc = cr(hex(tok("acc", k)), bg), fr = cr(frame, bg);
+      expect(fr).toBeGreaterThanOrEqual(3);
+      expect(acc - fr).toBeGreaterThanOrEqual(1.4);
+    }
+    expect(read("src/ui/anim3d.ts")).toContain(`C.faint.clone().lerp(C["line-2"], ${p})`);
   });
 });

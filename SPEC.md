@@ -1550,7 +1550,7 @@ The Format page shows it with the seven OSI layers: a request goes down one mach
 | `map <id> ["label"]: key: value, ...` | a dictionary: a table with the columns key and value, one row per entry, named `<id>.<key>`: `map cache "session cache": u7: Ana, u12: Ben` |
 | `map ... buckets=<n>: ...` | the same map drawn as a hash table: n buckets (`<id>.b0` ...), each entry a box "key: value" in bucket hash(key) mod n, where hash(key) is the sum of the key's character codes (a real map uses a stronger hash; one key, one bucket, every time, is the same idea); two keys in one bucket make a chain: `map cache buckets=4: ana: cart 3, cy: cart 9` |
 | `put <map> <key>: <value>` | adds the entry (in its bucket), or gives the key its new value: `put cache dee: cart 4` |
-| `get <map> <key>` | a lookup: the entry is lit for this step and kept in view; in a hash table its bucket is framed, not lit (a thin outline in the faint ink colour, not the accent: its fill, words and border stay), so a lookup is one focus: `get cache ana` |
+| `get <map> <key>` | a lookup: the entry is lit for this step and kept in view; in a hash table its bucket is framed, not lit (a thin grey outline, halfway between the faint ink and the line colour, about 3:1 on the stage where the lit accent ring is 4.7:1 or more: its fill, words and border stay), so a lookup is one focus: `get cache ana` |
 | `get <array> <index>` | an array read by index: `get ids 3` |
 
 For example, after `map cart "cart sizes" buckets=3: ana: 3, ben: 7, cy: 9`, the step `get cart ana` lights one thing, the entry `cart.ana`, and frames its bucket `cart.b1` (ana and cy share it: 97 + 110 + 97 = 304, and 304 mod 3 is 1).

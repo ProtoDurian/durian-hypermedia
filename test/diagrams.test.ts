@@ -428,6 +428,18 @@ describe("the diagrams in a rendered page", () => {
       expect(out).not.toContain("is not drawn");
     }
   });
+  test("one focus per step: every highlight line in a diagram fixture and in the SPEC samples names one thing", () => {
+    const files = ["90-state-diagram", "91-class-diagram", "92-er-diagram"].map((n) => text(`format/${n}.dh.md`));
+    files.push(readFileSync(join(import.meta.dir, "../SPEC.md"), "utf8"));
+    for (const src of files) {
+      let inDiagram = false;
+      for (const line of src.split("\n")) {
+        if (/^```(state|class|er)\b/.test(line)) inDiagram = true;
+        else if (line.startsWith("```")) inDiagram = false;
+        else if (inDiagram && /^highlight\s/.test(line)) expect(line.trim().split(/\s+/).length).toBe(2);
+      }
+    }
+  });
   test("a static diagram draws its finished state, with no player", () => {
     const out = html(parse(text("format/90-state-diagram.dh.md")));
     expect(out).toContain("is-static");

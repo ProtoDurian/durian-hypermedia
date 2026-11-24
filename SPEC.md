@@ -1061,7 +1061,7 @@ entity order "Order"
   customer_id uuid fk -> customer.id
 customer 1 -- 0..* order "places"
 @step Each order keeps the customer's key.
-highlight customer.id order.customer_id
+highlight order.customer_id
 ```
 ````
 

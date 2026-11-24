@@ -24,10 +24,10 @@ import { type Item, type Line, type ParseCtx, type Font, StageError, LINE_H, mea
 export let CARD_PX = 11;
 let CARD_PT = 10;
 /** a card's side and top padding, tighter on a phone (the stage sets it around a narrow layout) */
-export let SUB_MAX = 3; // a card second line's lines; 8 on a phone
+export let SUB_MAX = 8; // a card second line's lines: 8, on a phone and off it (0.7.0-rc.3: a clamp never drops a fact; was 3)
 export let TITLE_MAX = 2; // a card title's lines; 3 on a phone
 let PHONE_CARDS = false;
-export const setCardPad = (phone: boolean) => { PHONE_CARDS = phone; ROOMY_GAP = phone ? 4 : 9; CARD_PX = phone ? 7 : 11; CARD_PT = phone ? 7 : 10; TITLE_MAX = phone ? 8 : 2; SUB_MAX = phone ? 8 : 3; HEAD_F = phone ? "title" : "big"; };
+export const setCardPad = (phone: boolean) => { PHONE_CARDS = phone; ROOMY_GAP = phone ? 4 : 9; CARD_PX = phone ? 7 : 11; CARD_PT = phone ? 7 : 10; TITLE_MAX = phone ? 8 : 2; SUB_MAX = 8; HEAD_F = phone ? "title" : "big"; };
 // a "** words" headline: big on a wide stage; on a phone the title size (13.5 px, bold), so the card grows no taller than a title line
 export let HEAD_F: Font = "big";
 export const MAX_KIDS = 12, MAX_PILLS = 64, MAX_TOKENS = 64, MAX_KEYS = 24;

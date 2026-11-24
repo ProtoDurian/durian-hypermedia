@@ -8,6 +8,17 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 The third release candidate of 0.7.0. The format number stays 10.
 
+### Added: layer 1 as a signal; no cut words in stage cards (SPEC.md)
+
+- **A plain plot line.** `plot: a..b | unit | line` draws a role's points as one line, a signal: no dots, words only on
+  labelled points, a grid line at every level of a few whole-number levels, labels kept off the line; the LLM view says
+  the line as runs of one value. The layers example draws layer 1 three ways under its signal scene: copper's voltage
+  levels on pair A, fibre's light for two 8b/10b codes, radio's phase for QPSK.
+- **No clamp drops a fact.** A card line broken again by its drawn width takes the lines it needs instead of cutting a
+  word; a grid card's lines and a card's second line (up to 8 lines) are no longer cut with "…" off a phone.
+- **The phone footer.** On a phone a stage's step buttons and caption stay at the foot of the screen while a tall stage
+  scrolls under them; the stage keeps its height.
+
 ### Changed: the graph engine's animation is calm (SPEC.md 6.14)
 
 - **No jitter.** A thing that takes no part in a step keeps its place: only items that pass another item of their row

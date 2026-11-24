@@ -59,6 +59,10 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 .stg-num { color: var(--acc-ink); font-weight: 600; }
 .stg-cap { margin: 8px 14px 0; font-size: 15px; color: var(--ink-2); min-height: 1.5em; }
 .stg-capbox { display: grid; } .stg-capbox > .stg-cap { grid-area: 1 / 1; } .stg-cap-room { visibility: hidden; }   /* the tallest caption keeps its room: stepping never moves the page */
+/* p11 (rc.3 review, the layers story on a phone: a step's caption sat ~2,000 px under what it changed): on a phone the step
+   buttons and the caption stay at the foot of the screen while a tall stage scrolls under them (screen only; print and
+   static keep the page's order) */
+@media screen and (max-width: 560px) { .stg-foot { position: sticky; bottom: 0; z-index: 3; background: var(--stg-bg); box-shadow: 0 -1px 0 var(--stg-edge); } }  /* no padding or border: the stage is exactly as tall as before */
 /* a stage over its budget: its still form in words (site/src/stage.tsx StageOver) */
 .stg-over-msg { margin: 8px 14px 0; font-size: 14px; color: var(--ink-2); }
 .stg-still { margin: 8px 14px 0; padding-left: 1.4em; font-size: 15px; color: var(--ink-2); }

@@ -231,6 +231,273 @@ show fi
 show ra
 ```
 
+```animation
+title: Copper: pair A over five bytes | one wire pair, five symbols of 8 ns each, one from each byte (pairs B, C, D carry the rest at the same time); example levels, not computed
+time: 0..40 | ns
+ticks: 0, 8, 16, 24, 32, 40
+plot: -2..2 | level on pair A (five levels, -2 to +2) | line
+point signal c0a at 0: 0 | 0
+point signal c0b at 7.99: 0
+point signal c1a at 8: 2 | +2
+point signal c1b at 15.99: 2
+point signal c2a at 16: -2 | -2
+point signal c2b at 23.99: -2
+point signal c3a at 24: 1 | +1
+point signal c3b at 31.99: 1
+point signal c4a at 32: -1 | -1
+point signal c4b at 39.99: -1
+```
+
+```animation
+title: Fibre: brighter and dimmer light | the line bits of 0x55 (D21.2) and 0xd5 (D21.6): 20 bits, 0.8 ns each
+time: 0..16 | ns
+ticks: 0, 4, 8, 12, 16
+plot: 0..1 | light (1 brighter, 0 dimmer) | line
+point signal f0a at 0: 1 | D21.2
+point signal f0b at 0.79: 1
+point signal f1a at 0.8: 0
+point signal f1b at 1.59: 0
+point signal f2a at 1.6: 1
+point signal f2b at 2.39: 1
+point signal f3a at 2.4: 0
+point signal f3b at 3.19: 0
+point signal f4a at 3.2: 1
+point signal f4b at 3.99: 1
+point signal f5a at 4: 0
+point signal f5b at 4.79: 0
+point signal f6a at 4.8: 0
+point signal f6b at 5.59: 0
+point signal f7a at 5.6: 1
+point signal f7b at 6.39: 1
+point signal f8a at 6.4: 0
+point signal f8b at 7.19: 0
+point signal f9a at 7.2: 1
+point signal f9b at 7.99: 1
+point signal f10a at 8: 1 | D21.6
+point signal f10b at 8.79: 1
+point signal f11a at 8.8: 0
+point signal f11b at 9.59: 0
+point signal f12a at 9.6: 1
+point signal f12b at 10.39: 1
+point signal f13a at 10.4: 0
+point signal f13b at 11.19: 0
+point signal f14a at 11.2: 1
+point signal f14b at 11.99: 1
+point signal f15a at 12: 0
+point signal f15b at 12.79: 0
+point signal f16a at 12.8: 0
+point signal f16b at 13.59: 0
+point signal f17a at 13.6: 1
+point signal f17b at 14.39: 1
+point signal f18a at 14.4: 1
+point signal f18b at 15.19: 1
+point signal f19a at 15.2: 0
+point signal f19b at 15.99: 0
+```
+
+```animation
+title: Radio: the phase of a wave | QPSK: the example bits 10 11 00 01, 2 bits a symbol; not to scale
+time: 0..4 | symbol times
+ticks: 0, 1, 2, 3, 4
+plot: -1..1 | the wave (its phase carries the bits) | line
+point signal r0_0 at 0: 0.707 | 10: 315°
+point signal r0_1 at 0.021: 0.866
+point signal r0_2 at 0.042: 0.966
+point signal r0_3 at 0.063: 1
+point signal r0_4 at 0.083: 0.966
+point signal r0_5 at 0.104: 0.866
+point signal r0_6 at 0.125: 0.707
+point signal r0_7 at 0.146: 0.5
+point signal r0_8 at 0.167: 0.259
+point signal r0_9 at 0.188: 0
+point signal r0_10 at 0.208: -0.259
+point signal r0_11 at 0.229: -0.5
+point signal r0_12 at 0.25: -0.707
+point signal r0_13 at 0.271: -0.866
+point signal r0_14 at 0.292: -0.966
+point signal r0_15 at 0.313: -1
+point signal r0_16 at 0.333: -0.966
+point signal r0_17 at 0.354: -0.866
+point signal r0_18 at 0.375: -0.707
+point signal r0_19 at 0.396: -0.5
+point signal r0_20 at 0.417: -0.259
+point signal r0_21 at 0.438: 0
+point signal r0_22 at 0.458: 0.259
+point signal r0_23 at 0.479: 0.5
+point signal r0_24 at 0.5: 0.707
+point signal r0_25 at 0.521: 0.866
+point signal r0_26 at 0.542: 0.966
+point signal r0_27 at 0.563: 1
+point signal r0_28 at 0.583: 0.966
+point signal r0_29 at 0.604: 0.866
+point signal r0_30 at 0.625: 0.707
+point signal r0_31 at 0.646: 0.5
+point signal r0_32 at 0.667: 0.259
+point signal r0_33 at 0.688: 0
+point signal r0_34 at 0.708: -0.259
+point signal r0_35 at 0.729: -0.5
+point signal r0_36 at 0.75: -0.707
+point signal r0_37 at 0.771: -0.866
+point signal r0_38 at 0.792: -0.966
+point signal r0_39 at 0.813: -1
+point signal r0_40 at 0.833: -0.966
+point signal r0_41 at 0.854: -0.866
+point signal r0_42 at 0.875: -0.707
+point signal r0_43 at 0.896: -0.5
+point signal r0_44 at 0.917: -0.259
+point signal r0_45 at 0.938: 0
+point signal r0_46 at 0.958: 0.259
+point signal r0_47 at 0.979: 0.5
+point signal r0_48 at 0.999: 0.707
+point signal r1_0 at 1: -0.707 | 11: 225°
+point signal r1_1 at 1.021: -0.5
+point signal r1_2 at 1.042: -0.259
+point signal r1_3 at 1.063: 0
+point signal r1_4 at 1.083: 0.259
+point signal r1_5 at 1.104: 0.5
+point signal r1_6 at 1.125: 0.707
+point signal r1_7 at 1.146: 0.866
+point signal r1_8 at 1.167: 0.966
+point signal r1_9 at 1.188: 1
+point signal r1_10 at 1.208: 0.966
+point signal r1_11 at 1.229: 0.866
+point signal r1_12 at 1.25: 0.707
+point signal r1_13 at 1.271: 0.5
+point signal r1_14 at 1.292: 0.259
+point signal r1_15 at 1.313: 0
+point signal r1_16 at 1.333: -0.259
+point signal r1_17 at 1.354: -0.5
+point signal r1_18 at 1.375: -0.707
+point signal r1_19 at 1.396: -0.866
+point signal r1_20 at 1.417: -0.966
+point signal r1_21 at 1.438: -1
+point signal r1_22 at 1.458: -0.966
+point signal r1_23 at 1.479: -0.866
+point signal r1_24 at 1.5: -0.707
+point signal r1_25 at 1.521: -0.5
+point signal r1_26 at 1.542: -0.259
+point signal r1_27 at 1.563: 0
+point signal r1_28 at 1.583: 0.259
+point signal r1_29 at 1.604: 0.5
+point signal r1_30 at 1.625: 0.707
+point signal r1_31 at 1.646: 0.866
+point signal r1_32 at 1.667: 0.966
+point signal r1_33 at 1.688: 1
+point signal r1_34 at 1.708: 0.966
+point signal r1_35 at 1.729: 0.866
+point signal r1_36 at 1.75: 0.707
+point signal r1_37 at 1.771: 0.5
+point signal r1_38 at 1.792: 0.259
+point signal r1_39 at 1.813: 0
+point signal r1_40 at 1.833: -0.259
+point signal r1_41 at 1.854: -0.5
+point signal r1_42 at 1.875: -0.707
+point signal r1_43 at 1.896: -0.866
+point signal r1_44 at 1.917: -0.966
+point signal r1_45 at 1.938: -1
+point signal r1_46 at 1.958: -0.966
+point signal r1_47 at 1.979: -0.866
+point signal r1_48 at 1.999: -0.707
+point signal r2_0 at 2: 0.707 | 00: 45°
+point signal r2_1 at 2.021: 0.5
+point signal r2_2 at 2.042: 0.259
+point signal r2_3 at 2.063: 0
+point signal r2_4 at 2.083: -0.259
+point signal r2_5 at 2.104: -0.5
+point signal r2_6 at 2.125: -0.707
+point signal r2_7 at 2.146: -0.866
+point signal r2_8 at 2.167: -0.966
+point signal r2_9 at 2.188: -1
+point signal r2_10 at 2.208: -0.966
+point signal r2_11 at 2.229: -0.866
+point signal r2_12 at 2.25: -0.707
+point signal r2_13 at 2.271: -0.5
+point signal r2_14 at 2.292: -0.259
+point signal r2_15 at 2.313: 0
+point signal r2_16 at 2.333: 0.259
+point signal r2_17 at 2.354: 0.5
+point signal r2_18 at 2.375: 0.707
+point signal r2_19 at 2.396: 0.866
+point signal r2_20 at 2.417: 0.966
+point signal r2_21 at 2.438: 1
+point signal r2_22 at 2.458: 0.966
+point signal r2_23 at 2.479: 0.866
+point signal r2_24 at 2.5: 0.707
+point signal r2_25 at 2.521: 0.5
+point signal r2_26 at 2.542: 0.259
+point signal r2_27 at 2.563: 0
+point signal r2_28 at 2.583: -0.259
+point signal r2_29 at 2.604: -0.5
+point signal r2_30 at 2.625: -0.707
+point signal r2_31 at 2.646: -0.866
+point signal r2_32 at 2.667: -0.966
+point signal r2_33 at 2.688: -1
+point signal r2_34 at 2.708: -0.966
+point signal r2_35 at 2.729: -0.866
+point signal r2_36 at 2.75: -0.707
+point signal r2_37 at 2.771: -0.5
+point signal r2_38 at 2.792: -0.259
+point signal r2_39 at 2.813: 0
+point signal r2_40 at 2.833: 0.259
+point signal r2_41 at 2.854: 0.5
+point signal r2_42 at 2.875: 0.707
+point signal r2_43 at 2.896: 0.866
+point signal r2_44 at 2.917: 0.966
+point signal r2_45 at 2.938: 1
+point signal r2_46 at 2.958: 0.966
+point signal r2_47 at 2.979: 0.866
+point signal r2_48 at 2.999: 0.707
+point signal r3_0 at 3: -0.707 | 01: 135°
+point signal r3_1 at 3.021: -0.866
+point signal r3_2 at 3.042: -0.966
+point signal r3_3 at 3.063: -1
+point signal r3_4 at 3.083: -0.966
+point signal r3_5 at 3.104: -0.866
+point signal r3_6 at 3.125: -0.707
+point signal r3_7 at 3.146: -0.5
+point signal r3_8 at 3.167: -0.259
+point signal r3_9 at 3.188: 0
+point signal r3_10 at 3.208: 0.259
+point signal r3_11 at 3.229: 0.5
+point signal r3_12 at 3.25: 0.707
+point signal r3_13 at 3.271: 0.866
+point signal r3_14 at 3.292: 0.966
+point signal r3_15 at 3.313: 1
+point signal r3_16 at 3.333: 0.966
+point signal r3_17 at 3.354: 0.866
+point signal r3_18 at 3.375: 0.707
+point signal r3_19 at 3.396: 0.5
+point signal r3_20 at 3.417: 0.259
+point signal r3_21 at 3.438: 0
+point signal r3_22 at 3.458: -0.259
+point signal r3_23 at 3.479: -0.5
+point signal r3_24 at 3.5: -0.707
+point signal r3_25 at 3.521: -0.866
+point signal r3_26 at 3.542: -0.966
+point signal r3_27 at 3.563: -1
+point signal r3_28 at 3.583: -0.966
+point signal r3_29 at 3.604: -0.866
+point signal r3_30 at 3.625: -0.707
+point signal r3_31 at 3.646: -0.5
+point signal r3_32 at 3.667: -0.259
+point signal r3_33 at 3.688: 0
+point signal r3_34 at 3.708: 0.259
+point signal r3_35 at 3.729: 0.5
+point signal r3_36 at 3.75: 0.707
+point signal r3_37 at 3.771: 0.866
+point signal r3_38 at 3.792: 0.966
+point signal r3_39 at 3.813: 1
+point signal r3_40 at 3.833: 0.966
+point signal r3_41 at 3.854: 0.866
+point signal r3_42 at 3.875: 0.707
+point signal r3_43 at 3.896: 0.5
+point signal r3_44 at 3.917: 0.259
+point signal r3_45 at 3.938: 0
+point signal r3_46 at 3.958: -0.259
+point signal r3_47 at 3.979: -0.5
+point signal r3_48 at 3.999: -0.707
+```
+
 ## 5. The switch and the home router
 
 ```animation

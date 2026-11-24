@@ -281,12 +281,12 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
       </div>
       {srText && <p className="sr-only">{srText}</p>}
       {n > 0 && !st.on && (
-        <>
+        <div className="stg-foot">
           <ol className="stg-steps">{titles.map((t, i) => <li key={i}><button type="button" className="stg-stepbtn" data-bar-step={i + 1} aria-current={i + 1 === k ? "step" : undefined} onClick={() => go(i + 1)} aria-label={`${i + 1} ${t}`}><span className="stg-num">{i + 1}</span><span className="stg-stepname"> {t}</span></button></li>)}</ol>
           {/* every step's caption sits, hidden, in the same grid cell as the shown one, so the caption is as tall as the tallest from the
  first step and a caption that wraps to one more line never moves what is under the stage */}
           <div className="stg-capbox"><p className="stg-cap" data-bar-caption="">{step?.caption}</p>{m.steps.map((s, i) => <p key={i} className="stg-cap stg-cap-room" aria-hidden="true">{s.caption}</p>)}</div>
-        </>
+        </div>
       )}
       {st.on && n > 0 && <StaticSteps titles={m.steps.map((s) => (s.caption === s.title ? s.title : `${s.title}: ${s.caption}`))} i={k - 1} label={ui.allSteps} print={st.print} />}
     </div>

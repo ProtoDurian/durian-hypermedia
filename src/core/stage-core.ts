@@ -55,7 +55,10 @@ export function wrapRoom(s: string, w: number, f: Font, max = 4, slack = 0): str
   const ls = wrap(s, w, f, max);
   // p11 (rc.3 review MUST 4: the layers story's routing table T3 at 1280): off a phone, where a line's drawn width (digits
   // draw wider than the table says) would cross the border, the text breaks again by drawn width; else it keeps its lines
-  if (!phoneFont) return ls.some((l) => drawnW(l, f) > w + slack) ? wrap(s, w, f, max, true) : ls;
+  // a break by drawn width never cuts words the plain break kept: it takes the lines it needs instead (raziel, the layers
+  // story's 'The server unwraps' at 1280: a 2-line card lost ':443')
+  const cut = (x: string[]) => !!x.at(-1)?.endsWith("…");
+  if (!phoneFont) { const d = ls.some((l) => drawnW(l, f) > w + slack) ? wrap(s, w, f, max, true) : ls; return cut(d) && !cut(ls) ? wrap(s, w, f, Infinity, true) : d; }
   return ls.flatMap((l) => {
     if (l.includes(" ") || drawnW(l, f) <= w + slack) return [l];
     const out: string[] = []; let cur = "";

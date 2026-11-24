@@ -13,7 +13,7 @@ import { EXAMPLES } from "../../scripts/fixtures";
 
 const FILE = join(import.meta.dir, "../../fixtures/stage/example-layers.dh.md");
 const text = readFileSync(FILE, "utf8");
-const fences = [...text.matchAll(/^```animation([^\n]*)\n([\s\S]*?)^```$/gm)].map((m) => ({ info: m[1].trim(), src: m[2] }));
+const fences = [...text.matchAll(/^```animation([^\n]*)\n([\s\S]*?)^```$/gm)].map((m) => ({ info: m[1].trim(), src: m[2] })).filter((f) => !/^plot: .* \| line$/m.test(f.src)); // the composed scenes (the three layer-1 signal stills apart)
 afterEach(() => { endDocument(); beginDocument(); });
 
 describe("the layers example", () => {
@@ -25,7 +25,7 @@ describe("the layers example", () => {
     expect(fences.map((f) => f.info)).toEqual([...Array(9).fill(""), "static"]);
     const doc = parse(text, { path: "example-layers.dh.md" });
     const stages = doc.blocks.filter((b) => b.type === "animation" && b.stage);
-    expect(stages.length).toBe(10);
+    expect(stages.length).toBe(13); // ten composed scenes and the three layer-1 signal stills
     expect(doc.blocks.filter((b) => b.type === "error")).toEqual([]);
     expect(check(doc).filter((p) => p.level === "error")).toEqual([]);
     const last = stages.at(-1)!; expect(last.type === "animation" && last.attrs?.static).toBe("");
@@ -50,7 +50,7 @@ describe("the layers example", () => {
   test("it draws on the server, every scene a stage, the tenth still", () => {
     const doc = parse(text, { path: "example-layers.dh.md" });
     const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
-    expect((html.match(/class="stg(?: stg-static)?"/g) ?? []).length).toBe(10);
+    expect((html.match(/class="stg(?: stg-static)?"/g) ?? []).length).toBe(13); // with the three signal stills
     expect((html.match(/class="stg stg-static"/g) ?? []).length).toBe(1);
   });
 

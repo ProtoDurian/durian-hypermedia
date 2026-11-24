@@ -205,7 +205,8 @@ registerBlock({
     // Compact verdict records in several authored columns are worksheet rows; a separately boxed single-column summary is a card.
     const roomy = (!side && !pside) || g.items.some((it) => it.chip); // side verdicts: a compact list; a chip under each card: room around it
     const items: Item[] = [], hs: number[] = [];
-    const lay = g.items.map((it) => { const tw = side && !it.chip ? w - bw - 30 : w - 22; const t = wrap(it.title, tw, "title", most(2)), s = it.subs.flatMap((x) => wrapRoom(x, tw, "sub", most(2), 8)); return { t, s, h: (roomy ? 18 : pside ? 8 : 10) + t.length * LINE_H.title + s.length * LINE_H.sub + ((it.v && (!(side || pside) || it.chip)) || (g.reserve && roomy && box.narrow) ? 44 : 0) + (roomy ? 16 : pside ? 8 : 6) }; });
+    // a card line takes the lines it needs: a clamp never drops a fact (raziel, rc.3: the layers story lost 'bytes 1001 to 1059')
+    const lay = g.items.map((it) => { const tw = side && !it.chip ? w - bw - 30 : w - 22; const t = wrap(it.title, tw, "title", most(2)), s = it.subs.flatMap((x) => wrapRoom(x, tw, "sub", Infinity, 8)); return { t, s, h: (roomy ? 18 : pside ? 8 : 10) + t.length * LINE_H.title + s.length * LINE_H.sub + ((it.v && (!(side || pside) || it.chip)) || (g.reserve && roomy && box.narrow) ? 44 : 0) + (roomy ? 16 : pside ? 8 : 6) }; });
     for (let r = 0; r * cols < g.items.length; r++) hs.push(Math.max(...lay.slice(r * cols, r * cols + cols).map((x) => x.h)));
     const top = box.narrow || !roomy ? 0 : 38; // air above a grid of cards with a chip under each
     let y = 0;

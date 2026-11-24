@@ -41,7 +41,14 @@ type Point = { role: string; id: string; time: number; value: number; label: str
 type Axis = { a: number; b: number; unit: string; from?: number; to?: number; tone?:string };
 /** a mark ON a row's line at a time: a point state '_ 6.5 [x] [bad]' (an X) or a step's 'at <row> N: words' */
 type RowMark = { row: string; a: number; x: boolean; text: string; tone?: string; from: number; to: number; line: number };
-type Time = Axis & { rowMarks?: RowMark[]; key: string; name?: string; captionBeside?: boolean; waits?: boolean; tight?: boolean; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; points: Point[]; hushes: {step:number;at:number;span?:string;tag?:string}[]; ids: Set<string>; last: Map<string, number> };
+/** p11 (rc.3, row 5): a plain plot line said as runs of one value: "light: 1 from 0 to 0.79, 0 from 0.8 to 1.59" */
+function plotRuns(points: Point[]): string[] {
+  const roles = [...new Set(points.map((p) => p.role))];
+  return roles.map((r) => { const ps = points.filter((p) => p.role === r), runs: string[] = [];
+    for (let i = 0; i < ps.length; ) { let j = i; while (j + 1 < ps.length && ps[j + 1].value === ps[i].value) j++; runs.push(`${ps[i].value} ${j > i ? `from ${ps[i].time} to ${ps[j].time}` : `at ${ps[i].time}`}${ps.slice(i, j + 1).filter((p) => p.label).map((p) => ` (${p.label})`).join("")}`); i = j + 1; }
+    return `The ${r} line: ${runs.join(", ")}.`; });
+}
+type Time = Axis & { rowMarks?: RowMark[]; key: string; name?: string; captionBeside?: boolean; waits?: boolean; tight?: boolean; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; plotLine?: boolean; points: Point[]; hushes: {step:number;at:number;span?:string;tag?:string}[]; ids: Set<string>; last: Map<string, number> };
 type TimeScope = { names: Map<string, Time>; rows: Map<string, Time | null>; n: number };
 const scopes=new WeakMap<ParseCtx,TimeScope>();
 /** A phase strip accompanying numeric time is a set of separators, rather than a standalone journey. */
@@ -238,6 +245,9 @@ registerBlock({
       // "| bracket" draws the inset's words as its caption bracket (one item, no marker edge); "| below" may follow it
       if(word==="zoom"&&arg.endsWith(" | bracket")){t.zoomBracket=true;arg=arg.slice(0,-10);if(arg.split(" | ").length<2||!arg.split(" | ").slice(1).join(" | ").trim())throw new StageError(l.n,"a zoom bracket carries the inset's words: zoom: 24..36 | words | bracket");}
       if(word==="zoom"&&!t.zoomBelow&&arg.endsWith(" | below")){t.zoomBelow=true;arg=arg.slice(0,-8);}
+      // p11 (rc.3 review, row 5: layer 1 as a visible signal): "plot: a..b | unit | line" draws each role's points as one
+      // plain line (a signal): no dot on a point, and words only where a point has its own label
+      if(word==="values"&&arg.endsWith(" | line")){t.plotLine=true;arg=arg.slice(0,-7);}
       let tone:string|undefined;if(word==="zoom"){const pieces=arg.split(" | "),paint=boxTone(pieces[0],l.n);pieces[0]=paint.text;tone=paint.tone;arg=pieces.join(" | ");}
       const a = axis(arg, l.n, rawWord);
       if (word === "zoom" && (a.b <= t.a || a.a >= t.b || a.b - a.a >= t.b - t.a)) throw new StageError(l.n, "zoom names a smaller stretch overlapping the time axis");
@@ -1221,27 +1231,31 @@ registerBlock({
         for (const s of wrap(v.unit || "Value", w - 16, "sub", Infinity)) { items.push({ k: "text", x: 8, y: y + 12, s, f: "sub", ink: "muted" }); y += 18; }
         const vt = y + 30, vb = vt + 100, Y = (n: number) => vb - (n - v.a) / (v.b - v.a) * (vb - vt);
         items.push({ k: "path", pts: [[x0, vb], [x0, vt]], ink: "line-2", id: valueId, bar: { axis: valueId, min: v.a, max: v.b, "axis-direction": "y" } });
-        for (const n of ticks(v, 200)) { const yy = Y(n), s = fmt(n); items.push({ k: "path", pts: [[x0 - 4, yy], [x1, yy]], ink: "line", dash: true }, { k: "text", x: x0 - 7, y: yy + 4, s: wrap(s, labW - 2, "sub", 1)[0], f: "sub", ink: "muted", anchor: "end" }); }
-        const previous = new Map<string, Point>();
+        // p11 (raziel on the copper still): a line of whole-number levels (a few, like -2..+2) gets a grid line at every level
+        const levels = t.plotLine && Number.isInteger(v.a) && Number.isInteger(v.b) && v.b - v.a > 2 && v.b - v.a <= 8 && t.points.every((p) => Number.isInteger(p.value));
+        for (const n of levels ? Array.from({ length: v.b - v.a + 1 }, (_, i) => v.a + i) : ticks(v, 200)) { const yy = Y(n), s = fmt(n); items.push({ k: "path", pts: [[x0 - 4, yy], [x1, yy]], ink: "line", dash: true }, { k: "text", x: x0 - 7, y: yy + 4, s: wrap(s, labW - 2, "sub", 1)[0], f: "sub", ink: "muted", anchor: "end" }); }
+        const previous = new Map<string, Point>(), lineRects: { x: number; y: number; w: number; h: number }[] = [];
         for (const p of t.points) {
           charge("point layout"); const prev = previous.get(p.role); previous.set(p.role, p);
           if (prev && p.time >= a.a && prev.time <= a.b) {
             const lo = Math.max(prev.time, a.a), hi = Math.min(p.time, a.b);
             const valueAt = (n: number) => prev.value + (p.value - prev.value) * (n - prev.time) / (p.time - prev.time);
             items.push({ k: "path", pts: [[X(lo), Y(valueAt(lo))], [X(hi), Y(valueAt(hi))]], curve: "round", ink: `role:${p.role}:line` });
+            // a plain line's labels keep off the line itself (raziel at 390: the radio wave ran through '10: 315°')
+            if (t.plotLine) { const ya = Y(valueAt(lo)), yb = Y(valueAt(hi)); lineRects.push({ x: X(lo), y: Math.min(ya, yb) - 1, w: Math.max(1, X(hi) - X(lo)), h: Math.abs(ya - yb) + 2 }); }
           }
-          if (!within(p.time, a)) continue;
+          if (!within(p.time, a) || t.plotLine) continue;
           const xx = X(p.time), yy = Y(p.value);
           // A box centred on the datum carries the value hook; its centre is the measured data position.
           items.push({ k: "box", x: xx - 3, y: yy - 3, w: 6, h: 6, r: 3, fill: `role:${p.role}:line`, stroke: "none", cls: "scn-shape", role: p.role, id: `${prefix}:point:${p.id}`, bar: { kind:"chip",track: axisId, value: p.time, "value-axis": valueId, "data-value": p.value } });
           items.push({ k: "path", pts: [[xx - 3, yy], [xx + 3, yy]], ink: `role:${p.role}:line`, id: `${prefix}:value:${p.id}`, bar: { track: valueId, value: p.value } });
         }
-        const pointRects=t.points.filter(p=>within(p.time,a)).map(p=>({x:X(p.time)-5,y:Y(p.value)-5,w:10,h:10})),occupied=[...pointRects];
+        const pointRects=[...t.points.filter(p=>within(p.time,a)&&!t.plotLine).map(p=>({x:X(p.time)-5,y:Y(p.value)-5,w:10,h:10})),...lineRects],occupied=[...pointRects];
         type LabelRect={x:number;y:number;w:number;h:number};
         const labelPlans:{point:Time["points"][number];xx:number;yy:number;lines:string[];width:number;height:number;rect:LabelRect}[]=[];
         let plotBottom=vb+12;
         for(const p of t.points){
-          charge("point labels");if(!within(p.time,a))continue;
+          charge("point labels");if(!within(p.time,a)||t.plotLine&&!p.label)continue;
           const xx=X(p.time),yy=Y(p.value),lines=wrap(p.label||p.id,x1-x0-12,"sub",Infinity),width=Math.max(...lines.map(s=>measure(s,"sub"))),height=lines.length*18;
           let chosen:{x:number;y:number;w:number;h:number}|undefined;
           for(const baseline of [yy-8,yy+19,yy-24,yy+35,yy-40,yy+51]){
@@ -1387,7 +1401,7 @@ registerBlock({
     // in the inset alone, so it is listed under the inset's range, not under the overview's
     const rowFact = (r: TRow) => { charge("state facts", r.segs.length); if (r.count && !r.segs.some((s) => s.from > 1 || s.to || s.tone)) return `  ${rowName(r)}: counts ${r.count[0]} to ${r.count[1] - 1}, one per ${t.cells === 1 && t.unit && /^[a-z]{3,}s$/.test(t.unit) ? t.unit.slice(0, -1) : "cell"}`; return `  ${rowName(r)}: ${r.segs.map((s) => { const when = s.from > 1 || s.to ? (s.to === s.from ? `step ${s.from} only` : `steps ${s.from}${s.to ? " to " + s.to : " onward"}`) : "", tone = s.tone && !(s.tone === "dot" && s.dot) && !(s.tone === "numbered" && s.numbered) ? LLM_LOOK[s.tone] ?? (TIME_STYLES[s.tone as keyof typeof TIME_STYLES] || s.tone) : "", more = [when, tone, s.soft ? "soft" : "", s.preview ? "dashed" : ""].filter(Boolean); return `${s.name || (s.numbered ? "numbered cells" : s.dot ? "dot" : "empty")}${s.numbered && s.name ? " (numbered cells)" : ""}${s.dot && s.name ? " (a dot)" : ""} ${s.at !== undefined ? `at ${s.at}` : `${s.a} to ${s.b}`}${more.length ? ` (${more.join(", ")})` : ""}`; }).join(", ")}`; };
     const rowOf = (id: string | undefined) => { const r = t.rows.find((x) => x.id === id); return r ? rowName(r) : id; };
-    if (step === 0) return [`Time from ${t.a} to ${t.b}${t.unit ? " " + t.unit : ""}${t.from>1?` (from step ${t.from})`:""}:`, ...t.rows.filter((r) => !r.inset).map(rowFact), ...(t.cells ? [`${t.cells === 1 && t.unit && /^[a-z]{3,}s$/.test(t.unit) ? `One state cell per ${t.unit.slice(0, -1)}` : `State cells every ${t.cells}${t.unit ? " " + t.unit : ""}`}${t.apart ? ", drawn apart" : ""}.`] : []), ...(t.ticks ? [`Ticks: ${t.ticks.map((v) => `${v}${tickNote(t.tickLabels.get(v),t.tickWhen?.get(v),t.tickTone?.get(v))}`).join(", ")}.`] : []), ...(t.window ? [`Window ${t.window.a} to ${t.window.b}: ${t.window.unit}.`] : []), ...(t.zoom ? [`Zoom ${t.zoom.a} to ${t.zoom.b}${t.zoom.unit ? ": " + t.zoom.unit : ""}${t.zoomBracket ? " (a bracket over the inset)" : ""}.`] : []), ...(t.zoom && t.rows.some((r) => r.inset) ? [`In the inset only (${t.zoom.a} to ${t.zoom.b}):`, ...t.rows.filter((r) => r.inset).map(rowFact)] : []), ...(t.zoomTicks ? [`Zoom ticks: ${t.zoomTicks.map(v=>`${fmt(v)}${t.tickLabels.has(v)?" ("+t.tickLabels.get(v)+")":""}`).join(", ")}.`] : []), ...(t.zoomLabels ? [`Zoom labels: ${[...t.zoomLabels].map(([v,label])=>`${fmt(v)} (${label})`).join(", ")}.`] : []), ...(t.values ? [`Values from ${t.values.a} to ${t.values.b} ${t.values.unit}.`, ...t.points.map((p) => `${p.label || p.id}: ${p.value} at ${p.time}.`)] : []), ...(t.lanes ? [`Axis under the lanes ${t.lanes[0]} to ${t.lanes[1]}.`] : []), ...t.bands.map((b) => `Band "${b.title}": ${rowOf(b.first)} to ${rowOf(b.last)}.`), ...t.marks.filter((m) => m.step === 0).map((m) => `${m.kind === "dot" ? "Dot" : "Marker"} ${m.a}${m.text ? ": " + endStop(m.text) : "."}`)];
+    if (step === 0) return [`Time from ${t.a} to ${t.b}${t.unit ? " " + t.unit : ""}${t.from>1?` (from step ${t.from})`:""}:`, ...t.rows.filter((r) => !r.inset).map(rowFact), ...(t.cells ? [`${t.cells === 1 && t.unit && /^[a-z]{3,}s$/.test(t.unit) ? `One state cell per ${t.unit.slice(0, -1)}` : `State cells every ${t.cells}${t.unit ? " " + t.unit : ""}`}${t.apart ? ", drawn apart" : ""}.`] : []), ...(t.ticks ? [`Ticks: ${t.ticks.map((v) => `${v}${tickNote(t.tickLabels.get(v),t.tickWhen?.get(v),t.tickTone?.get(v))}`).join(", ")}.`] : []), ...(t.window ? [`Window ${t.window.a} to ${t.window.b}: ${t.window.unit}.`] : []), ...(t.zoom ? [`Zoom ${t.zoom.a} to ${t.zoom.b}${t.zoom.unit ? ": " + t.zoom.unit : ""}${t.zoomBracket ? " (a bracket over the inset)" : ""}.`] : []), ...(t.zoom && t.rows.some((r) => r.inset) ? [`In the inset only (${t.zoom.a} to ${t.zoom.b}):`, ...t.rows.filter((r) => r.inset).map(rowFact)] : []), ...(t.zoomTicks ? [`Zoom ticks: ${t.zoomTicks.map(v=>`${fmt(v)}${t.tickLabels.has(v)?" ("+t.tickLabels.get(v)+")":""}`).join(", ")}.`] : []), ...(t.zoomLabels ? [`Zoom labels: ${[...t.zoomLabels].map(([v,label])=>`${fmt(v)} (${label})`).join(", ")}.`] : []), ...(t.values ? [`Values from ${t.values.a} to ${t.values.b} ${t.values.unit}.`, ...(t.plotLine ? plotRuns(t.points) : t.points.map((p) => `${p.label || p.id}: ${p.value} at ${p.time}.`))] : []), ...(t.lanes ? [`Axis under the lanes ${t.lanes[0]} to ${t.lanes[1]}.`] : []), ...t.bands.map((b) => `Band "${b.title}": ${rowOf(b.first)} to ${rowOf(b.last)}.`), ...t.marks.filter((m) => m.step === 0).map((m) => `${m.kind === "dot" ? "Dot" : "Marker"} ${m.a}${m.text ? ": " + endStop(m.text) : "."}`)];
     const dotFacts=t.dotPaints.filter(f=>f.step===step).map(f=>f.tone?`${f.row}: dots starting ${f.range?`${fmt(f.range[0])} to ${fmt(f.range[1])}`:fmt(f.at!)} painted ${f.tone.startsWith("role:")?f.tone.slice(5):TIME_STYLES[f.tone as keyof typeof TIME_STYLES]||f.tone}${f.keep?" from this step onward":" this step only"}.`:`${f.row}: dots${f.range?` from ${fmt(f.range[0])} to ${fmt(f.range[1])}`:""} ${f.off?"restored to their declared paint":f.keep?"filled from this step onward":"filled this step only"}.`);
     const tickFacts=[...(t.tickWhen||[])].filter(([,r])=>r.from===step).map(([v,r])=>`Tick ${fmt(v)} label shown: ${endStop(t.tickLabels.get(v)||fmt(v))}${r.to===r.from?" This step only.":r.to?` Until step ${r.to}.`:""}`);
     const rowMarkFacts = (t.rowMarks ?? []).filter((m) => m.from === step).map((m) => `At ${m.a}${t.unit ? " " + t.unit : ""} on ${rowOf(m.row)}: ${m.x ? "an X" + (m.text ? ", " : "") : ""}${endStop(m.text || "")}`.replace(/: an X$/, ": an X."));

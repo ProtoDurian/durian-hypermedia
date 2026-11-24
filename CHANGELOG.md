@@ -24,7 +24,7 @@ The third release candidate of 0.7.0. The format number stays 10.
 - **Labels and table cells keep every word.** A connector's label with no clear place by its line takes the nearest
   place that covers no words; a plain table's cell takes the lines it needs and a column is at least its longest word.
 - **The phone footer.** On a phone a stage's step buttons and caption stay at the foot of the screen while a tall stage
-  scrolls under them; the stage keeps its height. After a step changes, the page scrolls the step's lit items above it.
+  scrolls under them; the stage keeps its height. After a step the reader asks for (not Play's own), the page scrolls the step's lit items above it, never within 800 ms of the reader moving the page.
 
 ### Changed: the graph engine's animation is calm (SPEC.md 6.14)
 

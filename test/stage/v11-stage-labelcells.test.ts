@@ -45,10 +45,20 @@ test("'The way back' at 732, step 2: routing table T4's cells stay one line each
   expect(its.length).toBe(4 * 7);
   for (const s of ["BGP, from AS 64496", "radio to A: matches, longest: chosen", "default (set by hand)"]) expect(its.map((t) => t.s)).toContain(s);
 });
-// 0.7.0-rc.3 review: on a phone the floating footer never hides the step's lit items: after a step changes, the page scrolls them above it
-test("on a phone a step change scrolls the lit items above the footer (never on load)", () => {
-  const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
-  expect(tsx).toMatch(/if \(firstK\.current\) \{ firstK\.current = false; return; \}/);
-  expect(tsx).toMatch(/querySelectorAll\("\.stg-plan \.stg-hot"\)[\s\S]{0,400}querySelector|root\?\.querySelector\("\.stg-foot"\)[\s\S]{0,600}scrollBy\(/);
-  expect(tsx).toMatch(/matchMedia\("screen and \(max-width: 560px\)"\)/);
+// 0.7.0-rc.3 review: on a phone the floating footer never hides the step's lit items: after a step the READER asked for, the page
+// scrolls them above it; never on Play's own steps and never against a scroll in progress
+const TSX = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
+test("the step scroll follows only a step the reader asked for: never on load, never on Play's own steps", () => {
+  expect(TSX).toMatch(/const go = \(x: number\) => \{ setPlaying\(false\); wantFollow\.current = true; setK\(/);
+  expect(TSX).toMatch(/if \(!wantFollow\.current\) return; wantFollow\.current = false;/);
+  expect(TSX).toContain("setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200)"); // Play's advance does not ask for it
+  expect((TSX.match(/wantFollow\.current = true/g) ?? []).length).toBe(1);
+  expect(TSX).toMatch(/matchMedia\("screen and \(max-width: 560px\)"\)/);
+});
+test("the step scroll waits 800 ms after the reader moved the page (wheel, touch move, scroll keys, a scroll it did not make)", () => {
+  expect(TSX).toMatch(/const USER_SCROLL_MS = 800;/);
+  expect(TSX).toMatch(/if \(performance\.now\(\) - userScrollAt < USER_SCROLL_MS\) return;/);
+  for (const ev of ["wheel", "touchmove", "scroll", "keydown"]) expect(TSX).toContain(`addEventListener("${ev}"`);
+  expect(TSX).not.toContain('addEventListener("touchstart"'); // a tap on a step button is not a move
+  expect(TSX).toMatch(/ownScrollUntil = performance\.now\(\) \+ \d+;[^\n]*\n\s*scrollBy\(/);
 });

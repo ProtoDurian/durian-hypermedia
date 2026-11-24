@@ -205,6 +205,17 @@ function stillModel(src: StageSrc): Model {
 /** A stage over its budget (STAGE_WORK) is never blank: its title, a message that names the budget and the fix, and
  * its still form in words (every step, title and caption); every other stage on the page draws as usual. */
 export const STAGE_OVER_MESSAGE = `This scene needs more work than one stage may use (the stage layout budget, ${STAGE_WORK.toLocaleString("en")} units of work), so it is shown still, in words. Show fewer cards, lines or steps, or split it into two scenes.`;
+// 0.7.0-rc.3 review: the step scroll never works against the reader: the last time the reader moved
+// the page (wheel, touch, scroll keys, or a scroll the page did not make itself); the step scroll waits USER_SCROLL_MS after it (a tap is not a move)
+const USER_SCROLL_MS = 800;
+let userScrollAt = -1e9, ownScrollUntil = 0, userScrollHooked = false;
+function hookUserScroll() {
+  if (userScrollHooked || typeof window === "undefined") return; userScrollHooked = true;
+  const mark = () => { userScrollAt = performance.now(); }, opt = { passive: true, capture: true } as const;
+  addEventListener("wheel", mark, opt); addEventListener("touchmove", mark, opt);
+  addEventListener("keydown", (e) => { if (["PageUp", "PageDown", "Home", "End", " ", "ArrowUp", "ArrowDown"].includes(e.key)) mark(); }, opt);
+  addEventListener("scroll", () => { if (performance.now() > ownScrollUntil) mark(); }, opt);
+}
 function StageOver({ m }: { m: Model }) {
   return (
     <div className="stg stg-over" data-dh-slot="stage" data-stage-over="">
@@ -272,25 +283,29 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
     const t = setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200);
     return () => clearTimeout(t);
   }, [playing, kLive, n, st.on]);
-  // 0.7.0-rc.3 review: on a phone the footer floats over a tall stage; after a step changes (a button, a key or
-  // Play) the step's lit items are scrolled above the footer when they sit under it or above the screen (never on load)
-  const firstK = useRef(true);
+  // 0.7.0-rc.3 review: on a phone the footer floats over a tall stage; after a step the READER asked for (a footer
+  // button, Back/Next, a key) the step's lit items are scrolled above the footer when they sit under it or above the
+  // screen; never on load, never on Play's own steps, never within USER_SCROLL_MS of the reader moving the page
+  const wantFollow = useRef(false);
+  useEffect(() => { hookUserScroll(); }, []);
   useEffect(() => {
-    if (firstK.current) { firstK.current = false; return; }
+    if (!wantFollow.current) return; wantFollow.current = false;
     if (st.on || typeof window === "undefined" || !matchMedia("screen and (max-width: 560px)").matches) return;
     const raf = requestAnimationFrame(() => {
+      if (performance.now() - userScrollAt < USER_SCROLL_MS) return;
       const root = box.current?.closest(".stg"), foot = root?.querySelector(".stg-foot"); if (!root || !foot) return;
       const hot = [...root.querySelectorAll(".stg-plan .stg-hot")].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0 && b.height > 0);
       if (!hot.length) return;
       const top = Math.min(...hot.map((b) => b.top)), bottom = Math.max(...hot.map((b) => b.bottom)), ft = foot.getBoundingClientRect().top, lo = 72;
       if (top >= lo && bottom <= ft - 8) return;
       const by = bottom - top <= ft - 8 - lo ? (top < lo ? top - lo : bottom - (ft - 8)) : top - lo;
+      ownScrollUntil = performance.now() + 1200; // the scroll events of this scroll are the page's, not the reader's
       scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     });
     return () => cancelAnimationFrame(raf);
   }, [kLive]);
   if (laid === null) return <StageOver m={m} />;
-  const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
+  const go = (x: number) => { setPlaying(false); wantFollow.current = true; setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
   return (
     <div className={`stg${st.on ? " stg-static" : ""}`} style={pp ? cssVars({ "--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((pp.h * PRINT_BOX_W) / pp.w) + 83 + 18 * n + 10}px` }) : undefined} suppressHydrationWarning data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}

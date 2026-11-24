@@ -54,6 +54,7 @@ The third release candidate of 0.7.0. The format number stays 10.
   nodes by group, the edges, the most connected). Caps `graphNodes` 2000, `graphEdges` 5000, `graphGroups` 300,
   `graphDepth` 6 and `graphFoldFirst` 300, each lower in the chat preset; the force layout has a fixed iteration cap.
 - **cytoscape 3.34.4 is a dependency** (MIT), used only by the graph part and loaded in its own chunk. It is the newest release more than 14 days old (published 15 October 2026); 3.34.5 and 3.35.0 came out on 10 November and are held back until they have aged.
+- **The graph's still picture draws its counts at 13 px,** so on a phone (where the picture is never drawn under 11/13 of its size) every word in it stays 11 px or more; it was 12 px, 10.2 px on a 390 px screen.
 
 - Map and routes, country/state choropleths, directed flow arcs and an optional globe; bounded calendar repeats with time zones, overlap packing and narrow layouts. Both parts include static output, LLM summaries, checks and host-lowerable caps. Optional base-map providers are an explicit host entry; source text cannot select them or a router.
 - **`state`, `class` and `er` parts (SPEC.md 3.3, 6.15).** Three diagrams, each in a small language of its own, drawn by

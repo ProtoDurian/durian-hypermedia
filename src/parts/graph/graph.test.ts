@@ -591,3 +591,17 @@ describe("graph: a static form shows the same facts as the live one", () => {
     }
   });
 });
+
+describe("graph: the still picture's words stay 11 px on a phone", () => {
+  test("the picture is never drawn under 11/13 of its size, so every text in it is 13 px or more in the picture's own units", () => {
+    const css = readFileSync(join(HERE, "style.css"), "utf8");
+    const sizes: number[] = [];
+    for (const m of css.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+      const sel = m[1].trim();
+      if (!/\.gr-still/.test(sel) || !/(text|\.gr-still-n\b|\.gr-still-count)/.test(sel)) continue;
+      for (const x of m[2].matchAll(/font(?:-size)?:\s*(?:[0-9]+\s+)?([0-9.]+)px/g)) sizes.push(+x[1]);
+    }
+    expect(sizes.length).toBeGreaterThanOrEqual(3);
+    for (const px of sizes) expect(px * (11 / 13)).toBeGreaterThanOrEqual(11 - 1e-9);
+  });
+});

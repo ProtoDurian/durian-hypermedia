@@ -85,10 +85,10 @@
 .gr-still-item rect { fill: var(--graph-t-soft); stroke: var(--graph-t); stroke-width: 1.5; }
 .gr-still-item.is-group rect { stroke-width: 2.5; }
 .gr-still-item text { font: 500 13px var(--font-sans); fill: var(--graph-t-ink); }
-.gr-still-item .gr-still-n { font-weight: 600; font-size: 12px; fill: var(--graph-t-ink); }
+.gr-still-item .gr-still-n { font-weight: 600; font-size: 13px; fill: var(--graph-t-ink); }
 .gr-still-edge path { fill: none; stroke: var(--graph-edge); opacity: .75; }
 .gr-still-head { fill: var(--graph-edge); }
-.gr-still-count { font: 600 12px var(--font-sans); fill: var(--ink-2); text-anchor: middle; paint-order: stroke; stroke: var(--graph-stage-bg); stroke-width: 4px; }
+.gr-still-count { font: 600 13px var(--font-sans); fill: var(--ink-2); text-anchor: middle; paint-order: stroke; stroke: var(--graph-stage-bg); stroke-width: 4px; }
 
 /* the label over the focused node: DOM text, always readable */
 .gr-tag { position: absolute; left: 0; top: 0; z-index: 5; display: flex; flex-direction: row; align-items: baseline; gap: 6px; max-width: min(300px, 80%); padding: 4px 10px; border-radius: var(--r-s); background: var(--pop-bg, var(--surface)); color: var(--pop-ink, var(--ink)); border: 1.5px solid var(--graph-t); box-shadow: var(--pop-shadow, var(--shadow-md)); pointer-events: none; transition: transform var(--dur-fast) var(--ease); }

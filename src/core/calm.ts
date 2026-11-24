@@ -90,6 +90,9 @@ const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, k)
 // On a phone the stage grows a little where that, and only that, keeps the camera still between two zooms: the least
 // height with the fewest moves, never over the part of the window that still leaves room for the caption and player.
 export const PHONE_TALL = { most: 680, ofWindow: 0.82, usual: 0.7, by: 20 } as const;
+/** the phone window the calm height is worked out for: the server has no window, and the stage's height must be in the
+ *  server's page (no load shift, SPEC 6.14); parts.css holds the stage to min(680px, 82svh) on a shorter screen */
+export const PHONE_WIN = 844;
 export function calmHeight(c: Compiled, px: number, win: number): number | null {
   const usual = Math.max(260, Math.min(px / c.aspect, win * PHONE_TALL.usual));
   const most = Math.min(PHONE_TALL.most, win * PHONE_TALL.ofWindow);

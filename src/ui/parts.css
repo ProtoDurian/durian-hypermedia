@@ -365,7 +365,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn.is-active .scn-svg, .scn.is-active .scn3 { touch-action: none; }
 .scn-tools .scn-reset svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .scn-tools button:disabled { opacity: .4; cursor: default; }
-@media (max-width: 560px) { .scn-stage { min-height: min(62vh, 360px); max-height: 74vh; } .scn-legend { order: 2; flex-basis: 100%; } .scn-tools { margin-left: auto; } }
+@media (max-width: 560px) { .scn-stage { min-height: min(62svh, 360px); max-height: min(680px, 82svh); } .scn-legend { order: 2; flex-basis: 100%; } .scn-tools { margin-left: auto; } }
 /* format version 8, the phone variant: the animation runs edge to edge (the stage gains the page's side margins, so the
    scene is drawn bigger), the camera's buttons sit under the stage, by the thumb, at a finger's size; an edge with more
    of the scene beyond it is shaded, with a small arrow (anim.tsx); 3D words are 11 px or more */
@@ -494,7 +494,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* ---- format version 11: still and static scenes, a calm story (src/ui/anim.tsx, src/core/whole.ts, src/core/calm.ts) */
 .scn.is-whole .scn-stage, .scn.is-still .scn-stage { min-height: 0; max-height: none; }
 /* a phone's stage that grew to keep the camera still between two zooms (core/calm.ts calmHeight, the same numbers) */
-.scn.is-tall .scn-stage { max-height: min(680px, 82vh); }
+/* a calm (taller) phone stage: its height is in its shape (--ar, core/calm.ts PHONE_WIN); the phone rule above holds it to min(680px, 82svh) */
 /* a scene taller than its frame says so in words */
 .scn-more-say { position: absolute; left: 50%; translate: -50% 0; bottom: 6px; max-width: calc(100% - 64px); padding: 2px 9px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface-2); color: var(--ink); font: normal 11.5px/1.35 var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scn-more-say[data-side="t"] { bottom: auto; top: 6px; }
@@ -606,6 +606,22 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    widths has its stage shape for each in the style attribute; one rule per layout width, the widest that fits wins */
 .scn[data-wa] { container-type: inline-size; }
 @media screen {
+.scn[data-wa] > .scn-stage { aspect-ratio: var(--ar240, var(--ar)); }
+@container (min-width: 240px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar240, var(--ar)); } }
+@container (min-width: 256px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar256, var(--ar)); } }
+@container (min-width: 272px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar272, var(--ar)); } }
+@container (min-width: 288px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar288, var(--ar)); } }
+@container (min-width: 304px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar304, var(--ar)); } }
+@container (min-width: 320px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar320, var(--ar)); } }
+@container (min-width: 336px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar336, var(--ar)); } }
+@container (min-width: 352px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar352, var(--ar)); } }
+@container (min-width: 368px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar368, var(--ar)); } }
+@container (min-width: 384px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar384, var(--ar)); } }
+@container (min-width: 400px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar400, var(--ar)); } }
+@container (min-width: 416px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar416, var(--ar)); } }
+@container (min-width: 432px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar432, var(--ar)); } }
+@container (min-width: 448px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar448, var(--ar)); } }
+@container (min-width: 464px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar464, var(--ar)); } }
 @container (min-width: 480px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar480, var(--ar)); } }
 @container (min-width: 496px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar496, var(--ar)); } }
 @container (min-width: 512px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar512, var(--ar)); } }

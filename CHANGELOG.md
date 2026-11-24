@@ -131,6 +131,11 @@ The third release candidate of 0.7.0. The format number stays 10.
   tab bar is not printed) and every accordion row is open: CSS only for the tabs (each panel carries its title in
   `data-title`); the rows open by `::details-content` where the browser has it, and `AccordionPart` opens the closed
   rows on `beforeprint` and closes them again after. The screen is unchanged.
+- **A graph-engine scene with steps does not move on load on a phone** (SPEC.md 6.14). Its phone layout and its calm
+  height came from the script (the height from the window's), so the stage grew or shrank when it ran (96 to 134 px on
+  two fixtures). The calm height is now worked out for a fixed phone window and the server writes each phone width's
+  shape; one phone rule, min(680px, 82svh), holds every stage. A 3D-only scene's control row and hint are in the
+  server's page (they appeared when the script ran; they leave only if the browser cannot draw in 3D).
 - **A stage printed before it hydrated prints whole.** A stage waiting for its turn to hydrate, or on a page with
   scripts off, had no print height: the print rule held it to one sheet and its drawing ran over the text below it
   (on a long page, most of its stages). The server now also draws each stage at the print width (`PRINT_W`), shown

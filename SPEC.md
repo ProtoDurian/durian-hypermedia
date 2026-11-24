@@ -1770,6 +1770,8 @@ light u1                                                   (a card takes the foc
 
 **A scene wider than its stage is never cut.** The story camera never draws words under 11 px, so on a laptop a scene with steps can be wider than its stage at that size. It then lays out top to bottom (the phone's narrow layout) when that fits; when even that is too wide, the reader may drag it sideways (without `zoom` too), and the shaded edge with "→ more beyond the edge" says there is more. The layout is chosen at the stage's layout width (16 px steps), and the server writes the stage's shape for each laptop width that takes the narrow layout in the part's `style` attribute (`--ar<width>`, picked by a container query), so nothing moves on load.
 
+**A phone stage's height is in the server's page too.** On a phone a scene with steps takes the phone's layout, a little taller where that keeps the camera still between two zooms (the calm height). The calm height is worked out for a fixed phone window (844 px tall), not the reader's, and the server writes the stage's shape for every phone layout width (`--ar<width>`); on a shorter screen the stage is held to `min(680px, 82svh)` and at least `min(62svh, 360px)`, by the stylesheet, before and after the script runs.
+
 **A calm story.** On every scene:
 - A thing that takes no part in a step keeps its place to the pixel. Items of an array, list, queue or bucket travel on an arc only when they pass another item of their row (a queue that moves up when one leaves goes straight; two that trade places arc), on the step's own beat.
 - A step's first frame is its start: a step never runs back first, and a step with beats never flashes its end.

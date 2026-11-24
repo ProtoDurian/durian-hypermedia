@@ -12,7 +12,7 @@ import { stageScene, phoneScene, leastScale } from "../core/readable";
 // items that pass each other arc, one held view from a camera word to the next, one token's words at a time
 import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeHeightVars, wholeLayout, wholeSize, wholeView, WHOLE_WS } from "../core/whole";
 import { cssVars } from "./css-vars";
-import { calmHeight, heldViews, tokenSubject, passing, stepT } from "../core/calm";
+import { calmHeight, heldViews, tokenSubject, passing, stepT, PHONE_WIN } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
 import { moreSides } from "../core/edge10";
@@ -84,6 +84,22 @@ export function laptopArVars(wide: Compiled): Record<string, string> | null {
   for (const b of bs) if (laptopKey(wide, narrow, b) === "narrow") out[`--ar${b}`] = narrow.aspect.toFixed(3);
   return Object.keys(out).length ? out : null;
 }
+/** a phone stage's shape at a layout width: the phone's layout (narrow when the scene is wide) and its calm height */
+export function phoneAr(wide: Compiled, b: number, cache = new Map<boolean, Compiled | null>()): number | null {
+  const n = useNarrow(wide, b);
+  if (!cache.has(n)) cache.set(n, phoneScene(wide, n));
+  const cp = cache.get(n);
+  if (!cp || !cp.frames.length) return null;
+  const h = calmHeight(cp, b, PHONE_WIN);
+  return h ? b / h : cp.aspect;
+}
+/** No load shift (SPEC 6.14): a scene with steps' stage shape at every layout width where it is not the wide layout's:
+ *  each phone width (its phone layout and calm height) and each laptop width that takes the narrow layout */
+export function stageArVars(wide: Compiled): Record<string, string> | null {
+  const out: Record<string, string> = { ...laptopArVars(wide) }, cache = new Map<boolean, Compiled | null>();
+  for (const b of WHOLE_WS) if (b < NARROW) { const a = phoneAr(wide, b, cache); if (a) out[`--ar${b}`] = a.toFixed(3); }
+  return Object.keys(out).length ? out : null;
+}
 function tokenIds(c: Compiled): Set<string> {
   let s = tokCache.get(c);
   if (!s) { s = new Set(c.frames.flatMap((f) => f.boxes.filter((b) => b.kind === "token").map((b) => b.id))); tokCache.set(c, s); }
@@ -132,8 +148,8 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   // (at the layout width, 16 px steps: the server wrote the stage's shape for each, laptopArVars)
   const wideCut = !whole && !phone && cutAt(cWide, layoutWidth(px0));
   const cNarrow = useMemo(() => (wideCut ? phoneScene(cWide, true) : null), [wideCut]);
-  const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, px0) ? "narrow" : "phone") : laptopKey(cWide, cNarrow, layoutWidth(px0));
-  const waVars = useMemo(() => (whole ? null : laptopArVars(cWide)), [whole]);
+  const pKey = cWhole ? (cWhole.scene.attrs.narrow ? "narrow" : phone ? "phone" : "wide") : phone ? (useNarrow(cWide, layoutWidth(px0)) ? "narrow" : "phone") : laptopKey(cWide, cNarrow, layoutWidth(px0));
+  const waVars = useMemo(() => (whole ? null : stageArVars(cWide)), [whole]);
   const cPhone = useMemo(() => (whole || pKey === "wide" ? null : phoneScene(cWide, pKey === "narrow")), [pKey, whole]);
   const c = cWhole ?? cPhone ?? cWide;
   // steadyCam: no reader's camera; a steady scene still cut at the least size may be dragged sideways (panCut)
@@ -150,7 +166,8 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const wqVars = useMemo(() => (whole ? wholeHeightVars(cWide, st.on ? st.i : undefined) : null), [whole, st.on, st.i]);
   const stageAr = swipeW ? px0 / (natS!.h * leastS) : st.on && c.frames.length ? wholeAspect(oneStep(c, st.i), px0) : whole ? wholeAspect(c, px0) : c.aspect;
   // on a phone, a stage a little taller where that, and only that, keeps the camera still between two zooms (core/calm.ts)
-  const tall = useMemo(() => (!whole && phone && c.frames.length && typeof window !== "undefined" ? calmHeight(c, px0, window.innerHeight) : null), [c, px0, whole]);
+  // (at the layout width and for PHONE_WIN, as the server wrote it: stageArVars)
+  const tall = useMemo(() => (!whole && phone && c.frames.length ? calmHeight(c, layoutWidth(px0), PHONE_WIN) : null), [c, px0, whole]);
   const Z = tokens(c.scene.attrs.phone);
   const n = c.frames.length;
   const [liveI, setI] = useState(0);
@@ -166,6 +183,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const [liveMode, setMode] = useState<"2d" | "3d">("2d"); // the server draws 2D; the browser may switch
   const mode = st.on ? "2d" : liveMode;
   const [ok3d, setOk3d] = useState(false);
+  // a 3D-only scene that cannot draw in 3D shows its steps as a list (listOnly); until that is known (the server's page,
+  // the first frames) its control row and hint stand, so they do not appear on load (no load shift, SPEC 6.14)
+  const [no3d, setNo3d] = useState(false);
   const [loading3d, setLoading3d] = useState(false);
   const [user3, setUser3] = useState(false);               // the reader moved the 3D camera
   const [pickL, setPickL] = useState<number | null>(null); // the layer the reader clicked
@@ -186,7 +206,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const sceneNow = stepScene(c, i).id;
   const families = (c.frames[i] ?? c.frames[0])?.families ?? [];
   const foot = useMemo(() => union(sceneFrames(c, i).flatMap((f) => f.boxes.filter((b) => b.kind !== "layer").map((b) => ({ x: b.x, y: b.ly, w: b.w, h: b.h })))), [c, sceneNow]);
-  useEffect(() => { watchPageW(); const ok = can3d(only3d); setOk3d(ok); if (ok && (src.info.view === "3d" || only3d)) setMode("3d"); }, []);
+  useEffect(() => { watchPageW(); const ok = can3d(only3d); setOk3d(ok); if (!ok) setNo3d(true); if (ok && (src.info.view === "3d" || only3d)) setMode("3d"); }, []);
   useEffect(() => { if (firstStep.current) { firstStep.current = false; return; } setRest(false); }, [i]);
   useEffect(() => { if (t < 1 || playing || rest) return; const tm = setTimeout(() => setRest(true), REST_MS); return () => clearTimeout(tm); }, [t, playing, rest, i]);
   useEffect(() => {
@@ -203,9 +223,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
         s3.current = h;
         if (view3.current) h.update(view3.current);
         if (fitAsked.current) { fitAsked.current = false; h.fit(); }
-      } catch { setOk3d(false); setMode("2d"); }
+      } catch { setOk3d(false); setNo3d(true); setMode("2d"); }
       setLoading3d(false);
-    }).catch(() => { setOk3d(false); setMode("2d"); setLoading3d(false); });
+    }).catch(() => { setOk3d(false); setNo3d(true); setMode("2d"); setLoading3d(false); });
     return () => { dead = true; h?.dispose(); s3.current = null; };
   }, [mode]);
   useEffect(() => { if (mode === "3d" && view3.current) s3.current?.update(view3.current); });
@@ -602,9 +622,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       {/* SPEC 4.1: static has no control row; a steady scene keeps the bar only for its colour key */}
       {((!st.on && !steady) || (src.part ? !!src.title : families.length > 0)) && <div className="scn-bar">
         {legend}
-        {!listOnly && !st.on && !steady && tools}
+        {!(listOnly && no3d) && !st.on && !steady && tools}
       </div>}
-      <div className="scn-stage" ref={stage} data-more={swipeW ? swipeMore || undefined : undefined} onScroll={swipeW ? (e) => { const w = e.currentTarget; setSwipeMore((w.scrollLeft > 2 ? "l" : "") + (w.scrollLeft + w.clientWidth < w.scrollWidth - 2 ? "r" : "")); } : undefined} style={{ ["--ar" as any]: (tall ? px0 / tall : stageAr).toFixed(3), ...(swipeW ? { ["--swipe-w" as any]: `${swipeW}px` } : {}) }} tabIndex={(st.on || fixed) && !swipeW ? undefined : 0} aria-label={(ui as any).stageLabel ?? "The stage: drag, scroll or use the arrow keys to move"}
+      <div className="scn-stage" ref={stage} data-more={swipeW ? swipeMore || undefined : undefined} onScroll={swipeW ? (e) => { const w = e.currentTarget; setSwipeMore((w.scrollLeft > 2 ? "l" : "") + (w.scrollLeft + w.clientWidth < w.scrollWidth - 2 ? "r" : "")); } : undefined} style={{ ["--ar" as any]: (tall ? layoutWidth(px0) / tall : stageAr).toFixed(3), ...(swipeW ? { ["--swipe-w" as any]: `${swipeW}px` } : {}) }} tabIndex={(st.on || fixed) && !swipeW ? undefined : 0} aria-label={(ui as any).stageLabel ?? "The stage: drag, scroll or use the arrow keys to move"}
         onKeyDown={st.on ? undefined : onStageKey} onPointerDownCapture={st.on || fixed ? undefined : () => setActive(true)} onFocus={st.on || fixed ? undefined : () => setActive(true)}
         onBlur={(e) => { if (!e.currentTarget.closest(".scn")?.contains(e.relatedTarget as Node | null)) setActive(false); }}>
         {mode === "3d" ? <div ref={host3} className="scn3" aria-label={stageWords} role="img">{loading3d && <div className="scn3-loading">{ui.loading3d}</div>}</div>
@@ -632,8 +652,8 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       {/* how to move: always shown, under the stage, so it never covers the scene */}
       {/* format version 9: one line; on a phone a short one; the ? button shows the whole of it */}
       {swipeW > 0 && <p className="table-more scn-swipe-more">{U.hintSwipe ?? "↔ Swipe to see all of it"}</p>}
-      {!listOnly && !st.on && !steady && <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>}
-      {howOpen && !listOnly && !st.on && !steady && <p className="scn-how-full" role="note">{hint}</p>}
+      {!(listOnly && no3d) && !st.on && !steady && <div className="scn-hint"><span className="scn-hint-t" aria-hidden="true" title={hint}>{phone ? shortHint : hint}</span><button type="button" className="scn-how" aria-expanded={howOpen} aria-label={U.howTo ?? "How to move"} title={hint} onClick={() => setHowOpen((o) => !o)}>?</button></div>}
+      {howOpen && !(listOnly && no3d) && !st.on && !steady && <p className="scn-how-full" role="note">{hint}</p>}
       {st.on && <StaticSteps titles={src.steps.map((s) => s.title)} i={i} label={ui.allSteps} print={st.print} />}
       {!still && !st.on && <><div className="scn-caps" aria-live="polite">
         {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} /><Rich text={s.title} />{zoomCue(k)}</span></div>)}

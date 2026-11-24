@@ -21,4 +21,5 @@
 .fish-tick { stroke: var(--fc, var(--ink-2)); stroke-width: 1.2; }
 .dh-svg text.fish-sub { fill: var(--fishbone-sub); }
 .fish-sub, .fish-cause text { font-size: 13px; }
-.fish-bone.is-new, .fish-cause.is-new { animation: dh-fade var(--dur-slow) both; }
+/* Show new words immediately: opacity animations on nested SVG groups can leave their text unpainted. */
+.fish-bone.is-new, .fish-cause.is-new { animation: none; }

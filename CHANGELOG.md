@@ -138,6 +138,9 @@ The third release candidate of 0.7.0. The format number stays 10.
   value`); a composed stage with one `@step` is refused once, in the stage's own words (it was refused twice).
 - SPEC 6.13 names the package's stage files (`src/ui/stage.tsx`, `src/core/stage.ts`, `src/core/stage-core.ts`), not
   the prototype's, and says the tick label's later-step reveal once.
+- **SPEC 6.13 opens with the stage's core words:** one table of fourteen rows (roles, lanes, cards, cards inside cards,
+  steps, lines, show, hide and light, tones, tags and says, keys, the head blocks, `static`), each with a real example;
+  the long tail follows as before. A test builds a page from the examples and checks it clean.
 
 ### Added: static on the terminal, file tree, editor and code walk; a static page; print draws every part (SPEC 4.1)
 

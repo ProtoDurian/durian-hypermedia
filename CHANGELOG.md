@@ -101,6 +101,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 - The tone inks are 4.5:1 on every family fill too (a state pill's word or a lit count on a card): light `--acc-ink`,
   `--good-ink`, `--warn-ink`, `--hot-ink` and `--bad-ink` are a little darker, dark `--hot-ink` and `--bad-ink` a little
   lighter, each in its own hue.
+- Faint states have an edge everyone can see: a counted unit of no group (remaining, gone), a bin's empty slot and its
+  waiting chips, an idle stretch or soft dot on a time row, and a sheet's empty cell drew their edge in the page
+  hairline (1.3:1 in dark, so they disappeared). They now draw it in `--scn-faint-edge`, 3:1 on the stage, the page and
+  every family fill in both themes. Frames, cells with words and guides keep the hairline. A bin's empty slot has the
+  class `stg-slot`.
 
 ### Removed (breaking)
 

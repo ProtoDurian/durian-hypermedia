@@ -25,7 +25,7 @@ for (const flags of ["[dashed] [warn]", "[warn] [dashed]", "[dashed] [good]", "[
 test("a bare dashed state keeps its existing neutral paint", () => {
   const c = compile("time: 0..4\ncells: 1\nrow eval copies: wait 0..4 [wide] [dashed]", "", "");
   expect(c.errors).toEqual([]); const b = boxes(layoutStage(c.model, 1000).items)[0];
-  expect(b.fill).toBe("surface-2"); expect(b.stroke).toBe("line"); expect(b.dash).toBe(true); expect(b.dim).toBeUndefined();
+  expect(b.fill).toBe("surface-2"); expect(b.stroke).toBe("scn-faint-edge"); // the neutral faint-state edge (0.7.0-rc.3), 3:1 expect(b.dash).toBe(true); expect(b.dim).toBeUndefined();
 });
 test("each ordinary tick cell receives the preview paint without changing its words or place", () => {
   const c = compile('time: 0..4\ncells: 1\nrow eval copies: _ 0..4 [dashed] [warn]', "", "");

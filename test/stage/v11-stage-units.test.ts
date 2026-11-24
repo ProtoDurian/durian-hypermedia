@@ -65,7 +65,7 @@ test("muted gone and remaining squares do not declare an active role palette",()
  const squares=layoutStage(c.model,340).items.filter(i=>i.k==="box"&&i.cls?.includes("stg-unit")&&i.from===1);
  expect(squares.length).toBe(10);
  const muted=squares.filter(i=>i.bar?.label==="gone"||i.bar?.label==="remaining");expect(muted.length).toBe(5);
- expect(muted.every(i=>i.k==="box"&&i.fill==="surface-2"&&i.stroke==="line"&&i.bar?.role===undefined)).toBe(true);
+ expect(muted.every(i=>i.k==="box"&&i.fill==="surface-2"&&i.stroke==="scn-faint-edge"&&i.bar?.role===undefined)).toBe(true);
  expect(squares.filter(i=>i.bar?.label==="kept").every(i=>i.bar?.role==="job")).toBe(true);
 });
 test("a wide units panel draws large upright squares across its width; its note sits under the last group; a phone keeps small squares",()=>{

@@ -274,7 +274,7 @@ registerBlock({
     const chip = (x: number, y: number, u: Unit, paint: { fill: string; stroke: string; ink: string; role?: string }, win: { from?: number; to?: number; hot?: number[] }, id?: string, thick?: boolean): Item[] =>
       [{ k: "box", x, y, w: slotW, h: slotH, fill: paint.fill, stroke: paint.stroke, r: dots ? 3 : 11, cls: dots ? "scn-shape" : "scn-shape stg-chip", role: paint.role, id, thick, ...win },
         ...chipLines.get(u.id)!.map((ln, k) => ({ k: "text", x: x + slotW / 2, y: y + 4 + 14 * (k + 1) - 3 + (slotH - 8 - 14 * chipLines.get(u.id)!.length) / 2, s: ln, f: "chip", ink: paint.ink, anchor: "middle", tip: u.label, ...win } as Item))];
-    const ghost = (x: number, y: number, from: number): Item => ({ k: "box", x, y, w: slotW, h: slotH, fill: "none", stroke: "line", r: dots ? 3 : 11, dash: true, from });
+    const ghost = (x: number, y: number, from: number): Item => ({ k: "box", x, y, w: slotW, h: slotH, fill: "none", stroke: "scn-faint-edge", r: dots ? 3 : 11, dash: true, cls: "stg-slot", from });
     let y = 0;
     if (t.title) { items.push({ k: "text", x: 0, y: 14, s: wrap(t.title, w, "lane", 1)[0], f: "lane", ink: "ink", tip: t.title }); y = 24; }
     // the inventory
@@ -285,7 +285,7 @@ registerBlock({
       for (const s of stepsL) items.push({ k: "text", x: w - PAD, y: y + 20, s: `${N - inBinsAt(s)} left`, f: "small-b", ink: "muted", anchor: "end", ...when(s) });
       t.units.forEach((u, i) => {
         const x = PAD + (i % per) * (slotW + gap), yy = y + 32 + Math.floor(i / per) * (slotH + gap), d = u.hist[0]?.step;
-        if (d === undefined || d > 1) items.push(...chip(x, yy, u, { fill: "surface-2", stroke: "line", ink: "ink" }, { from: 1, to: d === undefined ? 0 : d - 1 }));
+        if (d === undefined || d > 1) items.push(...chip(x, yy, u, { fill: "surface-2", stroke: "scn-faint-edge", ink: "ink" }, { from: 1, to: d === undefined ? 0 : d - 1 }));
         if (d !== undefined) items.push(ghost(x, yy, d));
       });
       y += invH + 12;

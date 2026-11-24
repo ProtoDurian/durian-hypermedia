@@ -288,7 +288,7 @@ registerBlock({
           const filled = fillAt ? parts(fillAt.arg, ",")[fillAt.who.indexOf(r.id)] : "";
           const cid = `cell:${r.id}:${j}`, bar = { kind: "chip", id: cid, column: `v${j % perLine}`, ...(s.cols[j] ? { label: s.cols[j] } : {}) };
           if (r.empty[j]) {
-            items.push({ k: "box", x, y: cy, w: cw - 3, h: CELL_H, fill: "none", stroke: "line-2", r: 4, dash: true, cls: "stg-cell", id: cid, bar, ...(fillAt ? { to: fillAt.step - 1 } : {}) });
+            items.push({ k: "box", x, y: cy, w: cw - 3, h: CELL_H, fill: "none", stroke: "scn-faint-edge", r: 4, dash: true, cls: "stg-cell", id: cid, bar, ...(fillAt ? { to: fillAt.step - 1 } : {}) });
             if (fillAt) items.push({ k: "box", x, y: cy, w: cw - 3, h: CELL_H, fill: "surface", stroke: "line", r: 4, cls: "stg-cell", id: cid, bar, from: fillAt.step }, { k: "text", x: x + (cw - 3) / 2, y: cy + 15, s: filled, f: "sub", ink: "ink", anchor: "middle", from: fillAt.step });
           } else items.push({ k: "box", x, y: cy, w: cw - 3, h: CELL_H, fill: "surface", stroke: "line", r: 4, cls: "stg-cell", id: cid, bar }, { k: "text", x: x + (cw - 3) / 2, y: cy + 15, s: v, f: "sub", ink: "ink", anchor: "middle" });
           if (s.cols[j]) items.push({ k: "text", x: x + (cw - 3) / 2, y: cy + CELL_H + 12, s: s.cols[j], f: "sub", ink: "muted", anchor: "middle" });

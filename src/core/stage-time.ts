@@ -886,7 +886,7 @@ registerBlock({
           const lo = Math.max(a.a, s.a), hi = Math.min(a.b, s.b); if (hi <= lo) continue;
           const left = X(lo), width = X(hi) - left;
           const token = inset&&a.tone&&!s.tone?a.tone:s.tone && !["plain", "idle"].includes(s.tone) ? s.tone : !s.tone && s.on ? `role:${s.role||r.role}` : "";
-          const paint = { fill: token ? `${token}:soft` : "surface-2", stroke: token&&!s.soft ? `${token}:${inset&&a.tone&&!s.tone?"ink":"line"}` : "line", dash: s.tone === "idle"||!!s.preview,...(s.preview?{dim:previewSteps}:{}), thick: s.tone==="bad"&&!s.soft, from: s.from, to: s.to, ...(!s.soft&&(s.focus || s.tone === "bad") ? { hot: [Math.max(1, s.from)] } : {}) }; // [soft] limits the tone to the fill; ordinary bad cells retain their cross and first-step emphasis.
+          const paint = { fill: token ? `${token}:soft` : "surface-2", stroke: token&&!s.soft ? `${token}:${inset&&a.tone&&!s.tone?"ink":"line"}` : "scn-faint-edge", dash: s.tone === "idle"||!!s.preview,...(s.preview?{dim:previewSteps}:{}), thick: s.tone==="bad"&&!s.soft, from: s.from, to: s.to, ...(!s.soft&&(s.focus || s.tone === "bad") ? { hot: [Math.max(1, s.from)] } : {}) }; // [soft] limits the tone to the fill; ordinary bad cells retain their cross and first-step emphasis.
           const words = (cx: number, cw: number, override?:string) => {
             const label=override??s.name,f=cellFont(label,cw),leading=f==="big"?28:lineH;
             const putWord=(word:Extract<Item,{k:"text"}>)=>backedWord(word,paint.fill);
@@ -923,7 +923,7 @@ registerBlock({
           };
           if (s.dot) {
             const cx=left+width/2,cy=y+rowH/2,radius=dotRadius,dotToken=!s.tone?`role:${s.role||r.role}`:token,ink=s.soft?"ink":dotToken?`${dotToken}:${dotToken.startsWith("role:")?"line":"ink"}`:"muted";
-            const dot:Extract<Item,{k:"box"}>={k:"box",x:cx-radius,y:cy-radius,w:radius*2,h:radius*2,...paint,fill:s.tone==="plain"?"muted":dotToken?`${dotToken}:soft`:"surface-2",stroke:s.soft?"line":s.tone==="plain"?"muted":dotToken?`${dotToken}:line`:"line",r:radius,cls:"scn-shape stg-time-dot",id:`${prefix}:dot:${r.id}:${s.a}:${s.from}`,bar:{kind:"chip",label:s.name,track:axisId,value:lo+(hi-lo)/2,...(dotToken.startsWith("role:")?{role:s.role||r.role}:{})}};
+            const dot:Extract<Item,{k:"box"}>={k:"box",x:cx-radius,y:cy-radius,w:radius*2,h:radius*2,...paint,fill:s.tone==="plain"?"muted":dotToken?`${dotToken}:soft`:"surface-2",stroke:s.soft?"scn-faint-edge":s.tone==="plain"?"muted":dotToken?`${dotToken}:line`:"scn-faint-edge",r:radius,cls:"scn-shape stg-time-dot",id:`${prefix}:dot:${r.id}:${s.a}:${s.from}`,bar:{kind:"chip",label:s.name,track:axisId,value:lo+(hi-lo)/2,...(dotToken.startsWith("role:")?{role:s.role||r.role}:{})}};
             const paints=dotPaintRanges(r.id,(lo+hi)/2,s.a,s.from,s.to||box.steps);
             for(const p of paints){
               charge("dot paint variants",1,1);const stroke=p.tone?`${p.tone}:line`:dot.stroke,fill=p.tone?p.tone==="ink"?"surface-2":`${p.tone}:soft`:dot.fill,solid=s.tone==="plain"||p.solid&&!s.soft;

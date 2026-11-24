@@ -66,7 +66,7 @@ registerBlock({
         let index=0;
         for(const group of r.counts)for(let i=0;i<group.n;i++,index++){
           docBudget().charge("units panel cell",1);const muted=group.tone==="muted";
-          items.push({k:"box",x:30+index%cols*pitch,y:y+Math.floor(index/cols)*rowPitch,w:size,h:tall,r:wide?3:1,fill:muted?"surface-2":`role:${r.role}:soft`,stroke:muted?"line":`role:${r.role}:line`,thick:group.name==="leaving",cls:"scn-shape stg-unit",id:`unit-panel:${row}:${index}`,bar:{kind:"unit",id:`unit-panel:${row}:${index}`,label:group.name,...(muted?{}:{role:r.role})}});
+          items.push({k:"box",x:30+index%cols*pitch,y:y+Math.floor(index/cols)*rowPitch,w:size,h:tall,r:wide?3:1,fill:muted?"surface-2":`role:${r.role}:soft`,stroke:muted?"scn-faint-edge":`role:${r.role}:line`,thick:group.name==="leaving",cls:"scn-shape stg-unit",id:`unit-panel:${row}:${index}`,bar:{kind:"unit",id:`unit-panel:${row}:${index}`,label:group.name,...(muted?{}:{role:r.role})}});
         }
         // the note goes under the last group of the last row when that group is not the first (the pods that leave)
         const lastGroup=r.counts.filter(g=>g.n).at(-1);
@@ -86,14 +86,14 @@ registerBlock({
       docBudget().charge("units legend", group.name.length + 1);
       for (let i = 0; i < group.n; i++, index++) {
         const x = 4 + (index % cols) * 18, yy = y + Math.floor(index / cols) * 18;
-        items.push({ k: "box", x, y: yy, w: 14, h: 14, r: 2, fill: group.tone === "muted" ? "surface-2" : `${group.tone}:soft`, stroke: group.tone === "muted" ? "line" : `${group.tone}:line`, cls: "scn-shape stg-unit", id: `unit:${index}`, bar: { kind: "unit", id: index, label: group.name } });
+        items.push({ k: "box", x, y: yy, w: 14, h: 14, r: 2, fill: group.tone === "muted" ? "surface-2" : `${group.tone}:soft`, stroke: group.tone === "muted" ? "scn-faint-edge" : `${group.tone}:line`, cls: "scn-shape stg-unit", id: `unit:${index}`, bar: { kind: "unit", id: index, label: group.name } });
       }
     }
     y += Math.ceil(u.total / cols) * 18 + 8;
     for (const group of u.counts) {
       if (!group.n && group.name === "remaining") continue;
       const yy = y;
-      items.push({ k: "box", x: 4, y: yy + 1, w: 12, h: 12, r: 2, fill: group.tone === "muted" ? "surface-2" : `${group.tone}:soft`, stroke: group.tone === "muted" ? "line" : `${group.tone}:line` });
+      items.push({ k: "box", x: 4, y: yy + 1, w: 12, h: 12, r: 2, fill: group.tone === "muted" ? "surface-2" : `${group.tone}:soft`, stroke: group.tone === "muted" ? "scn-faint-edge" : `${group.tone}:line` });
       for (const s of wrap(`${group.name} ${group.n}`, box.w - 30, "sub", 2)) { items.push({ k: "text", x: 24, y: y + 11, s, f: "sub", ink: "ink" }); y += 14; }
       y += 4;
     }

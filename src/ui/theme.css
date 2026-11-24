@@ -211,7 +211,7 @@
     /* the measured role palette (0.7.0-rc.3): a family's plane (its containers' fill, the same as its cards'), and in dark the stage's own 3:1 edges */
     --c1-plane: #29295E; --c2-plane: #12534A; --c3-plane: #644402; --c4-plane: #553F75; --c5-plane: #3E1600; --c6-plane: #012930;
     --c7-plane: #4D3339; --c8-plane: #283C00; --scn-edge: #95A3C6; --scn-frame-edge: #98A3C2; --scn-band-edge: #95A3C6; --scn-good-edge: #34C76E;
-    --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2;
+    --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2; --scn-faint-edge: #8D98B6;
 }
 }
 :root[data-theme="dark"] {
@@ -255,7 +255,7 @@
   /* the measured role palette (0.7.0-rc.3): a family's plane (its containers' fill, the same as its cards'), and in dark the stage's own 3:1 edges */
   --c1-plane: #29295E; --c2-plane: #12534A; --c3-plane: #644402; --c4-plane: #553F75; --c5-plane: #3E1600; --c6-plane: #012930;
   --c7-plane: #4D3339; --c8-plane: #283C00; --scn-edge: #95A3C6; --scn-frame-edge: #98A3C2; --scn-band-edge: #95A3C6; --scn-good-edge: #34C76E;
-  --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2;
+  --scn-warn-edge: #FF8F3A; --scn-hot-edge: #FF75A6; --scn-acc-edge: #929AFF; --scn-muted-edge: #98A3C2; --scn-faint-edge: #8D98B6;
 }
 
 /* charts: the heat ramps (heatmap cells and key) and the tokens of annotations, the scale switch, the key of styled series and the
@@ -275,4 +275,7 @@
 :root {
   --scn-edge: #596172; --scn-frame-edge: #5B616C; --scn-band-edge: #596172;
   --scn-good-edge: #007031; --scn-warn-edge: #A04600; --scn-hot-edge: #C00056; --scn-acc-edge: #4648E8; --scn-muted-edge: #5B616C;
+  /* an empty, remaining, gone, waiting or idle state shape (a unit of no group, a slot, an idle stretch): 3:1 on the
+     stage, the page and every family fill, a little lighter than the stage edge */
+  --scn-faint-edge: #616672;
 }

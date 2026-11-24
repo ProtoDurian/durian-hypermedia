@@ -96,7 +96,7 @@ test("soft time cells show only the explicit tone's fill without changing geomet
   const h=`time: 0..3\ncells: 1 | roomy\nrow job a "Draft": held 0..1 [${tone}] [lit]; held 1..2 @2 [soft] [${tone}] [lit]; held 2..3 @3 [${tone}] [soft]`,c=compile(h,ss),base=compile(h.replaceAll("[soft]",""),ss);expect(c.errors).toEqual([]);expect(stageLlm(c)).toContain(", soft)");
   for(const w of[1000,356,326]){
    const p=layoutStage(c.model,w),b=layoutStage(base.model,w),cells=p.items.filter((i):i is Extract<Item,{k:"box"}>=>i.k==="box"&&!!i.cls?.includes("stg-time-cell"));
-   expect(cells.length).toBe(3);expect(cells.slice(1).every(i=>i.fill===`${tone==="accent"?"acc":tone}:soft`&&i.stroke==="line"&&!i.thick&&!i.hot)).toBe(true);
+   expect(cells.length).toBe(3);expect(cells.slice(1).every(i=>i.fill===`${tone==="accent"?"acc":tone}:soft`&&i.stroke==="scn-faint-edge"&&!i.thick&&!i.hot)).toBe(true);
    const texts=p.items.filter((i):i is Extract<Item,{k:"text"}>=>i.k==="text"&&i.tip==="held"&&(i.from??1)>1);expect(texts.every(i=>i.ink==="ink")).toBe(true);
    const geometry=(items:Item[])=>items.filter(i=>i.k!=="path"||i.ink!=="bad:line").map(i=>i.k==="path"?[i.k,i.pts]:[i.k,i.x,i.y,"w" in i?i.w:0,"h" in i?i.h:0,i.k==="text"?i.s:""]);
    expect(p.h).toBe(b.h);expect(geometry(p.items)).toEqual(geometry(b.items));expect(p.items.filter(i=>i.k==="path"&&i.ink==="bad:line").length).toBe(tone==="bad"?2:0);bounded(p.items,w,p.h);

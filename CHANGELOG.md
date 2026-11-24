@@ -159,6 +159,12 @@ The third release candidate of 0.7.0. The format number stays 10.
   so the server's page drew it at the default shape and the page below jumped when the script ran (4 to 11 px on a
   laptop, up to 287 px on a phone); its heights are now custom properties in the part's `style` attribute, picked by
   container queries. On a phone every animation is edge to edge before the script runs (it was its column's width).
+- **3D names no longer crowd, touch dots or float** (SPEC.md 6.14). Names keep 4 px from each other, from every
+  token's dot and from other things' outlines; a name is nearest its own box; pills stay by their cube; two names on
+  one line keep 16 px apart; a layer plane is whole or left out, its name kept. Over the eight 3D fixtures at 1280 and
+  390 (every step at rest): words under 4 px apart 106 to 7, words on a token's dot 32 to 1, two names read as one
+  phrase 29 to 1, words on an outline 1523 to 249, words on a line 213 to 108, names nearer another box than their own
+  658 to 490. No name is hidden that was shown before (62 not shown, before and after).
 - **A sent token's label pill no longer touches the moving dot** (SPEC.md 6.14). It was placed off the dot's own
   size, 0.5 px from the halo drawn around it; it now keeps 3 px off the halo.
 - **Speech beside a thing points at it** (SPEC.md 6.14). Only speech above or below had a tail; on a phone, where speech

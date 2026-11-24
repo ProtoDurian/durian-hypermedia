@@ -45,6 +45,7 @@ export interface View3 {
   stepKey: string; // changes when the step changes: the story camera moves again
   cam?: CamView | null; // the author's camera words for this step (format version 9): close, far, turn=, tilt=
   part?: number[] | null; // format version 10: while a step plays, only these things' labels show (null: every label)
+  takes?: number[] | null; // who takes part in the step, at rest too: other names keep off their drawn boxes
   toks?: number[] | null; // (format version 11) the tokens the step is about: every other token keeps its pill, its label fades (null: all)
   // format version 10: the scene inside the scene that is shown; when it changes the camera starts far from the new one
   // (going in) or close to the thing it was entered from (going out, sceneVia), and glides to the story's view
@@ -684,49 +685,136 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   const inX = (el: HTMLElement, sx: number) => { const w = el.offsetWidth, x0 = sx + anchorOf(el)[0] * w; return w > W.w - 4 ? sx : x0 < 2 ? sx + 2 - x0 : x0 + w > W.w - 2 ? sx - (x0 + w - W.w + 2) : sx; };
   const acrossOk = (r: { x: number; w: number }) => r.x >= 2 && r.x + r.w <= W.w - 2;
   let lineSegs: { ends: [number, number]; p: P2[] }[] = [];
+  // the drawn boxes, on the screen, of the things the step touches (not containers), for names to keep off
+  let touchRects: { k: number; x: number; y: number; w: number; h: number }[] = [];
+  // the drawn outline of every thing on the stage, each edge as a pair of screen points, with its
+  // thing: names keep 4 px from them (a container's name from its own outline too; a leaf's sits inside its own box)
+  let outlineSegs: { k: number; p: P2[] }[] = [];
+  const offOutline = (r: { x: number; y: number; w: number; h: number }, own: number, ownToo: boolean) => !outlineSegs.some((s) => (ownToo || s.k !== own) && lineHitsRect(s.p, r, 4));
+  // a thing's drawn box on the screen, from its outline; a name stays within 14 px of it (a name 30 px
+  // above its box read as nobody's)
+  type R4 = { x: number; y: number; w: number; h: number };
+  const ownBox = (k: number): R4 | null => { let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity; for (const s of outlineSegs) if (s.k === k) for (const q of s.p) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); y0 = Math.min(y0, q.y); y1 = Math.max(y1, q.y); } return x1 > x0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null; };
+  const byBox = (r: R4, b: R4 | null) => !b || (r.x < b.x + b.w + 14 && b.x < r.x + r.w + 14 && r.y < b.y + b.h + 14 && b.y < r.y + r.h + 14);
+  // two names on one line less than 16 px apart read as one phrase
+  const sameLine = (a: R4, b: R4) => { const ov = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y); if (ov < 0.5 * Math.min(a.h, b.h)) return false; return Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w)) < 16; };
+  // a name is nearest its own box: its middle closer to its own outline than to any other thing's
+  // (a name stacked over another read as the other's)
+  const segDist = (q: P2, s: { p: P2[] }) => { const [a, b] = s.p, vx = b.x - a.x, vy = b.y - a.y, L = vx * vx + vy * vy || 1; const t = Math.max(0, Math.min(1, ((q.x - a.x) * vx + (q.y - a.y) * vy) / L)); return Math.hypot(a.x + t * vx - q.x, a.y + t * vy - q.y); };
+  const nearestOwn = (r: R4, own: number) => { const q = { x: r.x + r.w / 2, y: r.y + r.h / 2 }; let mo = Infinity, mx = Infinity; for (const s of outlineSegs) { const d = segDist(q, s); if (s.k === own) mo = Math.min(mo, d); else mx = Math.min(mx, d); } return mo <= mx; };
+  // the spots around a name's own place, nearest first (half a line and 8 px apart)
+  // (a container's name may go to any side of its box: across its whole width, and down its height)
+  const gridSpots = (h: number, wide = 96, deep = 3) => { const out: [number, number][] = []; for (let dy = -3; dy <= deep; dy += 0.5) for (let dx = -wide; dx <= wide; dx += 8) out.push([dx, dy * h]); return out.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1])); };
   const unclutter = () => {
     const rect = (p: { el: HTMLElement; sx: number; sy: number }, dy = 0, dx = 0) => { const [ax, ay] = anchorOf(p.el), w = p.el.offsetWidth, h = p.el.offsetHeight; return { x: p.sx + dx + ax * w, y: p.sy + dy + ay * h, w, h }; };
     const small = (el: HTMLElement) => el.classList.contains("scn3-wire") || el.classList.contains("scn3-arrow") || el.classList.contains("scn3-send") || el.classList.contains("scn3-say") || el.classList.contains("k-token");
     const cont = (el: HTMLElement) => el.classList.contains("is-cont");
-    const hits = (a: { x: number; y: number; w: number; h: number }, b: typeof a) => a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1;
+    // two words, or a word and a dot, keep at least 4 px apart (before: only no overlap,
+    // and names crowded on a phone or touched a token's dot)
+    // a token's dot as drawn is a little larger than its laid-out box: 2 px more round it
+    const dotR = (r: { k: number; x: number; y: number; w: number; h: number }) => (tokKeys.has(r.k) ? { k: r.k, x: r.x - 2, y: r.y - 2, w: r.w + 4, h: r.h + 4 } : r);
+    const hits = (a: { x: number; y: number; w: number; h: number }, b: typeof a) => a.x < b.x + b.w + 4 && b.x < a.x + a.w + 4 && a.y < b.y + b.h + 4 && b.y < a.y + a.h + 4;
+    // wholly on the stage: the stage clips what runs past its edge, so a name half out reads as a stray letter
+    const onStage = (r: { x: number; y: number; w: number; h: number }) => r.x >= 2 && r.y >= 2 && r.x + r.w <= W.w - 2 && r.y + r.h <= W.h - 2;
+    // the step aside that brings a name wholly onto the stage
+    const clampIn = (r: { x: number; y: number; w: number; h: number }): [number, number] => [Math.max(0, 2 - r.x) - Math.max(0, r.x + r.w - (W.w - 2)), Math.max(0, 2 - r.y) - Math.max(0, r.y + r.h - (W.h - 2))];
     // format version 9: names never pile on each other. Layer names first, then the names of what the step touches or
     // lights, then the nearest: each takes its own spot if it is free, else moves a little (up, down, aside), else fades
     // to a ghost (a reader zooms in to read it). Like the chips, a name keeps its spot and fade while anything moves,
     // and eases to a new one at rest, so nothing flickers
     const fixed: { x: number; y: number; w: number; h: number }[] = [];
+    // the ghost names' spots: kept from other names, open to chips and bubbles (a ghost under one hides)
+    const ghostR = new Set<object>(), ghostEl: { el: HTMLElement; r: { x: number; y: number; w: number; h: number } }[] = [];
+    const fixedBy = new Map<object, string>(); // (for the checks) which word a kept spot belongs to
+    const keep = (el: HTMLElement, o: number, r: { x: number; y: number; w: number; h: number }) => { if (o <= 0) return; fixed.push(r); fixedBy.set(r, el.textContent ?? ""); if (o <= 0.5) { ghostR.add(r); ghostEl.push({ el, r }); } };
     const big = placed.filter((p) => !small(p.el) && !cont(p.el));
+    const takesK = new Set(view?.takes ?? []);
     // the layer in focus first; other layer names after what the step touches, and they may fade too
     const pri = (el: HTMLElement) => (el.classList.contains("scn3-layer") ? (el.classList.contains("is-on") ? 0 : 1.5) : el.classList.contains("is-hl") || el.classList.contains("is-sel") || touchedKeys.has(+(el.dataset.k ?? -1)) ? 1 : 2);
     big.sort((a, b) => pri(a.el) - pri(b.el) || +b.el.style.zIndex - +a.el.style.zIndex);
+    // every layer's name holds its own row until it is placed (the step's layer's name, placed first, moved onto the
+    // row of a layer's name placed later, and both stood on one line)
+    const layerRes = new Map<HTMLElement, { x: number; y: number; w: number; h: number }>();
+    for (const p of big) if (p.el.classList.contains("scn3-layer")) { const r = rect(p, 0, 0); layerRes.set(p.el, r); fixed.push(r); fixedBy.set(r, p.el.textContent ?? ""); }
     for (const p of big) {
+      { const res = layerRes.get(p.el); if (res) fixed.splice(fixed.indexOf(res), 1); }
       const w = p.el.offsetWidth, h = p.el.offsetHeight;
       const tries: [number, number][] = [[0, 0], [0, -0.6 * h], [0, 0.6 * h], [-0.3 * w, 0], [0.3 * w, 0], [0, -h], [0, h]];
       // (item 8, fix) a name keeps off the lines that do not end at its own thing, when a spot like that is free
       const own = +(p.el.dataset.k ?? NaN);
       const offLines = (r: { x: number; y: number; w: number; h: number }) => !lineSegs.some((s) => !s.ends.includes(own) && lineHitsRect(s.p, r));
+      // a name of a thing the step does not touch keeps off the drawn boxes of what it touches (a
+      // faint name lay over the thing the step restarted); with no free spot it hides rather than fades to a ghost
+      const offTouch = (r: { x: number; y: number; w: number; h: number }) => !touchRects.some((t) => t.k !== own && (tokKeys.has(t.k) || !(pri(p.el) < 2 || takesK.has(own))) && hits(r, dotR(t)));
       const st = held(p, () => {
         // (a line through a name's middle needs a wider step aside than a word does)
+        // first the nearest spot by its own box, 4 px clear of every other outline, not on one line with
+        // another name; then as before
+        { const ob = ownBox(own); for (const [dx, dy] of gridSpots(h)) { const r = rect(p, dy, dx); if (byBox(r, ob) && !fixed.some((f) => hits(r, f) || sameLine(r, f)) && offLines(r) && offTouch(r) && onStage(r) && offOutline(r, own, false)) return [dx, dy, 1]; } }
+        // first a spot 4 px clear of every other thing's outline too; then as before
+        for (const [dx, dy] of [...tries, [-0.62 * w, 0], [0.62 * w, 0], [0, -1.6 * h], [0, 1.6 * h]] as [number, number][]) { const r = rect(p, dy, dx); if (!fixed.some((f) => hits(r, f)) && offLines(r) && acrossOk(r) && offTouch(r) && onStage(r) && offOutline(r, own, false)) return [dx, dy, 1]; }
+        for (const [dx, dy] of [...tries, [-0.62 * w, 0], [0.62 * w, 0], [0, -1.6 * h], [0, 1.6 * h]] as [number, number][]) { const r = rect(p, dy, dx); if (!fixed.some((f) => hits(r, f)) && offLines(r) && acrossOk(r) && offTouch(r) && onStage(r)) return [dx, dy, 1]; }
+        for (const [dx, dy] of tries) if (!fixed.some((r) => hits(rect(p, dy, dx), r)) && offTouch(rect(p, dy, dx)) && onStage(rect(p, dy, dx))) return [dx, dy, 1];
+        if (pri(p.el) <= 1) {
+          // a name the step takes part in: further spots on the stage, then its own spot slid onto the stage
+          for (const [dx, dy] of [[0, -2 * h], [0, 2 * h], [-w, 0], [w, 0], [-0.62 * w, -h], [0.62 * w, -h], [-0.62 * w, h], [0.62 * w, h]] as [number, number][]) { const r = rect(p, dy, dx); if (!fixed.some((f) => hits(r, f)) && onStage(r)) return [dx, dy, 1]; }
+          const [cx, cy] = clampIn(rect(p)); return [cx, cy, 1];
+        }
+        // no spot the rules above allow: the search it had before them, else its own place, shown. A name is a fact:
+        // these rules never hide one or fade it to a ghost
+        // (never read as one phrase with another word, before the lines are asked of it)
+        { const ob = ownBox(own); for (const [dx, dy] of gridSpots(h)) { const r = rect(p, dy, dx); if (byBox(r, ob) && onStage(r) && !fixed.some((f) => hits(r, f) || sameLine(r, f))) return [dx, dy, 1]; } }
         for (const [dx, dy] of [...tries, [-0.62 * w, 0], [0.62 * w, 0], [0, -1.6 * h], [0, 1.6 * h]] as [number, number][]) { const r = rect(p, dy, dx); if (!fixed.some((f) => hits(r, f)) && offLines(r) && acrossOk(r)) return [dx, dy, 1]; }
         for (const [dx, dy] of tries) if (!fixed.some((r) => hits(rect(p, dy, dx), r))) return [dx, dy, 1];
-        return [0, 0, pri(p.el) <= 1 ? 1 : GHOST];
+        return [0, 0, 1];
       });
       if (st.dx || st.dy) p.el.style.transform = `translate(${(p.sx + st.dx).toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
       if (st.o < 0.999) p.el.style.opacity = String(+p.el.style.opacity * st.o);
-      if (st.o > 0.5) fixed.push(rect(p, st.dy, st.dx));
+      keep(p.el, st.o, rect(p, st.dy, st.dx)); // a ghost keeps its spot too
     }
     // a container's name keeps a clear gap (10 px) from the words of what it holds, so it never reads as one phrase
-    // with them ("lift Ana"): it moves left along its edge first, then up above its outline
+    // with them (a lift): it moves left along its edge first, then up above its outline
     const near = (a: { x: number; y: number; w: number; h: number }, b: typeof a, m: number) => a.x < b.x + b.w + m && b.x < a.x + a.w + m && a.y < b.y + b.h + m && b.y < a.y + a.h + m;
     for (const p of placed.filter((q) => cont(q.el))) {
       const h = p.el.offsetHeight + 2;
+      // the name of a box the step does not take part in keeps off the drawn boxes of what does (faint
+      // names lay over the thing the steps were about); with no free spot it hides
+      const ownC = +(p.el.dataset.k ?? NaN);
+      const offT = (r: { x: number; y: number; w: number; h: number }) => !touchRects.some((t) => t.k !== ownC && (tokKeys.has(t.k) || !(takesK.has(ownC) || touchedKeys.has(ownC))) && hits(r, dotR(t)));
       // a clear gap if there is one within two lines; else simply off every word; else a ghost (format version 9)
       const st = held(p, () => {
-        for (const across of [true, false]) for (const [m, dys] of [[10, [0, -h, -2 * h]], [1, [0, -h, -2 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, -16, -32, -48]) { const r = rect(p, dy, dx); if (!fixed.some((f) => near(r, f, m)) && (!across || acrossOk(r))) return [dx, dy, 1]; }
-        return [0, 0, GHOST];
+        // first the nearest spot by its own box, 4 px clear of every outline (its own too), not on one
+        // line with another name
+        // a spot over its own box's width first (beside it, a name read as its neighbour's);
+        // then the same on two lines (same size); then any side. (A rule keeping a box's name off the name row of a box
+        // inside it was tried and taken out: with names on their own edges it kept a container's name off its own edge.)
+        if (p.el.dataset.wrap) { p.el.style.whiteSpace = ""; p.el.style.maxWidth = ""; delete p.el.dataset.wrap; }
+        { const ob = ownBox(ownC), over = (r: R4) => !ob || Math.min(r.x + r.w, ob.x + ob.w) - Math.max(r.x, ob.x) >= 0.5 * r.w;
+          // like a legend on a frame line, a box's name may touch or cross its own edge, and only its own
+          const okAt = (r: R4) => byBox(r, ob) && nearestOwn(r, ownC) && !fixed.some((f) => near(r, f, 4) || sameLine(r, f)) && offT(r) && onStage(r) && offOutline(r, ownC, false) && !lineSegs.some((s) => lineHitsRect(s.p, r));
+          const spots = (hh: number) => gridSpots(hh, Math.max(96, Math.ceil((ob?.w ?? 0) / 8) * 8), Math.max(3, Math.ceil((ob?.h ?? 0) / hh) + 1));
+          for (const [dx, dy] of spots(h)) { const r = rect(p, dy, dx); if (over(r) && okAt(r)) return [dx, dy, 1]; }
+          const two = /\s/.test((p.el.textContent ?? "").trim()), wrap = (on: boolean) => { if (on) { p.el.style.whiteSpace = "normal"; p.el.style.maxWidth = `${Math.ceil(p.el.offsetWidth * 0.62)}px`; p.el.dataset.wrap = "1"; } else { p.el.style.whiteSpace = ""; p.el.style.maxWidth = ""; delete p.el.dataset.wrap; } };
+          if (two) { wrap(true); for (const [dx, dy] of spots(p.el.offsetHeight + 2)) { const r = rect(p, dy, dx); if (over(r) && okAt(r)) return [dx, dy, 1]; } wrap(false); }
+          for (const [dx, dy] of spots(h)) { const r = rect(p, dy, dx); if (okAt(r)) return [dx, dy, 1]; }
+          // two lines beside its box (a name that fits beside its box, inside its container, only on two lines)
+          if (two) { wrap(true); for (const [dx, dy] of spots(p.el.offsetHeight + 2)) { const r = rect(p, dy, dx); if (okAt(r)) return [dx, dy, 1]; } wrap(false); } }
+        // first 4 px clear of every outline, its own box's too, looking inward as well (down and right); each step
+        // first never on one line within 16 px of another word (read as one phrase with it), then as before
+        for (const strictPh of [true, false]) { const ph = (r: R4) => !strictPh || !fixed.some((f) => sameLine(r, f));
+          for (const [m, dys] of [[10, [0, 0.5 * h, -h, h, -2 * h, 1.5 * h]], [4, [0, 0.5 * h, -h, h, -2 * h, 1.5 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, 8, 16, -16, 32, -32, -48]) { const r = rect(p, dy, dx); if (ph(r) && !fixed.some((f) => near(r, f, m)) && acrossOk(r) && offT(r) && onStage(r) && offOutline(r, ownC, true)) return [dx, dy, 1]; }
+          for (const dy of [0, 0.5 * h, h, 1.5 * h, 2 * h, -h, -2 * h, -3 * h]) for (const dx of [0, 8, 16, 24, 40, 64, -16, -32, -48]) { const r = rect(p, dy, dx); if (ph(r) && !fixed.some((f) => near(r, f, 4)) && offT(r) && onStage(r) && offOutline(r, ownC, true)) return [dx, dy, 1]; }
+          for (const across of [true, false]) for (const [m, dys] of [[10, [0, -h, -2 * h]], [4, [0, -h, -2 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, -16, -32, -48]) { const r = rect(p, dy, dx); if (ph(r) && !fixed.some((f) => near(r, f, m)) && (!across || acrossOk(r)) && offT(r) && onStage(r)) return [dx, dy, 1]; }
+          // a name is never lost for want of a spot clear of outlines: any spot clear of words on the stage
+          for (const dy of [0, -h, 0.5 * h, h, -2 * h, 2 * h, -3 * h, 3 * h]) for (const dx of [0, 8, -16, 16, -32, 32, -64, 64]) { const r = rect(p, dy, dx); if (ph(r) && !fixed.some((f) => hits(r, f)) && onStage(r)) return [dx, dy, 1]; }
+          // no spot the rules above allow: the search it had before them, else its own place, shown (never hidden)
+          for (const across of [true, false]) for (const [m, dys] of [[10, [0, -h, -2 * h]], [1, [0, -h, -2 * h, -3 * h]]] as [number, number[]][]) for (const dy of dys) for (const dx of [0, -16, -32, -48]) { const r = rect(p, dy, dx); if (ph(r) && !fixed.some((f) => near(r, f, m)) && (!across || acrossOk(r))) return [dx, dy, 1]; }
+        }
+        return [0, 0, 1];
       });
       if (st.dx || st.dy) p.el.style.transform = `translate(${(p.sx + st.dx).toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
       if (st.o < 0.999) p.el.style.opacity = String(+p.el.style.opacity * st.o);
-      if (st.o > 0.5) fixed.push(rect(p, st.dy, st.dx));
+      keep(p.el, st.o, rect(p, st.dy, st.dx)); // a ghost keeps its spot too
     }
     // format version 9: a small label that moves (a token's chip on its way, or any label while the camera glides)
     // keeps the step aside it had when the move began, so it travels with its token in the same frame and never jumps
@@ -748,18 +836,84 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     });
     // speech first: what a thing says keeps the spot it appeared in, and a chip at rest steps aside for it
     const sayFirst = (q: { p: { el: HTMLElement } }) => (q.p.el.classList.contains("scn3-say") ? 0 : 1);
+    const smallR: { x: number; y: number; w: number; h: number }[] = [];
+    const faintW: { el: HTMLElement; r: { x: number; y: number; w: number; h: number } }[] = [];
+    // how many pills each box has placed so far this pass: in a crowded box they take sides in turn
+    const sideN = new Map<number, number>(), boxN = new Map<number, number>(), side0 = new Map<number, number>();
+    for (const q of sm) if (!q.moving) { const b = view?.items.find((it) => it.key === +(q.p.el.dataset.k ?? NaN))?.parent; if (b != null) boxN.set(b, (boxN.get(b) ?? 0) + 1); }
     for (const { p, st, moving } of [...sm.filter((q) => !q.moving).sort((x, y) => sayFirst(x) - sayFirst(y)), ...sm.filter((q) => q.moving)]) {
       const h = p.el.offsetHeight + 3;
       // (fix) a chip at rest keeps 3 px from every word; one on its way only must not cover one
       const gapR = (r: { x: number; y: number; w: number; h: number }, m: number) => ({ x: r.x - m, y: r.y - m, w: r.w + 2 * m, h: r.h + 2 * m });
-      const free = (dy: number, dx = st.dx) => !fixed.some((f) => hits(gapR(rect(p, dy, dx), moving ? 0 : 3), f));
+      const ownT = +(p.el.dataset.k ?? NaN);
+      // at rest a chip also keeps off the other tokens' dots (a chip lay on another token's dot)
+      const free = (dy: number, dx = st.dx) => !fixed.some((f) => !ghostR.has(f) && hits(gapR(rect(p, dy, dx), moving ? 0 : 3), f)) && (moving || (!touchRects.some((t) => t.k !== ownT && tokKeys.has(t.k) && hits(rect(p, dy, dx), dotR(t))) && !lineSegs.some((s) => !s.ends.includes(ownT) && lineHitsRect(s.p, gapR(rect(p, dy, dx), 3)))));
       if (!moving) {
         // above or below first; format version 10: when every one of those is taken (three chips and a name at one
         // thing), beside, half its width and a little more to the right or the left
         const sw = p.el.offsetWidth * 0.6 + 4;
         let best: [number, number] = [0, 0];
-        const tries: [number, number][] = [...[0, -h, h, -2 * h, 2 * h, -3 * h, 3 * h].map((dy): [number, number] => [dy, 0]), ...[0, -h, h, -2 * h, 2 * h].flatMap((dy): [number, number][] => [[dy, sw], [dy, -sw]])];
-        for (const [dy, dx] of tries) if (free(dy, dx)) { best = [dy, dx]; break; }
+        const tries: [number, number][] = [...[0, -h, h, -2 * h, 2 * h, -3 * h, 3 * h].map((dy): [number, number] => [dy, 0]), ...[0, -h, h, -2 * h, 2 * h].flatMap((dy): [number, number][] => [[dy, sw], [dy, -sw]]),
+          // further out, before a chip lies over a word
+          ...[-4 * h, 4 * h].map((dy): [number, number] => [dy, 0]), ...[-3 * h, 3 * h, 0].flatMap((dy): [number, number][] => [[dy, 2 * sw], [dy, -2 * sw]])];
+        let found = false;
+        // a pill counts by its whole box: first 4 px clear of every cube, its own too, and of outlines
+        const clearAll = (dy: number, dx: number) => { const r = rect(p, dy, dx); return !touchRects.some((t) => tokKeys.has(t.k) && hits(r, dotR(t))) && offOutline(r, ownT, true); };
+        // nearest first: the spot closest to its own place that is 4 px clear of every cube and outline and
+        // within 32 px of its own cube, then 64 (taken in a fixed order, the first clear spot stood 60 to 100 px off)
+        // within about 20 px of its cube and never outside the box its cube is in (its middle
+        // inside that box as drawn); first clear of every edge, then on that box's own edge (its opaque chip covers only
+        // that line). Where a cube had no room beside it, a pill clear of every edge stood 45 px off, outside the box
+        { const own0 = touchRects.find((t) => t.k === ownT), box0 = view?.items.find((it) => it.key === ownT)?.parent ?? NaN;
+          const clearBox = (r: R4) => !touchRects.some((t) => tokKeys.has(t.k) && hits(r, dotR(t))) && offOutline(r, box0, false);
+          const bb = ownBox(box0), inBox = (r: R4) => !bb || (r.x + r.w / 2 >= bb.x && r.x + r.w / 2 <= bb.x + bb.w && r.y + r.h / 2 >= bb.y && r.y + r.h / 2 <= bb.y + bb.h);
+          // spots ranked by the gap to its own cube (not by the distance from its first place), and in a
+          // box with several pills, sides in turn (left, right, left...), so neighbours do not push each other 30 px off;
+          // never on one line within 16 px of another word (two pills side by side read as one phrase)
+          const gapTo = (r: R4) => own0 ? Math.hypot(Math.max(own0.x - (r.x + r.w), r.x - (own0.x + own0.w), 0), Math.max(own0.y - (r.y + r.h), r.y - (own0.y + own0.h), 0)) : 0;
+          // with several pills in one box: the first takes its nearest spot, the others take sides in turn from there (two
+          // rows of two hold four pills beside a column of four cubes on a phone; a fixed "right first" left one far off on a
+          // laptop, "first above, last below" left the fourth with no spot on a phone)
+          const nIn = sideN.get(box0) ?? 0, tot = boxN.get(box0) ?? 1, s0 = side0.get(box0) ?? 1, want = nIn % 2 ? -s0 : s0;
+          const side = (r: R4) => (!own0 || tot < 2 || nIn === 0 ? 0 : Math.sign(r.x + r.w / 2 - (own0.x + own0.w / 2)) === want ? 0 : 10);
+          // a 3 px grid (an 8 px one missed the one spot that fits the fourth pill on a phone); spots more than 32 px from the
+          // cube are dropped before any test
+          const fine: [number, number][] = []; for (let dy = -72; dy <= 96; dy += 3) for (let dx = -72; dx <= 72; dx += 3) fine.push([dx, dy]);
+          const r00 = rect(p, 0, 0); // one layout read, then shifted (rect() reads the pill's size each call)
+          const cands = fine.map(([dx, dy]) => { const r = { x: r00.x + dx, y: r00.y + dy, w: r00.w, h: r00.h }; return { dx, dy, r, g: gapTo(r) }; }).filter((q) => q.g <= 32).map((q) => ({ ...q, c: q.g + side(q.r) })).sort((a, b) => a.c - b.c);
+          // exactly the rule's 4 px from every word and every other cube here (free() keeps 7 and 6: at the split, with
+          // four cubes in a stair and its box's name above them, no spot within 24 px was left)
+          // a layer's name is kept at its first spot, before it steps off every thing (later in the frame): judged
+          // where it is drawn instead (its stale spot turned down 50 to 60 spots there)
+          const layerT = new Set(planes.map((pl) => pl.label.textContent ?? "")), hb = host.getBoundingClientRect();
+          const layerR = planes.filter((pl) => +(pl.label.dataset.o ?? 1) > 0.05 && pl.label.offsetWidth > 0).map((pl) => { const b = pl.label.getBoundingClientRect(); return { x: b.left - hb.left, y: b.top - hb.top, w: b.width, h: b.height }; });
+          const free4 = (r: R4) => !fixed.some((f) => !ghostR.has(f) && !layerT.has(fixedBy.get(f) ?? "\u0000") && hits(gapR(r, 1), f)) && !layerR.some((f) => hits(gapR(r, 1), f)) && !touchRects.some((t) => t.k !== ownT && tokKeys.has(t.k) && hits(r, t)) && !lineSegs.some((s) => !s.ends.includes(ownT) && lineHitsRect(s.p, gapR(r, 3)));
+          for (const [m, strict] of [[20, true], [20, false], [24, false]] as [number, boolean][]) { if (found) break; for (const { dx, dy, r } of cands) { if (gapTo(r) > m) continue; if (inBox(r) && free4(r) && !fixed.some((f) => sameLine(r, f)) && (strict ? clearAll(dy, dx) : clearBox(r)) && onStage(r)) { best = [dy, dx]; found = true; break; } } }
+          // only when its box has no room inside (on a phone a box can be one pill wide and its
+          // four cubes fill its height; another box holds its name above a cube): just outside it, within 24 px of
+          // its cube, nearest first (so on the side nearest the cube), 4 px from everything else, never over another box
+          if (!found) { const others = [...new Set(outlineSegs.map((s) => s.k))].filter((k) => k >= 0 && k !== box0 && !tokKeys.has(k)).map((k) => ownBox(k)).filter((b): b is R4 => !!b);
+            for (const { dx, dy, r } of [...cands].sort((a, b) => gapTo(a.r) - gapTo(b.r))) { if (gapTo(r) > 24) continue; const cx = r.x + r.w / 2, cy = r.y + r.h / 2; if (others.some((b) => cx >= b.x && cx <= b.x + b.w && cy >= b.y && cy <= b.y + b.h)) continue; if (free4(r) && !fixed.some((f) => sameLine(r, f)) && clearBox(r) && onStage(r)) { best = [dy, dx]; found = true; break; } } }
+          // (for the checks) why no spot within 24 px: how many candidates each test turned down
+          if (!found || gapTo(rect(p, best[0], best[1])) > 24) { const why: Record<string, number> = { box: 0, free: 0, line: 0, clear: 0, stage: 0, n: 0 }; for (const { dx, dy, r } of cands) { if (gapTo(r) > 24) continue; why.n++; if (!inBox(r)) why.box++; else if (!free4(r)) { const wf = fixed.find((f) => !ghostR.has(f) && hits(gapR(r, 3), f)); if (wf) { why.word = (why.word ?? 0) + 1; const t = fixedBy.get(wf) ?? "?"; why["w:" + t] = (why["w:" + t] ?? 0) + 1; } else if (touchRects.some((t) => t.k !== ownT && tokKeys.has(t.k) && hits(r, dotR(t)))) why.dot = (why.dot ?? 0) + 1; else why.lineF = (why.lineF ?? 0) + 1; } else if (fixed.some((f) => sameLine(r, f))) why.line++; else if (!clearBox(r)) why.clear++; else if (!onStage(r)) why.stage++; } p.el.dataset.why = JSON.stringify(why); } else delete p.el.dataset.why;
+          if (nIn === 0 && found && own0) { const r = rect(p, best[0], best[1]); side0.set(box0, Math.sign(r.x + r.w / 2 - (own0.x + own0.w / 2)) || 1); }
+          sideN.set(box0, nIn + 1); }
+        // first never on one line within 16 px of another word (a pill beside a word reads as one phrase), then as before
+        for (const strictPh of [true, false]) { if (found) break; const ph = (dy: number, dx: number) => !strictPh || !fixed.some((f) => sameLine(rect(p, dy, dx), f));
+          if (!found) for (const [dy, dx] of tries) if (free(dy, dx) && ph(dy, dx) && clearAll(dy, dx) && onStage(rect(p, dy, dx))) { best = [dy, dx]; found = true; break; }
+          // by its own cube: within 32 px, else within 64 (a pill 110 px off read as nobody's)
+          const ownR = touchRects.find((t) => t.k === ownT), byCube = (dy: number, dx: number, m: number) => { const r = rect(p, dy, dx); return !ownR || (r.x < ownR.x + ownR.w + m && ownR.x < r.x + r.w + m && r.y < ownR.y + ownR.h + m && ownR.y < r.y + r.h + m); };
+          for (const m of [32, 64]) if (!found) for (const s of [1.6, 2.2, 3]) { for (const [dy, dx] of tries) if (byCube(dy * s, dx * s, m) && free(dy * s, dx * s) && ph(dy * s, dx * s) && clearAll(dy * s, dx * s) && onStage(rect(p, dy * s, dx * s))) { best = [dy * s, dx * s]; found = true; break; } if (found) break; }
+          // then every spot near its cube, nearest first, 4 px clear of every cube and outline
+          if (!found) for (const [dx, dy] of gridSpots(p.el.offsetHeight + 2, 64, 3)) if (byCube(dy, dx, 64) && free(dy, dx) && ph(dy, dx) && clearAll(dy, dx) && onStage(rect(p, dy, dx))) { best = [dy, dx]; found = true; break; }
+          if (!found) for (const [dy, dx] of tries) if (free(dy, dx) && ph(dy, dx) && onStage(rect(p, dy, dx))) { best = [dy, dx]; found = true; break; }
+          if (!found) for (const [dy, dx] of tries) if (free(dy, dx) && ph(dy, dx)) { best = [dy, dx]; found = true; break; }
+          // no spot the rules above allow: the test it had before them (off every word, 3 px), farther out too, so a pill
+          // is never left on another pill
+          if (!found) { const free0 = (dy: number, dx: number) => !fixed.some((f) => hits(gapR(rect(p, dy, dx), 3), f));
+            for (const s of [1, 1.6, 2.2, 3]) { for (const [dy, dx] of tries) if (free0(dy * s, dx * s) && ph(dy * s, dx * s) && onStage(rect(p, dy * s, dx * s))) { best = [dy * s, dx * s]; found = true; break; } if (found) break; } }
+        }
+        { const r = rect(p, best[0], best[1]); best = [best[0] + Math.max(0, 2 - r.y) - Math.max(0, r.y + r.h - (W.h - 2)), best[1] + Math.max(0, 2 - r.x) - Math.max(0, r.x + r.w - (W.w - 2))]; }
         // the first placing is at once; a later one eases there (a third of the way each frame)
         const ez = (a: number, b: number) => (st.fresh || Math.abs(b - a) < 0.5 ? b : a + (b - a) / 3);
         st.dy = ez(st.dy, best[0]); st.dx = ez(st.dx, best[1]);
@@ -775,8 +929,13 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       if (st.dy || st.dx) p.el.style.transform = `translate(${(p.sx + st.dx).toFixed(1)}px, ${(p.sy + st.dy).toFixed(1)}px)`;
       // small labels stay above the names of things, in a fixed order, so two never swap in front of each other
       p.el.style.zIndex = String(2e5 + (moving ? 1 : 0));
-      fixed.push(rect(p, st.dy, st.dx));
+      fixed.push(rect(p, st.dy, st.dx)); fixedBy.set(fixed[fixed.length - 1], p.el.textContent ?? "");
+      if (parseFloat(p.el.style.opacity || "1") > 0.05) smallR.push(fixed[fixed.length - 1]);
+      if (p.el.classList.contains("scn3-wire") && parseFloat(p.el.style.opacity || "1") <= 0.5) faintW.push({ el: p.el, r: fixed[fixed.length - 1] });
     }
+    // a faint arrow's label on a word hides
+    for (const w of faintW) if (fixed.some((f) => f !== w.r && !ghostR.has(f) && hits(w.r, f))) { w.el.style.opacity = "0"; const i = smallR.indexOf(w.r); if (i >= 0) smallR.splice(i, 1); }
+    for (const g of ghostEl) if (smallR.some((r) => hits(r, g.r))) g.el.style.opacity = "0";
     placed = [];
   };
   // each small label's step aside (dy) and where its anchor was last frame
@@ -784,7 +943,6 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   const STILL = 10;
   // a name's spot and fade (format version 9): worked out at once the first time, held while its anchor moves, eased
   // to a new one when it has stood still for STILL frames
-  const GHOST = 0.16;
   const nslot = new WeakMap<HTMLElement, { dx: number; dy: number; o: number; sx: number; sy: number; still: number; fresh: boolean }>();
   const held = (p: { el: HTMLElement; sx: number; sy: number }, find: () => [number, number, number]) => {
     const st = nslot.get(p.el) ?? { dx: 0, dy: 0, o: 1, sx: p.sx, sy: p.sy, still: 0, fresh: true };
@@ -800,6 +958,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     return st;
   };
   let touchedKeys = new Set<number>();
+  let tokKeys = new Set<number>(); // the tokens on the stage: every other name keeps off their dots
   // the 3D labels rule (format version 10): while a step plays, only who takes part shows a label; each label eases
   // to hidden (about 0.1 s) or shown (about 0.2 s), by the clock, not per frame, so it is quick on a slow device and
   // never blinks
@@ -825,7 +984,6 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const it of view.items) {
       const o = objs.get(it.key), p = pos.get(it.key);
       if (!o || !p) continue;
-      // (format version 11, one focus at a time) a token the step is not about keeps its pill; its label fades
       const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key);
       const op = +(o.label.dataset.o ?? 1) * ease(o.label, still && labelOn([it.key], partSet) && !tokOff);
       o.label.dataset.on = (partSet && !labelOn([it.key], partSet)) || tokOff ? "0" : "1";
@@ -840,6 +998,9 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     const scr = (x: number, y: number, z: number): P2 & { z: number } => { v3.set(x, y, z).project(cam); return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h, z: v3.z }; };
     const lo = 16, hi = W.h - 34;
     const quads = planes.map((_, L) => { const y = floorY(L, g); return [scr(fx0, y, fz0), scr(fx1, y, fz0), scr(fx1, y, fz1), scr(fx0, y, fz1)]; });
+    // a layer plane is a thing too: whole on the stage or left out (on a phone a wide plane ran past both sides); its
+    // name stays, a name being a fact. Decided at rest, so a moving camera does not make it blink
+    if (!flying) planes.forEach((pl, L) => { const q = quads[L], cut = q.some((p) => p.z > 1 || p.x < -1 || p.x > W.w + 1 || p.y < -1 || p.y > W.h + 1); pl.mesh.visible = pl.edge.visible = !cut; });
     // the middle of the plane's left edge when it shows (as before), else the left end of what shows
     const ats = quads.map((q, L) => { if (q.some((p) => p.z > 1)) return null; const m = scr(lx, floorY(L, g), lz); return m.x >= 0 && m.x <= W.w && m.y >= lo && m.y <= hi ? m : planeAnchor(q, W.w, lo, hi); });
     const row = (planes[0]?.label.offsetHeight || 22) + 4;
@@ -859,6 +1020,40 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const [key, wv] of wires) if (wv.tags?.length) { const on = wireLabelOn(view.edges.find((x) => x.key === key), partSet); for (const tg of wv.tags) project(tg.el, tg.at.x, tg.at.y, tg.at.z, +(tg.el.dataset.o ?? 1) * ease(tg.el, still && on)); }
     for (const t of tokens) project(t.label, +(t.label.dataset.x ?? 0), +(t.label.dataset.y ?? 0), +(t.label.dataset.z ?? 0), +(t.label.dataset.o ?? 0) * ease(t.label, still));
     for (const b of bubbles) project(b, +(b.dataset.x ?? 0), +(b.dataset.y ?? 0), +(b.dataset.z ?? 0), +(b.dataset.o ?? 0) * ease(b, still));
+    touchRects = [];
+    // every token's dot too, touched or not: other names keep off it
+    const tokK = view.items.filter((x) => x.kind === "token" && x.o > 0.3).map((x) => x.key);
+    tokKeys = new Set(tokK);
+    for (const k of new Set([...view.touched, ...(view.takes ?? []), ...tokK])) {
+      const it = view.items.find((x) => x.key === k), q = pos.get(k);
+      if (!it || !q || it.container || (it.kind !== "token" && (lift.get(k) ?? 0) < 0.3)) continue;
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      // a token is drawn as a small raised cube, not its laid-out footprint: names keep off the
+      // cube as drawn (a name lay on a queue's cubes while the footprint said it was clear)
+      const body = it.kind === "token" ? objs.get(k)?.body : undefined;
+      const tb = body ? new THREE.Box3().setFromObject(body) : null, tc = tb && !tb.isEmpty() ? tb.getCenter(new THREE.Vector3()) : null, th = tb && tc ? tb.max.clone().sub(tc) : null;
+      const C = tc ?? q.c, Hh = th ?? q.half;
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) { v3.set(C.x + sx * Hh.x, C.y + sy * Hh.y, C.z + sz * Hh.z).project(cam); const X = (v3.x * 0.5 + 0.5) * W.w, Y = (-v3.y * 0.5 + 0.5) * W.h; x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y); }
+      if (x1 > x0) touchRects.push({ k, x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+    }
+    outlineSegs = [];
+    { const goneK = new Set(view.items.filter((it) => (it.faint ?? 1) < 0.05 || it.o < 0.05 || it.kind === "token").map((it) => it.key));
+      for (const [k, q] of pos) {
+        if (goneK.has(k)) continue;
+        const P: P2[] = []; let behind = false;
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) { v3.set(q.c.x + sx * q.half.x, q.c.y + sy * q.half.y, q.c.z + sz * q.half.z).project(cam); if (v3.z > 1) behind = true; P.push({ x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }); }
+        if (behind) continue;
+        for (let i = 0; i < 8; i++) for (const bit of [1, 2, 4]) if (!(i & bit)) outlineSegs.push({ k, p: [P[i], P[i | bit]] });
+      }
+      // a layer plane's edges are outlines too (names lay across them)
+      planes.forEach((pl, L) => {
+        if (!pl.mesh.visible || +(pl.label.dataset.o ?? 1) < 0.05) return;
+        // both faces of the thin plane (its two edges stand 2 px apart; a name 4 px from one lay on the other)
+        const b = new THREE.Box3().setFromObject(pl.mesh);
+        for (const y of [b.min.y, b.max.y]) { const P: P2[] = []; let behind = false;
+          for (const [x, z] of [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]]) { v3.set(x, y, z).project(cam); if (v3.z > 1) behind = true; P.push({ x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }); }
+          if (!behind) for (let i = 0; i < 4; i++) outlineSegs.push({ k: -1 - L, p: [P[i], P[(i + 1) % 4]] }); }
+      }); }
     // the lines on the screen, for names at rest to keep off (item 8, fix)
     lineSegs = [...wires.values()].filter((w) => (w.on ?? 0) > 0.3 && w.pts && w.ends).map((w) => ({ ends: w.ends!, p: w.pts!.map((q) => { v3.copy(q).project(cam); return { x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }; }) }));
     unclutter();
@@ -1069,22 +1264,30 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
   };
   // (rfit) the frame check (p10/rfit/fit3d.ts): each shown thing's and each shown plane's drawn box, its eight corners
   // projected to the stage (pixels from the stage's top left); w, h: the stage; still: the camera is at its goal
-  (host as any).dh3corners = () => {
+  (host as any).dh3corners = (faint = false) => {
     if (!view) return null;
     root.updateMatrixWorld(true);
     const op = (m: THREE.Material | THREE.Material[]) => Math.max(...(Array.isArray(m) ? m : [m]).map((x) => (x as THREE.MeshBasicMaterial).opacity));
     const box = (b: THREE.Box3) => { const out: P2[] = []; for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) for (const z of [b.min.z, b.max.z]) { v3.set(x, y, z).project(cam); out.push({ x: (v3.x * 0.5 + 0.5) * W.w, y: (-v3.y * 0.5 + 0.5) * W.h }); } return out; };
-    const things: { key: number; name: string; L: number; touched: boolean; c: P2[] }[] = [];
+    const things: { key: number; id: string; name: string; kind: string; L: number; touched: boolean; c: P2[]; lab: { x: number; y: number; w: number; h: number } | null; op: number; cont?: boolean; parent?: number | null }[] = [];
+    const hr = host.getBoundingClientRect();
+    // where its words show on the stage, when they show
+    const labOf = (el: HTMLElement) => { const r = el.getBoundingClientRect(), o = +(getComputedStyle(el).opacity || 1); return o > 0.5 && r.width > 0 && el.textContent?.trim() ? { x: r.left - hr.left, y: r.top - hr.top, w: r.width, h: r.height } : null; };
     for (const it of view.items) {
       const o = objs.get(it.key); if (!o || it.kind === "layer") continue;
       const ms = [o.body, ...o.extra].filter(Boolean) as THREE.Mesh[];
-      if (!ms.length || Math.max(...ms.map((m) => op(m.material as any))) < 0.3) continue;
+      const mo = ms.length ? Math.max(...ms.map((m) => op(m.material as any))) : 0;
+      if (!ms.length || mo < (faint ? 0.001 : 0.3) || !ms.some((m) => m.visible)) continue;
       const b = new THREE.Box3(); ms.forEach((m) => b.expandByObject(m));
-      things.push({ key: it.key, name: it.label || it.id, L: it.L, touched: view.touched.includes(it.key), c: box(b) });
+      things.push({ key: it.key, id: it.id, name: it.label || it.id, kind: it.kind, L: it.L, touched: view.touched.includes(it.key), c: box(b), lab: labOf(o.label), op: +mo.toFixed(2), cont: !!it.container, parent: it.parent ?? null });
     }
-    const pl = planes.map((p, L) => ({ L, name: p.label.textContent ?? "", shown: op(p.mesh.material as THREE.Material) > 0.2, c: box(new THREE.Box3().setFromObject(p.mesh)) })).filter((p) => p.shown);
+    const pl = planes.map((p, L) => ({ L, name: p.label.textContent ?? "", shown: p.mesh.visible && op(p.mesh.material as THREE.Material) > 0.2, c: box(new THREE.Box3().setFromObject(p.mesh)) })).filter((p) => p.shown);
     const still = (Object.keys(camNow) as (keyof typeof camNow)[]).every((k) => Math.abs(goal[k] - camNow[k]) < (k === "dist" || k.startsWith("t") ? 0.5 : 0.002));
-    return { w: W.w, h: W.h, user, still, things, planes: pl };
+    // the lines drawn (as the labels see them: shown over 0.3), with their end keys and screen points
+    const lines = lineSegs.map((l) => ({ ends: l.ends, p: l.p.map((q) => ({ x: +q.x.toFixed(1), y: +q.y.toFixed(1) })) }));
+    const keys = Object.fromEntries(view.items.map((it) => [it.id, it.key]));
+    const dots = tokens.filter((t) => t.mesh.visible).map((t) => { const c = t.mesh.getWorldPosition(new THREE.Vector3()); const r = t.mesh.scale.x / 2; const a = c.clone().project(cam), e = c.clone().add(new THREE.Vector3(r, 0, 0)).project(cam); return { x: (a.x * 0.5 + 0.5) * W.w, y: (-a.y * 0.5 + 0.5) * W.h, r: Math.max(2, Math.abs(e.x - a.x) * 0.5 * W.w), n: t.label.textContent ?? "" }; });
+    return { w: W.w, h: W.h, user, still, things, planes: pl, lines, keys, dots };
   };
   return {
     update,

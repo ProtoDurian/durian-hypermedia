@@ -142,6 +142,7 @@
     "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
     "prepare": "bun scripts/build.ts",
     "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types",
+    "names3d": "bun example/build.tsx && bun scripts/names3d-check.ts",
     "ix": "bun scripts/interactive-check.ts",
     "bench": "bun scripts/bench.ts"
   },

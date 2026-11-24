@@ -580,6 +580,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
       cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
       part: quiet && B.part ? B.part : null,
+      takes: B.part ?? null, // who takes part in the step, at rest too: other names keep off them
       toks: tokS, // (format version 11) only the token the step is about keeps its label
       least: hold?.least ?? MIN_PX / minFont(B),
       // format version 10: the scene shown; going in, the first half flies into the thing entered from; the second

@@ -111,7 +111,7 @@ describe("the page's work budget", () => {
     const [d, total] = counted(() => parse(text));
     expect(errors(d).length).toBe(60);
     expect(total).toBeLessThan(LIMITS.maxPageAnimWork + 2 * OVER);
-  });
+  }, 30_000); // it checks the work cap, not speed: 60 scenes parse in about 5 s on a loaded machine, past bun's 5 s default
 
   test("check() of a page past the block cap compiles what parse() never reached within a page budget", () => {
     const text = Array.from({ length: 12 }, () => scene(30, 40, true)).join("\n\n");

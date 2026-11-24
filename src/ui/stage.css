@@ -90,7 +90,7 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
  which the layout measures with): family, the title weight, and one size per text role */
 .stg { --stg-font: var(--font-sans); --stg-title-weight: 500; --stg-fs-title: 13.5px; --stg-fs-body: 12.5px; --stg-fs-sub: 12px;
   --stg-fs-lane: 12.5px; --stg-fs-chip: 11.5px; --stg-fs-big: 21px; --stg-fs-mono: 12px; --stg-fs-small-b: 11.5px; }
-.stg-t { font-family: var(--stg-font); }
+.stg-t { font-family: var(--stg-font); text-rendering: geometricPrecision; }
 .stg-f-title { font-size: var(--stg-fs-title); font-weight: var(--stg-title-weight); }
 .stg-f-body { font-size: var(--stg-fs-body); }
 .stg-f-sub { font-size: var(--stg-fs-sub); }

@@ -187,6 +187,8 @@ The third release candidate of 0.7.0. The format number stays 10.
   smaller graph); **the ER sample and its SPEC example light one column per step.**
 - **The player's controls stay put when Play turns into Pause:** the button keeps room for both labels, and on a phone
   Pause drops its icon so the controls fit beside the title as before; the button's accessible name is Play or Pause.
+- **A '~' on a stage still reads as a tilde:** only the fixed-width rows are drawn with geometric precision; other stage
+  text keeps the browser's normal rendering, so a tilde is not flattened to look like a hyphen at 1x.
 - **A stage drawn smaller or larger than its plan keeps its words inside their boxes:** stage text is drawn with
   geometric precision, so the browser no longer rounds some glyphs at their native width while the box around them
   scales (fixed-width field rows spilled out of their highlights near a 732 px box).

@@ -14,7 +14,7 @@ pointer i "i" at a.0
 highlight a.0 a.1
 @step So they swap: 2 now comes first.
 swap a.0 a.1
-@step 5 and 8 are in order, so they stay.
+@step It compares 5 and 8: in order, so they stay.
 move i to a.1
 highlight a.1 a.2
 @step 8 and 1 are not: they swap, and 8, the biggest, has reached the end.

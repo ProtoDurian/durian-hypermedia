@@ -316,6 +316,9 @@ The third release candidate of 0.7.0. The format number stays 10.
   and the mesh moves one token per step; its control plane pushes the retry rule to the orders proxy, the one that retries.
 - **One focus per step in the array, map and tree scene too** (fixture 63): finding 40 in the tree lights 50, then 40,
   in steps of their own (it lit both in one step).
+- **Two lit things in a step only when the words name one relation** (compare, collide, talk to, an even load):
+  fixture 70 lights Paris, then Mumbai, in steps of their own, and the captions of fixtures 47, 57, 67 and 94 now say
+  the relation; `test/rc3-one-focus.test.ts` lists every step that may light two or more.
 - **A lookup in a hash table is one focus.** `get <map> <key>` lights the entry only; its bucket is framed (a thin
   grey outline, about 3:1 where the lit accent ring is 4.7:1 or more; its fill, words and border stay) and still kept in view, in 2D and 3D. It lit both.
 - **A table wider than its box** fades on the side that has more of it and says `↔ Swipe the table to see all of it`

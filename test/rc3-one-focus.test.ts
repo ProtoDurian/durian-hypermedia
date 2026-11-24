@@ -3,7 +3,7 @@
 // two (and the array, map and tree scene, format 63: the tree's last two nodes light in steps of their own); the mesh's encrypted call leaves node 1 through its network card, crosses the network under the cluster and
 // enters node 2 through its card: the scene draws that hop instead of a straight proxy-to-proxy line.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compileScene } from "../src/core/scene";
 
@@ -48,5 +48,35 @@ describe("the service mesh goes through both nodes and the network under them (r
   test("the control plane pushes its retry rule once, to the orders proxy (the one that retries), one arrow in its step", () => {
     const pushes = steps.filter((s) => /cfg -> px[ab]/.test(s.raw)).map((s) => focus(s.raw));
     expect(pushes).toEqual([[expect.stringMatching(/^send arrow "retry: 2" cfg -> pxa$/)]]);
+  });
+});
+
+// (rc.3 review row 4, the rule for two lit things) a step may light two or more things only when its words name ONE
+// relation between them (compare, collide, talk to, read, an even load); separate facts get steps of their own. Every
+// fixture step that lights 2+ things is on this list, so a new one is a choice someone makes on purpose
+describe("2+ lit things only where the caption names one relation", () => {
+  const KEEP = [
+    "47 Bubble sort compares neighbours. 5 and 2 are out of order.",
+    "47 It compares 5 and 8: in order, so they stay.",
+    `49 hash("grape") mod 5 is also 2: a collision.`,
+    "57 The load is even: the three cooks now have about the same amount of work.",
+    "67 Look at one layer: TCP on both machines talks only to TCP. The layers above and below are its tools.",
+    "67 The web server's reply goes back to the browser the same way, one layer per hop.",
+    "73 The L2 cache asks RAM, and RAM has x (a hit). The disk is not needed.",
+    "94 One run generates both files from it.",
+  ];
+  test("every fixture: the steps that light 2+ things are exactly the kept ones", () => {
+    const got: string[] = [];
+    for (const name of readdirSync(FIX).filter((f) => f.endsWith(".dh.md")).sort()) {
+      for (const m of readFileSync(join(FIX, name), "utf8").matchAll(/^```animation([^\n]*)\n([\s\S]*?)^```$/gm)) {
+        const [head, ...rest] = m[2].split(/^@step /m);
+        const steps = rest.map((r, k) => { const [t, ...b] = r.split("\n"); return { title: t.trim(), raw: b.join("\n"), line: 100 * (k + 1) }; });
+        const info = Object.fromEntries(m[1].trim().split(/\s+/).filter((w) => w.includes("=")).map((w) => w.split("=")));
+        const c = compileScene(head, steps, 1, info);
+        if (c.errors.length) continue;
+        c.fx.forEach((x, i) => { if (new Set(x.highlights.map((h) => h.key)).size > 1) got.push(`${name.slice(0, 2)} ${steps[i].title}`); });
+      }
+    }
+    expect(got).toEqual(KEEP);
   });
 });

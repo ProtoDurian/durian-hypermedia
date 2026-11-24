@@ -15,6 +15,6 @@ src -> out "task gen"
 src -> dash
 @step The contract is the one source.
 highlight src
-@step Both files are generated from it.
+@step One run generates both files from it.
 highlight out dash
 ```

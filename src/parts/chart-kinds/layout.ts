@@ -152,3 +152,45 @@ export function sunburstLayout(nodes: TNode[], root: number, levels: number, b: 
   }
   return out;
 }
+
+// ---------------------------------------------------------------- labels that never overlap
+// The words of an axis are measured (the part's own width table at the 12 px the stylesheet sets) and placed so that no two of them
+// overlap at any width: a name that does not fit level is turned upright, and when even upright words are closer than a line,
+// every k-th is kept (the rest stay in the card and the LLM view). A value on a bar is kept only where it has the room.
+import { textW } from "../kit/text";
+
+/** the font size of an axis word and the height one upright word takes of its band, in px */
+export const TICK_PX = 12, LINE_PX = 14;
+/** characters kept of an upright word */
+export const UPRIGHT_MAX = 14;
+export const cutWord = (s: string, n: number): string => (s.length <= n ? s : s.slice(0, Math.max(1, n - 1)) + "…");
+/** how the names under the bars fit a band each: all level, all upright, or every k-th upright */
+export function xLab(names: string[], band: number): { rot: boolean; every: number; max: number } {
+  const widest = Math.max(0, ...names.map((n) => textW(n, TICK_PX)));
+  if (widest + 6 <= band) return { rot: false, every: 1, max: 99 };
+  return { rot: true, every: Math.max(1, Math.ceil((LINE_PX + 2) / Math.max(1, band))), max: UPRIGHT_MAX };
+}
+/** the room under the axis an upright name needs: its length, the gap above it and the axis title below it */
+export const rotRoom = (names: string[]): number => 10 + Math.ceil(Math.max(0, ...names.map((n) => textW(cutWord(n, UPRIGHT_MAX), TICK_PX)))) + 26;
+/** which of these values on bars (text widths at 12 px bold, centres `at`) are drawn: priority ones first, then the rest, each only
+ *  where it clears every one already placed by 4 px; the others are in the card and the LLM view */
+export function placeValues(items: { text: string; at: number; first?: boolean }[]): boolean[] {
+  const shown: [number, number][] = [], out = items.map(() => false);
+  const clear = (l: number, r: number) => shown.every(([a, b]) => r + 4 <= a || l >= b + 4);
+  for (const pass of [true, false]) items.forEach((it, i) => {
+    if (!!it.first !== pass) return;
+    const w = textW(it.text, TICK_PX) * 1.1, l = it.at - w / 2, r = it.at + w / 2;
+    if (clear(l, r)) { shown.push([l, r]); out[i] = true; }
+  });
+  return out;
+}
+/** the x ticks of a numeric axis, left to right, each kept only where it clears the one before by 8 px */
+export function fitTicks<T>(xs: T[], at: (x: T) => number, text: (x: T) => string): T[] {
+  const out: T[] = [];
+  let edge = -Infinity;
+  for (const x of xs) {
+    const w = textW(text(x), TICK_PX), c = at(x);
+    if (c - w / 2 >= edge + 8) { out.push(x); edge = c + w / 2; }
+  }
+  return out;
+}

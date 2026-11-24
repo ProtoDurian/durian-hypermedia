@@ -8,7 +8,8 @@ import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, partLimitsOf } from "../../core/budget";
 import part, { parseChartKinds } from "./part";
 import { capsOf, compute, dayNum, dateOf, flattenTree, llmText } from "./compute";
-import { boxStats, kde, niceTicks, quantile, sunburstLayout, treemapLayout } from "./layout";
+import { boxStats, fitTicks, kde, LINE_PX, niceTicks, placeValues, quantile, rotRoom, sunburstLayout, TICK_PX, treemapLayout, xLab } from "./layout";
+import { textW } from "../kit/text";
 import { LIMITS as OWN, UNTRUSTED_LIMITS as OWN_UNTRUSTED } from "./limits";
 import { fmtValue } from "./fmt";
 
@@ -302,6 +303,52 @@ describe("chart-kinds: fixtures", () => {
       }
     });
   }
+});
+
+// No two labels of a chart overlap at any width (the rule behind the chart label check, scripts/label-check.ts, which measures the
+// drawn words in a browser): these are the layout rules it checks, at every width from a small phone to a wide screen.
+describe("chart-kinds: labels never overlap", () => {
+  const NAMES = ["October", "New", "Churn", "Refunds", "Subtotal", "Price rise", "November"];
+  const WIDTHS = Array.from({ length: 111 }, (_, i) => 180 + i * 10);   // 180 to 1,280
+  const bandAt = (w: number, n: number) => (w - 14 - 62) / n;
+  test("the names under the bars: level when they all fit, else upright and thinned until each takes no more than its share", () => {
+    for (const w of WIDTHS) for (const names of [NAMES, NAMES.slice(0, 3), [...NAMES, ...NAMES.map((n) => n + " II")], ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t"]]) {
+      const band = bandAt(w, names.length), lab = xLab(names, band);
+      const kept = names.filter((_, i) => i % lab.every === 0);
+      if (!lab.rot) { for (const n of names) expect(textW(n, TICK_PX) + 6).toBeLessThanOrEqual(band + 1e-9); }
+      else expect(lab.every * band).toBeGreaterThanOrEqual(LINE_PX + 2 - 1e-9);   // the upright words (a line wide) are never closer than a line
+      expect(kept.length).toBeGreaterThan(0);
+    }
+  });
+  test("the room under the axis holds the longest upright name, its gap and the axis title, and depends on the names only", () => {
+    expect(rotRoom(NAMES)).toBe(10 + Math.ceil(textW("Price rise", TICK_PX)) + 26);
+    expect(rotRoom(["x".repeat(40)])).toBe(10 + Math.ceil(textW("x".repeat(13) + "…", TICK_PX)) + 26);
+  });
+  test("the waterfall's values over the bars: none overlaps another, at any width, and the totals are placed first", () => {
+    const vals = [{ t: "€84K", first: true }, { t: "+€12.5K" }, { t: "−€9.1K" }, { t: "−€2.3K" }, { t: "€85.1K", first: true }, { t: "+€4.8K" }, { t: "€89.9K", first: true }];
+    for (const w of WIDTHS) {
+      const band = bandAt(w, vals.length), items = vals.map((v, i) => ({ text: v.t, at: 62 + band * (i + 0.5), first: v.first }));
+      const shown = placeValues(items);
+      const boxes = items.flatMap((it, i) => (shown[i] ? [[it.at - textW(it.text, TICK_PX) * 0.55, it.at + textW(it.text, TICK_PX) * 0.55]] : []));
+      for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(boxes[i][1] <= boxes[j][0] || boxes[j][1] <= boxes[i][0]).toBe(true);
+      if (w >= 640) expect(shown.every(Boolean)).toBe(true);   // room for all of them on a wide chart
+      if (w < 480) expect(shown.filter(Boolean).length).toBeGreaterThan(0);
+    }
+  });
+  test("the totals win when only some values fit (the 390 px waterfall measured with overlaps)", () => {
+    const band = bandAt(390, 7), items = ["€84K", "+€12.5K", "−€9.1K", "−€2.3K", "€85.1K", "+€4.8K", "€89.9K"].map((text, i) => ({ text, at: 62 + band * (i + 0.5), first: i === 0 || i === 4 || i === 6 }));
+    const shown = placeValues(items);
+    expect([0, 4, 6].every((i) => shown[i])).toBe(true);
+    expect(shown[5]).toBe(false);   // "+€4.8K" sits between two totals: it has no room, its value is in the card and the LLM view
+  });
+  test("the numeric x ticks of a histogram keep only those that clear the one before", () => {
+    for (const w of WIDTHS) {
+      const e0 = 0, e1 = 1_000_000, mx = (x: number) => 58 + ((x - e0) / (e1 - e0)) * (w - 14 - 58);
+      const kept = fitTicks(niceTicks(e0, e1, 6), mx, (x) => x.toLocaleString("en-US"));
+      for (let i = 1; i < kept.length; i++) expect(mx(kept[i]) - textW(kept[i].toLocaleString("en-US"), TICK_PX) / 2).toBeGreaterThanOrEqual(mx(kept[i - 1]) + textW(kept[i - 1].toLocaleString("en-US"), TICK_PX) / 2 + 8 - 1e-9);
+      expect(kept.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 test("the definition matches its folder", () => {

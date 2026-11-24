@@ -8,7 +8,7 @@ import { Budget, partLimitsOf } from "../../core/budget";
 import { Stepper, stepKeys, useSteps, usePopover, type PopData } from "../kit/view";
 import type { PartViewProps } from "../types";
 import { fmtValue } from "./fmt";
-import { niceTicks, sunburstLayout, treemapLayout, type TNode } from "./layout";
+import { cutWord, fitTicks, niceTicks, placeValues, rotRoom, sunburstLayout, treemapLayout, xLab, type TNode } from "./layout";
 import { pct as pctText, type Day, type View } from "./compute";
 import type { ChartKindsData } from "./part";
 
@@ -26,18 +26,10 @@ const tcls = (t: string) => `ck-t-${t}`;
 const fmtOf = (v: { fmt: { format: string; currency?: string } }): Fmt => (x, c) => fmtValue(x, v.fmt.format, v.fmt.currency, c);
 /** the room the tick words on the left need (the axis title sits to the left of them) */
 const leftOf = (labels: string[]) => Math.max(52, Math.ceil(34 + Math.max(0, ...labels.map((l) => l.length)) * 6.8));
-/** how the names under the bars fit: all of them level, all of them tilted, or every other one */
-function xLab(names: string[], band: number): { rot: boolean; every: number; max: number } {
-  const longest = Math.max(0, ...names.map((n) => n.length)), fit = Math.floor(band / 7);
-  if (longest <= fit) return { rot: false, every: 1, max: Math.max(4, fit) };
-  if (band >= 18) return { rot: true, every: 1, max: 14 };
-  const every = Math.ceil(30 / band);
-  return { rot: false, every, max: Math.max(4, Math.floor((band * every) / 7)) };
-}
 function XLabels({ names, cx, y, lab }: { names: string[]; cx: (i: number) => number; y: number; lab: { rot: boolean; every: number; max: number } }) {
   return <>{names.map((n, i) => i % lab.every === 0 && (lab.rot
-    ? <text key={i} className="ck-tick" transform={`translate(${cx(i) + 4} ${y}) rotate(-35)`} textAnchor="end">{trunc(n, lab.max)}</text>
-    : <text key={i} className="ck-tick" x={cx(i)} y={y} textAnchor="middle">{trunc(n, lab.max)}</text>))}</>;
+    ? <text key={i} className="ck-tick" transform={`translate(${cx(i)} ${y - 8}) rotate(-90)`} textAnchor="end" dy="0.35em">{cutWord(n, lab.max)}</text>
+    : <text key={i} className="ck-tick" x={cx(i)} y={y} textAnchor="middle">{n}</text>))}</>;
 }
 /** open a card for an element from code (the arrow keys): the popover's own focus handler does it */
 const showCard = (pop: Pop, id: string, data: PopData, el: Element) => (pop.bind(id, data).onFocus as (e: { currentTarget: Element }) => void)({ currentTarget: el });
@@ -62,13 +54,15 @@ function useWalk(hits: Hit[], pop: Pop, host: Host, vertical = false) {
   return { tabIndex: 0, onKeyDown, onBlur: () => { at.current = -1; } };
 }
 
+/** the extra height a chart with long names reserves for upright names (it depends on the names only, never on the width) */
+const upright = (names: string[]): number => (names.some((n) => n.length > 5) ? Math.max(50, rotRoom(names) - 46) : 0);
 // The height of a chart never depends on the width it is measured at: the page is drawn for an assumed width and measured
 // after it hydrates, and a height that changed with the width would move the controls under a tap.
 function heightOf(v: View): number {
   switch (v.kind) {
     case "histogram": return 300;
-    case "boxplot": case "violin": return 340 + (v.stats.some((s) => s.name.length > 5) ? 50 : 0);
-    case "waterfall": return 340 + (v.rows.some((r) => r.name.length > 5) ? 50 : 0);
+    case "boxplot": case "violin": return 340 + upright(v.stats.map((s) => s.name));
+    case "waterfall": return 340 + upright(v.rows.map((r) => r.name));
     case "funnel": return v.stages.length * 86 - 26 + 8;
     case "treemap": return 420;
     default: return 0;
@@ -114,7 +108,7 @@ function Histogram({ v, w, pop, host }: { v: Extract<View, { kind: "histogram" }
   const maxC = Math.max(1, ...v.series.flatMap((s) => s.counts));
   const yt = niceTicks(0, maxC, 5); const ymax = yt[yt.length - 1] || 1;
   const y = (c: number) => plot.b - (c / ymax) * (plot.b - plot.t);
-  const xt = niceTicks(e[0], e[n], narrow ? 3 : 6).filter((x) => x >= e[0] - 1e-9 && x <= e[n] + 1e-9);
+  const xt = fitTicks(niceTicks(e[0], e[n], narrow ? 3 : 6).filter((x) => x >= e[0] - 1e-9 && x <= e[n] + 1e-9), mx, (x) => f(x, true));
   const gap = (mx(e[1]) - mx(e[0])) > 8 ? 2 : (mx(e[1]) - mx(e[0])) > 3 ? 1 : 0;
   const hits: Hit[] = Array.from({ length: n }, (_, i) => ({ id: `bin-${i}`, data: { title: `${f(e[i])} to ${f(e[i + 1])}`, meta: v.series.length === 1 ? `${v.series[0].counts[i]} of ${v.series[0].n} values · ${pct(v.series[0].counts[i] / v.series[0].n)}` : undefined, text: v.series.length > 1 ? v.series.map((s) => `${s.name}: ${s.counts[i]} (${pct(s.counts[i] / s.n)})`).join("\n") : undefined } }));
   const walk = useWalk([...hits, ...v.marks.map((m, i) => ({ id: `mark-${i}`, data: { title: m.label, text: m.text } }))], pop, host);
@@ -151,7 +145,7 @@ function BoxViolin({ v, w, pop, host }: { v: Extract<View, { kind: "boxplot" | "
   const yt = niceTicks(Math.min(lo, ...v.marks.map((m) => m.value)), hi, 5);
   plot.l = leftOf(yt.map((x) => f(x, true)));
   const lab = xLab(v.stats.map((s) => s.name), (plot.r - plot.l) / v.stats.length);
-  plot.b = H - (lab.rot ? 82 : 46);
+  plot.b = H - (lab.rot ? rotRoom(v.stats.map((s) => s.name)) : 46);
   const y0 = yt[0], y1 = yt[yt.length - 1];
   const y = (x: number) => plot.b - ((x - y0) / (y1 - y0 || 1)) * (plot.b - plot.t);
   const band = (plot.r - plot.l) / v.stats.length, cx = (i: number) => plot.l + band * (i + 0.5);
@@ -231,10 +225,13 @@ function Waterfall({ v, w, pop, host }: { v: Extract<View, { kind: "waterfall" }
   const yt = niceTicks(Math.min(...vals), Math.max(...vals), 5);
   plot.l = leftOf(yt.map((x) => f(x, true)));
   const lab = xLab(v.rows.map((r) => r.name), (plot.r - plot.l) / v.rows.length);
-  plot.b = H - (lab.rot ? 82 : 46);
+  plot.b = H - (lab.rot ? rotRoom(v.rows.map((r) => r.name)) : 46);
   const y0 = yt[0], y1 = yt[yt.length - 1];
   const y = (x: number) => plot.b - ((x - y0) / (y1 - y0 || 1)) * (plot.b - plot.t);
   const band = (plot.r - plot.l) / v.rows.length, cx = (i: number) => plot.l + band * (i + 0.5), bw = Math.max(10, Math.min(60, band * 0.62));
+  // the value over each bar: kept only where it has the room (totals first); the others are in the card and the LLM view
+  const labels = v.rows.map((r) => (r.type === "total" || r.type === "start" ? f(r.type === "total" ? r.total : r.change, true) : `${r.change >= 0 ? "+" : "−"}${f(Math.abs(r.change), true)}`));
+  const shown = placeValues(v.rows.map((r, i) => ({ text: labels[i], at: cx(i), first: r.type === "total" || r.type === "start" })));
   const hits: Hit[] = v.rows.map((r, i) => ({ id: `wf-${i}`, data: { title: r.name, meta: r.type === "total" ? `Total ${f(r.total)}` : r.type === "start" ? `Start ${f(r.change)}` : `${r.change >= 0 ? "+" : ""}${f(r.change)} → ${f(r.total)}`, text: r.type === "up" || r.type === "down" ? `Running total goes from ${f(r.from)} to ${f(r.to)}.` : undefined } }));
   const walk = useWalk(hits, pop, host);
   return (
@@ -245,11 +242,11 @@ function Waterfall({ v, w, pop, host }: { v: Extract<View, { kind: "waterfall" }
         const top = y(Math.max(r.from, r.to)), h = Math.max(2, Math.abs(y(r.from) - y(r.to)));
         const next = v.rows[i + 1];
         const tone = r.type === "up" ? "ck-t-good" : r.type === "down" ? "ck-t-bad" : "ck-t-acc";
-        const label = r.type === "total" || r.type === "start" ? f(r.type === "total" ? r.total : r.change, true) : `${r.change >= 0 ? "+" : "−"}${f(Math.abs(r.change), true)}`;
+        const label = labels[i];
         return <g key={i} className={`ck-wf ${tone}`} style={{ animationDelay: `${i * 60}ms` }}>
           {next && <line className="ck-conn" x1={cx(i) + bw / 2} x2={cx(i + 1) - bw / 2} y1={y(r.to)} y2={y(r.to)} />}
           <rect className="ck-wfbar" x={cx(i) - bw / 2} y={top} width={bw} height={h} rx={4} />
-          {(r.type === "total" || r.type === "start" || label.length * 6.8 <= band * 1.1) && <text className="ck-wf-val" x={cx(i)} y={r.type === "down" ? top + h + 16 : top - 8} textAnchor="middle">{label}</text>}
+          {shown[i] && <text className="ck-wf-val" x={cx(i)} y={r.type === "down" ? top + h + 16 : top - 8} textAnchor="middle">{label}</text>}
         </g>;
       })}
       <g className="ck-axis" aria-hidden="true"><XLabels names={v.rows.map((r) => r.name)} cx={cx} y={plot.b + 18} lab={lab} /><text className="ck-axis-title" x={(plot.l + plot.r) / 2} y={H - 8} textAnchor="middle">{v.xLabel}</text></g>

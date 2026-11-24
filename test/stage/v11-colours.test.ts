@@ -1,3 +1,4 @@
+// @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
 // The measured role palette (0.7.0-rc.3): the eight family colours, light and dark, read from src/ui/theme.css itself (both
 // dark blocks too) and checked against every limit. On the 0.7.0-rc.2 palette these fail (c1 and c4: fills 0.3 apart with
 // colour blindness, borders 1.2 apart; c3's border 2.2:1 on the stage; no planes; plain edges 1.3 to 1.7:1).

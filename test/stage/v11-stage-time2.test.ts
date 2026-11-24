@@ -363,7 +363,7 @@ test("[bar] spans inside their row (none of its states in their range): their ch
   const head = `time: -0.5..27 | seconds
 ticks: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26
 row job r0 "writer": _ -0.4..-0.3 @3
-row server a0 "prints": +prints until 16 6..16 @3`;
+row server a0 "prints": +open until 16 6..16 @3`;
   const raw = [0, 2, 4, 6].map((v) => `span r0 ${v}..${v + 10} [bar]\ntag r0 ${v}..${v + 10}: R`).join("\n");
   const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw, line: 11 }, { title: "Three", raw: "", line: 20 }];
   for (const w of [1280, 1000, 390]) {
@@ -677,7 +677,7 @@ test("band... | compact: its rows pack under the band's title (name, then sub, s
   expect(bad.errors.map((e) => e.msg).join(" ")).toContain("optionally ending | compact");
 });
 
-test("phone cell words staggered under their row: each has a leader in its cell's ink from its own cell's bottom edge down to the word (rc.2 MUST 7)", () => {
+test("phone cell words too wide for their cell are tied to it: on end inside it (rc.2, sample 29), or under the row with a leader in its ink from its bottom edge (rc.2 MUST 7)", () => {
   const head = `job s: sender | sends
 time: 0..12 | hours
 cells: 1
@@ -691,15 +691,270 @@ row job b "batch": waiting 0..3; +working 3..9; finished 9..12`;
     try {
       const cells = boxes(p.items).filter((b) => /:cell:b:/.test(b.id || ""));
       const words = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && /^(waiting|working|finished)$/.test(i.s));
-      expect(words.length).toBe(12); // one word per cell, staggered under the row
+      expect(words.length).toBe(12); // one word per cell
       const leaders = p.items.filter((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.cls === "stg-time-leader");
       for (const t of words) {
+        if (t.rotate) { const own = cells.find((c) => t.x - fontSize(t.f) * 0.72 >= c.x - 1 && t.x <= c.x + c.w + 1); expect(own).toBeDefined(); continue; } // on end inside its own cell
         const top = t.y - fontSize(t.f) * 0.72, half = measure(t.s, t.f) / 2;
         const lead = leaders.find((l) => Math.abs(l.pts[1][1] - top) <= 2 && l.pts[0][0] >= t.x - half && l.pts[0][0] <= t.x + half && cells.some((c) => Math.abs(c.x + c.w / 2 - l.pts[0][0]) < 0.6 && Math.abs(c.y + c.h - l.pts[0][1]) < 0.6));
         if (!lead) throw new Error(`${w}: "${t.s}" at ${t.x.toFixed(1)},${t.y} has no leader from its cell`);
         expect(lead.ink).toBe(t.s === "working" ? "role:job:line" : "line-2");
       }
-      const xs = new Set(leaders.map((l) => Math.round(l.pts[0][0] * 10))); expect(xs.size).toBe(12); // one leader per cell
+      expect(words.filter((t) => !t.rotate).length).toBe(new Set(leaders.map((l) => Math.round(l.pts[0][0] * 10))).size); // one leader per word under the row
     } finally { setPhoneFont(false); }
   }
+});
+
+test("a bar too narrow for its name: the name sits under the row tied to its bar by a leader, never with the source range ('R 0..1') (24 lane, gap g)", () => {
+  const head = `job s: sender | sends
+time: -0.5..27 | seconds
+row job r "writer": +R -0.3..0.3; +R 1.7..2.3; +open until 6 + 10 = 16 6.3..16
+row job e "printer": +print, fold, pack 0..6.5; paused 0.5 s 6.5..7; +work 23..27`;
+  for (const w of [356, 326, 1000]) {
+    beginDocument();
+    const c = compileStage(head, [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }], 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    const texts = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text");
+    for (const t of texts) expect(/-?\d+(\.\d+)?\.\.-?\d/.test(t.s)).toBe(false); // author syntax never reaches the reader
+    const segs = boxes(p.items).filter((b) => /:seg:/.test(b.id || ""));
+    const leaders = p.items.filter((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.cls === "stg-time-leader");
+    for (const s of segs) {
+      const name = String(s.bar?.label);
+      const inside = texts.find((t) => t.s === name && t.y > s.y && t.y < s.y + s.h);
+      if (inside) continue;
+      const under = texts.filter((t) => t.s === name && t.y > s.y + s.h);
+      const tied = under.some((t) => leaders.some((l) => Math.abs(l.pts[0][1] - (s.y + s.h)) < 0.6 && l.pts[0][0] >= s.x - 0.5 && l.pts[0][0] <= s.x + s.w + 0.5 && Math.abs(l.pts[1][1] - (t.y - fontSize(t.f) * 0.72)) <= 2 && Math.abs(l.pts[1][0] - t.x) <= measure(t.s, t.f) / 2));
+      if (!tied) throw new Error(`${w}: "${name}" (${s.x.toFixed(1)}..${(s.x + s.w).toFixed(1)}) is neither inside its bar nor tied to it`);
+    }
+  }
+});
+
+test("'time: a..b | caption | waits': a block whose rows all start at a later step shows only its caption before then: no empty grid (24 lane, gap f); without the word nothing waits", () => {
+  for (const [flag, waits] of [[" | waits", true], ["", false]] as const) {
+  const head = `job s: sender | sends
+time: 0..27 | seconds${flag}
+ticks: 0, 10, 20
+row job r "writer": +R 0..1 @2; +R 2..3 @2
+row job e "printer": +work 0..6.5 @3`;
+  const steps = [1, 2, 3].map((n) => ({ title: `S${n}`, raw: "", line: 10 + n }));
+  for (const w of [1000, 356]) {
+    beginDocument();
+    const c = compileStage(head, steps, 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    const on = (i: Item, st: number) => (!i.from || i.from <= st) && (!i.to || i.to >= st) && (!(i as any).on || (i as any).on.includes(st));
+    const step1 = p.items.filter((i) => on(i, 1) && !(i.k === "text" && i.s === "s") && !/^(s|sender|sends)$/.test(String((i as any).s ?? "")) && !String((i as any).id || "").startsWith("s"));
+    const timeItems = step1.filter((i) => i.k !== "text" || i.s !== "seconds");
+    // at step 1 the block draws its unit label and nothing else of its own (no frame, rows, ruler or row labels)
+    expect(step1.some((i) => i.k === "text" && i.s === "seconds")).toBe(true);
+    const own = timeItems.filter((i) => i.cls !== "stg-region" /* an invisible layout region */ && /time|stg-/.test(String(i.cls || "") + String((i as any).id || "")) || (i.k === "text" && /^(writer|printer|0|10|20)$/.test(i.s)));
+    if (!waits) { expect(own.some((i) => i.k === "text" && i.s === "writer")).toBe(true); continue; } // unchanged without the word
+    if (own.length) throw new Error(`${w}: step 1 draws ${own.map((i) => i.k + ":" + ((i as any).s || i.cls || (i as any).id)).slice(0, 6).join(", ")}`);
+    // from step 2 the grid and both rows are there
+    expect(p.items.some((i) => on(i, 2) && i.k === "text" && i.s === "writer")).toBe(true);
+  }
+  }
+});
+
+test("phone cell and header words too wide for their column stand on end inside it, never in tiers or under the row (rc.2; sample 29)", () => {
+  const head = `job s: sender | sends
+time: 0..8
+cells: 1 | headers
+ticks: 0.5 first, 1.5 receiptTick, 2.5 third, 3.5 fourth, 4.5 fifth, 5.5 sixth, 6.5 seventh, 7.5 eighth
+row job archive "": operators 0..4; /receipt 4..5; archived 5..6; payload 6..7 @2; paused 7..8 @2`;
+  for (const w of [356, 326]) {
+    beginDocument();
+    const c = compileStage(head, [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }], 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    setPhoneFont(true);
+    try {
+      const cells = boxes(p.items).filter((b) => /:cell:/.test(b.id || "")), heads = boxes(p.items).filter((b) => /:header:/.test(b.id || ""));
+      const texts = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text");
+      const inside = (t: Extract<Item, { k: "text" }>, b: Extract<Item, { k: "box" }>) => {
+        const half = t.rotate ? fontSize(t.f) * 0.72 : measure(t.s, t.f) / 2, long = t.rotate ? measure(t.s, t.f) / 2 : fontSize(t.f) * 0.72;
+        const cx = t.rotate ? t.x - fontSize(t.f) * 0.36 : t.x, cy = t.rotate ? t.y : t.y - long / 2;
+        return cx - half / (t.rotate ? 2 : 1) >= b.x - 1 && cx + half / (t.rotate ? 2 : 1) <= b.x + b.w + 1 && cy - long >= b.y - 1 && cy + long <= b.y + b.h + 1;
+      };
+      for (const word of ["first", "receiptTick", "third", "fourth", "fifth", "sixth", "seventh", "eighth"]) {
+        const t = texts.find((x) => x.s === word); if (!t) throw new Error(`${w}: header "${word}" not drawn`);
+        if (!heads.some((h) => inside(t, h))) throw new Error(`${w}: header "${word}" at ${t.x.toFixed(1)},${t.y.toFixed(1)} is not inside a header column`);
+      }
+      for (const word of ["operators", "/receipt", "archived", "payload", "paused"]) {
+        const drawn = texts.filter((x) => x.s === word); expect(drawn.length).toBeGreaterThan(0);
+        for (const t of drawn) if (!cells.some((b) => inside(t, b))) throw new Error(`${w}: "${word}" at ${t.x.toFixed(1)},${t.y.toFixed(1)} is not inside a cell`);
+      }
+      expect(p.items.some((i) => i.k === "path" && i.cls === "stg-time-leader")).toBe(false); // nothing needs a leader any more
+    } finally { setPhoneFont(false); }
+  }
+});
+
+test("'role id below time: title' puts a band of one card under the time block, across every lane; what lay below it moves up; its place stays when it is hidden (24 lane)", () => {
+  const src = (place: string) => `## Left
+job a: left card
+## Right
+server b: right card
+time: 0..10 | seconds
+row job r "work": +run 0..10
+job d ${place}: the copy line keeps going | only folding waits`;
+  const steps = [{ title: "One", raw: "", line: 20 }, { title: "Two", raw: "hide d", line: 21 }];
+  for (const w of [1000, 356]) {
+    beginDocument();
+    const c = compileStage(src("below time"), steps, 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const p = layoutStage(c.model, w);
+    const card = boxes(p.items).find((b) => b.bar?.kind === "card" && String(b.bar?.label).startsWith("the copy line"))!;
+    const row = boxes(p.items).find((b) => /:seg:r:/.test(b.id || ""))!;
+    const left = boxes(p.items).find((b) => b.bar?.kind === "card" && b.bar?.label === "left card")!;
+    expect(card).toBeDefined(); expect(row).toBeDefined();
+    expect(card.y).toBeGreaterThan(row.y + row.h); // under the time block
+    expect(row.y).toBeGreaterThan(left.y + left.h); // the time block right under the lanes (nothing reserved between)
+    expect(card.w).toBeGreaterThan(w * 0.8); // across the lanes
+    expect(p.h).toBeGreaterThanOrEqual(card.y + card.h); // inside the stage
+    beginDocument();
+    const under = layoutStage(compileStage(src("under Left..Right"), steps, 1, {}, roles).model, w);
+    expect(under.h).toBe(p.h); // the same height as "under": only the order changes
+  }
+  beginDocument();
+  expect(compileStage(src("below lanes"), steps, 1, {}, roles).errors.map((e) => e.msg).join()).toContain("below time");
+});
+
+test("wordless [bar] spans in one step stack 7 px apart, 5 px tall (the engine's compact packing); a bar with words keeps its own line (24 lane)", () => {
+  const head = `job s: sender | sends
+time: 0..20 | seconds
+row job r "writer": +R 0..1; +R 2..3; +R 4..5`;
+  const steps = [{ title: "One", raw: "span r 0..10 [bar]\nspan r 2..12 [bar]\nspan r 4..14 [bar]\nspan r 6..16 [bar]: open until 16", line: 10 }, { title: "Two", raw: "", line: 12 }];
+  for (const w of [1000, 356]) {
+    beginDocument();
+    const c = compileStage(head, steps, 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const bars = boxes(layoutStage(c.model, w).items).filter((b) => b.cls?.includes("stg-span-bar")).sort((a, b) => a.y - b.y);
+    expect(bars.length).toBe(4);
+    const bare = bars.filter((b) => b.bar?.label !== "open until 16");
+    for (const b of bare) expect(b.h).toBe(5);
+    for (let i = 1; i < bare.length; i++) expect(bare[i].y - bare[i - 1].y).toBe(7);
+    expect(bars.find((b) => b.bar?.label === "open until 16")!.h).toBe(10); // its words sit beside it on their own line
+  }
+});
+
+test("in a '| waits' block each row (frame, label, words) waits for its own first step; without the word rows show from the block's first step (24 lane)", () => {
+  const src = (waits: string) => `job s: sender | sends
+time: 0..20 | seconds${waits}
+row job r "writer": +R 0..1 @1
+row job e "printer work": +run 0..20 @3`;
+  const steps = [1, 2, 3].map((n) => ({ title: "S" + n, raw: "", line: 10 + n }));
+  for (const w of [1000, 356]) {
+    beginDocument();
+    const c = compileStage(src(" | waits"), steps, 1, {}, roles);
+    expect(c.errors).toEqual([]);
+    const its = layoutStage(c.model, w).items;
+    const label = its.find((it) => it.k === "text" && it.s === "printer work")!;
+    expect(label).toBeDefined();
+    expect(label.from).toBe(3);
+    expect(its.find((it) => it.k === "text" && it.s === "writer")!.from).toBe(1);
+    beginDocument();
+    const plain = layoutStage(compileStage(src(""), steps, 1, {}, roles).model, w).items;
+    expect(plain.find((it) => it.k === "text" && it.s === "printer work")!.from ?? 1).toBe(1);
+  }
+});
+
+test("'hush tag <row> a..b' ends a row tag's chip from that step; its fact says so; a range with no tag is refused (24 lane)", () => {
+  const head = `job s: sender | sends
+time: 0..30 | seconds
+row job r "reader": _ 6.8..7.2 [dot]; _ 22.8..23.2 [dot]`;
+  const steps = [{ title: "One", raw: "tag r 22.8..23.2: starts: 23", line: 10 }, { title: "Two", raw: "hush tag r 22.8..23.2\ntag r 6.8..7.2: starts: 7", line: 12 }];
+  beginDocument();
+  const c = compileStage(head, steps, 1, {}, roles);
+  expect(c.errors).toEqual([]);
+  const its = layoutStage(c.model, 1000).items;
+  const t23 = its.find((it) => it.k === "text" && it.s === "starts: 23")!, t7 = its.find((it) => it.k === "text" && it.s === "starts: 7")!;
+  expect([t23.from, t23.to]).toEqual([1, 1]);
+  expect([t7.from, t7.to ?? 0]).toEqual([2, 0]);
+  expect(stageLlm(c)).toContain("Tag reader 22.8 to 23.2 hidden.");
+  beginDocument();
+  const bad = compileStage(head, [steps[0], { title: "Two", raw: "hush tag r 6.8..7.2", line: 12 }], 1, {}, roles);
+  expect(bad.errors.map((e) => e.msg).join()).toContain("hush tag names a tag");
+});
+
+test("'time: a..b | caption | tight' sits 24 px higher under the lanes on a wide stage (8 px less room over the tick numbers, 8 px less gap under the lanes, 8 px less under the ruler), 8 px on a phone (only the gap; its ruler room is already tight); nothing else changes (24 lane)", () => {
+  const src = (tight: string) => `## _
+layout: row
+job s: sender | sends
+job t: target | takes
+time: 0..20 | seconds | beside${tight}
+row job r "writer": +R 0..1; +R 2..3`;
+  const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
+  for (const [w, d] of [[1000, 24], [356, 8]] as const) {
+    const lay = (tight: string) => { beginDocument(); const c = compileStage(src(tight), steps, 1, {}, roles); expect(c.errors).toEqual([]); return layoutStage(c.model, w); };
+    const a = lay(""), b = lay(" | tight");
+    const seg = (p: ReturnType<typeof layoutStage>) => boxes(p.items).find((x) => /:seg:r:0:/.test(x.id || ""))!;
+    expect(seg(a).y - seg(b).y).toBe(d);
+    expect(a.h - b.h).toBe(d);
+    expect(seg(b).x).toBe(seg(a).x);
+  }
+});
+
+test("when no row inside a band has a label, band titles and the other rows' labels share one column, so the time axis starts further left; a labelled row in a band keeps both columns (24 lane)", () => {
+  const src = (inner: string) => `job s: sender | sends
+time: 0..20 | seconds
+row job r0 "${inner}": +R 0..1
+row job e "printer": +work 0..20
+band job b0 "desk 0 · writer": r0..r0`;
+  const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
+  const lay = (inner: string) => { beginDocument(); const c = compileStage(src(inner), steps, 1, {}, roles); expect(c.errors).toEqual([]); return layoutStage(c.model, 1000); };
+  const shared = lay(""), both = lay("writer row");
+  const segX = (p: ReturnType<typeof layoutStage>) => boxes(p.items).find((x) => /:seg:e:0:/.test(x.id || ""))!.x;
+  expect(segX(shared)).toBeLessThan(segX(both) - 30);
+  const label = (p: ReturnType<typeof layoutStage>) => p.items.find((it) => it.k === "text" && it.s === "printer")! as { x: number };
+  expect(label(shared).x).toBeLessThan(24); // at the stage edge
+  expect(label(both).x).toBeGreaterThan(60); // right of the band titles
+});
+
+
+test("phone: a cell word up to 104 px stands on end in its cell, so one long word no longer staggers its whole row under leaders (rc.3)", () => {
+  const src = `job s: sender | sends
+time: 0..7 | sheets
+cells: 1
+row job o "desks 0, 1 · old": +print all 0..2; +sort, envelopes 2..3; +fold, new sheet 3..4; sorted: stopped 4..7 [dashed]`;
+  const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
+  beginDocument();
+  const c = compileStage(src, steps, 1, {}, roles);
+  expect(c.errors).toEqual([]);
+  const its = layoutStage(c.model, 356).items;
+  expect(its.filter((it) => (it as { cls?: string }).cls === "stg-time-leader")).toEqual([]);
+  const snap = its.find((it) => it.k === "text" && it.s === "sort, envelopes") as { rotate?: number };
+  expect(snap?.rotate).toBe(90);
+  expect(its.filter((it) => it.k === "text" && /^(print|all|fold,|new|sheet)$/.test(String(it.s))).length).toBeGreaterThan(0); // the others wrap level inside their cells
+});
+
+test("phone: a big X over a cell's words stays within 24 px and 10 px clear of them (rc.3)", () => {
+  const src = (row: string) => `job s: sender | sends
+time: 0..7 | sheets
+cells: 1
+row job o "desk 2": ${row}`;
+  const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
+  const xs = (row: string) => { beginDocument(); const c = compileStage(src(row), steps, 1, {}, roles); expect(c.errors).toEqual([]); const its = layoutStage(c.model, 390).items; return { its, x: its.filter((it) => it.k === "path" && (it as { ink?: string }).ink === "bad:line") as unknown as { pts: number[][] }[] }; };
+  const tall = xs("no sheets 0..2 [dashed]; sort, envelopes 2..3; copy fails 3..4; JAMMED tray 4..5 [bad]; JAMMED tray 5..7"); // the on-end word makes the row tall
+  expect(tall.x.length).toBe(2);
+  const size = Math.abs(tall.x[0].pts[1][0] - tall.x[0].pts[0][0]), lower = Math.max(...tall.x[0].pts.map((p) => p[1]));
+  expect(size).toBeLessThanOrEqual(24);
+  const words = tall.its.filter((it) => it.k === "text" && (it.s === "JAMMED" || it.s === "JAMMED tray")) as { y: number }[];
+  expect(Math.min(...words.map((w) => w.y)) - 9 - lower).toBeGreaterThanOrEqual(9); // the first word's cap top keeps ~10 px under the X
+});
+
+test("phone: in a row whose longer phrases sit under it, a phrase that fits its cell (on end or level) stays in it; only the phrases that need it go under the row (rc.3; Parcel receipts)", () => {
+  const src = `server s: sender | sends
+time: 0..7 | shifts
+cells: 1
+row server r "Receiver": +save, payload 0..2; +to two operators 2..7`;
+  const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
+  beginDocument();
+  const c = compileStage(src, steps, 1, {}, roles);
+  expect(c.errors).toEqual([]);
+  const its = layoutStage(c.model, 390).items;
+  // the short phrase stays in its cells (on end, or level on two lines), never under the row: only the 5 cells of the long one get leaders
+  for (const it of its) if (it.k === "text" && it.s === "save, payload") expect((it as { rotate?: number }).rotate).toBe(90);
+  expect(its.filter((it) => it.k === "text" && (it.s === "save, payload" || it.s === "payload")).length).toBe(2);
+  expect(its.filter((it) => (it as { cls?: string }).cls === "stg-time-leader").length).toBe(5);
 });

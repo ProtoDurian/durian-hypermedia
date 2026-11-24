@@ -295,7 +295,10 @@ registerBlock({
     for (const k of all) if (at[k].peak) { const key = `${Math.max(...at[k].values)}|${at[k].peak}`; (peaks.get(key) ?? peaks.set(key, []).get(key)!).push(k); }
     for (const [key, on] of peaks) {
       const p = key.indexOf("|"), v = +key.slice(0, p), s = key.slice(p + 1);
-      items.push({ k: "path", pts: [[x0, Y(v)], [x1, Y(v)]], ink: "bad:line", dash: true, dot: true, w: 2.5, id: `marker:peak:${fmt(v)}`, on, bar: { track: name, value: v } });
+      // in a step whose limit is the peak's own value the two lines
+      // would lie on each other; the limit's dashed line is the one drawn there, the peak keeps its words over it
+      const lineOn = on.filter((k) => !(at[k].limit && Math.abs(Y(at[k].limit!.v) - Y(v)) < 1));
+      if (lineOn.length) items.push({ k: "path", pts: [[x0, Y(v)], [x1, Y(v)]], ink: "bad:line", dash: true, dot: true, w: 2.5, id: `marker:peak:${fmt(v)}`, on: lineOn, bar: { track: name, value: v } });
       if (s) {
         // the words sit above the peak's line, and above a limit line in force that runs just over it (else they touch it)
         const near = on.flatMap((k) => (at[k].limit && Y(at[k].limit!.v) <= Y(v) && Y(v) - Y(at[k].limit!.v) < LINE_H.sub ? [Y(at[k].limit!.v)] : []));

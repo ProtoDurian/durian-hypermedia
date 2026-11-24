@@ -515,6 +515,8 @@ unwrap box
 light gift
 ```
 
+The full example, one web request through a switch, a home router and two internet routers and back, is its own page: [the layers, through several routers](../layers/).
+
 ## Animation: counted columns
 
 A `columns` block is a dot histogram: one column per category, one dot per counted thing, stacked from the bottom. The columns' places are kept for the widest step, so adding columns moves nothing; `new` lights columns in the step that adds them.
@@ -625,7 +627,7 @@ time reads: 0..31 | reading clock
 ruler: none
 row labels: beside
 cells: 1
-row server readings "reads": 0 0..1; 1 1..2; 2 2..3; 3 3..4; 4 4..5; 5 5..6; 6 6..7; 7 7..8; 8 8..9; 9 9..10; 10 10..11; 11 11..12; 12 12..13; 13 13..14; 14 14..15; 15 15..16; 16 16..17; 17 17..18; 18 18..19; 19 19..20; 20 20..21; 21 21..22; 22 22..23; 23 23..24; 24 24..25; 25 25..26; 26 26..27; 27 27..28; 28 28..29; 29 29..30; 30 30..31
+row server readings "reads": count 0..31
 @step Read: Both clocks keep their full ranges.
 @step Check: A guide marks a saved reading.
 keep at reads 12 [guide]: saved
@@ -674,7 +676,7 @@ keep at 16 [bad]: copy lost
 
 ## Test: full words in narrow columns
 
-When a word cannot fit inside a phone cell, its full caption sits below the row. Long header words share several lines above their columns.
+When a word cannot fit level inside a phone cell, it stands on end inside its own cell. Header words too wide for their columns stand on end inside them too.
 
 ```animation
 title: A labelled archive | full cell words
@@ -725,7 +727,7 @@ arrow above -> draft at 5.5 [dashed]: a new parcel
 
 ## Test: short pulses, readable intervals
 
-Short interval captions keep each complete range and pack several entries onto a phone line.
+A bar too short for its name keeps its exact place; the name sits under the row, tied to its bar by a short line.
 
 ```animation
 title: Repeated pings | short intervals
@@ -856,7 +858,7 @@ row job archive "archive": +x 840..848 @2; x 848..869 @3 [warn]; x 869..872 @4 [
 
 ## Test: keyed cell captions below markers
 
-Words too wide for a phone cell keep a numbered key and a packed caption row. Marker formulas sit below their lines, with fixed positions across steps.
+Words too wide for a phone cell stand on end inside it; longer phrases sit under the row, each tied to its own cell by a short line. Marker formulas sit below their lines, with fixed positions across steps.
 
 ```animation
 title: Parcel receipts | complete words in a short grid

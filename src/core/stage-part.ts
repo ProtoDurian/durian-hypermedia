@@ -35,8 +35,8 @@ export function stageStillLlm(p: P): string {
   return [...(title ? [`${title}${note ? ` (${note})` : ""}`] : []), STAGE_OVER_MESSAGE, ...p.steps.map((st, i) => `${i + 1}. ${st.title}`)].join("\n");
 }
 /** The LLM view of a composed stage never throws for want of budget: like the drawing, it compiles and reads the stage
- *  on a stage budget of its own (STAGE_WORK), so a page budget spent elsewhere cannot reach it, and a stage over its own
- *  budget is listed still, in words. (The compile is the same whatever budget it ran on, so a parse's is reused.) */
+ * on a stage budget of its own (STAGE_WORK), so a page budget spent elsewhere cannot reach it, and a stage over its own
+ * budget is listed still, in words. (The compile is the same whatever budget it ran on, so a parse's is reused.) */
 export const stagePartLlm = (p: P): string => {
   try {
     return withStageBudget(newBudget(STAGE_WORK, STAGE_MEMORY), () => {

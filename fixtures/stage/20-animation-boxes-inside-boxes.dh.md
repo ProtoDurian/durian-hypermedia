@@ -33,3 +33,5 @@ set box: status: packed => status: out for delivery
 unwrap box
 light gift
 ```
+
+The full example, one web request through a switch, a home router and two internet routers and back, is its own page: [the layers, through several routers](../layers/).

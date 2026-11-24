@@ -13,7 +13,7 @@ roles:
 
 ## Test: keyed cell captions below markers
 
-Words too wide for a phone cell keep a numbered key and a packed caption row. Marker formulas sit below their lines, with fixed positions across steps.
+Words too wide for a phone cell stand on end inside it; longer phrases sit under the row, each tied to its own cell by a short line. Marker formulas sit below their lines, with fixed positions across steps.
 
 ```animation
 title: Parcel receipts | complete words in a short grid

@@ -13,7 +13,7 @@ roles:
 
 ## Test: full words in narrow columns
 
-When a word cannot fit inside a phone cell, its full caption sits below the row. Long header words share several lines above their columns.
+When a word cannot fit level inside a phone cell, it stands on end inside its own cell. Header words too wide for their columns stand on end inside them too.
 
 ```animation
 title: A labelled archive | full cell words

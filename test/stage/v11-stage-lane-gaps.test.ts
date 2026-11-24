@@ -1,3 +1,4 @@
+// @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
 // Regression source: public fixtures/stage/19-animation-a-key.dh.md (bike shop).
 import { beforeEach, expect, test } from "bun:test";
 import { compileStage, layoutStage } from "../../src/core/stage";

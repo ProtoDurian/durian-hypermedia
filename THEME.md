@@ -16,7 +16,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 - The 3D stage and the charts read the tokens from their own element when they draw and again when `data-theme` changes on
   `<html>`; after changing tokens any other way, toggle `data-theme` or re-mount.
 
-## Colours (230 tokens)
+## Colours (294 tokens)
 
 | Token | What it is for | Light default | Dark default |
 | --- | --- | --- | --- |
@@ -85,6 +85,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--dg-edge-w` | read by .scn-conn .scn-end, [data-dh-part="state"] .scn-conn path | `-` | `-` |
 | `--dg-node-bg` | read by .scn .scn-rec | `-` | `-` |
 | `--dg-node-border` | read by .scn-rec-edge, .scn-rec-rule | `-` | `-` |
+| `--dh-table-max` | read by .dh-doc > .table-wrap | `-` | `-` |
 | `--er-head-bg` | read by [data-record="entity"] .scn-rec-head | `-` | `-` |
 | `--er-key-ink` | read by .scn-key, .scn-key-t | `-` | `-` |
 | `--faint` | meta text, only at weight >= 400 (>= 4.5:1); read by .al-ax-x::before, .al-ax-x::after, .al-ax-y | `#56627C` | `#98A3BC` |
@@ -170,6 +171,7 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--state-current` | read by [data-dh-part="state"] .tone-acc .scn-sh | `-` | `-` |
 | `--state-dot` | read by .k-initial .scn-dot-fill, .k-final .scn-ring-out, .k-final .scn-dot-fill | `-` | `-` |
 | `--state-event` | read by [data-dh-part="state"] .scn-conn-t | `-` | `-` |
+| `--stg-ar` | read by .stg > .stg-box-wrap.stg-ratio-print, stage (code) | `-` | `-` |
 | `--stg-bg` | read by .stg, .stg-t.stg-halo | `-` | `-` |
 | `--stg-boxmin` | read by .stg > .stg-box-wrap, stage (code) | `-` | `-` |
 | `--stg-btn-bg` | read by .stg-btn, .stg-stepbtn | `-` | `-` |
@@ -250,6 +252,68 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--warn` | status; read by .tone-warn, .tone-warn .scn-shape, .hl-warn .scn-ring | `#FF760D` | `#FF8F3A` |
 | `--warn-ink` | status; read by .tone-warn, .b-changed, .scn3-l.tone-warn | `#7F3705` | `#FFB984` |
 | `--warn-soft` | status; read by .tone-warn, .b-changed, .tone-warn .scn-shape | `#FFE3CE` | `#3A2410` |
+| `--wh` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal, css-vars (code) | `-` | `-` |
+| `--wh240` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh256` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh272` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh288` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh304` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh320` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh336` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh352` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh368` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh384` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh400` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh416` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh432` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh448` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh464` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh480` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh496` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh512` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh528` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh544` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh560` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh576` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh592` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh608` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh624` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh640` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh656` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh672` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh688` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh704` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh720` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh736` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh752` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh768` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh784` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh800` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh816` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh832` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh848` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh864` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh880` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh896` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh912` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh928` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh944` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh960` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh976` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh992` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1008` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1024` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1040` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1056` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1072` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1088` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1104` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1120` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1136` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1152` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1168` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1184` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
+| `--wh1200` | read by .scn[data-wq]:not(.is-swipe):not(.is-tal | `-` | `-` |
 
 ## Shape, type, space and motion (32 tokens)
 
@@ -288,19 +352,20 @@ by a variant (below). This file is made from the stylesheets by `bun scripts/the
 | `--w-head` | type; read by h1.title | `600` | `600` |
 | `--w-strong` | bold = the ONE key point; read by .scn .scn-cap strong, .scn-ttl, .dh-xref-card .dh-xref-label | `600` | `600` |
 
-## Other tokens (6)
+## Other tokens (7)
 
 | Token | What it is for | Light default | Dark default |
 | --- | --- | --- | --- |
 | `--chart-ann-marker` | dark: same family, stepped for a navy page; read by .ann-event i | `10px` | `10px` |
-| `--page-w` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn, anim (code) | `the page's width without a scrollbar (100vw would count the scrollbar)` | `the page's width without a scrollbar (100vw would count the scrollbar)` |
+| `--col-skew` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn | `10.5px` | `10.5px` |
+| `--page-w` | animation, format version 4: one stage, a camera, entities drawn with page tokens only; read by .scn, .dh-doc > .table-wrap, anim (code) | `the page's width without a scrollbar (100vw would count the scrollbar)` | `the page's width without a scrollbar (100vw would count the scrollbar)` |
 | `--pc-input-h` | dark: same family, stepped for a navy page; read by .pc-num, .pc-select, .pc-check | `40px` | `40px` |
 | `--pc-key-h` | dark: same family, stepped for a navy page; read by button.pc-key-b | `32px` | `32px` |
 | `--pc-seg-h` | dark: same family, stepped for a navy page; read by .pc-seg-b | `36px` | `36px` |
 | `--pc-tile` | dark: same family, stepped for a navy page; read by .pc-tile, .pc-tiles[data-per-row] | `14px` | `14px` |
 
 
-Tokens read with no default in the package (a host may set them): `--bleed-l`, `--class-head-bg`, `--class-member`, `--class-static`, `--code-bg`, `--colmin`, `--dg-edge-w`, `--dg-node-bg`, `--dg-node-border`, `--er-head-bg`, `--er-key-ink`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--scn-paper`, `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`, `--swipe-w`.
+Tokens read with no default in the package (a host may set them): `--bleed-l`, `--class-head-bg`, `--class-member`, `--class-static`, `--code-bg`, `--colmin`, `--dg-edge-w`, `--dg-node-bg`, `--dg-node-border`, `--dh-table-max`, `--er-head-bg`, `--er-key-ink`, `--focus-offset`, `--focus-ring`, `--ix-frame-border`, `--ix-frame-radius`, `--ix-off-chip`, `--ix-off-ink`, `--nx`, `--ny`, `--pc-fig-ml`, `--pc-fig-w`, `--pc-max`, `--pc-per-row`, `--pc-tone`, `--ref-card-pad`, `--ref-card-radius`, `--ref-chip-bg`, `--ref-chip-border`, `--ref-chip-ink`, `--ref-failed-bg`, `--ref-failed-border`, `--ref-failed-ink`, `--ref-pending-bg`, `--ref-pending-border`, `--ref-pending-ink`, `--ref-radius`, `--ref-refused-bg`, `--ref-refused-border`, `--ref-refused-ink`, `--ref-type-ink`, `--scn-paper`, `--state-bg`, `--state-border`, `--state-current`, `--state-dot`, `--state-event`, `--stg-ar`, `--stg-bg`, `--stg-boxmin`, `--stg-btn-bg`, `--stg-btn-edge`, `--stg-corner-w`, `--stg-cross-fade`, `--stg-cross-w`, `--stg-dash`, `--stg-dim`, `--stg-edge`, `--stg-f0-d`, `--stg-f0-l`, `--stg-f1-d`, `--stg-f1-l`, `--stg-f2-d`, `--stg-f2-l`, `--stg-f3-d`, `--stg-f3-l`, `--stg-f4-d`, `--stg-f4-l`, `--stg-f5-d`, `--stg-f5-l`, `--stg-f6-d`, `--stg-f6-l`, `--stg-f7-d`, `--stg-f7-l`, `--stg-f8-d`, `--stg-f8-l`, `--stg-fade`, `--stg-fig-ml`, `--stg-fig-w`, `--stg-flow`, `--stg-font`, `--stg-fs-big`, `--stg-fs-body`, `--stg-fs-chip`, `--stg-fs-lane`, `--stg-fs-mono`, `--stg-fs-small-b`, `--stg-fs-sub`, `--stg-fs-title`, `--stg-gap`, `--stg-halo`, `--stg-hint`, `--stg-hot-w`, `--stg-line-hot-w`, `--stg-line-w`, `--stg-max`, `--stg-need`, `--stg-note-w`, `--stg-off-line`, `--stg-phone-body`, `--stg-phone-chip`, `--stg-phone-sub`, `--stg-phone-title`, `--stg-radius`, `--stg-step-on`, `--stg-step-on-bg`, `--stg-struck-fade`, `--stg-struck-line`, `--stg-struck-w`, `--stg-thick`, `--stg-title-weight`, `--stg-want`, `--stg-z`, `--svg-max-h`, `--swipe-w`, `--wh`, `--wh240`, `--wh256`, `--wh272`, `--wh288`, `--wh304`, `--wh320`, `--wh336`, `--wh352`, `--wh368`, `--wh384`, `--wh400`, `--wh416`, `--wh432`, `--wh448`, `--wh464`, `--wh480`, `--wh496`, `--wh512`, `--wh528`, `--wh544`, `--wh560`, `--wh576`, `--wh592`, `--wh608`, `--wh624`, `--wh640`, `--wh656`, `--wh672`, `--wh688`, `--wh704`, `--wh720`, `--wh736`, `--wh752`, `--wh768`, `--wh784`, `--wh800`, `--wh816`, `--wh832`, `--wh848`, `--wh864`, `--wh880`, `--wh896`, `--wh912`, `--wh928`, `--wh944`, `--wh960`, `--wh976`, `--wh992`, `--wh1008`, `--wh1024`, `--wh1040`, `--wh1056`, `--wh1072`, `--wh1088`, `--wh1104`, `--wh1120`, `--wh1136`, `--wh1152`, `--wh1168`, `--wh1184`, `--wh1200`.
 
 Not theme tokens: `--ar`, `--d`, `--i`, `--lw`, `--pct`, `--rows`, `--t`, `--t-ink`, `--t-soft` are set by the components on their own elements (sizes, positions, a tier's colour).
 

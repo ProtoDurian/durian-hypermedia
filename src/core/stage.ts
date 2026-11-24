@@ -71,7 +71,7 @@ export const STAGE_WORK = 38_000_000, STAGE_MEMORY = 24_000_000;
 
 // ---------------------------------------------------------------- the model
 /** a lane, or a band under lanes (span); an "across" band runs its cards left to right, one row per card line */
-export type Lane = { title: string; cards: Card[]; more: string[]; span?: [string, string]; line: number; across?: boolean; breaks?: number[]; above?: boolean /* "## X above A..B": the band over its lanes */; row?: boolean /* "layout: row": its cards side by side */ };
+export type Lane = { title: string; cards: Card[]; more: string[]; span?: [string, string]; line: number; across?: boolean; breaks?: number[]; above?: boolean /* "## X above A..B": the band over its lanes */; row?: boolean /* "layout: row": its cards side by side */; belowTime?: boolean /* "role id below time: title": a band of one card under everything else (24 lane) */ };
 export type Edge = { from: string; to: string; label: string; role?: string; dash: boolean; step: number; line: number; hop?:number; copy?:number; copyLabel?:boolean; back?: boolean; fromPill?: string; toPill?: string; tone?: string; keep?: boolean /* "keep a -> b: words": the words stay while the line does */ };
 /** an edge label in a tone ("a -> b (bad): dropped") is plain words in that tone beside the line, not a chip */
 /** a toned connector label is words in the label size: large, as the originals set "dropped" */
@@ -126,7 +126,7 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
   const total = hl.length + steps.reduce((a, s) => a + s.raw.split("\n").length + 1, 0);
   budget.charge("stage scene", total, total);
   if (total > MAX_LINES) problem(base, `a scene holds at most ${MAX_LINES} lines; this one has ${total}: split it`);
-  const checkText = (l: Line) => { const f = forbidden(l.t); if (f) problem(l.n, f.replace(/^an? /, "no ")); }; // "no colour value (#ff0000): ...", never "no a ..."
+  const checkText = (l: Line) => { const f = forbidden(l.t); if (f) problem(l.n, f.replace(/^an? /, "no ")); }; // "no colour value (#ff0000):...", never "no a..."
   const needRole = (r: string, line: number) => {
     if (roleSet.has(r)) return true;
     const known = [...roleSet];
@@ -196,7 +196,18 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
       if (!c) throw new StageError(l.n, `this line does not read: a card is "role id: title | second line", a lane is "## Title"; the words of a setup are ${["##", "...", "title:", "layout: row", "flow: off", "lines: straight", ...blockWords().filter((w) => blockFor(w)!.kind === "head")].join(", ")}`);
       // a card: "role ids: title; title | sub | sub", with what it holds indented under it (tools/stage-cards.ts)
       let lineT = l.t, rowUnder: [string, string] | undefined;
-      { // "role id under A..B: title": a band with no heading under lanes A to B, holding this card (as "## _ under A..B")
+      { // "role id below time: title" (24 lane): a band across every lane holding this card, under everything else on the stage (a time block included); its place stays when it is hidden, as a card's does
+        const sp0 = c[0].indexOf(" "), bt = sp0 < 0 ? -1 : c[0].indexOf(" below ", sp0);
+        if (bt >= 0) {
+          if (c[0].slice(bt).trim() !== "below time") throw new StageError(l.n, `write "${c[0].slice(0, bt)} below time: title" (a band of one card under the time block)`);
+          const titled = m.lanes.filter((q) => !q.span); // every lane above it (an untitled "## _" row lane too)
+          if (!titled.length) throw new StageError(l.n, `"below time" spans the lanes above it: write the lanes ("## Title" or "## _") first`);
+          lineT = c[0].slice(0, bt) + ": " + c[1];
+          if (m.lanesAt < 0) m.lanesAt = m.head.length;
+          m.lanes.push({ title: "", cards: [], more: [], span: [titled[0].title, titled.at(-1)!.title], line: l.n, belowTime: true });
+        }
+      }
+      if (!m.lanes.at(-1)?.belowTime || m.lanes.at(-1)!.cards.length) { // "role id under A..B: title": a band with no heading under lanes A to B, holding this card (as "## _ under A..B")
         const sp = c[0].indexOf(" "), un0 = sp < 0 ? -1 : c[0].indexOf(" under ", sp), ab0 = sp < 0 ? -1 : c[0].indexOf(" above ", sp), above = ab0 >= 0 && (un0 < 0 || ab0 < un0), un = above ? ab0 : un0;
         if (un >= 0) {
           const r = c[0].slice(un + 7).trim(), k = r.indexOf("..");
@@ -333,6 +344,14 @@ export function compileStage(head: string, steps: { title: string; raw: string; 
           const ps = parts(c[1], " | "), hl0 = ps.length > 1 ? /^height:\s*(\d+)( lines?)?$/.exec(ps[ps.length - 1].trim()) : null;
           if (hl0) { const n = +hl0[1]; if (!hl0[2] || n < 1 || n > 12) { problem(l.n, "a note's last part height: N lines takes N from 1 to 12 (note: Title | line | height: 8 lines)"); continue; } ps.pop(); st.noteMin = n * 18; }
           st.notes.push(ps); continue;
+        }
+        // rc.3 (D5): "keep units" (or any panel's word: grid, rows, list,...) shows the last step's panel of that
+        // word again, as it was; a panel written in the step itself replaces it
+        const kw = /^keep ([a-z]+)$/.exec(l.t)?.[1], kb = kw ? blockFor(kw) : undefined;
+        if (kb && (kb.kind === "panel" || kb.panel)) {
+          const was = m.steps.slice(0, -1).reverse().map((p) => p.panels.filter((x) => x.block === kb)).find((ps) => ps.length);
+          if (!was) { problem(l.n, `"keep ${kw}" shows the last step's ${kw} panel again; no step before this one has one`); continue; }
+          st.panels.push(...was.map((x) => ({ ...x, line: l.n }))); continue;
         }
         const pb = blockFor(word);
         if (pb && (pb.kind === "panel" || pb.panel)) { const arg = l.t.slice(word.length).trim(), node = pb.parse({ word, arg, body, line: l.n }, ctx), prev = st.panels.at(-1); if (prev && prev.block === pb && panelEnd === li && pb.join?.(prev.node, node)) { panelEnd = i + 1; continue; } st.panels.push({ block: pb, node, line: l.n }); panelEnd = i + 1; continue; } // a panel right under one of its word may join it
@@ -703,7 +722,7 @@ function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: bool
   }
   m.head.forEach((h, i) => {
     if (i === m.panelsAt) panelRegion();
-    if (i === m.lanesAt) { bandPlace = undefined; lanesHere(); }
+    if (i === m.lanesAt) { bandPlace = undefined; lanesHere(); if ((h.node as { tight?: boolean } | undefined)?.tight && laneFoot >= 0 && y === laneFoot + 12) y -= 8; } // 24 lane: a "| tight" time block right under the lanes sits 4 px under them
     const offered=peer;peer=undefined;
     box.footLeft = undefined;
     const lanes=items.flatMap((it)=>it.k==="box"&&it.cls==="stg-region"&&it.bar?.kind==="lane"&&it.bar.label?[{title:String(it.bar.label),x:it.x-PAD,w:it.w}]:[]); // lane columns laid out so far
@@ -734,6 +753,17 @@ function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: bool
   });
   if (m.lanesAt < 0 || m.lanesAt >= m.head.length) if (m.cards.size || m.lanes.some((l) => l.title)) lanesHere();
   if (!reused && (m.panelsAt === undefined || m.panelsAt >= m.head.length)) panelRegion();
+  // "below time" (24 lane): its band was laid out with the lanes; it moves under everything else and what lay below it moves up by its height (the stage keeps its height)
+  for (const l of m.lanes.filter((q) => q.belowTime)) {
+    const rs = l.cards.flatMap((c) => { const r = rects.get(c.id); return r ? [r] : []; }); if (!rs.length) continue;
+    const lo = Math.min(...rs.map((r) => r.y)), hi = Math.max(...rs.map((r) => r.y + r.h));
+    const band = items.find((it) => it.k === "box" && it.cls === "stg-region" && it.bar?.kind === "band" && it.y <= lo + .5 && it.y + it.h >= hi - .5);
+    const y0 = (band && band.k === "box" ? band.y : lo) - 6, y1 = band && band.k === "box" ? band.y + band.h : hi, H = y1 - y0, dy = y - H - y0;
+    const span = (it: Item): [number, number] => it.k === "path" ? [Math.min(...it.pts.map((p) => p[1])), Math.max(...it.pts.map((p) => p[1]))] : it.k === "text" ? [it.y - 12, it.y] : it.k === "box" ? [it.y, it.y + it.h] : [(it as any).y ?? 0, (it as any).y ?? 0];
+    docBudget().charge("below time", items.length);
+    for (let q = 0; q < items.length; q++) { const [a, b] = span(items[q]); if (a >= y0 - .5 && b <= y1 + .5) items[q] = shift([items[q]], 0, dy)[0]; else if (a >= y1 - .5) items[q] = shift([items[q]], 0, -H)[0]; }
+    for (const map of [rects, inner] as Map<string, Rect>[]) for (const [id, r] of map) { if (r.y >= y0 - .5 && r.y + r.h <= y1 + .5) map.set(id, { ...r, y: r.y + dy }); else if (r.y >= y1 - .5) map.set(id, { ...r, y: r.y - H }); }
+  }
   const connAt = items.length;
   // connectors and their labels, after layout
   // a connector to or from a card inside a card starts or ends at the card that holds it
@@ -855,6 +885,28 @@ function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: bool
     const anyLine = items.filter((it): it is Extract<Item, { k: "path" }> => it.k === "path" && !!it.arrow);
     const crossed = (t: Extract<Item, { k: "text" }>) => { const tw = measure(t.s, t.f), x0 = (t.anchor === "middle" ? t.x - tw / 2 : t.anchor === "end" ? t.x - tw : t.x) - 6, x1 = x0 + tw + 12, y0 = t.y - 12, y1 = t.y + 4;
       return anyLine.some((p) => p.pts.slice(1).some((q, i) => { const o = p.pts[i]; return Math.abs(o[0] - q[0]) < 1 && o[0] > x0 && o[0] < x1 && Math.min(o[1], q[1]) < y1 && Math.max(o[1], q[1]) > y0; })); };
+    // a centred "and more" line that a line crosses or passes within
+    // 8 px of moves into the widest stretch between the uprights at its height when it fits there with 8 px each side, or
+    // goes on two lines that fit there (into free room under it); else it goes over the line, as before
+    const ups = anyLine.flatMap((p) => p.pts.slice(1).flatMap((q, i) => { const o = p.pts[i]; return Math.abs(o[0] - q[0]) < 1 ? [{ x: o[0], y0: Math.min(o[1], q[1]), y1: Math.max(o[1], q[1]) }] : []; }));
+    const solid = items.filter((it) => (it.k === "box" && !(it.cls ?? "").includes("stg-region")) || it.k === "text"); // a region is no drawing
+    const boxOf = (it: Item): Rect | null => it.k === "box" ? { x: it.x, y: it.y, w: it.w, h: it.h } : it.k === "text" ? (() => { const tw = measure(it.s, it.f); return { x: it.anchor === "middle" ? it.x - tw / 2 : it.anchor === "end" ? it.x - tw : it.x, y: it.y - 12, w: tw, h: 16 }; })() : null;
+    for (const [ix, it] of [...items.entries()]) {
+      if (it.k !== "text" || it.f !== "sub" || it.anchor !== "middle" || !moreText.has(it.s)) continue;
+      const tw = measure(it.s, it.f), near = ups.some((u) => u.x > it.x - tw / 2 - 8 && u.x < it.x + tw / 2 + 8 && u.y1 > it.y - 12 && u.y0 < it.y + 4);
+      if (!near) continue;
+      const stretches = (ya: number, yb: number) => { const xs = [NPAD, ...ups.filter((u) => u.y1 > ya && u.y0 < yb).map((u) => u.x).sort((a, b) => a - b), w - NPAD]; return xs.slice(1).map((x, k) => [xs[k] === NPAD ? NPAD - 8 : xs[k], x === w - NPAD ? w - NPAD + 8 : x] as [number, number]).filter(([a, b]) => b > a); };
+      const fits = (lines: string[], y: number) => { const yb = y + 4 + (lines.length - 1) * 14, wide = Math.max(...lines.map((l) => measure(l, it.f)));
+        const best = stretches(y - 12, yb).filter(([a, b]) => b - a - 16 >= wide).sort((p, q) => Math.abs((p[0] + p[1]) / 2 - it.x) - Math.abs((q[0] + q[1]) / 2 - it.x))[0];
+        if (!best) return null; const cx = (best[0] + best[1]) / 2;
+        const clash = solid.some((o) => o !== it && lines.some((l, k) => { const r = boxOf(o), lw = measure(l, it.f); return !!r && cx + lw / 2 + 4 > r.x && cx - lw / 2 - 4 < r.x + r.w && y + k * 14 + 4 > r.y && y + k * 14 - 12 < r.y + r.h; }));
+        return clash ? null : cx; };
+      const one = fits([it.s], it.y);
+      if (one !== null) { items[ix] = { ...it, x: one }; continue; }
+      const ws = it.s.split(" "); let two: string[] | null = null, cx2: number | null = null;
+      for (let k = 1; k < ws.length; k++) { const ls = [ws.slice(0, k).join(" "), ws.slice(k).join(" ")], c = fits(ls, it.y); if (c !== null && (!two || Math.abs(measure(ls[0], it.f) - measure(ls[1], it.f)) < Math.abs(measure(two[0], it.f) - measure(two[1], it.f)))) { two = ls; cx2 = c; } }
+      if (two && cx2 !== null) { items[ix] = { ...it, s: two[0], x: cx2, tip: it.s }; items.push({ ...it, s: two[1], x: cx2, y: it.y + 14, tip: it.s }); moreText.add(two[0]); moreText.add(two[1]); }
+    }
     for (const it of items) if (it.k === "text" && it.f === "sub" && moreText.has(it.s) && !lift.includes(it) && crossed(it)) lift.push(it);
     if (lift.length) { const set = new Set(lift); const rest = items.filter((it) => !set.has(it)); items.length = 0; items.push(...rest, ...lift.map((t) => ({ ...t, halo: true }) as Item)); }
   }
@@ -1102,7 +1154,15 @@ function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: M
   const iw = w - 2 * NPAD - (anyEdge && !noChannel ? CHAN : 0);
   nav.chanX = NPAD + iw + 6; nav.gapY.clear(); nav.order.clear(); nav.heads.length = 0; nav.sideY.clear();
   // cards side by side in one row that a connector joins: a gap for its arrow, and a strip under the row for its labels
-  const sideOf = (ids: string[]) => { const set = new Set(ids), es = m.steps.flatMap((s) => s.edges).filter((e) => set.has(topCard(m, e.from)) && set.has(topCard(m, e.to)) && topCard(m, e.from) !== topCard(m, e.to)); return { gap: es.length ? 24 : 8, strip: es.some((e) => e.label) ? 26 : 0 }; };
+  // the gap a labelled line from a card inside one box straight across
+  // to the other box needs for its chip and 12 px of line each side (0: no such line between them)
+  const acrossW = (ids: string[]) => { const set = new Set(ids); return Math.max(0, ...m.steps.flatMap((s) => s.edges).filter((e) => e.label && set.has(topCard(m, e.from)) && set.has(topCard(m, e.to)) && topCard(m, e.from) !== topCard(m, e.to) && (e.from !== topCard(m, e.from)) !== (e.to !== topCard(m, e.to))).map((e) => measure(e.label!, "chip") + 18 + 24)); };
+  const sideOf = (ids: string[]) => { const set = new Set(ids), es = m.steps.flatMap((s) => s.edges).filter((e) => set.has(topCard(m, e.from)) && set.has(topCard(m, e.to)) && topCard(m, e.from) !== topCard(m, e.to)); // a labelled line from a card inside a box straight across to the box
+    // beside it carries its label on the line in the gap; the gap is as wide as that chip and 12 px of line each side (each
+    // card keeps its least width, every word whole), so the chip never covers its own line or the two frames
+    const least = Math.max(PHONE.cardMinW, ...ids.map((id) => cardMin(m)(m.cards.get(id)!))), roomy = ids.length > 1 ? (iw - ids.length * least) / (ids.length - 1) : 0;
+    const gap = es.length ? Math.max(24, Math.min(acrossW(ids), roomy)) : 8;
+    return { gap, strip: es.some((e) => e.label) ? 26 : 0 }; };
   const strip = (ids: string[], at: number) => { for (const id of ids) nav.sideY.set(id, at); };
   let y = top;
   const all = [...spans.filter((x) => x.l.above), ...main, ...spans.filter((x) => !x.l.above)]; // a band above is the first row
@@ -1118,7 +1178,10 @@ function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: M
     let k = 0;
     while (k < g.length) {
       let n = 1, wsum = least(g[k].l.cards[0]);
-      while (k + n < g.length && wsum + 8 + least(g[k + n].l.cards[0]) <= iw) { wsum += 8 + least(g[k + n].l.cards[0]); n++; }
+      // two boxes that a labelled line joins straight across (from a card inside one) sit side by side only when the gap
+      // fits its chip; else they stack and the line runs down between them, its label in the lanes' gap
+      const gapTo = (j: number) => Math.max(8, acrossW([g[j - 1].l.cards[0].id, g[j].l.cards[0].id]));
+      while (k + n < g.length && wsum + gapTo(k + n) + least(g[k + n].l.cards[0]) <= iw) { wsum += gapTo(k + n) + least(g[k + n].l.cards[0]); n++; }
       rows.push(g.slice(k, k + n)); k += n;
     }
   }
@@ -1208,7 +1271,11 @@ function lanesLayout(m: Model, w: number, narrow: boolean, top: number, rects: M
       const rs = run, cuts: [number, number][] = [];
       for (let j = 0; j < rs.length; j += per) cuts.push([j, Math.min(j + per, rs.length)]);
       for (const [j, je] of cuts) {
-        const row = rs.slice(j, je), extraTop = row.some((c) => tagged.has(c.id)) ? PHONE.tagTop : 0;
+        // a tagged row under a card whose line goes on down past it
+        // keeps 13 px more over its tags, so that line runs along the gap above them, not under a tag
+        const above = new Set(rs.slice(0, j).map((c) => c.id)), past = (id: string) => { const c = m.cards.get(topCard(m, id))!; return rs.slice(je).includes(c) || (nav.order.get(c.lane) ?? -1) > ri; };
+        const passes = j > 0 && m.steps.some((st) => st.edges.some((e) => (above.has(topCard(m, e.from)) && past(e.to)) || (above.has(topCard(m, e.to)) && past(e.from))));
+        const row = rs.slice(j, je), extraTop = row.some((c) => tagged.has(c.id)) ? PHONE.tagTop + (passes ? 13 : 0) : 0;
         y += extraTop;
         const h = Math.max(...row.map((c) => hOf(c, cw)));
         row.forEach((c, q) => drawCard(c, { x: x0 + q * (cw + lg), y, w: cw, h }));
@@ -1352,12 +1419,22 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
   const hitsOcc = (xa: number, ya: number, xb: number, yb: number, on: number[]) => occ.some((q) => sharesStep(q.on, on) && (Math.abs(ya - yb) < 0.5
     ? Math.abs(q.a[1] - q.b[1]) < 0.5 && Math.abs(q.a[1] - ya) < 4 && Math.min(Math.max(xa, xb), Math.max(q.a[0], q.b[0])) - Math.max(Math.min(xa, xb), Math.min(q.a[0], q.b[0])) > -2
     : Math.abs(q.a[0] - q.b[0]) < 0.5 && Math.abs(q.a[0] - xa) < 4 && Math.min(Math.max(ya, yb), Math.max(q.a[1], q.b[1])) - Math.max(Math.min(ya, yb), Math.min(q.a[1], q.b[1])) > -2));
+  // a card's tag stands on its top edge, half in the gap above it; a
+  // stretch keeps clear of it in the steps it shows (from its step on), as of a card (a line along the gap went under it)
+  const tagZones = m.steps.flatMap((st, k) => st.tags.flatMap(([ids, t]) => ids.flatMap((id) => { const r = rects.get(id); if (!r) return []; const tw = measure(t, "chip") + 18; return [{ x: r.x + r.w - tw - 8, y: r.y - 11, w: tw + 8, h: 22, from: k + 1 }]; })));
+  const hitsTag = (xa: number, ya: number, xb: number, yb: number, pad: number, on: number[]) => tagZones.some((r) => on.some((k) => k >= r.from) && Math.max(xa, xb) > r.x - pad && Math.min(xa, xb) < r.x + r.w + pad && Math.max(ya, yb) > r.y - pad && Math.min(ya, yb) < r.y + r.h + pad);
+  // (rc.3): a say's words under a card, in its own step; a straight drop out of a card's foot
+  // stands beside them where the card leaves a clear x (the hero at 766: a line ran under them), else as before
+  const sayZones = m.steps.flatMap((st, k) => { const by = new Map<string, string[]>(); for (const [id, t] of st.says) (by.get(id) ?? by.set(id, []).get(id)!).push(t);
+    return [...by].flatMap(([id, ts]) => { const r = rects.get(id); return r ? drawSays(ts, r, "role:x", w, NPAD, k + 1, nav.sayW.get(id)).flatMap((it) => it.k === "box" ? [{ x: it.x, y: it.y, w: it.w, h: it.h, k: k + 1 }] : []) : []; }); });
+  const byChip = (x: number, ya: number, yb: number, on: number[]) => hitsTag(x, ya, x, yb, 4, on) || sayZones.some((r) => on.includes(r.k) && x > r.x - 4 && x < r.x + r.w + 4 && Math.max(ya, yb) > r.y - 4 && Math.min(ya, yb) < r.y + r.h + 4);
   const segOk = (a: [number, number], b: [number, number], skip: string[], on: number[], first: boolean) => {
     // the first stretch leaves its own card: it may touch only that card; level legs keep 4 px from cards, 3 px from words
     const level = Math.abs(a[1] - b[1]) < 0.5;
     if (level && labelRows.some(([y0, y1]) => a[1] > y0 && a[1] < y1)) return false;
     if (hitsCard(a[0], a[1], b[0], b[1], first ? skip : skip.slice(1), level ? 4 : 2)) return false; // skip: [source, target]
     if (hitsText(a[0], a[1], b[0], b[1], level ? 6 : 1, on)) return false; // never through (or close along) a lane's words
+    if (hitsTag(a[0], a[1], b[0], b[1], level ? 3 : 1, on)) return false;
     return !hitsOcc(a[0], a[1], b[0], b[1], on);
   };
   const gapRoute = (e: Edge, f: Rect, t: Rect, fx: number, fy: number, ty: number, down: boolean, on: number[]): [number, number][] | null => {
@@ -1427,6 +1504,7 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     const rect = (g: Uint8Array, r: Rect, pad: number) => mark(g, r.x - pad, r.y - pad, r.x + r.w + pad, r.y + r.h + pad);
     for (const r of ends2) { rect(hBad, r, 0); rect(vBad, r, 0); rect(hBad, r, 4); }
     for (const r of cards) { rect(hBad, r, 4); rect(vBad, r, 2); }
+    for (const r of tagZones) if (on.some((k) => k >= r.from)) { rect(hBad, r, 3); rect(vBad, r, 1); } // a tag, as segOk
     for (const r of nav.texts) if (shownWith(r, on)) { rect(hBad, r, 6); rect(vBad, r, 2); }
     for (const [a, b] of labelRows) mark(hBad, -1e9, a, 1e9, b);
     for (const q of occH) mark(hBad, Math.min(q.a[0], q.b[0]) - 2, q.a[1] - 4, Math.max(q.a[0], q.b[0]) + 2, q.a[1] + 4);
@@ -1489,7 +1567,10 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     let pts: [number, number][], curve: "v" | "round" | "h", gr: [number, number][] | null = null, sibs: Rect[] = [];
     // straight down (or up) where the two cards overlap, at the x nearest the port that passes no card and no lane words
     const lo = Math.max(f.x, t.x) + 10, hi = Math.min(f.x + f.w, t.x + t.w) - 10, x0 = Math.max(lo, Math.min(hi, fx));
-    const clearX = (x: number) => free(x, fy, ty, [e.from, e.to]) && !nav.texts.some((r) => x > r.x - 3 && x < r.x + r.w + 3 && Math.max(fy, ty) > r.y && Math.min(fy, ty) < r.y + r.h);
+    const clearX0 = (x: number) => free(x, fy, ty, [e.from, e.to]) && !nav.texts.some((r) => x > r.x - 3 && x < r.x + r.w + 3 && Math.max(fy, ty) > r.y && Math.min(fy, ty) < r.y + r.h);
+    const onE = edgeSteps(m, e.step, e), lo0 = Math.max(f.x, t.x) + 10, hi0 = Math.min(f.x + f.w, t.x + t.w) - 10;
+    const chipFree = hi0 >= lo0 && Array.from({ length: Math.floor((hi0 - lo0) / 4) + 1 }, (_, k) => lo0 + 4 * k).some((x) => clearX0(x) && !byChip(x, fy, ty, onE));
+    const clearX = (x: number) => clearX0(x) && (!chipFree || !byChip(x, fy, ty, onE));
     let vx: number | null = null;
     if (Math.abs(fx - tx) < f.w && t.x < f.x + f.w && f.x < t.x + t.w && hi >= lo) for (let d = 0; d <= hi - lo && vx === null; d += 4) { if (x0 + d <= hi && clearX(x0 + d)) vx = x0 + d; else if (x0 - d >= lo && clearX(x0 - d)) vx = x0 - d; }
     // 'lines: straight': where only a lane heading in the gap is in the way, the line still runs straight

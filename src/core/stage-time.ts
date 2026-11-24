@@ -16,7 +16,7 @@ const TIME_SPELLINGS=[...TIME_PARSE.keys()].sort((a,b)=>b.length-a.length);
 const TIME_OPS: (keyof typeof TIME_WORDS)[]=["at","span","dot","arrow","show","hush","tag","fill","off"];
 /** a sentence for the LLM view: one full stop at the end, never two (marker words often end with their own) */
 /** a tick label's reveal in the LLM view */
-const tickNote=(label?:string,r?:{from:number;to:number},tone?:string)=>{const note=[label,tone&&(tone.startsWith("role:")?tone.slice(5):TIME_STYLES[tone as keyof typeof TIME_STYLES]||tone),r&&`from step ${r.from}${r.to?` to ${r.to}`:""}`].filter(Boolean).join(", ");return note?` (${note})`:"";};
+const tickNote=(label?:string,r?:{from:number;to:number},tone?:string)=>{const note=[label,tone&&(tone.startsWith("role:")?tone.slice(5):TIME_STYLES[tone as keyof typeof TIME_STYLES]||tone),r&&(r.to===r.from?`step ${r.from} only`:`from step ${r.from}${r.to?` to ${r.to}`:""}`)].filter(Boolean).join(", ");return note?` (${note})`:"";};
 const endStop=(s:string)=>/[.!?…:]$/.test(s.trim())?s.trim():`${s.trim()}.`;
 const TIME_SETUP=new Set<string>(["lanes","band","row","zoomrow","ticks","zoomticks","zoomlabels","ruler","labels","cells","zoom","window","height","at","dot","values","point"]);
 // the LLM view says a row's look in plain words, never the source's bracket words; a row label's "|" (a line break when drawn) reads as a comma, and a row
@@ -26,18 +26,22 @@ const rowName = (r: { role: string; id: string; label: string }) => r.label ? r.
 export const TIME_STYLES={plain:"plain",idle:"dashed",good:"good",warn:"warn",bad:"bad",acc:"accent",wide:"wide",focus:"lit",dot:"dot",numbered:"numbered",after:"after",soft:"soft"} as const;
 const STYLE_PARSE=new Map<string,keyof typeof TIME_STYLES>(Object.entries(TIME_STYLES).map(([key,value])=>[value,key as keyof typeof TIME_STYLES]));
 
+/** rc.2 (sample 29): the longest word that stands on end inside a phone cell or header column */
+const ONEND_MAX=104;
 const MARKER_FLAGS={guide:"[guide]",solid:"[solid]",below:"[below]",caption:"[caption]",beside:"[beside]",tick:"[tick]"} as const;
 const ROW_FLAGS={chip:"[chip]"} as const;
-type Seg = { name: string; a: number; b: number; on: boolean; from: number; to: number; tone?: string; wide: boolean; focus: boolean; dot?: boolean; numbered?: boolean; after?: boolean; soft?: boolean; preview?:boolean; role?: string };
-type TRow = { role: string; id: string; label: string; segs: Seg[]; inset?: boolean; boxed?: boolean; chip?: boolean };
+type Seg = { name: string; a: number; b: number; at?: number /* a dot at one time (D1) */; on: boolean; from: number; to: number; tone?: string; wide: boolean; focus: boolean; dot?: boolean; numbered?: boolean; after?: boolean; soft?: boolean; preview?:boolean; role?: string };
+type TRow = { role: string; id: string; label: string; count?: [number, number] /* D4 */; segs: Seg[]; inset?: boolean; boxed?: boolean; chip?: boolean };
 type Mark = { step: number; kind: "at" | "span" | "dot"; row?: string; a: number; b: number; text: string; tone?: string; persist?: boolean; line?: boolean; bar?: boolean; edge?: boolean; solid?: boolean; below?: boolean; caption?: boolean; beside?: boolean; tick?: boolean; above?:boolean; bare?:boolean; labelTo?: number };
 type Arrow = { from: string; to: string; at: number; text: string; step: number; dash: boolean; tone?: string };
-type TimeTag = {row:string;a:number;b:number;text:string;step:number};
+type TimeTag = {row:string;a:number;b:number;text:string;step:number;to?:number};
 type DotPaint = {row:string;step:number;keep:boolean;off:boolean;range?:[number,number];tone?:string;at?:number};
 type Band = { role: string; id: string; title: string; first: string; last: string; line: number; compact?: boolean };
 type Point = { role: string; id: string; time: number; value: number; label: string };
 type Axis = { a: number; b: number; unit: string; from?: number; to?: number; tone?:string };
-type Time = Axis & { key: string; name?: string; captionBeside?: boolean; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; points: Point[]; hushes: {step:number;at:number;span?:string}[]; ids: Set<string>; last: Map<string, number> };
+/** a mark ON a row's line at a time: a point state '_ 6.5 [x] [bad]' (an X) or a step's 'at <row> N: words' */
+type RowMark = { row: string; a: number; x: boolean; text: string; tone?: string; from: number; to: number; line: number };
+type Time = Axis & { rowMarks?: RowMark[]; key: string; name?: string; captionBeside?: boolean; waits?: boolean; tight?: boolean; windowLines?: number; from: number; shown?: boolean; rows: TRow[]; dotPaints: DotPaint[]; tags: TimeTag[]; marks: Mark[]; arrows: Arrow[]; ticks?: number[]; zoomTicks?: number[]; zoomLabels?: Map<number, string>; tickLabels: Map<number, string>; tickWhen?: Map<number, {from:number;to:number}>; zoomWhen?: Map<number, {from:number;to:number}>; tickTone?: Map<number, string>; zoomTone?: Map<number, string>; cells?: number; roomy?: boolean; apart?: boolean; headers?: boolean; rulerNone?: boolean; rulerBelow?: boolean; rulerLine?: number; labelsAbove?: boolean; labelsBeside?: boolean; window?: Axis; zoom?: Axis; lanes?: [string, string]; lanesLine?: number; bands: Band[]; zoomBelow?: boolean; zoomBracket?: boolean; values?: Axis; points: Point[]; hushes: {step:number;at:number;span?:string;tag?:string}[]; ids: Set<string>; last: Map<string, number> };
 type TimeScope = { names: Map<string, Time>; rows: Map<string, Time | null>; n: number };
 const scopes=new WeakMap<ParseCtx,TimeScope>();
 /** A phase strip accompanying numeric time is a set of separators, rather than a standalone journey. */
@@ -144,8 +148,10 @@ registerBlock({
     const scope=scopes.get(ctx)||{names:new Map(),rows:new Map(),n:0};scopes.set(ctx,scope);
     if(name&&scope.names.has(name))throw new StageError(inp.line,`time axis "${name}" is declared twice; use distinct names`);
     // "time: a..b | caption | beside" puts the caption on the tick-number line, in the gutter left of the axis
-    const beside=fields.length>=3&&fields[fields.length-1].trim()==="beside";if(beside)fields.pop();
-    const node:Time={ ...axis(fields.join(" | "), inp.line, "time"),...(beside?{captionBeside:true}:{}),key:name?"time-axis-"+name:scope.n?"time-"+(scope.n+1):"time",name,from:1, rows: [], dotPaints: [], tags: [], marks: [], arrows: [], points: [], bands: [], hushes: [], tickLabels: new Map(), ids: new Set(), last: new Map() };
+    // 24 lane (gap f): "time: a..b | caption | waits" shows only the caption until the first step that shows a row, span, tag, arrow or dot of the block
+    const flags=new Set<string>();while(fields.length>=3&&["beside","waits","tight"].includes(fields[fields.length-1].trim())&&!flags.has(fields[fields.length-1].trim()))flags.add(fields.pop()!.trim());
+    const beside=flags.has("beside");
+    const node:Time={ ...axis(fields.join(" | "), inp.line, "time"),...(beside?{captionBeside:true}:{}),...(flags.has("waits")?{waits:true}:{}),...(flags.has("tight")?{tight:true}:{}),key:name?"time-axis-"+name:scope.n?"time-"+(scope.n+1):"time",name,from:1, rows: [], dotPaints: [], tags: [], marks: [], arrows: [], points: [], bands: [], hushes: [], tickLabels: new Map(), ids: new Set(), last: new Map() };
     scope.n++;if(name)scope.names.set(name,node);return node;
   },
   claim(t: Time, l, body, ctx) {
@@ -192,6 +198,7 @@ registerBlock({
         // a tick label's words may show from a later step, as a state does ("7 new pod @3"); the place stays reserved
         // trailing flags, in any order: "@N" (its words show from step N) and one tone, as on markers
         let reveal:{from:number;to:number}|undefined,tone:string|undefined;
+        raw=raw.replace(/ @(\d+) only$/," @$1..$1"); // rc.3 (D3): "@N only" is "@N..N"
         for(let guard=0;guard<4;guard++){
           const cut=raw.lastIndexOf(" ");if(cut<0)break;const tail=raw.slice(cut+1);charge("tick flags",tail.length+1);
           const atStep=/^@(\d+)(?:\.\.(\d+))?$/.exec(tail);
@@ -221,6 +228,7 @@ registerBlock({
       if (!l.t.startsWith(rawWord + ":") || t[word]) throw new StageError(l.n, `write ${rawWord}: a..b | label once after time`);
       let arg=l.t.slice(rawWord.length+1).trim();
       let visibility:{from:number;to:number}|undefined;
+      if(word==="zoom")arg=arg.replace(/\s@(\d+) only$/," @$1..$1"); // rc.3 (D3): "@N only" is "@N..N"
       if(word==="zoom"&&/\s@\S+$/.test(arg)){
         const suffix=/\s@(\d+)(?:\.\.(\d+))?$/.exec(arg),from=suffix?+suffix[1]:0,to=suffix?.[2]?+suffix[2]:0;
         if(!suffix||from<1||from>ctx.steps||to&&(to<from||to>ctx.steps))throw new StageError(l.n,"zoom visibility is @N or @N..M within the scene steps");
@@ -277,17 +285,24 @@ registerBlock({
     if (t.rows.some((r) => r.id === id)) throw new StageError(l.n, `row id "${id}" is declared twice; use a unique id`);
     if (!ctx.roles.has(role)) ctx.problem(l.n, `"${role}" is not a role of this page; the page declares ${[...ctx.roles].join(", ") || "none"}`);
     const ranges = new Map<string, Seg[]>();
-    const segs = parts(c[1], ";").map((x) => {
+    // rc.3 (D4): "count a..b" is one state per unit, each named by its number (a, a+1,... b-1): "0 0..1; 1 1..2;..."
+    const cnt = /^count (-?\d+)\.\.(-?\d+)$/.exec(c[1].trim()), count = cnt ? [+cnt[1], +cnt[2]] as [number, number] : undefined;
+    if (count && (count[1] <= count[0] || count[1] - count[0] > 400)) throw new StageError(l.n, "count a..b names whole numbers on the axis, a before b, at most 400 apart: count 0..31");
+    const states = count ? Array.from({ length: count[1] - count[0] }, (_, i) => `${count[0] + i} ${count[0] + i}..${count[0] + i + 1}`).join("; ") : c[1];
+    const segs = parts(states, ";").map((x) => {
       charge("segments", x.length + 1, 1);
-      const tokens = x.split(" ").filter(Boolean); let from = 1, to = 0, tone: string | undefined, wide = false, focus = false, dot = false, numbered = false, after = false, soft = false, dashed = false, role: string | undefined;
+      const tokens = x.split(" ").filter(Boolean); let from = 1, to = 0, tone: string | undefined, wide = false, focus = false, dot = false, numbered = false, after = false, soft = false, dashed = false, role: string | undefined, xMark = false;
       while (tokens.length) {
         const last = tokens.at(-1)!;
+        if (last === "[x]") { if (xMark) throw new StageError(l.n, "write [x] once: _ 6.5 [x] [bad]"); xMark = true; tokens.pop(); continue; }
         // a state takes its own role, spelled as on a connector: '+a 0..3 (a)'; one per state
         if (last.startsWith("(") && last.endsWith(")") && last.length > 2) {
           if (role !== undefined) throw new StageError(l.n, "a state takes one role: +a 0..3 (a)");
           role = last.slice(1, -1); if (!ctx.roles.has(role)) throw new StageError(l.n, `"${role}" is not a role of this page; a state's (role) names a declared role: +a 0..3 (a)`);
           tokens.pop(); continue;
         }
+        // rc.3 (D3): "@N only" is the taught spelling of "@N..N" (that step alone); both read the same
+        if (last === "only" && /^@\d+$/.test(tokens[tokens.length - 2] ?? "")) { tokens.pop(); tokens[tokens.length - 1] += ".." + tokens[tokens.length - 1].slice(1); continue; }
         if (last.startsWith("@")) {
           const k = last.indexOf(".."), a = num(last.slice(1, k < 0 ? undefined : k)), b = k < 0 ? 0 : num(last.slice(k + 2));
           if (!Number.isInteger(a) || a < 1 || a > ctx.steps || !Number.isInteger(b) || (b !== 0 && (b < a || b > ctx.steps))) throw new StageError(l.n, "state reveal is @N or @N..M naming declared steps");
@@ -302,7 +317,16 @@ registerBlock({
         }
         break;
       }
-      const rangeText = tokens.pop() ?? "", s = span(rangeText), name = tokens.join(" "), text = name.replace(/^\+/, "");
+      const rangeText = tokens.pop() ?? "";
+      // '_ 6.5 [x] [bad]' is an X on this row's line at 6.5 (a range: at its middle), never a cell
+      if (xMark) {
+        const pt = num(rangeText), rg = span(rangeText), at = Number.isFinite(pt) && !rangeText.includes("..") ? pt : rg ? (rg[0] + rg[1]) / 2 : NaN, words = tokens.join(" ").replace(/^\+/, "");
+        if (!Number.isFinite(at) || at < domain.a || at > domain.b || wide || focus || dot || numbered || after || soft || dashed || role) throw new StageError(l.n, `[x] marks one time on this row's line, with a tone at most: _ 6.5 [x] [bad] (${domain.a}..${domain.b})`);
+        (t.rowMarks ??= []).push({ row: id, a: at, x: true, text: words === "_" ? "" : words, tone, from, to, line: l.n }); return null;
+      }
+      // rc.3 (D1): a [dot] may name one time ("arrived 3 [dot]"); it is drawn as the dot of "2.9..3.1" was, at 3
+      const one = dot && !rangeText.includes("..") ? num(rangeText) : NaN, half = (domain.b - domain.a) / 200;
+      const s = Number.isFinite(one) ? [one - half, one + half] as [number, number] : span(rangeText), name = tokens.join(" "), text = name.replace(/^\+/, "");
       if (!s) throw new StageError(l.n, `a state is "name a..b" with numbers on the axis: "${x}"`);
       if (s[0] < domain.a || s[1] > domain.b) throw new StageError(l.n, `"${x}" runs off the axis (${domain.a}..${domain.b})`);
       if (!text) throw new StageError(l.n, "a state needs a name before its range; write _ for an empty cell");
@@ -315,15 +339,15 @@ registerBlock({
       if(dashed&&(!tone||tone==="plain"))tone="idle";
       const preview=dashed&&!!tone&&["good","warn","bad","acc"].includes(tone);
       if(soft&&(!tone||!["good","warn","bad","acc"].includes(tone)))throw new StageError(l.n,"[soft] needs a tone: [good], [warn], [bad] or [accent]");
-      const seg: Seg = { name: text === "_" ? "" : text, a: s[0], b: s[1], on: name.startsWith("+")||!!role, from, to, tone, wide, focus, dot, numbered, after, soft, ...(preview?{preview:true}:{}),...(role?{role}:{}) };
+      const seg: Seg = { name: text === "_" ? "" : text, a: s[0], b: s[1], ...(Number.isFinite(one) ? { at: one } : {}), on: name.startsWith("+")||!!role, from, to, tone, wide, focus, dot, numbered, after, soft, ...(preview?{preview:true}:{}),...(role?{role}:{}) };
       if (t.cells) { const n = wide ? 1 : Math.ceil((seg.b - seg.a) / t.cells); charge("cell expansion", n, n * 8); }
       charge("state versions",1,1);if(versions)versions.push(seg);else ranges.set(key,[seg]);return seg;
-    });
+    }).filter((g): g is Seg => g !== null);
     orderedStates(ranges.values(),ctx.steps,l.n);
     if (!segs.length) throw new StageError(l.n, "a time row needs at least one state range");
     if (t.rows.length >= 16) throw new StageError(l.n, "a time block holds at most 16 rows");
     const boxed=q>0&&label.startsWith("|");if(boxed&&!label.slice(1).trim())throw new StageError(l.n,"a boxed row label needs words after | inside the quotes");
-    t.rows.push({ role, id, label: q>0?(boxed?label.slice(1).trimStart():label):id, segs, inset, boxed, ...(chip?{chip}:{}) });
+    t.rows.push({ role, id, label: q>0?(boxed?label.slice(1).trimStart():label):id, segs, inset, boxed, ...(chip?{chip}:{}), ...(count?{count}:{}) });
     const rowOwners=scopes.get(ctx)!.rows;rowOwners.set(id,rowOwners.has(id)?null:t);return true;
   },
   check(t:Time,ctx){
@@ -351,8 +375,8 @@ registerBlock({
       for(const item of items){const r=(this as StageBlock<Time>).op!(t,{...op,arg:item},ctx);if(r!==false)mine++;else if(mine)throw new StageError(op.line,`"${item}" is not on this time axis; prefix it with its axis name`);}
       return mine?undefined:false;
     }
-    const hushSpan=word==="hush"&&op.arg.startsWith("span ");
-    if(word==="hush"){if(!op.arg.startsWith("at ")&&!hushSpan||op.keep)throw new StageError(op.line,"write hush at [axis name] <kept marker value> (its label) or hush span [axis name] <row> a..b (its words), several with commas, to hide them from this step");op={...op,arg:op.arg.slice(hushSpan?5:3)};}
+    const hushSpan=word==="hush"&&op.arg.startsWith("span "),hushTag=word==="hush"&&op.arg.startsWith("tag "); // 24 lane: hush tag ends a row tag's chip
+    if(word==="hush"){if(!op.arg.startsWith("at ")&&!hushSpan&&!hushTag||op.keep)throw new StageError(op.line,"write hush at [axis name] <kept marker value> (its label), hush span [axis name] <row> a..b (its words) or hush tag [axis name] <row> a..b (its chip), several with commas, to hide them from this step");op={...op,arg:op.arg.slice(hushSpan?5:hushTag?4:3)};}
     if(word==="show"){
       const target=scopes.get(ctx)?.names.get(op.arg.trim());if(!target)return false;
       target.from=target.shown?Math.min(target.from,op.step):op.step;target.shown=true;return;
@@ -393,6 +417,16 @@ registerBlock({
       if(end<range[1])throw new StageError(op.line,"a tag range stays inside the row's declared intervals, or a span written before it in this step");
       const same=t.tags.find(tag=>tag.row===id&&tag.a===range[0]&&tag.b===range[1]&&tag.text===c[1]);if(same)same.step=Math.min(same.step,op.step);else t.tags.push({row:id,a:range[0],b:range[1],text:c[1],step:op.step});return;
     }
+    if(op.word==="hush"&&hushTag){
+      const [id,raw,...extra]=c[0].split(" "),owner=explicit?t:scope?.rows.get(id),range=raw?span(raw):null;
+      if(owner===null)throw new StageError(op.line,"this row id belongs to several time axes; prefix the tag with its axis name");
+      if(!owner||!owner.rows.some(r=>r.id===id)){if(op.shared&&!explicit)return false;throw new StageError(op.line,`hush tag names a row of the time block and a range: hush tag ${id||"row"} 4..31`);}
+      t=owner;
+      if(c[1]||extra.length||!range)throw new StageError(op.line,"hush tag is: hush tag <row> a..b (the range of a tag written before this step)");
+      const tags=t.tags.filter(g=>{charge("hush tags");return g.row===id&&g.a===range[0]&&g.b===range[1]&&g.step<op.step&&g.to===undefined;});
+      if(!tags.length)throw new StageError(op.line,`hush tag names a tag on row ${id}, written before this step, with its exact range`);
+      for(const g of tags)g.to=op.step-1;t.hushes.push({step:op.step,at:NaN,tag:`${t.rows.find(r=>r.id===id)?.label||id} ${fmt(range[0])} to ${fmt(range[1])}`});return;
+    }
     if(op.word==="hush"&&hushSpan){
       const [id,raw,...extra]=c[0].split(" "),owner=explicit?t:scope?.rows.get(id),range=raw?span(raw):null;
       if(owner===null)throw new StageError(op.line,"this row id belongs to several time axes; prefix the span with its axis name");
@@ -413,6 +447,12 @@ registerBlock({
       const [from, arrow, to, at, raw,...flags] = c[0].split(" "), v = num(raw || ""),dashFlag=`[${TIME_STYLES.idle}]`,tones=flags.filter(flag=>flag!==dashFlag);
       if (tones.length>1||flags.filter(flag=>flag===dashFlag).length>1||tones.some(flag=>!flag.startsWith("[")||!flag.endsWith("]")||!["plain","acc","good","bad","warn"].includes(STYLE_PARSE.get(flag.slice(1,-1))||"")) || arrow !== "->" || at !== "at" || from === to || !within(v,t) || !t.rows.some(r=>r.id===to) || from!=="above"&&!t.rows.some(r=>r.id===from)) throw new StageError(op.line,"a cell arrow is: arrow <row|above> -> <row> at <time> [dashed] [plain|accent|good|bad|warn]: label; use at most one tone");
       t.arrows.push({from,to,at:v,text:c[1],step:op.step,dash:flags.includes(dashFlag),...(tones.length?{tone:markPaint(tones[0],ctx.roles,op.line)}:{})});return;
+    }
+    if (op.word === "at" && t.rows.some(r => r.id === c[0].split(" ")[0])) {
+      // 'at <row> N: words' puts the words ON that row's line at N (a short stroke across the row), no marker line
+      const [row, raw, ...flags] = c[0].split(" "), v = num(raw ?? ""), tone = flags.length === 1 && flags[0].startsWith("[") && flags[0].endsWith("]") ? STYLE_PARSE.get(flags[0].slice(1, -1)) : undefined;
+      if (!Number.isFinite(v) || v < t.a || v > t.b || !c[1] || flags.length > 1 || flags.length && !["plain", "acc", "good", "bad", "warn"].includes(tone || "")) throw new StageError(op.line, `words on a row's line are: at <row> N [tone]: words, N on the axis (${t.a}..${t.b}): at p1 23: takes it`);
+      (t.rowMarks ??= []).push({ row, a: v, x: false, text: c[1], ...(tone ? { tone } : {}), from: op.step || 1, to: op.keep || !op.step ? 0 : op.step, line: op.line }); return;
     }
     if (op.word === "at" || op.word === "dot") {
       const tokens = c[0].split(" "), v = num(tokens[0]),style=tokens.slice(1).filter(s=>s!==MARKER_FLAGS.guide&&s!==MARKER_FLAGS.solid&&(op.word==="dot"||s!==MARKER_FLAGS.below&&s!==MARKER_FLAGS.caption&&s!==MARKER_FLAGS.beside&&s!==MARKER_FLAGS.tick));
@@ -476,7 +516,10 @@ registerBlock({
       const bandLines=(b:Band,room:number)=>bandParts(b).flatMap((p,i)=>wrap(p,room,"sub",Infinity).map(s2=>({s:s2,ink:i?"muted":`role:${b.role}:ink`})));
       const labRows=rows.filter(r=>!quietRows.has(r.id));
       const labW = onlyInset||narrowRows||!labRows.some(r=>r.label)&&!values?(values?36:0):Math.min(labCap, Math.max(36, ...labRows.map((r) => wideCardRows?headingWidth(r):measure(r.label, "sub") + 10)));
-      const bandW=t.bands.length&&!narrowRows&&!onlyInset?Math.min(120,Math.max(...t.bands.flatMap(b=>{charge("band titles");return bandParts(b).map(p=>measure(p,"sub")+14);}))):0; // band titles beside their regions
+      const bandW=t.bands.length&&!narrowRows&&!onlyInset?Math.min(120,Math.max(...t.bands.flatMap(b=>{charge("band titles");return bandParts(b).map(p=>measure(p,"sub")+14);}))):0;
+      // 24 lane: when no row inside a band has a label, band titles and row labels never share a row: they share one column
+      const bandedRows=new Set<string>();if(bandW){charge("band column",rows.length);for(const b of t.bands){const i0=rows.findIndex(r=>r.id===b.first),i1=rows.findIndex(r=>r.id===b.last);for(let i=i0;i>=0&&i<=i1;i++)bandedRows.add(rows[i].id);}}
+      const shareCol=bandW>0&&bandedRows.size>0&&rows.every(r=>!bandedRows.has(r.id)||!r.label),labX=shareCol?0:bandW,gutW=shareCol?Math.max(labW,bandW):labW+bandW; // band titles beside their regions
       const afterW=Math.min(w*.4,Math.max(0,...rows.flatMap(r=>r.segs.filter(s=>s.after&&s.name).map(s=>measure(s.name,"sub")+12))));
       // Roomy phone grids borrow eight pixels of the stage's 14-pixel margin on each side.
       const roomyPhone=box.narrow&&t.roomy&&!inset,cellGap=(cw:number)=>t.apart?Math.min(8,cw*.12):Math.min(t.roomy?(roomyPhone?4:8):1.5,cw*.25);
@@ -484,14 +527,14 @@ registerBlock({
       const laneA=!inset&&!box.narrow&&w===box.w&&t.lanes?box.lanes?.find(l=>l.title===t.lanes![0]):undefined,laneB=laneA?box.lanes?.find(l=>l.title===t.lanes![1]):undefined;
       const samplePad=box.narrow&&t.rulerBelow&&!t.cells&&rows.some(r=>{charge("sample edge room",r.segs.length+1);return new Set(r.segs.filter(s=>s.dot&&s.b>a.a&&s.a<a.b).map(s=>(Math.max(a.a,s.a)+Math.min(a.b,s.b))/2)).size>1;})?6:0;
       // Repeated samples have room for their radius and stroke inside the frame; ticks and markers use the same inset axis.
-      const x0 = Math.max(box.columnLeft ?? -Infinity,(laneA&&laneB?Math.max(labW+bandW+8,laneA.x):labW + bandW + (roomyPhone?-8:8))+samplePad), x1 = (laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW)-samplePad, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
+      const x0 = Math.max(box.columnLeft ?? -Infinity,(laneA&&laneB?Math.max(gutW+8,laneA.x):gutW + (roomyPhone?-8:8))+samplePad), x1 = (laneA&&laneB?Math.min(w-afterW,Math.max(x0+40,laneB.x+laneB.w)):w + (roomyPhone?8:-RM) - afterW)-samplePad, X = (v: number) => x0 + (v - a.a) / (a.b - a.a) * (x1 - x0);
       /** with "apart" a tick names the cell that starts at it, so its label is centred above that cell */
       const labelX=(v:number,a:Axis)=>t.apart&&t.cells&&v<a.b?X((v+Math.min(a.b,v+t.cells))/2):samplePad?x0-samplePad+(v-a.a)/(a.b-a.a)*(x1-x0+2*samplePad):X(v);
-      /** on a phone a cell's word that does not fit level stands on end inside its cell (as numbers do), no footnote, when it is short (24 px; 54 in "apart" cells) */
+      /** on a phone a cell's word that does not fit level stands on end inside its cell (as numbers do), no footnote; rc.2 (sample 29): any word up to ONEND_MAX px long, so each cell reads with its own word (staggered words under the row only beyond that) */
       // once a row staggers, every plain word in it takes a stagger line sized for the widest, so a long word never runs into a short level one
       const staggerable=(label:string,cw:number,seg:{wide?:boolean;numbered?:boolean;after?:boolean;dot?:boolean})=>box.narrow&&!!t.cells&&!!label&&!seg.wide&&!seg.numbered&&!seg.after&&!seg.dot&&!/^[-+]?\d+(?:\.\d+)?$/.test(label)&&Math.ceil((measure(label,"chip")*1.2+4)/cw)<=3;
       const staggerLines=(label:string,cw:number,seg?:{wide?:boolean;numbered?:boolean;after?:boolean;dot?:boolean;a?:number;b?:number})=>{if(!box.narrow||!t.cells||!label||seg?.wide||seg?.numbered||seg?.after||seg?.dot||/^[-+]?\d+(?:\.\d+)?$/.test(label)||widest(label)<=cellWordRoom(cw)||onEnd(label,cw,seg))return 1;const k=Math.ceil((measure(label,"chip")*1.2+4)/cw);return k<=3?Math.max(2,k):1;};
-      const onEnd=(label:string,cw:number,seg?:{wide?:boolean;numbered?:boolean;after?:boolean;dot?:boolean})=>box.narrow&&!!t.cells&&!!label&&!seg?.wide&&!seg?.numbered&&!seg?.after&&!seg?.dot&&widest(label)>cellWordRoom(cw)&&fontSize("chip")*.8+2<=cw-cellGap(cw)&&measure(label,"chip")<=(t.apart?54:24);
+      const onEnd=(label:string,cw:number,seg?:{wide?:boolean;numbered?:boolean;after?:boolean;dot?:boolean})=>box.narrow&&!!t.cells&&!!label&&!seg?.wide&&!seg?.numbered&&!seg?.after&&!seg?.dot&&widest(label)>cellWordRoom(cw)&&fontSize("chip")*.8+2<=cw-cellGap(cw)&&measure(label,"chip")<=ONEND_MAX;
       const turnNumber=(s:string,cw:number)=>box.narrow&&box.w<480&&/^[-+]?\d+(?:\.\d+)?$/.test(s)&&measure(s,"chip")+1>cw-cellGap(cw);
       const wordRoom=(cw:number)=>Math.max(8,cw-(box.narrow?cellGap(cw)+2:6));
       const cellWordRoom=(cw:number)=>box.narrow?wordRoom(cw)/1.12:wordRoom(cw);
@@ -577,6 +620,10 @@ registerBlock({
       }
       else if(label&&!captionBeside)for (const s of wrap(label, t.rulerBelow?x1-x0+2*samplePad:w-pad*2, "sub", Infinity)) { items.push({ k: "text", x: t.rulerBelow?x0-samplePad:pad, y: y + 12, s, f: "sub", ink: "muted" }); y += compactHeaders?14:18; }
       const unitHeight=y,unitEnd=items.length;
+      // 24 lane (gap f): "| waits": a block whose rows, spans, tags, arrows and dots all wait for a later step shows only its unit label until then (no empty grid)
+      const unitKeep=new Set<Item>(items.slice(0,unitEnd));
+      const firstShown=t.points.length?1:Math.min(...t.rows.flatMap(r=>r.segs.map(s=>s.from||1)),...t.marks.map(m=>m.step||1),...t.tags.map(g=>g.step||1),...t.arrows.map(x=>x.step||1),...t.dotPaints.map(d=>d.step||1));
+      const waitFor=!t.waits||inset||!Number.isFinite(firstShown)?1:firstShown;
       // A desktop card grid's incoming arrow is a short input stub above the tick labels.
       // It shares the unit-caption line when their words fit beside each other; all steps reserve that same band.
       const aboveInputs=new Map<Arrow,number>();
@@ -618,8 +665,10 @@ registerBlock({
       // on a phone, header labels that fit neither level nor on end in their column stand level on up to 3 staggered rows
       const headerPitch=(x1-x0)*(t.cells||1)/(a.b-a.a),headerInOwn=box.narrow&&headerValues.every(v=>/^[-+]?\d+(?:\.\d+)?$/.test(headerLabels.get(v)!))&&fontSize("chip")*.72+1<=headerPitch; // (rc.2 MUST 7)
       const headerBands=(cw:number)=>headerInOwn&&cw<fontSize("chip")*.72+3?2:numberBands(cw);
-      const headerStagger=box.narrow&&headerValues.length>0&&!headerInOwn&&fontSize("chip")*.8+2>(x1-x0)*(t.cells||1)/(a.b-a.a)&&Math.ceil((Math.max(...headerValues.map(v=>measure(headerLabels.get(v)!,"sub")*1.12))+5)/((x1-x0)*(t.cells||1)/(a.b-a.a)))<=3;
-      const headerTurn=(v:number)=>!headerStagger&&turnNumber(headerLabels.get(v)!,X(Math.min(t.b,t.a+(Math.floor((v-t.a)/t.cells!)+1)*t.cells!))-X(t.a+Math.floor((v-t.a)/t.cells!)*t.cells!));
+      const headerStagger=box.narrow&&headerValues.length>0&&!headerInOwn&&!(!!t.cells&&fontSize("chip")*.8+2<=headerPitch&&headerValues.some(v=>!/^[-+]?\d+(?:\.\d+)?$/.test(headerLabels.get(v)!)&&widest(headerLabels.get(v)!)>headerPitch-6)&&headerValues.every(v=>measure(headerLabels.get(v)!,"chip")<=ONEND_MAX))&&fontSize("chip")*.8+2>(x1-x0)*(t.cells||1)/(a.b-a.a)&&Math.ceil((Math.max(...headerValues.map(v=>measure(headerLabels.get(v)!,"sub")*1.12))+5)/((x1-x0)*(t.cells||1)/(a.b-a.a)))<=3;
+      // rc.2 (sample 29): on a phone, header words too wide for their column stand on end inside it (every header of the block, so they read alike), never in tiers above
+      const headerWordTurn=box.narrow&&!!t.cells&&headerValues.length>0&&!headerInOwn&&fontSize("chip")*.8+2<=headerPitch&&headerValues.some(v=>!/^[-+]?\d+(?:\.\d+)?$/.test(headerLabels.get(v)!)&&widest(headerLabels.get(v)!)>headerPitch-6)&&headerValues.every(v=>measure(headerLabels.get(v)!,"chip")<=ONEND_MAX);
+      const headerTurn=(v:number)=>headerWordTurn||!headerStagger&&turnNumber(headerLabels.get(v)!,X(Math.min(t.b,t.a+(Math.floor((v-t.a)/t.cells!)+1)*t.cells!))-X(t.a+Math.floor((v-t.a)/t.cells!)*t.cells!));
       const headerLines=new Map(headerValues.map(v=>{const start=t.a+Math.floor((v-t.a)/t.cells!)*t.cells!,end=Math.min(t.b,start+t.cells!);return [v,headerTurn(v)?[headerLabels.get(v)!]:wrap(headerLabels.get(v)!,Math.max(8,X(end)-X(start)-6),"sub",Infinity)] as const;}));
       const headerCaptions=new Map<number,{left:number;y:number}>();let headerCaptionH=0;
       if(box.narrow&&headerValues.some(v=>!headerTurn(v)&&widest(headerLabels.get(v)!)>(x1-x0)*t.cells!/(a.b-a.a)-6)){
@@ -664,7 +713,7 @@ registerBlock({
       const windowWords=t.window&&!onlyInset&&t.window.unit?wrap(t.window.unit,box.narrow?w-16:Math.max(8,X(Math.min(t.window.b,a.b))-X(Math.max(t.window.a,a.a))-12),"sub",box.narrow?Infinity:1):[];
       const windowTitleExtra=box.narrow&&windowWords.length?Math.max(0,windowWords.length-1)*18+6:0;
       const windowPadA=0; // a window's height: N lines adds its missing room under the ruler (the height below is known only once the rows are laid out)
-      const top = windowPadA + y + (headerCells?Math.max(headerH+4,t.window&&!onlyInset?42:0):t.window&&!onlyInset ? 42+windowExtra+windowTitleExtra : t.rulerNone||t.rulerBelow?4:box.narrow?Math.max(22,phoneLabelH+6):28);
+      const top = windowPadA + y + (headerCells?Math.max(headerH+4,t.window&&!onlyInset?42:0):t.window&&!onlyInset ? 42+windowExtra+windowTitleExtra : t.rulerNone||t.rulerBelow?4:box.narrow?Math.max(22,phoneLabelH+6):t.tight&&!inset?20:28); // 24 lane: "| tight" trims the room over the tick numbers
       const rulerStart=items.length;
       items.push({ k: "path", pts: [[x0, top], [x1, top]], ink: t.rulerNone||revealRuler||headerCells||t.apart?"none":"line-2", id: axisId, bar: { axis: axisId, min: a.a, max: a.b, ...(!revealRuler&&rulerEdges?{edge:axisId,from:axisId,to:axisId}: {}) } });
       if(revealRuler)for(const frame of revealedFrames({k:"box",x:x0,y:top,w:x1-x0,h:0,fill:"none",stroke:"none",id:axisId+":paint"},rulerSpans,0,box.steps))if(frame.k==="box")items.push({k:"path",pts:[[x0,top],[x0+frame.w,top]],ink:"line-2",from:frame.from,to:frame.to,id:frame.id,bar:rulerEdges?{edge:axisId,from:axisId,to:axisId}:undefined});
@@ -694,7 +743,7 @@ registerBlock({
           else phone.lines.forEach((s,i)=>items.push({k:"text",x:phone.x,y:top-6-phoneLabelH+phone.y+11+i*tickLeading,s,f:"sub",ink:"muted",from,...tickReveal(v,from),...(inset&&t.zoomLabels?.has(v)?{id:`${prefix}:label:${v}`}:{})}));
         }else if (tickX > textRight + 5) { items.push({ k: "text", x: tickX, y: top - 10, s, f: "sub", ink: "muted",from,...tickReveal(v,from),...(inset&&t.zoomLabels?.has(v)?{id:`${prefix}:label:${v}`}:{}) }); textRight = tickX + tw; }
       }
-      if(captionBeside)items.push({k:"text",x:pad,y:top-10,s:label,f:"sub",ink:"muted"});
+      if(captionBeside){const it:Item={k:"text",x:pad,y:top-10,s:label,f:"sub",ink:"muted"};items.push(it);unitKeep.add(it);}
       const rulerItems=items.slice(rulerStart);
       let dotLabelH = 0;
       for (const m of panelMarks) if (m.kind==="dot" && within(m.a,a) && m.text) dotLabelH += wrap(m.text, w-16,"sub",Infinity).length*18;
@@ -713,7 +762,7 @@ registerBlock({
         lane.spans.push(occ);spanSlots.set(m,{y:top+14+lane.y,lines});
       }
       for(const group of axisGroups.values())group.when=spanVisibility(group.marks,box.steps,Math.max(t.from,inset?a.from||1:1),inset?a.to||box.steps:box.steps);
-      y = top + (t.rulerBelow?6:narrowRows||t.rulerNone||compactHeaders?4:12) + (t.rulerBelow?0:axisSpanH+dotLabelH) + (t.arrows.some(e=>e.from==="above")?aboveRoom:0);
+      y = top + (t.rulerBelow?6:narrowRows||t.rulerNone||compactHeaders||t.tight&&!inset?4:12) + (t.rulerBelow?0:axisSpanH+dotLabelH) + (t.arrows.some(e=>e.from==="above")?aboveRoom:0);
       if (!inset && t.zoom && !t.zoomBracket) items.push({ k: "box", x: X(Math.max(a.a,t.zoom.a)), y: top - 3, /* an inset that carries its own bracket names its range; no range box on the main axis */ w: X(Math.min(a.b,t.zoom.b)) - X(Math.max(a.a,t.zoom.a)), h: 8, fill: "acc:soft", stroke: "acc:line", r: 0, id: "time-zoom-window",bar:{ignore:1},from:t.zoom.from,to:t.zoom.to });
       // a tag on the same row and range as a [bar] span of its step is drawn as the chip at that bar's left end
       const chipOf=new Map<Mark,TimeTag>(),paired=new Set<TimeTag>(),barsByKey=new Map<string,Mark[]>();
@@ -722,10 +771,10 @@ registerBlock({
       for(const tag of t.tags){charge("bar chips");const m=(barsByKey.get(tag.row+"|"+tag.a+"|"+tag.b)||[]).find(m=>!chipOf.has(m)&&(m.step===tag.step||!!m.persist&&m.step<=tag.step));if(m){chipOf.set(m,tag);paired.add(tag);}}
       const barPlan=(m:Mark)=>{
         const tag=chipOf.get(m),chipLines=tag?wrap(tag.text,Math.max(8,(x1-x0-18)/1.2),"chip",Infinity):[],chipW=tag?Math.min(x1-x0,Math.max(...chipLines.map(s=>measure(s,"chip")))*1.2+18):0,chipH=tag?chipLines.length*14+2:0;
-        const lo=X(Math.max(a.a,m.a)),hi=X(Math.min(a.b,m.b)),chipX=tag?Math.max(x0,Math.min(x1-chipW,lo-chipW/2)):lo,lineH=Math.max(12,chipH)+3; // about 19 px a bar, as the original
+        const lo=X(Math.max(a.a,m.a)),hi=X(Math.min(a.b,m.b)),chipX=tag?Math.max(x0,Math.min(x1-chipW,lo-chipW/2)):lo,bare=!tag&&!m.text,lineH=bare?7:Math.max(12,chipH)+3; // about 19 px a bar, as the original; 24 lane: a bar with no words and no chip is 5 px tall, 7 px a line (the engine's compact packing)
         const tw=m.text?measure(m.text,"sub")*1.1:0,side=!m.text?"none":hi+8+tw<=x1?"right":Math.min(lo,chipX)-8-tw>=x0?"left":"below";
         const lines=side==="below"?wrap(m.text,x1-x0,"sub",Infinity):m.text?[m.text]:[];
-        return {tag,chipLines,chipW,chipH,chipX,lo,hi,lineH,side,lines,h:lineH+(side==="below"?lines.length*18:0)};
+        return {tag,chipLines,chipW,chipH,chipX,lo,hi,lineH,side,lines,bare,h:lineH+(side==="below"?lines.length*18:0)};
       };
       const bandStart=new Map(t.bands.map(b=>[b.first,b])),bandStop=new Map(t.bands.map(b=>[b.last,b])),inBand=new Set<string>(),bandPaint=new Map<string,string>(),bandItems:Item[]=[];
       {let open:Band|undefined;for(const r of rows){charge("band rows");open??=bandStart.get(r.id);if(open){inBand.add(r.id);bandPaint.set(r.id,`role:${open.role}:soft`);}if(open&&r.id===open.last)open=undefined;}} // one pass: bands never overlap (check)
@@ -736,6 +785,7 @@ registerBlock({
       const rowsTop=y,frameLeft=t.rulerBelow&&!t.roomy?x0-samplePad:roomyPhone?-8:0,frameWidth=t.rulerBelow&&!t.roomy?x1-x0+2*samplePad:roomyPhone?w+20:w;
       const laneSpans:{from:number;to:number;w:number}[]=[];let laneMin=8;const rowsStart=items.length;
       for (const r of rows) {
+        const rowItems0=items.length,rowUnder0=under.length; // 24 lane: "| waits" rows wait for their own first step
         const opens=bandStart.get(r.id);
         let bandTitleH=0;
         if(opens&&bandW){bandTop=y;y+=opens.compact?2:4;const lines=bandLines(opens,bandW-10);lines.forEach((l,i)=>bandItems.push({k:"text",x:6,y:y+12+i*18,s:l.s,f:"sub",ink:l.ink}));bandTitleH=lines.length*18+8;}
@@ -763,7 +813,7 @@ registerBlock({
           charge("tag layout");const lines=wrap(tag.text,Math.max(8,(x1-x0-18)/1.2),"chip",Infinity),width=Math.min(x1-x0,Math.max(...lines.map(s=>measure(s,"chip")))*1.2+18),left=Math.max(x0,Math.min(x1-width,(X(tag.a)+X(tag.b)-width)/2));
           let lane=tagLanes.find(l=>l.labels.every(other=>{charge("tag collisions");return left+width+6<=other.left||other.left+other.width+6<=left;}));if(!lane){lane={h:0,labels:[]};tagLanes.push(lane);}lane.h=Math.max(lane.h,lines.length*14+6);lane.labels.push({tag,left,width,lines});
         }
-        for(const lane of tagLanes){for(const {tag,left,width,lines}of lane.labels){const id=prefix+":tag:"+r.id+":"+t.tags.indexOf(tag),when={from:tag.step,to:0};items.push({k:"box",x:left,y,w:width,h:lane.h,fill:"role:"+r.role+":soft",stroke:"role:"+r.role+":line",r:9,id,bar:{kind:"chip",id,label:tag.text,role:r.role},...when});lines.forEach((s,i)=>items.push({k:"text",x:left+width/2,y:y+14+i*14,s,f:"chip",ink:"role:"+r.role+":ink",anchor:"middle",...when}));}y+=lane.h+4;}
+        for(const lane of tagLanes){for(const {tag,left,width,lines}of lane.labels){const id=prefix+":tag:"+r.id+":"+t.tags.indexOf(tag),when={from:tag.step,to:tag.to??0};items.push({k:"box",x:left,y,w:width,h:lane.h,fill:"role:"+r.role+":soft",stroke:"role:"+r.role+":line",r:9,id,bar:{kind:"chip",id,label:tag.text,role:r.role},...when});lines.forEach((s,i)=>items.push({k:"text",x:left+width/2,y:y+14+i*14,s,f:"chip",ink:"role:"+r.role+":ink",anchor:"middle",...when}));}y+=lane.h+4;}
         const labels = onlyInset||narrowRows||!r.label||quiet?[]:wrap(labelText, labW - (r.chip?(badge?44:6):wideCardRows?(badge?44:16):card?16:2), "sub", wideCardRows||r.chip?Infinity:2);
         const dotCenters=[...new Set(r.segs.filter(s=>s.dot&&s.b>a.a&&s.a<a.b).map(s=>X((Math.max(a.a,s.a)+Math.min(a.b,s.b))/2)))].sort((a,b)=>a-b);
         charge("dot spacing",dotCenters.length*Math.max(1,Math.ceil(Math.log2(dotCenters.length+1))));let dotRadius=t.rulerBelow?samplePad?4:8:3;
@@ -821,7 +871,7 @@ registerBlock({
             }
             if(onEnd(s.name,cw,s))onEndH=Math.max(onEndH,Math.ceil(measure(s.name,"chip"))+10);
             else if(staggerLines(s.name,cw,s)>1)staggerNeed=true;
-            if(staggerable(s.name,cw,s))stagger=Math.max(stagger,Math.ceil((measure(s.name,"chip")*1.2+4)/cw));
+            if(staggerLines(s.name,cw,s)>1)stagger=Math.max(stagger,Math.ceil((measure(s.name,"chip")*1.2+4)/cw)); // rc.3 (Parcel receipts): a word that can stand on end does so even in a row whose longer phrases sit under it
             for(const label of labels)if(!(emptyChipCells&&!label)&&(!box.narrow||turnNumber(label,cw)||widest(label)<=cellWordRoom(cw))){const f=cellFont(label,cw);rowH=Math.max(rowH,!s.wide&&turnNumber(label,cw)?(Math.ceil(measure(label,"chip")))*numberBands(cw):wrap(label,f==="big"?wordRoom(cw):cellWordRoom(cw),f,Infinity).length*(f==="big"?28:lineH)+6);}
           }
         }
@@ -830,11 +880,11 @@ registerBlock({
           const sim:{line:number;l:number;r:number;from:number;to:number}[]=[];let need=2;
           for(const s of r.segs){if(s.wide||s.after||s.numbered||s.dot||nm&&numName(s))continue;const lo=Math.max(a.a,s.a),hi=Math.min(a.b,s.b);if(hi<=lo)continue;
             const first=Math.floor((lo-t.a)/t.cells!),count=Math.ceil((hi-t.a)/t.cells!)-first,half=measure(s.name,"chip")*.6,from=s.from||1,to=s.to||box.steps;
-            for(let j=0;j<count;j++){charge("stagger sizing");const a0=Math.max(lo,t.a+(first+j)*t.cells!),b0=Math.min(hi,t.a+(first+j+1)*t.cells!),cw=X(b0)-X(a0);if(!staggerable(s.name,cw,s))continue;
+            for(let j=0;j<count;j++){charge("stagger sizing");const a0=Math.max(lo,t.a+(first+j)*t.cells!),b0=Math.min(hi,t.a+(first+j+1)*t.cells!),cw=X(b0)-X(a0);if(staggerLines(s.name,cw,s)<2)continue;
               const mid=Math.max(x0+half,Math.min(x1-half,X(a0)+cw/2));let line=0;while(line<6&&sim.some(o=>o.line===line&&!(o.to<from||to<o.from||o.r+10<=mid-half||mid+half+10<=o.l)))line++;
               sim.push({line,l:mid-half,r:mid+half,from,to});need=Math.max(need,Math.min(6,line+1));}}
           stagger=need;}
-        if(stagger===1&&onEndH)rowH=Math.max(rowH,onEndH);
+        if(onEndH)rowH=Math.max(rowH,onEndH);
         if (r.segs.some((s) => s.tone === "bad")) rowH += t.roomy?(box.narrow?0:4):12;
         if(wideCardRows)rowH=Math.max(rowH,sharedRowH);
         // [bar] spans stack inside their row (from its top) when none of the row's states lies in their time range
@@ -872,15 +922,15 @@ registerBlock({
         const frameSpans=r.segs.filter(s=>s.b>a.a&&s.a<a.b).map(s=>({from:s.from,to:s.to,w:s.after?frameWidth:Math.min(frameWidth,X(Math.min(a.b,s.b))+4-frameLeft)}));
         laneSpans.push(...frameSpans);laneMin=Math.max(laneMin,minFrame);
         under.push(...revealedFrames({k:"box",x:frameLeft,y:rowTop,w:frameWidth,h:y-rowTop+rowH,fill:t.roomy||t.apart||r.chip&&narrowRows||inBand.has(r.id)?"none":inset&&a.tone?`${a.tone}:soft`:"surface",stroke:"none",r:0,cls:"scn-frame stg-time-row",id:`${prefix}:row:${r.id}`,bar:onlyInset?{ignore:1}:{kind:"worksheet-row",id:rowId(r.id),...(r.chip?{}:{label:labelText})}},frameSpans,minFrame,box.steps));
-        if(card){const h=r.chip?Math.max(18,(labels.length+sublines.length)*18+(badge?25:0)):rowH,width=r.chip?Math.min(labW-3,Math.max(0,...[...labels,...sublines].map(s=>measure(s,"sub")))*1.12+(badge?44:6)):labW-3;items.push({k:"box",x:bandW,y:r.chip?y:y+(rowH-h)/2,w:width,h,fill:`role:${r.role}:soft`,stroke:`role:${r.role}:line`,r:r.chip?9:7,cls:"scn-shape",role:r.role,id:labelId,bar:labelBar});}
+        if(card){const h=r.chip?Math.max(18,(labels.length+sublines.length)*18+(badge?25:0)):rowH,width=r.chip?Math.min(labW-3,Math.max(0,...[...labels,...sublines].map(s=>measure(s,"sub")))*1.12+(badge?44:6)):labW-3;items.push({k:"box",x:labX,y:r.chip?y:y+(rowH-h)/2,w:width,h,fill:`role:${r.role}:soft`,stroke:`role:${r.role}:line`,r:r.chip?9:7,cls:"scn-shape",role:r.role,id:labelId,bar:labelBar});}
         const labelY=y+(r.chip&&!badge?13:wideCardRows?(rowH-(labels.length+sublines.length)*18)/2+13:badge?37:card?(rowH-(labels.length+sublines.length)*18)/2+13:13);
-        if(badge&&!narrowRows)items.push({k:"badge",x:bandW+6,y:wideCardRows?labelY-13:y+5,s:badge[1],role:r.role});
-        labels.forEach((s, i) => labelWord({ k: "text", x: wideCardRows&&badge?bandW+34:t.rulerBelow&&!card?x0-samplePad-8:bandW+(r.chip&&!badge?3:card?6:4), y: labelY + i * 18, s, f: "sub", ink: r.chip?`role:${r.role}:ink`:"ink", tip: r.label,...(t.rulerBelow&&!card?{anchor:"end" as const}:{}) },headingFill));
-        sublines.forEach((s,i)=>labelWord({k:"text",x:bandW+(wideCardRows&&badge?34:6),y:labelY+(labels.length+i)*18,s,f:"sub",ink:"muted"},headingFill));
+        if(badge&&!narrowRows)items.push({k:"badge",x:labX+6,y:wideCardRows?labelY-13:y+5,s:badge[1],role:r.role});
+        labels.forEach((s, i) => labelWord({ k: "text", x: wideCardRows&&badge?labX+34:t.rulerBelow&&!card?x0-samplePad-8:labX+(r.chip&&!badge?3:card?6:4), y: labelY + i * 18, s, f: "sub", ink: r.chip?`role:${r.role}:ink`:"ink", tip: r.label,...(t.rulerBelow&&!card?{anchor:"end" as const}:{}) },headingFill));
+        sublines.forEach((s,i)=>labelWord({k:"text",x:labX+(wideCardRows&&badge?34:6),y:labelY+(labels.length+i)*18,s,f:"sub",ink:"muted"},headingFill));
         let legendY = y + rowH + (dotRow||compact||box.narrow||quiet?0:5);
         // staggered words stand on lines right under their row, each centred under its own cell, so they never cross a box
         const staggerY=legendY+2;if(stagger>1)legendY+=stagger*14+4;
-        const cellLegends:{ref:string;label:string;ink:string;from:number;to:number}[]=[],rangeCaptions:{label:string;from:number;to:number}[]=[],laterNums:{lead?:Item;hw?:number;min?:number;mask:Item;word:Item}[]=[];
+        const cellLegends:{ref:string;label:string;ink:string;from:number;to:number}[]=[],rangeCaptions:{label:string;mid:number;bottom:number;ink:string;from:number;to:number}[]=[],laterNums:{lead?:Item;hw?:number;min?:number;mask:Item;word:Item}[]=[];
         for (const s of r.segs) {
           charge("segment layout");
           const lo = Math.max(a.a, s.a), hi = Math.min(a.b, s.b); if (hi <= lo) continue;
@@ -892,7 +942,7 @@ registerBlock({
             const putWord=(word:Extract<Item,{k:"text"}>)=>backedWord(word,paint.fill);
             if(s.tone==="bad"&&!s.soft){
               const lines=label?wrap(label,f==="big"?wordRoom(cw):cellWordRoom(cw),f,Infinity):[],width=Math.max(0,...lines.map(line=>measure(line,f)))*1.2;
-              const side=(cw-width)/2-8,above=(rowH-lines.length*leading)/2+11-fontSize(f)-6;
+              const side=(cw-width)/2-8,above0=(rowH-lines.length*leading)/2+11-fontSize(f)-6,above=box.narrow&&label&&above0>=20?Math.min(24,above0-4):above0; // rc.3: on a phone a big X over cell words keeps 10 px clear of them and stays within 24 px; small ones are unchanged
               const inset=Math.min(4+cellGap(cw)/2,cw*.2),size=Math.max(Math.min(2,cw/4),Math.min(30,cw-inset*2,rowH-8,side>=30||!label?30:above));
               const stroke=Math.min(3,cw*.1,size*.4),right=cx+cw-inset,left=right-size,upper=y+4,lower=upper+size;
               items.push(...shift([{k:"path",pts:[[left,upper],[right,lower]],curve:"round",ink:"bad:line",w:stroke},{k:"path",pts:[[right,upper],[left,lower]],curve:"round",ink:"bad:line",w:stroke}] as Item[],0,0,{from:s.from,to:s.to}));
@@ -902,7 +952,7 @@ registerBlock({
               const bands=numberBands(cw),index=Math.floor((cx-x0)/(x1-x0)*(a.b-a.a)/t.cells+1e-6);
               putWord({k:"text",x:cx+cw/2+fontSize("chip")*.35,y:y+rowH/bands*(index%bands+.5),s:label,f:"chip",ink:s.soft?"ink":token?`${token}:ink`:"muted",anchor:"middle",rotate:90,from:s.from,to:s.to});return;
             }
-            if(!override&&stagger>1&&staggerable(label,cw,s)){const index=Math.floor((cx-x0)/(x1-x0)*(a.b-a.a)/t.cells!+1e-6),half=measure(label,"chip")*.6,mid=Math.max(x0+half,Math.min(x1-half,cx+cw/2)),from=s.from||1,to=s.to||box.steps;
+            if(!override&&stagger>1&&staggerLines(label,cw,s)>1){const index=Math.floor((cx-x0)/(x1-x0)*(a.b-a.a)/t.cells!+1e-6),half=measure(label,"chip")*.6,mid=Math.max(x0+half,Math.min(x1-half,cx+cw/2)),from=s.from||1,to=s.to||box.steps;
               // the first line where no word shown in the same steps is in its way (cells of several-cell runs repeat the word)
               let line=-1;for(let k=0;k<stagger&&line<0;k++)if(staggerTaken.every(o=>{charge("stagger lines");return o.line!==k||o.to<from||to<o.from||o.r+10<=mid-half||mid+half+10<=o.l;}))line=k;if(line<0)line=index%stagger;
               staggerTaken.push({line,l:mid-half,r:mid+half,from,to});
@@ -967,10 +1017,8 @@ registerBlock({
             // on a phone a wide cell whose number cannot keep 2 px each side (with 12% room for browser glyphs) captions them under the row instead of clipping them at its edge
             const tight=box.narrow&&!!t.cells&&!s.after&&/^\d+$/.test(s.name)&&Math.max(...wrap(s.name,Math.max(8,width-6),"sub",Infinity).map(l=>measure(l,"sub")))*1.12+4>width;
             if (!tight&&(s.after || t.cells || measure(s.name, "sub") + 8 <= width)) words(left, width);
-            else if(s.name&&box.narrow)rangeCaptions.push({label:`${s.name} ${fmt(s.a)}..${fmt(s.b)}`,from:s.from,to:s.to});
-            else if(s.name) for (const text of wrap(`${s.name} ${fmt(s.a)}..${fmt(s.b)}`, x1 - x0, "sub", Infinity)) {
-              items.push({ k: "text", x: x0, y: legendY + 11, s: text, f: "sub", ink: "muted", from: s.from, to: s.to }); legendY += 18;
-            }
+            // 24 lane (gap g): a bar too narrow for its name: the name goes under the row, tied to its bar by a leader (never the source range)
+            else if(s.name)rangeCaptions.push({label:s.name,mid:left+width/2,bottom:y+rowH,ink:token?`${token}:line`:"line-2",from:s.from,to:s.to});
           }
         }
         if(laterNums.length){charge("staggered numbers",laterNums.length);
@@ -982,15 +1030,18 @@ registerBlock({
               const over=lw.x+l.hw!+3-(rw.x-r.hw!);if(over>0){const nx=Math.max(l.min!,lw.x-over),d=nx-lw.x;lw.x=nx;(l.mask as any).x+=d;}
               break;}}items.push(...laterNums.flatMap(n=>n.lead?[n.lead]:[]),...laterNums.map(n=>n.mask),...laterNums.map(n=>n.word));}
         if(rangeCaptions.length){
-          const gap=measure(" · ","sub")+2;let cursor=x0,previous:typeof rangeCaptions[number]|undefined;
+          // each name centred under its bar (held inside the grid), on the first line free for its steps, 6 px from its neighbours; a leader in the bar's ink from the bar's bottom edge to the name, under every name's backing
+          const lead=box.narrow?14:18,taken:{line:number;l:number;r:number;from:number;to:number}[]=[];let used=0;
           for(const cap of rangeCaptions){
-            charge("range caption packing");const lines=wrap(cap.label,x1-x0,"sub",Infinity),width=captionWidth(lines);
-            if(lines.length>1){if(cursor>x0){legendY+=14;cursor=x0;}lines.forEach((s,i)=>items.push({k:"text",x:x0,y:legendY+11+i*14,s,f:"sub",ink:"muted",from:cap.from,to:cap.to}));legendY+=lines.length*14;previous=undefined;continue;}
-            if(cursor>x0&&cursor+gap+width>x1){legendY+=14;cursor=x0;previous=undefined;}
-            if(cursor>x0){const from=Math.max(previous!.from,cap.from),to=Math.min(previous!.to||box.steps,cap.to||box.steps);if(from<=to)items.push({k:"text",x:cursor+2,y:legendY+11,s:"·",f:"sub",ink:"muted",from,to});cursor+=gap;}
-            items.push({k:"text",x:cursor,y:legendY+11,s:lines[0],f:"sub",ink:"muted",from:cap.from,to:cap.to});cursor+=width;previous=cap;
+            charge("range caption packing");const lines=wrap(cap.label,x1-x0,"sub",Infinity),tw=captionWidth(lines)*1.12,half=Math.min(tw,x1-x0)/2,mid=Math.max(x0+half,Math.min(x1-half,cap.mid)),to=cap.to||box.steps;
+            const free=(k:number)=>lines.every((_,i)=>taken.every(o=>{charge("range caption lines");return o.line!==k+i||o.to<cap.from||to<o.from||o.r+6<=mid-half||mid+half+6<=o.l;}));
+            let line=0;while(!free(line))line++;
+            lines.forEach((_,i)=>taken.push({line:line+i,l:mid-half,r:mid+half,from:cap.from,to}));used=Math.max(used,line+lines.length);
+            const baseline=legendY+11+line*lead,lx=Math.max(mid-half+2,Math.min(mid+half-2,cap.mid));
+            under.push({k:"path",pts:[[lx,cap.bottom],[lx,baseline-Math.ceil(fontSize("sub")*.72)-1]],ink:cap.ink,w:1,cls:"stg-time-leader",bar:{ignore:1},from:cap.from,to:cap.to});
+            lines.forEach((text,i)=>{items.push({...captionMask(mid-measure(text,"sub")*.56,baseline+i*lead,text,"surface"),from:cap.from,to:cap.to});items.push({k:"text",x:mid,y:baseline+i*lead,s:text,f:"sub",ink:"muted",anchor:"middle",from:cap.from,to:cap.to});});
           }
-          if(cursor>x0)legendY+=14;
+          legendY+=used*lead+(box.narrow?0:4);
         }
         if(cellLegends.length){
           type Caption={left:number;right:number;lines:string[];it:typeof cellLegends[number]};
@@ -1035,6 +1086,10 @@ registerBlock({
         const sy0=sy;for(const lane of spanLanes){for(const {m,lines}of lane.marks)spanSlots.set(m,{y:sy,lines});sy+=lane.h;}
         if(spanLanes.length)y=Math.max(y,sy);
         if(r===rows[rows.length-1]&&spanLanes.length)lastSpans={start:sy0,end:sy,marks:spanLanes.flatMap(l=>l.marks.map(x=>x.m))};
+        if(t.waits&&!inset){ // 24 lane: in a "| waits" block each row (its frame, label and words) also waits for its own first state, span, tag or mark
+          const rf=Math.min(...r.segs.map(s=>s.from||1),...t.marks.filter(m=>m.row===r.id).map(m=>m.step||1),...t.tags.filter(g=>g.row===r.id).map(g=>g.step||1),...(((t as any).rowMarks||[]) as {row:string;from?:number}[]).filter(m=>m.row===r.id).map(m=>m.from||1));
+          if(Number.isFinite(rf)&&rf>1){charge("row waits",items.length-rowItems0+under.length-rowUnder0);for(const list of [items,under]){const from=list===items?rowItems0:rowUnder0;for(let q=from;q<list.length;q++){const it=list[q];if(!it.on)list[q]={...it,from:Math.max(it.from??1,rf)};}}}
+        }
         const closes=bandStop.get(r.id);
         if(closes&&bandStart.has(closes.first)){y+=closes.compact?2:4;if(bandW)y=Math.max(y,bandTop+bandLines(closes,bandW-10).length*18+(closes.compact?4:8));bandItems.unshift({k:"box",x:2,y:bandTop,w:Math.max(8,w-4),h:y-bandTop,fill:`role:${closes.role}:soft`,stroke:`role:${closes.role}:line`,r:6,cls:"scn-frame stg-time-band",id:`${prefix}:band:${closes.id}`,bar:{kind:"band",label:closes.title}});}
         y += quiet&&!closes&&!gapRoom[rows.indexOf(r)]?2:wideCardRows?(rows.indexOf(r)<rows.length-1?evenGap:8):gapRoom[rows.indexOf(r)] ? gapRoom[rows.indexOf(r)] : compact&&box.narrow?(t.cells&&(x1-x0)*t.cells/(a.b-a.a)<16?1:3):compact||box.narrow?4:8;
@@ -1139,11 +1194,15 @@ registerBlock({
         const lo=Math.max(t.window.a,a.a),hi=Math.min(t.window.b,a.b);
         if(hi>lo){const left=X(lo),width=X(hi)-left;const natural=bottom-top+44+windowExtra+windowTitleExtra+windowPadA,padB=t.windowLines?Math.max(0,t.windowLines*18-natural):0;if(padB)y=Math.max(y,bottom+padB);under.push({k:"box",x:left,y:top-40-windowExtra-windowTitleExtra-windowPadA,w:width,h:natural+padB,fill:"none",stroke:"line-2",dash:true,r:3,id:`${prefix}:window`,cls:"scn-frame",bar:{kind:"panel",id:`${prefix}:window`,label:t.window.unit}});windowWords.forEach((s,i)=>items.push({k:"text",x:box.narrow?Math.max(8,Math.min(w-8-measure(s,"sub"),left+6)):width>=24?left+6:8,y:top-30-windowExtra-windowTitleExtra-windowPadA+i*18,s,f:"sub",ink:"muted",tip:t.window?.unit}));}
       }
+      // a downward arrow runs on into its row's cells past the
+      // row's heading band (on a phone the row's label sits there, over its first cells) where nothing of that band is
+      // under its line; it stopped over the band, a lone head far from its row
+      const downTo=(to:{top:number;headingTop:number},x:number)=>to.top-to.headingTop<4||[...under,...items].some(it=>{if(it.k==="text"){const tw=measure(it.s,it.f),lx=it.anchor==="middle"?it.x-tw/2:it.anchor==="end"?it.x-tw:it.x;return x>lx-4&&x<lx+tw+4&&it.y>to.headingTop&&it.y-12<to.top;}if(it.k==="box")return x>it.x-4&&x<it.x+it.w+4&&it.y>=to.headingTop-1&&it.y+it.h<=to.top+1;return false;})?to.headingTop-2:to.top-2;
       for(const [index,e] of t.arrows.entries()){
         charge("cell arrows");
         if(!within(e.at,a)||!rowRects.has(e.to)||e.from!=="above"&&!rowRects.has(e.from))continue;
         const to=rowRects.get(e.to)!,from=e.from==="above"?null:rowRects.get(e.from)!;
-        const input=aboveInputs.get(e),upward=from&&from.top>to.top,sy=input!==undefined?input-8:from?(upward?from.headingTop-2:from.bottom+2):top+12+dotLabelH,ty=upward?to.bottom+2:to.headingTop-2,x=X(e.at),role=t.rows.find(r=>r.id===(e.from==="above"?e.to:e.from))!.role;
+        const input=aboveInputs.get(e),upward=from&&from.top>to.top,sy=input!==undefined?input-8:from?(upward?from.headingTop-2:from.bottom+2):top+12+dotLabelH,x=X(e.at),ty=upward?to.bottom+2:downTo(to,x),role=t.rows.find(r=>r.id===(e.from==="above"?e.to:e.from))!.role;
         const {lines:text,x:tx}=arrowLabels.get(e)!;
         const ink=e.tone?(e.tone==="ink"?"ink":`${e.tone}:line`):`role:${role}:line`;
         const its:Item[]=[{k:"path",pts:[[x,sy],[x,ty]],curve:"round",ink,arrow:true,...(input!==undefined?{head:8}:{}),dash:e.dash,w:2,id:`${prefix}:arrow:${index}`,bar:{edge:`${prefix}:arrow:${index}`,from:e.from==="above"?"above":rowId(e.from),to:rowId(e.to)}}];
@@ -1247,13 +1306,13 @@ registerBlock({
         if(m.kind === "span" && m.bar && m.row !== "axis") {
           const slot=spanSlots.get(m);if(!slot)continue;
           const p=barPlan(m),sy=slot.y,mid=sy+p.lineH/2,token=m.tone||`role:${t.rows.find(r=>r.id===m.row)?.role}`,cb=compactBars.get(m);
-          its.push({k:"box",x:p.lo,y:cb?cb.barY:mid-5,w:Math.max(2,p.hi-p.lo),h:cb?5:10,fill:`${token}:line`,stroke:`${token}:line`,r:cb?2:3,cls:"scn-shape stg-span-bar",id,bar:{kind:"time-bar",label:m.text||`${fmt(m.a)}..${fmt(m.b)}`,track:axisId,value:lo+(hi-lo)/2}}); // a scene: a renewal bar stays a time-bar
+          its.push({k:"box",x:p.lo,y:cb?cb.barY:p.bare?sy+1:mid-5,w:Math.max(2,p.hi-p.lo),h:cb||p.bare?5:10,fill:`${token}:line`,stroke:`${token}:line`,r:cb||p.bare?2:3,cls:"scn-shape stg-span-bar",id,bar:{kind:"time-bar",label:m.text||`${fmt(m.a)}..${fmt(m.b)}`,track:axisId,value:lo+(hi-lo)/2}}); // a bar stays a time-bar
           const ink=`${token}:ink`;
           if(cb){if(p.lines.length){if(cb.textY!==undefined)p.lines.forEach((s,i)=>its.push({k:"text",x:Math.max(x0,Math.min(x1-measure(s,"sub"),p.lo)),y:cb.textY!+i*18,s,f:"sub",ink}));else its.push({k:"text",x:p.side==="right"?p.hi+8:Math.min(p.lo,p.chipX)-8-measure(p.lines[0],"sub")*1.1,y:cb.barY+7,s:p.lines[0],f:"sub",ink});}}
           else if(p.side==="right"||p.side==="left"){const x=p.side==="right"?p.hi+8:Math.min(p.lo,p.chipX)-8-measure(p.lines[0],"sub")*1.1;its.push({k:"text",x,y:mid+4,s:p.lines[0],f:"sub",ink});} // its own line: nothing to mask
           else if(p.side==="below")p.lines.forEach((s,i)=>its.push({k:"text",x:Math.max(x0,Math.min(x1-measure(s,"sub"),p.lo)),y:sy+p.lineH+12+i*18,s,f:"sub",ink}));
           if(p.tag){
-            const tag=p.tag,role=t.rows.find(r=>r.id===tag.row)!.role,cid=prefix+":tag:"+tag.row+":"+t.tags.indexOf(tag),cy=cb?cb.chipY:mid-p.chipH/2,cw={from:tag.step,to:0};
+            const tag=p.tag,role=t.rows.find(r=>r.id===tag.row)!.role,cid=prefix+":tag:"+tag.row+":"+t.tags.indexOf(tag),cy=cb?cb.chipY:mid-p.chipH/2,cw={from:tag.step,to:tag.to??0};
             chipItems.push({k:"box",x:p.chipX,y:cy,w:p.chipW,h:p.chipH,fill:"role:"+role+":soft",stroke:"role:"+role+":line",r:9,id:cid,bar:{kind:"chip",id:cid,label:tag.text,role},...cw});
             p.chipLines.forEach((s,i)=>chipItems.push({k:"text",x:p.chipX+p.chipW/2,y:cy+12+i*14,s,f:"chip",ink:"role:"+role+":ink",anchor:"middle",...cw}));
           }
@@ -1293,12 +1352,23 @@ registerBlock({
         if((m.kind==="at"||m.kind==="span")&&m.labelTo!==undefined)for(const it of its)if(it.k==="text"||it.k==="box"&&it.cls==="stg-time-caption-mask"){if(m.labelTo===0)it.on=[];else it.to=Math.min(it.to||Infinity,m.labelTo);}
         maxY = Math.max(maxY, nextY); const marked = shift(its, 0, 0, when); (m.kind==="at"?markerStrokes:under).push(...marked.filter((i) => i.k === "path")); items.push(...marked.filter((i) => i.k !== "path"));
       }
+      // marks ON a row's line: an X, or a short stroke across the row and its words beside it (backed), in that row only
+      for (const rm of t.rowMarks ?? []) {
+        charge("row marks"); const rr = rowRects.get(rm.row); if (!rr || !within(rm.a, a)) continue;
+        const cx = X(rm.a), cy = (rr.top + rr.bottom) / 2, tone = rm.tone && rm.tone !== "plain" ? rm.tone : rm.x ? "bad" : "acc", when = { from: Math.max(rm.from, 1), to: rm.to }, its: Item[] = [];
+        if (rm.x) for (const d of [-1, 1]) its.push({ k: "path", pts: [[cx - 5, cy - 5 * d], [cx + 5, cy + 5 * d]], ink: `${tone}:line`, w: 2.5, cls: "stg-time-x", id: `${prefix}:x:${rm.row}:${rm.a}:${d}` });
+        else its.push({ k: "path", pts: [[cx, rr.top + 2], [cx, rr.bottom - 2]], ink: `${tone}:line`, w: 2, id: `${prefix}:row-at:${rm.row}:${rm.a}` });
+        if (rm.text) { const tw = measure(rm.text, "sub"), gap = rm.x ? 9 : 5, right = cx + gap + tw * 1.2 <= x1, tx = right ? cx + gap : Math.max(x0, cx - gap - tw), baseline = cy + 4;
+          const mask = captionMask(tx, baseline, rm.text, "surface"); if (!right && mask.k === "box") mask.w = Math.max(0, Math.min(mask.x + mask.w, cx - gap + 3) - mask.x); /* words left of their stroke: the backing stops short of it */
+          its.push(mask, { k: "text", x: tx, y: baseline, s: rm.text, f: "sub", ink: `${tone}:ink` }); }
+        items.push(...shift(its, 0, 0, when));
+      }
       // Marker dashes cross filled cells, while words and their backings remain above the strokes.
       const stateBackground=(it:Item)=>it.k==="box"&&!!it.cls?.split(" ").some(cls=>["stg-time-cell","stg-seg","stg-time-dot"].includes(cls));
       if(markerStrokes.length)charge("marker layers",items.length,items.length);
       const ordered=markerStrokes.length?[...under,...items.filter(stateBackground),...markerStrokes,...items.filter(it=>!stateBackground(it))]:[...under,...items];
       if(inset)ordered.unshift({k:"box",x:0,y:0,w,h:maxY+8,fill:a.tone?`${a.tone}:soft`:"none",stroke:a.tone?`${a.tone}:ink`:"none",r:0,cls:"stg-time-inset",id:`${prefix}:panel`,bar:{kind:"panel",id:`${prefix}:panel`,label:t.zoomBracket&&a.unit?a.unit:label,...(a.tone?{tone:a.tone}:{})}});
-      return { h: maxY + 8, ...(inset&&unitHeight?{head:unitHeight}:{}), ...(!inset&&t.roomy&&t.cells?{footLeft:x0+cellGap((x1-x0)*t.cells/(a.b-a.a))/2}:{}), items: [...ordered, ...chipItems].map(it=>({...it,from:Math.max(t.from,it.from??1,inset?a.from??1:1),to:inset&&a.to?Math.min(it.to||Infinity,a.to):it.to})) };
+      return { h: maxY + 8, ...(inset&&unitHeight?{head:unitHeight}:{}), ...(!inset&&t.roomy&&t.cells?{footLeft:x0+cellGap((x1-x0)*t.cells/(a.b-a.a))/2}:{}), items: [...ordered, ...chipItems].map(it=>({...it,from:Math.max(t.from,it.from??1,inset?a.from??1:1,unitKeep.has(it)?1:waitFor),to:inset&&a.to?Math.min(it.to||Infinity,a.to):it.to})) };
     };
     const firstPanel=panel;
     const fitted=(a:Axis,w:number,inset:boolean,suffix="")=>{besideFail=[];const out=firstPanel(a,w,inset,suffix);if(!besideFail.length)return out;const again=new Set(besideFail);besideFail=[];return firstPanel(a,w,inset,suffix,again);};
@@ -1315,11 +1385,12 @@ registerBlock({
     const zoomState=step&&t.zoom?.from&&(step===t.zoom.from||t.zoom.to&&step===t.zoom.to+1)?[step===t.zoom.from?"Inset shown.":"Inset hidden."]:[];
     // a [dot] interval is drawn as one dot (open, or filled by fill), never as an empty run; an inset-only row ("zoom row") is drawn
     // in the inset alone, so it is listed under the inset's range, not under the overview's
-    const rowFact = (r: TRow) => { charge("state facts", r.segs.length); return `  ${rowName(r)}: ${r.segs.map((s) => { const when = s.from > 1 || s.to ? (s.to === s.from ? `step ${s.from} only` : `steps ${s.from}${s.to ? " to " + s.to : " onward"}`) : "", tone = s.tone && !(s.tone === "dot" && s.dot) && !(s.tone === "numbered" && s.numbered) ? LLM_LOOK[s.tone] ?? (TIME_STYLES[s.tone as keyof typeof TIME_STYLES] || s.tone) : "", more = [when, tone, s.soft ? "soft" : "", s.preview ? "dashed" : ""].filter(Boolean); return `${s.name || (s.numbered ? "numbered cells" : s.dot ? "dot" : "empty")}${s.numbered && s.name ? " (numbered cells)" : ""}${s.dot && s.name ? " (a dot)" : ""} ${s.a} to ${s.b}${more.length ? ` (${more.join(", ")})` : ""}`; }).join(", ")}`; };
+    const rowFact = (r: TRow) => { charge("state facts", r.segs.length); if (r.count && !r.segs.some((s) => s.from > 1 || s.to || s.tone)) return `  ${rowName(r)}: counts ${r.count[0]} to ${r.count[1] - 1}, one per ${t.cells === 1 && t.unit && /^[a-z]{3,}s$/.test(t.unit) ? t.unit.slice(0, -1) : "cell"}`; return `  ${rowName(r)}: ${r.segs.map((s) => { const when = s.from > 1 || s.to ? (s.to === s.from ? `step ${s.from} only` : `steps ${s.from}${s.to ? " to " + s.to : " onward"}`) : "", tone = s.tone && !(s.tone === "dot" && s.dot) && !(s.tone === "numbered" && s.numbered) ? LLM_LOOK[s.tone] ?? (TIME_STYLES[s.tone as keyof typeof TIME_STYLES] || s.tone) : "", more = [when, tone, s.soft ? "soft" : "", s.preview ? "dashed" : ""].filter(Boolean); return `${s.name || (s.numbered ? "numbered cells" : s.dot ? "dot" : "empty")}${s.numbered && s.name ? " (numbered cells)" : ""}${s.dot && s.name ? " (a dot)" : ""} ${s.at !== undefined ? `at ${s.at}` : `${s.a} to ${s.b}`}${more.length ? ` (${more.join(", ")})` : ""}`; }).join(", ")}`; };
     const rowOf = (id: string | undefined) => { const r = t.rows.find((x) => x.id === id); return r ? rowName(r) : id; };
     if (step === 0) return [`Time from ${t.a} to ${t.b}${t.unit ? " " + t.unit : ""}${t.from>1?` (from step ${t.from})`:""}:`, ...t.rows.filter((r) => !r.inset).map(rowFact), ...(t.cells ? [`${t.cells === 1 && t.unit && /^[a-z]{3,}s$/.test(t.unit) ? `One state cell per ${t.unit.slice(0, -1)}` : `State cells every ${t.cells}${t.unit ? " " + t.unit : ""}`}${t.apart ? ", drawn apart" : ""}.`] : []), ...(t.ticks ? [`Ticks: ${t.ticks.map((v) => `${v}${tickNote(t.tickLabels.get(v),t.tickWhen?.get(v),t.tickTone?.get(v))}`).join(", ")}.`] : []), ...(t.window ? [`Window ${t.window.a} to ${t.window.b}: ${t.window.unit}.`] : []), ...(t.zoom ? [`Zoom ${t.zoom.a} to ${t.zoom.b}${t.zoom.unit ? ": " + t.zoom.unit : ""}${t.zoomBracket ? " (a bracket over the inset)" : ""}.`] : []), ...(t.zoom && t.rows.some((r) => r.inset) ? [`In the inset only (${t.zoom.a} to ${t.zoom.b}):`, ...t.rows.filter((r) => r.inset).map(rowFact)] : []), ...(t.zoomTicks ? [`Zoom ticks: ${t.zoomTicks.map(v=>`${fmt(v)}${t.tickLabels.has(v)?" ("+t.tickLabels.get(v)+")":""}`).join(", ")}.`] : []), ...(t.zoomLabels ? [`Zoom labels: ${[...t.zoomLabels].map(([v,label])=>`${fmt(v)} (${label})`).join(", ")}.`] : []), ...(t.values ? [`Values from ${t.values.a} to ${t.values.b} ${t.values.unit}.`, ...t.points.map((p) => `${p.label || p.id}: ${p.value} at ${p.time}.`)] : []), ...(t.lanes ? [`Axis under the lanes ${t.lanes[0]} to ${t.lanes[1]}.`] : []), ...t.bands.map((b) => `Band "${b.title}": ${rowOf(b.first)} to ${rowOf(b.last)}.`), ...t.marks.filter((m) => m.step === 0).map((m) => `${m.kind === "dot" ? "Dot" : "Marker"} ${m.a}${m.text ? ": " + endStop(m.text) : "."}`)];
     const dotFacts=t.dotPaints.filter(f=>f.step===step).map(f=>f.tone?`${f.row}: dots starting ${f.range?`${fmt(f.range[0])} to ${fmt(f.range[1])}`:fmt(f.at!)} painted ${f.tone.startsWith("role:")?f.tone.slice(5):TIME_STYLES[f.tone as keyof typeof TIME_STYLES]||f.tone}${f.keep?" from this step onward":" this step only"}.`:`${f.row}: dots${f.range?` from ${fmt(f.range[0])} to ${fmt(f.range[1])}`:""} ${f.off?"restored to their declared paint":f.keep?"filled from this step onward":"filled this step only"}.`);
-    const tickFacts=[...(t.tickWhen||[])].filter(([,r])=>r.from===step).map(([v,r])=>`Tick ${fmt(v)} label shown: ${endStop(t.tickLabels.get(v)||fmt(v))}${r.to?` Until step ${r.to}.`:""}`);
-    return tickFacts.concat(t.marks.filter((m) => m.step === step).map((m) => (m.kind !== "span" ? `${m.kind === "dot" ? "Dot at" : "At"} ${m.a}${t.unit ? " " + t.unit : ""}${m.text ? ": " + endStop(m.text) : "."}${m.persist ? " From this step onward." : ""}` : `${rowOf(m.row)}, ${m.a} to ${m.b}${m.text ? ": " + m.text : ""}.${m.persist ? " From this step onward." : ""}`)).concat(t.arrows.filter(e=>e.step===step).map(e=>`${e.text}: ${e.from} to ${e.to} at ${e.at}.`)).concat(t.tags.filter(tag=>tag.step===step).map(tag=>`${rowOf(tag.row)}, tag ${tag.a} to ${tag.b}: ${tag.text}. From this step onward.`)).concat(t.hushes.filter(h=>h.step===step).map(h=>h.span?`Span caption ${h.span} hidden; its line stays.`:`Marker label at ${h.at} hidden; its line stays.`)).concat(dotFacts).concat(zoomState));
+    const tickFacts=[...(t.tickWhen||[])].filter(([,r])=>r.from===step).map(([v,r])=>`Tick ${fmt(v)} label shown: ${endStop(t.tickLabels.get(v)||fmt(v))}${r.to===r.from?" This step only.":r.to?` Until step ${r.to}.`:""}`);
+    const rowMarkFacts = (t.rowMarks ?? []).filter((m) => m.from === step).map((m) => `At ${m.a}${t.unit ? " " + t.unit : ""} on ${rowOf(m.row)}: ${m.x ? "an X" + (m.text ? ", " : "") : ""}${endStop(m.text || "")}`.replace(/: an X$/, ": an X."));
+    return tickFacts.concat(rowMarkFacts).concat(t.marks.filter((m) => m.step === step).map((m) => (m.kind !== "span" ? `${m.kind === "dot" ? "Dot at" : "At"} ${m.a}${t.unit ? " " + t.unit : ""}${m.text ? ": " + endStop(m.text) : "."}${m.persist ? " From this step onward." : ""}` : `${rowOf(m.row)}, ${m.a} to ${m.b}${m.text ? ": " + m.text : ""}.${m.persist ? " From this step onward." : ""}`)).concat(t.arrows.filter(e=>e.step===step).map(e=>`${e.text}: ${e.from} to ${e.to} at ${e.at}.`)).concat(t.tags.filter(tag=>tag.step===step).map(tag=>`${rowOf(tag.row)}, tag ${tag.a} to ${tag.b}: ${tag.text}. From this step onward.`)).concat(t.hushes.filter(h=>h.step===step).map(h=>h.tag?`Tag ${h.tag} hidden.`:h.span?`Span caption ${h.span} hidden; its line stays.`:`Marker label at ${h.at} hidden; its line stays.`)).concat(dotFacts).concat(zoomState));
   },
 } satisfies StageBlock<Time>);

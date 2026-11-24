@@ -36,7 +36,7 @@ for (const w of [1000, 340]) test(`bars lay out inside ${w} with every data mark
   const ax = plan.items.find((i) => i.bar?.kind === "axis")!; expect(ax.k).toBe("box");
   if (ax.k !== "box") return;
   const marks = plan.items.filter((i) => i.bar?.value !== undefined);
-  expect(marks.length).toBeGreaterThanOrEqual(7 * 3 + 4);
+  expect(marks.length).toBeGreaterThanOrEqual(7 * 3 + 3); // rc.3: no peak line where the cap is the peak's value (steps 3 and 4: only the cap's)
   for (const m of marks) {
     if (m.k !== "path") continue;
     const want = ax.y + ax.h - (+m.bar!.value / +ax.bar!.max) * ax.h;

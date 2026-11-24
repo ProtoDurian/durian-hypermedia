@@ -124,6 +124,8 @@ test("print before hydration: the server's PRINT_W plan, shown only on paper, se
   expect(h).not.toContain("<style");
   const tsx = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8");
   expect(tsx).toContain('cssVars({ "--stg-ar"'); // the shared helper (src/ui/css-vars.ts): custom properties through React's style prop
+  // the package draws the server's plans again when it hydrates (no HTML-string placeholder): the print plan is the last one drawn
+  expect(tsx).toContain("plans.map((p, i) => <div key={i} className=\"stg-plan stg-plan-ssr\" data-w={SSR_W[i] ?? PRINT_W} data-print={i === SSR_W.length || undefined}>");
   const css = readFileSync(join(import.meta.dir, "../../src/ui/stage.css"), "utf8");
   expect(css).toContain("@media not print { .stg-plan-ssr[data-print] { display: none !important; } }");
   expect(css).toContain("@media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }");

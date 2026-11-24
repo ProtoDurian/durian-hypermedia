@@ -13,7 +13,7 @@ roles:
 
 ## Test: short pulses, readable intervals
 
-Short interval captions keep each complete range and pack several entries onto a phone line.
+A bar too short for its name keeps its exact place; the name sits under the row, tied to its bar by a short line.
 
 ```animation
 title: Repeated pings | short intervals

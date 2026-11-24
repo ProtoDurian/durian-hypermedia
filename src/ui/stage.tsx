@@ -110,9 +110,10 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
         if (it.bar) for (const [bk, bv] of Object.entries(it.bar)) data[`data-bar-${bk}`] = bv;
         switch (it.k) {
           case "box": {
+            const crossStroke = it.stroke === "none" ? undefined : { stroke: paint(it.stroke, roles) };
             // a crossed card: one large X corner to corner in the struck look
-            if (it.cls === "stg-cross-corner") return <g key={i} {...data} className={[cls, "stg-cross-corner"].filter(Boolean).join(" ")}><line className="stg-corner-line" x1={it.x + 4} y1={it.y + 4} x2={it.x + it.w - 4} y2={it.y + it.h - 4} /><line className="stg-corner-line" x1={it.x + it.w - 4} y1={it.y + 4} x2={it.x + 4} y2={it.y + it.h - 4} /></g>;
-            if (it.cls === "stg-cross") return <g key={i} {...data} className={[cls, "stg-cross"].filter(Boolean).join(" ")}><line className="stg-cross-line" x1={it.x} y1={it.y} x2={it.x + it.w} y2={it.y + it.h} /><line className="stg-cross-line" x1={it.x + it.w} y1={it.y} x2={it.x} y2={it.y + it.h} /></g>;
+            if (it.cls === "stg-cross-corner") return <g key={i} {...data} className={[cls, "stg-cross-corner"].filter(Boolean).join(" ")}><line className="stg-corner-line" style={crossStroke} x1={it.x + 4} y1={it.y + 4} x2={it.x + it.w - 4} y2={it.y + it.h - 4} /><line className="stg-corner-line" style={crossStroke} x1={it.x + it.w - 4} y1={it.y + 4} x2={it.x + 4} y2={it.y + it.h - 4} /></g>;
+            if (it.cls === "stg-cross") return <g key={i} {...data} className={[cls, "stg-cross"].filter(Boolean).join(" ")}><line className="stg-cross-line" style={crossStroke} x1={it.x} y1={it.y} x2={it.x + it.w} y2={it.y + it.h} /><line className="stg-cross-line" style={crossStroke} x1={it.x + it.w} y1={it.y} x2={it.x} y2={it.y + it.h} /></g>;
             const n = it.role ? roles[it.role] : undefined;
             return <rect key={i} {...data} data-id={it.id} className={[cls, "stg-box", it.cls, n !== undefined ? `cc cc-${n}` : "", it.thick ? "stg-thick" : "", it.dash ? "stg-dash" : ""].filter(Boolean).join(" ")} x={it.x} y={it.y} width={Math.max(0, it.w)} height={Math.max(0, it.h)} rx={it.r ?? 8} style={{ fill: paint(it.fill, roles), stroke: paint(it.stroke, roles) }} />;
           }
@@ -122,7 +123,7 @@ function Draw({ plan, k, roles, still }: { plan: Plan; k: number; roles: Record<
               return <g key={i} {...data} className={cls}><text className={`stg-t stg-f-${it.f} stg-lines`} x={r(L.x)} y={it.y} dx={L.dx.map(r).join(" ")} dy={L.dy.map(r).join(" ")} textAnchor="middle" data-cx={it.x} data-breaks={it.breaks.join(",")} data-pitch={it.pitch ?? 16} style={{ fill: paint(it.ink, roles), ...(it.size ? {fontSize:it.size} : {}) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text></g>;
             }
             return (
-              <g key={i} {...data} className={cls} transform={it.rotate === 90 && /^[-+]?\d+(?:\.\d+)?$/.test(it.s) ? `rotate(-90 ${it.x} ${it.y})` : undefined}>
+              <g key={i} {...data} className={cls} transform={it.rotate === 90 ? `rotate(-90 ${it.x} ${it.y})` : undefined}>
                 <text className={`stg-t stg-f-${it.f}${it.strike ? " stg-struck" : ""}${it.halo ? " stg-halo" : ""}`} x={it.x} y={it.y} textAnchor={it.anchor ?? "start"} style={{ fill: paint(it.ink, roles), ...(it.size ? {fontSize:it.size} : {}) }}>{it.s}{it.tip && <title>{it.tip}</title>}</text>
                 {it.strike && struckSlash(it, plan.phone)}
               </g>
@@ -245,7 +246,8 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   const plans = laid ?? [];
   // print (SPEC 4.1): the plan a sheet prints and the sizes the print rules read from it (stage.css). In the browser that
   // is its one plan, laid out at PRINT_W on beforeprint; before it hydrates (the hydration order can keep a stage waiting
-  // for seconds), the server's PRINT_W plan, shown only in print, so a stage printed before its turn prints the same
+  // for seconds), the server's PRINT_W plan, shown only in print, so a stage printed before its turn prints the same.
+  // Hydrating, the browser keeps the server's sizes as they are (suppressHydrationWarning) until it has its own plan.
   const pp = w ? (plans.length === 1 ? plans[0] : null) : plans[SSR_W.length] ?? null;
   useEffect(() => {
     if (!playing || st.on) return;
@@ -257,7 +259,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   const go = (x: number) => { setPlaying(false); setK(Math.max(1, Math.min(n, x))); };
   const step = n ? m.steps[k - 1] : null;
   return (
-    <div className={`stg${st.on ? " stg-static" : ""}`} style={pp ? cssVars({ "--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((pp.h * PRINT_BOX_W) / pp.w) + 83 + 18 * n + 10}px` }) : undefined} data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
+    <div className={`stg${st.on ? " stg-static" : ""}`} style={pp ? cssVars({ "--stg-boxmin": `${Math.ceil(pp.h * PRINT_FLOOR)}px`, "--stg-need": `${Math.ceil(pp.h * PRINT_FLOOR) + 160}px`, "--stg-hint": `${Math.ceil((pp.h * PRINT_BOX_W) / pp.w) + 83 + 18 * n + 10}px` }) : undefined} suppressHydrationWarning data-dh-slot="stage" data-steps={n} data-step={k} data-bar-steps={n || 1}
       tabIndex={n && !st.on ? 0 : undefined} aria-label={m.title || undefined}
       onKeyDown={(e) => { if (st.on || !n) return; if ((e.target as HTMLElement).closest("button") && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; if (e.key === "ArrowRight") { go(k + 1); e.preventDefault(); } if (e.key === "ArrowLeft") { go(k - 1); e.preventDefault(); } }}>
       {(m.title || (n > 0 && !st.on)) && (
@@ -273,7 +275,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
           )}
         </div>
       )}
-      <div className={plans.length === 1 ? "stg-box-wrap stg-ratio" : pp ? "stg-box-wrap stg-ratio-print" : "stg-box-wrap"} ref={box} data-bar-stage="" style={plans.length === 1 ? { aspectRatio: `${plans[0].w} / ${plans[0].h}` } : pp ? cssVars({ "--stg-ar": `${pp.w} / ${pp.h}` }) : undefined}>
+      <div className={plans.length === 1 ? "stg-box-wrap stg-ratio" : pp ? "stg-box-wrap stg-ratio-print" : "stg-box-wrap"} ref={box} data-bar-stage="" style={plans.length === 1 ? { aspectRatio: `${plans[0].w} / ${plans[0].h}` } : pp ? cssVars({ "--stg-ar": `${pp.w} / ${pp.h}` }) : undefined} suppressHydrationWarning>
         {w ? plans.map((p, i) => <div key={i} className="stg-plan"><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)
           : plans.map((p, i) => <div key={i} className="stg-plan stg-plan-ssr" data-w={SSR_W[i] ?? PRINT_W} data-print={i === SSR_W.length || undefined}><Draw plan={p} k={k || 1} roles={roles} still={st.on} /></div>)}
       </div>
@@ -282,7 +284,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
         <>
           <ol className="stg-steps">{titles.map((t, i) => <li key={i}><button type="button" className="stg-stepbtn" data-bar-step={i + 1} aria-current={i + 1 === k ? "step" : undefined} onClick={() => go(i + 1)} aria-label={`${i + 1} ${t}`}><span className="stg-num">{i + 1}</span><span className="stg-stepname"> {t}</span></button></li>)}</ol>
           {/* every step's caption sits, hidden, in the same grid cell as the shown one, so the caption is as tall as the tallest from the
-              first step and a caption that wraps to one more line never moves what is under the stage */}
+ first step and a caption that wraps to one more line never moves what is under the stage */}
           <div className="stg-capbox"><p className="stg-cap" data-bar-caption="">{step?.caption}</p>{m.steps.map((s, i) => <p key={i} className="stg-cap stg-cap-room" aria-hidden="true">{s.caption}</p>)}</div>
         </>
       )}

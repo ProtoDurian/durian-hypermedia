@@ -39,7 +39,7 @@ test("a tick label's words show from its @N step; its tick and every place stay 
   }
   const llm = stageLlm(c);
   expect(llm).toContain("3 (first ▲ event, from step 2)");
-  expect(llm).toContain("7 (later ▲ warm, from step 3 to 3)");
+  expect(llm).toContain("7 (later ▲ warm, step 3 only)"); // rc.3 (D3): one step reads "step N only"
   expect(llm).toContain("Tick 3 label shown: first ▲ event.");
 });
 
@@ -371,7 +371,7 @@ test("'height: N lines' under a window: its frame keeps at least N text lines, t
 });
 
 test("phone stagger words keep 10 px from their line neighbours and a page backing over marker lines", () => {
-  const head = `time: 0..8\ncells: 1\nrow job a "Writer": +write, snapshot 0..2; ok 2..3; +polls /handoff 3..5; +moved: stopped 5..8`;
+  const head = `time: 0..7\ncells: 1\nrow job a "Writer": +print, all envelopes 0..2; ok 2..3; +sorted: envelopes 3..5; +sorted: stopped 5..7`; // rc.3: words up to 104 px stand on end and phrases that fit level stay in their cells, so the staggered ones here are longer, with a word wider than the cell, in wider cells
   const c = compile(head, 2, [{ title: "One", raw: "keep at 3: releaseTick", line: 8 }, { title: "Two", raw: "", line: 10 }]); expect(c.errors).toEqual([]);
   const p = layoutStage(c.model, 390), words = p.items.filter((i): i is Extract<Item, { k: "text" }> => i.k === "text" && i.f === "chip" && !!i.tip && i.anchor === "middle" && !i.rotate);
   expect(words.length).toBeGreaterThan(3);
@@ -514,4 +514,28 @@ test("rc.2 MUST 2, 3: a one-step marker's words sit by their own line (not the b
     const setup = word("30 s, review starts"), half = word("halfway");
     expect(half.y).toBeGreaterThanOrEqual(setup.y + 18); // stacked, both shown in step 2
   }
+});
+
+test("24 lane: '_ 6.5 [x] [bad]' is an X on that row's line at 6.5 (no cell); 'at <row> N: words' puts words on that row's line at N; nothing reserved, so nothing moves", () => {
+  const rows = (x: string) => `time: -0.5..27 | seconds\nticks: 0, 4, 8, 12, 16, 20, 24\nrow job e "pod 0": +alive 0..6.5; _ 6.5..7 [bad]${x}; +gone 7..27\nrow job p1 "pod 1": waiting 0..23; +holds 23..27`;
+  const steps = (s3: string) => [{ title: "One", raw: "foot: a", line: 8 }, { title: "Two", raw: "foot: b", line: 10 }, { title: "Three", raw: s3, line: 12 }];
+  const plain = compile(rows(""), 3, steps("foot: c")), marked = compile(rows("; _ 6.5 [x] [bad] @3"), 3, steps("at p1 23: takes it"));
+  expect(marked.errors).toEqual([]);
+  for (const w of [1178, 356]) {
+    const p0 = layoutStage(plain.model, w), p = layoutStage(marked.model, w);
+    expect(p.h).toBe(p0.h);
+    const cells = (q: Plan) => q.items.filter((i) => i.k === "box" && /stg-time-cell|stg-seg/.test(i.cls ?? "")).length; expect(cells(p)).toBe(cells(p0)); // the X is no cell
+    const xs = p.items.filter((i): i is Extract<Item, { k: "path" }> => i.k === "path" && i.cls === "stg-time-x");
+    expect(xs.length).toBe(2); for (const s of xs) { expect(s.from).toBe(3); expect(s.ink).toBe("bad:line"); }
+    const cx = (xs[0].pts[0][0] + xs[0].pts[1][0]) / 2, cy = (xs[0].pts[0][1] + xs[0].pts[1][1]) / 2;
+    const alive = p.items.find((i): i is Extract<Item, { k: "box" }> => i.k === "box" && i.x < cx && i.x + i.w <= cx + 1 && i.x + i.w >= cx - 30 && i.y < cy && i.y + i.h > cy); expect(alive).toBeDefined(); // on pod 0's row, at 6.5 (the end of 'alive')
+    const t = texts(p, "takes it")[0]; expect(t.from).toBe(3); expect(t.to).toBe(3);
+    const stroke = p.items.find((i): i is Extract<Item, { k: "path" }> => i.k === "path" && !!i.id?.includes("row-at:p1:23"))!;
+    expect(Math.abs(t.x - stroke.pts[0][0]) < 8 || Math.abs(t.x + measure("takes it", "sub") - stroke.pts[0][0]) < 8).toBe(true); // beside its stroke
+    expect(t.y).toBeGreaterThan(stroke.pts[0][1]); expect(t.y).toBeLessThan(stroke.pts[1][1] + 6); // on pod 1's row
+  }
+  expect(stageLlm(marked)).toContain("At 6.5 seconds on pod 0: an X.");
+  expect(stageLlm(marked)).toContain("At 23 seconds on pod 1: takes it.");
+  expect(compile(rows("; _ 6.5 [x] [wide]"), 3, steps("foot: c")).errors[0].msg).toContain("[x] marks one time");
+  expect(compile(rows(""), 3, steps("at p1 23")).errors[0].msg).toContain("at <row> N");
 });

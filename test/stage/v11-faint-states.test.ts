@@ -1,3 +1,4 @@
+// @ts-nocheck: ported as written from the private prototype, which does not typecheck its tests (bun test runs them)
 // Faint states (0.7.0-rc.3; both rc.2 reviews, colour item): a state shape that is empty, remaining, gone, waiting or idle
 // (a counted unit of no group, a bin's empty slot and its waiting chips, an idle stretch on a time row, a soft dot, a
 // sheet's empty cell) drew

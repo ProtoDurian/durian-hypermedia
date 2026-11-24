@@ -1,4 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy of the private prototype's composed stage (0.7.0).
+import { blockFor } from "./stage-core";
 // The composed stage's renamed words. A scene written with an old
 // word is told the new one: `"enter" is now "show": say "show t4" instead`. Hand-written string scans only (no regular
 // expression on author text); each check looks at one line once.
@@ -75,7 +76,9 @@ export function oldWord(t: string, where: "step" | "setup" | "under", scope: Wor
     if (w === "keep") {
       const w2 = first(t.slice(5));
       // "keep a -> b: words" (a connector whose words stay while its line does) is fine
-      if (!KEEP_WORDS.includes(w2) && !/ (<-->|<->|-->|->|<--|<-) /.test(t.slice(5))) return `"keep" goes before at, span, dot, mark, fill or a connector: say "keep mark${t.slice(4)}" instead`;
+      // "keep units" (a panel's word alone): the last step's panel again (rc.3, D5)
+      const panelWord = /^keep [a-z]+$/.test(t) && (blockFor(w2)?.kind === "panel" || !!blockFor(w2)?.panel);
+      if (!panelWord && !KEEP_WORDS.includes(w2) && !/ (<-->|<->|-->|->|<--|<-) /.test(t.slice(5))) return `"keep" goes before at, span, dot, mark, fill or a connector: say "keep mark${t.slice(4)}" instead`;
     }
     if (w === "dim" && t.endsWith(" none")) return `"none" is now "off": say "${t.slice(0, -5)} off" instead`;
     if (w === "tone" && t.endsWith(" acc")) return `the tone "acc" is now "accent": say "${t.slice(0, -4)} accent" instead`;

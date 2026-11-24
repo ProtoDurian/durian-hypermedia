@@ -40,7 +40,7 @@ const PILL_H = 22, PILL_GAP = 5, TOK_H = 20, TOK_GAP = 6, TOK_PX = 8, KID_GAP = 
 let ROOMY_GAP = 9; // a phone: 4
 
 // ---------------------------------------------------------------- the model
-export type State = { s: string; tone: string };
+export type State = { s: string; tone: string; gone?: true };
 export type Card = {
   id: string; role: string; title: string; subs: string[]; badges: { b: string; s: string }[]; tag?: string; lane: number; from: number; line: number;
   kids: string[]; parent?: string; pills: string[]; tokens: string[]; keys: string[]; roomy?: boolean; endsHere?: boolean; state?: State;
@@ -249,8 +249,8 @@ export function cardStepLine(h: CardHost, k: number, l: Line, ctx: ParseCtx, kee
       case "state": {
         if (!c) return false;
         const v = verdict(c[1].trim());
-        const s: State | null = c[1].trim() === "off" ? null : v.v !== undefined && v.text === "" ? { s: v.v, tone: v.chip ? "role" : v.ok ? "good" : "bad" } : null;
-        if (!s && c[1].trim() !== "off") throw new StageError(l.n, `a state is "[+ word]" (good), "[- word]" (bad), "[= word]" (the card's role) or "off"`);
+        const s: State | null = c[1].trim() === "gone" ? { s: "gone", tone: "muted", gone: true } : c[1].trim() === "off" ? null : v.v !== undefined && v.text === "" ? { s: v.v, tone: v.chip ? "role" : v.ok ? "good" : "bad" } : null;
+        if (!s && c[1].trim() !== "off") throw new StageError(l.n, `a state is "[+ word]" (good), "[- word]" (bad), "[= word]" (the card's role), "gone" (greyed, place kept) or "off"`);
         for (const id of cardIds(head)) st.state.push([id, s]);
         return true;
       }
@@ -259,6 +259,9 @@ export function cardStepLine(h: CardHost, k: number, l: Line, ctx: ParseCtx, kee
         if (sp < 0) throw new StageError(l.n, `"${W.tone} ids good|bad|warn|acc|off"`);
         const tone = rest.slice(sp + 1);
         if (shared() && !mine(rest.slice(0, sp))) return false;
+        // rc.3 (D2): one spelling; a tone in brackets is refused with that spelling, never read silently
+        const bare = tone.match(/^[[(]([a-z]+)[\])]$/)?.[1];
+        if (bare && (bare === "off" || TONES.includes(bare))) throw new StageError(l.n, `a tone after ids is a bare word here: write "${W.tone} ${rest.slice(0, sp)} ${bare}"`);
         if (tone !== "off" && !TONES.includes(tone)) throw new StageError(l.n, `"${tone}" is not a tone: ${TONES.join(", ")} or off`);
         for (const id of cardIds(rest.slice(0, sp))) st.tone.push([id, tone === "off" ? null : tone]);
         return true;
@@ -568,15 +571,39 @@ export function measureCard(h: CardHost, c: Card, w: number, tags: Set<string>, 
 
 // ---------------------------------------------------------------- drawing
 const same = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b);
+/** A gone card keeps every item's geometry and identity; split only its paint windows, including held contents. */
+function gonePaint(items: Item[], gone: boolean[]): Item[] {
+  if (!gone.some(Boolean)) return items;
+  const windows = runs(gone), n = gone.length, out: Item[] = [];
+  docBudget().charge("stage gone paint", items.length * windows.length, items.length * windows.length);
+  docBudget().charge("stage gone opacity", n, n);
+  const faded = gone.flatMap((yes, i) => yes ? [i + 1] : []);
+  for (const it of items) for (const [a, b, grey] of windows) {
+    const from = Math.max(a, it.from || 1), to = Math.min(b, it.to || n), on = it.on?.filter(k => k >= a && k <= b);
+    if (on ? !on.length : from > to) continue;
+    const item: Item = { ...it, ...(on ? { on } : { from, to: to === n ? 0 : to }) };
+    if (!grey) { out.push(item); continue; }
+    const bar = item.bar && Object.fromEntries(Object.entries(item.bar).filter(([key]) => key !== "role"));
+    const when = { from: item.from, to: item.to, on: item.on, hot: [], dim: faded, ...(bar ? { bar } : {}) };
+    if (item.k === "badge") {
+      out.push({ ...when, k: "box", x: item.x, y: item.y, w: 17, h: 17, r: 4, fill: "surface-2", stroke: "line" },
+        { ...when, bar: undefined, k: "text", x: item.x + 8.5, y: item.y + 12.5, s: item.s, f: "small-b", ink: "muted", anchor: "middle" });
+    } else if (item.k === "box") {
+      const cross = item.cls === "stg-cross" || item.cls === "stg-cross-corner";
+      out.push({ ...item, ...when, role: undefined, fill: item.fill === "none" ? "none" : "surface-2", stroke: cross ? "muted" : item.stroke === "none" ? "none" : "line" });
+    } else out.push({ ...item, ...when, ink: "muted" });
+  }
+  return out;
+}
 /** Draw a card in `r` (its height may be more than it needs: pills and badges sit at its foot). `kind` is the bar's
  * kind for the card ("card"), `inner` gets the rect of each card inside it (for tags and says). */
 export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says: Set<string>, inner: Map<string, Rect>, slotsOf = pillSlots(h)): Item[] {
   const n = nSteps(h), M = measureCard(h, c, r.w, tags, says, slotsOf), out: Item[] = [];
   const from = c.parent ? Math.max(c.from, h.cards.get(c.parent)!.from) : c.from;
   // the step's actors are lit: the cards "light" names; without light, a step's connectors light their senders, and a card it shows
-  // is lit unless the step only sends to it (the hero: the pickers send; the packers do not)
+  // is lit unless the step only sends to it (the hero: the pickers send, the packers do not)
   const hot = h.steps.flatMap((s, si) => { const es = ((s as any).edges ?? []) as { from: string; to: string }[]; if (s.dark) return []; if (s.light.some((id) => h.cards.has(id))) return s.light.includes(c.id) ? [si + 1] : []; return es.some((e) => e.from === c.id) || (s.show.includes(c.id) && !es.some((e) => e.to === c.id)) ? [si + 1] : []; });
-  const ghost = ghostAt(h, c), dim = ghost.flatMap((g, i) => (g ? [i + 1] : []));
+  const states = stateAt(h, c), ghost = ghostAt(h, c), dim = ghost.flatMap((g, i) => (g ? [i + 1] : []));
   const when = (it: Item, f = from, t = 0): Item => ({ ...it, from: Math.max(f, from), to: t, hot: it.hot ?? hot, dim: it.dim ?? dim } as Item);
   // the box: one run per tone and dash; the same place on every step
   const tone = toneAt(h, c), dash = dashAt(h, c), hasKids = c.kids.length > 0;
@@ -594,7 +621,8 @@ export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says:
     const tx = r.x + CARD_PX, ty = r.y + CARD_PT + Math.max(0, (LINE_H.title - TAG_W) / 2) - 2, br = h.roles[c.tag] !== undefined ? c.tag : c.role;
     out.push(when({ k: "box", x: tx, y: ty, w: TAG_W, h: TAG_W, fill: "none", stroke: "none", r: 4, cls: "stg-tag", bar: { kind: "chip", label: c.tag } }), when({ k: "badge", x: tx, y: ty, s: c.tag, role: br }));
   }
-  for (const [a, b, s] of runs(stateAt(h, c), same)) if (s && b >= from) out.push(when({ k: "text", x: r.x + r.w - CARD_PX - cornerW(h, c), y: r.y + CARD_PT + LINE_H.title - 4, s: s.s, f: "small-b", ink: s.tone === "role" ? `role:${c.role}:ink` : `${s.tone}:ink`, anchor: "end" }, a, b === n ? 0 : b));
+  // The reserved gone state changes paint only; its measured title-row space stays reserved.
+  for (const [a, b, s] of runs(states, same)) if (s && !s.gone && b >= from) out.push(when({ k: "text", x: r.x + r.w - CARD_PX - cornerW(h, c), y: r.y + CARD_PT + LINE_H.title - 4, s: s.s, f: "small-b", ink: s.gone ? "muted" : s.tone === "role" ? `role:${c.role}:ink` : `${s.tone}:ink`, anchor: "end" }, a, b === n ? 0 : b));
   // the lines: one version per run of steps, in one reserved height
   // a card drawn taller than its parts (a lone card beside a stack), with a big "**" line and nothing under its lines: the
   // lines stand in the middle of the spare room, the title at the top
@@ -701,7 +729,7 @@ export function drawCard(h: CardHost, c: Card, r: Rect, tags: Set<string>, says:
       out.push(when({ k: "box", x: bx, y: by, w: bw, h: G.h, fill: `role:${br}:soft`, stroke: `role:${br}:line`, r: 6, role: br, id: `badge:${c.id}.${b.b}`, bar: { kind: "card", label: b.s, role: br } }), ...(c.plainBadges ? [] : [when({ k: "badge", x: bx + 5, y: by + G.gy, s: b.b, role: br })]), when({ k: "text", x: bx + (c.plainBadges ? 8 : G.tx), y: by + G.ty, s: wrap(b.s, bw - (c.plainBadges ? 8 : G.tx) - 4, "sub", 1)[0], f: "sub", ink: "ink", tip: b.s }));
     });
   }
-  return out;
+  return gonePaint(out, states.map(s => !!s?.gone));
 }
 export { pillSlots };
 
@@ -727,7 +755,7 @@ export function cardFacts(h: CardHost, k: number): string[] {
   const name = (id: string) => h.cards.get(id)?.title ?? id, pill = (id: string) => h.cx.pills.get(id)?.s ?? id, f: string[] = [];
   for (const [id, t] of st.title) f.push(`${name(id)} is now titled: ${t}.`);
   for (const [id, ls] of st.text) f.push(`${name(id)} now reads: ${ls.map(plainSub).filter(Boolean).join("; ") || "(nothing)"}.`); // "* words" is drawn in the card's colour; the LLM view reads the words
-  for (const [id, s] of st.state) f.push(s ? `${name(id)}: ${s.s}.` : `${name(id)}: no state.`);
+  for (const [id, s] of st.state) f.push(s?.gone ? `${name(id)} is gone (greyed, place kept).` : s ? `${name(id)}: ${s.s}.` : `${name(id)}: no state.`);
   for (const [id, t] of st.tone) f.push(t ? `${name(id)} is ${t === "bad" ? "in trouble" : t === "good" ? "good" : t === "warn" ? "a warning" : "in focus"}.` : `${name(id)} is back to normal.`);
   for (const [id, x] of [...st.cross, ...st.crossC]) f.push(x ? `${name(id)} is crossed out.` : `${name(id)} is no longer crossed out.`);
   for (const [id, g] of st.ghost) { const pn = h.cx.pills.get(id); const nm = pn && !h.cards.has(id) ? `the pill "${pn.s}"` : name(id); f.push(g ? `${nm} fades.` : `${nm} is back.`); }

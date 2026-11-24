@@ -35,7 +35,7 @@ server s0,s1: api 0; api 1 | answers in JSON
 ## Storage
 store db: orders database | primary
 ## _ under Servers..Storage
-ops cfg: ledger service | pushes routes
+ops cfg: ledger service | sends routes
 @step Ask: Each browser asks one server.
 b1,b3 --> s0: GET
 b2,b4 --> s1: GET

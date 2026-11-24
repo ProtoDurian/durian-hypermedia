@@ -16,6 +16,8 @@ The third release candidate of 0.7.0. The format number stays 10.
   levels on pair A, fibre's light for two 8b/10b codes, radio's phase for QPSK.
 - **No clamp drops a fact.** A card line broken again by its drawn width takes the lines it needs instead of cutting a
   word; a grid card's lines and a card's second line (up to 8 lines) are no longer cut with "…" off a phone.
+- **Labels and table cells keep every word.** A connector's label with no clear place by its line takes the nearest
+  place that covers no words; a plain table's cell takes the lines it needs and a column is at least its longest word.
 - **The phone footer.** On a phone a stage's step buttons and caption stay at the foot of the screen while a tall stage
   scrolls under them; the stage keeps its height.
 

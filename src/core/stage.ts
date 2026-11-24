@@ -769,7 +769,7 @@ function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: bool
   // a connector to or from a card inside a card starts or ends at the card that holds it
   const top = m.cards.size && [...m.cards.values()].some((c) => c.parent) ? { ...m, steps: m.steps.map((s) => ({ ...s, edges: s.edges.map((e) => ({ ...e, from: topCard(m, e.from), to: topCard(m, e.to), fromPill: e.fromPill ?? (topCard(m, e.from) !== e.from ? "card:" + e.from : undefined), toPill: e.toPill ?? (topCard(m, e.to) !== e.to ? "card:" + e.to : undefined) })) })) } : m; //... at the height of the inner card
   pillBox = (p: string, k: number) => p.startsWith("card:") ? inner.get(p.slice(5)) : items.find((it) => it.k === "box" && typeof it.id === "string" && (p.startsWith("badge:") ? it.id === p : it.id.startsWith(`pill:${p}@`)) && (it.on ? it.on.includes(k) : k >= (it.from ?? 1) && (!it.to || k <= it.to))) as Rect | undefined;
-  labelObs = items.filter((it) => it.k === "box" && it.cls !== "stg-region");
+  labelObs = items.filter((it) => it.k === "box" && it.cls !== "stg-region"); labelWords = items.filter((it) => it.k === "text");
   headObs = items.filter((it) => it.k === "text" && it.f === "lane");
   wordObs = items.flatMap((it) => { if (it.k !== "text" || !it.s.trim()) return []; const tw = measure(it.s, it.f), x0 = it.anchor === "middle" ? it.x - tw / 2 : it.anchor === "end" ? it.x - tw : it.x, h = fontSize(it.f) + 4; return [{ x: x0 - 1, y: it.y - h + 3, w: tw + 2, h, on: it.on, from: it.from, to: it.to }]; }); // lane and band headings
   if (rects.size) items.push(...connectors(top, reused && idsB.size ? new Map([...rects].filter(([id]) => !idsB.has(id))) : rects, w, narrow));
@@ -1956,7 +1956,7 @@ type Placed ={ e: Edge; a: [number, number]; b: [number, number]; side: "lr" | "
 let pillBox: (p: string, k: number) => Rect | undefined = () => undefined;
 /** every box drawn before the connectors (cards, cards inside cards, pills, a track's phases; not the lane regions): a
  * connector label keeps off those shown in its steps */
-let labelObs: Item[] = [];
+let labelObs: Item[] = [], labelWords: Item[] = [];
 let headObs: Item[] = [];
 let wordObs: (Rect & { on?: number[]; from?: number; to?: number })[] = []; // every word drawn before the connectors, card words too (sample 15)
 /** connectors of one step with the same words into one card, two or more, from one side,
@@ -2244,7 +2244,20 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
       const ok = ownOk ?? past ?? cands.find(([x, y]) => { cx = clampX(x); cy = y; return !hit(); });
       if (past && ok === past) { cx = past[0]; cy = past[1]; inTarget = true; } else if (ok) { cx = clampX(ok[0]); cy = ok[1]; } else { cx = cands[0][0]; cy = cands[0][1]; }
     }
+    const cy0 = cy, cx0 = cx;
     while (!inTarget && hit() && tries++ < 12) cy += tries % 2 ? -24 * tries : 24 * tries;
+    // no clear place: the label covers no words if it can, as near its line as it can (raziel, rc.3: the layers story at
+    // 800: 'the server's flight' slid ~140 px down onto the NAT table and hid 'to 198.51.100.7:'); a box edge it may cover
+    if (!inTarget && hit()) {
+      const words = (x: number, y: number) => labelWords.filter((it) => { if (it.k !== "text" || !seenIn(it)) return false; const tw = measure(it.s, it.f), lx = it.anchor === "middle" ? it.x - tw / 2 : it.anchor === "end" ? it.x - tw : it.x; return x + cw / 2 > lx - 2 && x - cw / 2 < lx + tw + 2 && y + 20 > it.y - 12 && y < it.y + 4; }).length;
+      const clash = (x: number, y: number) => taken.some((r) => (!r.on || r.on.some((k) => lon.includes(k))) && x + cw / 2 > r.x && x - cw / 2 < r.x + r.w && y + 20 > r.y && y < r.y + r.h);
+      let best: [number, number, number] | undefined;
+      for (const dy of [0, -24, 24, -48, 48, -72, 72]) for (const dx of [0, -24, 24, -48, 48, -72, 72]) {
+        const x = Math.max(PAD + cw / 2, Math.min(w - PAD - cw / 2, cx0 + dx)), y = cy0 + dy; if (y < 2) continue;
+        const sc = words(x, y) * 1000 + (clash(x, y) ? 500 : 0) + Math.abs(dy) + Math.abs(dx) / 2; if (!best || sc < best[2]) best = [x, y, sc];
+      }
+      if (best && best[2] < 500 && words(cx, cy) > 0) { cx = best[0]; cy = best[1]; }
+    }
     cx = Math.max(PAD + cw / 2, Math.min(w - PAD - cw / 2, cx));
     taken.push({ x: cx - cw / 2, y: cy, w: cw, h: 20, on: lon });
     if (p.e.tone) { items.push({ k: "text", x: cx, y: cy + 14, s: t, f: TONE_F, ink: `${p.e.tone}:ink`, anchor: "middle", bar: { "edge-label": t }, from: p.e.step, ...(p.e.keep ? { on: labelSteps(m, p.e) } : { to: p.e.step }), hot: lit(m, p.e.step) } as Item); continue; }

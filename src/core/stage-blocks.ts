@@ -3,7 +3,7 @@ import {boxTone} from "./stage-box-paint";
 // The composed stage's built-in blocks: the phase strip (track), the panels a step swaps in
 // (grid, rows, map, list) and, in their own files, the worksheet (stage-sheet.ts) and time (stage-time.ts).
 // Each block: parse its lines, lay itself out in a box of a given width, list its facts for the LLM view.
-import { most, type Item, type Line, type StageBlock, type Box, type LayoutOut, type ParseCtx, StageError, LINE_H, registerBlock, measure, wrap, wrapRoom, parts, colon, verdict, chip, shift, textLines, longestWord } from "./stage-core";
+import { most, type Item, type Line, type StageBlock, type Box, type LayoutOut, type ParseCtx, StageError, LINE_H, registerBlock, measure, drawnW, wrap, wrapRoom, parts, colon, verdict, chip, shift, textLines, longestWord } from "./stage-core";
 import "./stage-sheet";
 import { hasTimeAxis } from "./stage-time";
 import "./stage-slanes";
@@ -326,7 +326,14 @@ registerBlock({
     const need = Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
     const inner = box.w - 24 - (nc - 1) * 16, sum = need.reduce((a, b) => a + b, 0);
     const stacked = box.narrow || sum > inner * 1.25;
+    // a plain table that must shrink keeps each column at least as wide as its longest word, so an address or a prefix
+    // is not broken inside (raziel, rc.3: routing table T3 at 800 split '198.51.100.200/31'); the others give up the room
+    const least = Array.from({ length: nc }, (_, j) => (t.plain ? Math.max(0, ...rs.map((r) => Math.max(0, ...one(r.cells[j]).split(" ").map((x) => drawnW(x, "body") + 8)))) : 0)), lsum = least.reduce((a2, b) => a2 + b, 0);
     const ws = stacked ? need.map(() => box.w - 24) : need.map((x) => (x * inner) / sum);
+    if (!stacked && t.plain && lsum < inner && ws.some((x, j) => x < least[j])) {
+      const low = ws.map((x, j) => x < least[j]), fixed = least.reduce((a2, b, j) => a2 + (low[j] ? b : 0), 0), rest = ws.reduce((a2, b, j) => a2 + (low[j] ? 0 : b), 0);
+      ws.forEach((x, j) => { ws[j] = low[j] ? least[j] : Math.max(least[j], (x * (inner - fixed)) / rest); });
+    }
     const xs = ws.map((_, j) => 12 + (stacked ? 0 : ws.slice(0, j).reduce((a, b) => a + b + 16, 0)));
     const items: Item[] = []; let y = 0;
     // the column heads, small and muted, over the cells (a phone with stacked cells lists them on one line)
@@ -373,8 +380,11 @@ registerBlock({
           const fl = flowLine(segs, 12, y, box.w - 24); items.push(...fl.items); y += fl.h + 6; continue;
         }
         // x on a whole pixel: thin stems ("11") at a fractional x blur into grey and lose their role colour
-        r.cells.forEach((c, j) => { items.push({ k: "text", x: Math.round(xs[j]), y: y + 17, s: wrap(one(c), ws[j], "body", 1)[0], f: "body", ink: ink(c), tip: one(c), bar: { column: `r${j}` } }); });
-        y += 24; continue;
+        // a cell takes the lines it needs: a cut cell dropped a fact (raziel, rc.3: the layers story's routing table T3 at 800 lost
+        // 'chosen' and the /31 /30 /26 prefixes); a row of one-line cells keeps its 24 px
+        const cl = r.cells.map((c, j) => wrapRoom(one(c), ws[j], "body", Infinity)), n = Math.max(1, ...cl.map((x) => x.length));
+        r.cells.forEach((c, j) => cl[j].forEach((s, q) => items.push({ k: "text", x: Math.round(xs[j]), y: y + 17 + q * LINE_H.body, s, f: "body", ink: ink(c), tip: one(c), bar: { column: `r${j}` } })));
+        y += 24 + (n - 1) * LINE_H.body; continue;
       }
       if (stacked) {
         const { its, ly } = compact(r, rowPairs(r), y);

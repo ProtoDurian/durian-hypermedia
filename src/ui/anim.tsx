@@ -15,7 +15,7 @@ import { cssVars } from "./css-vars";
 import { calmHeight, heldViews, tokenSubject, passing, stepT, PHONE_WIN } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
-import { moreSides } from "../core/edge10";
+import { cueAt, moreSides } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
@@ -597,6 +597,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   // (format version 11) a scene taller than its frame says so in words, where it is cut
   const downMore = more.includes("b") ? "b" : more.includes("t") ? "t" : panCut && more.includes("r") ? "r" : panCut && more.includes("l") ? "l" : null;
   const U = ui as any;
+  // that line never sits on a word: the middle of its edge, else an end, else only the shaded edge's arrow (core/edge10.ts)
+  const moreSay = downMore ? `${({ b: "↓", t: "↑", r: "→", l: "←" } as const)[downMore]} ${U.moreBeyond ?? "more beyond the edge"}` : "";
+  const moreAt = downMore && px > 0 ? cueAt(B, cam, px, px / ar, downMore === "t" ? "t" : "b", moreSay) : downMore ? "c" : null;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
     : (active ? U.hintTouchOn ?? "One finger: move · two fingers: zoom · tap outside the stage to scroll the page" : U.hintTouch ?? "Tap the stage, then drag with one finger to move · pinch to zoom") + (more.length ? ` · ${U.hintMore ?? "a shaded edge has more that way"}` : "");
@@ -646,7 +649,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
           {overlays.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} hl={hl.get(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.marks).filter((m) => m.kind === "say").map((m, k) => { const s = at.get(m.at); return s ? <Say key={`y${i}-${k}`} m={m} r={s.r} o={sayO(k)} /> : null; })}
         </svg>}
-        {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && <em className="scn-more-say" data-side={downMore}>{({ b: "↓", t: "↑", r: "→", l: "←" } as const)[downMore]} {U.moreBeyond ?? "more beyond the edge"}</em>}</div>}
+        {!st.on && !fixed && more.length > 0 && <div className="scn-more" aria-hidden="true">{more.map((sd) => <span key={sd} className={`scn-more-${sd}`} />)}{downMore && moreAt && <em className="scn-more-say" data-side={downMore} data-at={moreAt === "c" ? undefined : moreAt}>{moreSay}</em>}</div>}
         {!st.on && selBox && <div className="scn-info" role="status"><b>{selBox.label || selBox.id}</b><span className="scn-kind">{wordOf(src.part, selBox)}{selBox.ent.parent ? ` · ${ui.inside ?? "in"} ${B.boxes.find((x) => x.id === selBox.ent.parent)?.label || selBox.ent.parent}` : ""}{B.layers.length ? ` · ${ui.layer ?? "layer"} ${layerName(selBox.layer)}` : ""}</span>{selBox.ent.note ? <span className="scn-note"><Rich text={selBox.ent.note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
         {!st.on && !selBox && pickL != null && <div className="scn-info" role="status"><b>{layerName(pickL)}</b><span className="scn-kind">{ui.layer ?? "layer"} {pickL + 1} / {B.levels}</span>{B.layers[pickL]?.note ? <span className="scn-note"><Rich text={B.layers[pickL].note} /></span> : <span className="scn-note scn-nonote">{ui.noNote ?? "No note."}</span>}</div>}
       </div>

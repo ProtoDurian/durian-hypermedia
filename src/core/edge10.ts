@@ -8,7 +8,7 @@
 //
 // The candidates on an axis: where the view is, centred on the scene, and for each thing the view cuts, just enough
 // to take it in or just enough to leave it out. The one that cuts the fewest wins; a tie keeps the nearest.
-import { cutBy, MARGIN, type Frame, type Rect } from "./scene";
+import { cutBy, MARGIN, wordRects, type Frame, type Rect } from "./scene";
 
 const inside = (r: Rect, v: Rect) => r.x >= v.x - 0.5 && r.y >= v.y - 0.5 && r.x + r.w <= v.x + v.w + 0.5 && r.y + r.h <= v.y + v.h + 0.5;
 
@@ -58,4 +58,26 @@ export function moreSides(f: Frame, cam: Rect): ("l" | "r" | "t" | "b")[] {
   if (t || cut.some((c) => c.y < cam.y - 0.5)) out.push("t");
   if (bt || cut.some((c) => c.y + c.h > cam.y + cam.h + 0.5)) out.push("b");
   return out;
+}
+
+// The line on the stage that says there is more beyond an edge ("↓ more beyond the edge", parts.css .scn-more-say)
+// never sits on a word: it takes the middle of its edge, else that edge's left end, else its right end (past the
+// shaded strips); where every spot would cover a word, only the shaded edge and its arrow say so. Its size is the
+// one parts.css draws (11.5 px words, 9 px padding, 22 px high, 6 px off the edge).
+export const CUE = { h: 22, gap: 6, side: 30, clear: 3 } as const;
+export const cueWidth = (text: string): number => Math.ceil(text.length * 7) + 20;
+export type CueAt = "c" | "l" | "r";
+export function cueAt(f: Frame, cam: Rect, w: number, h: number, side: "t" | "b", text: string): CueAt | null {
+  if (!(w > 0 && h > 0 && cam.w > 0 && cam.h > 0)) return "c";
+  // the drawing's words on the stage, in pixels (the stage shows the view whole: xMidYMid meet)
+  const s = Math.min(w / cam.w, h / cam.h), ox = (w - cam.w * s) / 2, oy = (h - cam.h * s) / 2, m = CUE.clear;
+  // (and a thing whose name is drawn inside it, a list's cell: the whole thing; a bucket's number in its first 30 px;
+  // a cell's index under it)
+  const inner = f.boxes.filter((b) => (!b.container || b.kind === "bucket") && !b.lbl && `${b.label ?? ""}`.trim()).map((b) => ({ r: { x: b.x, y: b.y, w: b.kind === "bucket" ? 30 : b.w, h: b.h } }));
+  const idx = f.boxes.filter((b) => b.index != null).map((b) => ({ r: { x: b.x + b.w / 2 - 10, y: b.y + b.h + 4, w: 20, h: 14 } }));
+  const words = [...wordRects(f), ...inner, ...idx].map(({ r }) => ({ x: ox + (r.x - cam.x) * s - m, y: oy + (r.y - cam.y) * s - m, w: r.w * s + 2 * m, h: r.h * s + 2 * m }));
+  const pw = Math.min(cueWidth(text), w - 64), y = side === "t" ? CUE.gap : h - CUE.gap - CUE.h;
+  const spots: [CueAt, number][] = [["c", (w - pw) / 2], ["l", CUE.side], ["r", w - CUE.side - pw]];
+  for (const [at, x] of spots) if (!words.some((r) => r.x < x + pw && x < r.x + r.w && r.y < y + CUE.h && y < r.y + r.h)) return at;
+  return null;
 }

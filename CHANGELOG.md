@@ -154,6 +154,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 ### Fixed
 
+- **"More beyond the edge" never covers a word** (SPEC.md 6.14; the rc.3 review: the service mesh at 390). The line
+  under a story cut at its edge stood in the middle of that edge, over whatever was drawn there. It now takes the
+  middle, else the edge's left end, else its right end, off every word the drawing has (its names, the numbers of
+  cells and buckets, arrow labels, chips and speech); where each spot would cover one, only the shaded edge and its
+  arrow say so. Over the fixtures with steps it lay on a word on 4 steps at 390 and 4 at 360; now on none.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.

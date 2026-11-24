@@ -498,6 +498,9 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 /* a scene taller than its frame says so in words */
 .scn-more-say { position: absolute; left: 50%; translate: -50% 0; bottom: 6px; max-width: calc(100% - 64px); padding: 2px 9px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface-2); color: var(--ink); font: normal 11.5px/1.35 var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .scn-more-say[data-side="t"] { bottom: auto; top: 6px; }
+/* off the words: at an end of its edge, past the shaded strips (core/edge10.ts cueAt) */
+.scn-more-say[data-at="l"] { left: 30px; translate: none; }
+.scn-more-say[data-at="r"] { left: auto; right: 30px; translate: none; }
 /* a still or static drawing wider than the stage at its least word size scrolls in its box, the side with more fades (as a table) */
 .scn.is-swipe .scn-stage { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
 .scn.is-swipe .scn-svg { width: var(--swipe-w); max-width: none; }

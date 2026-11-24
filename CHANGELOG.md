@@ -163,6 +163,14 @@ The third release candidate of 0.7.0. The format number stays 10.
   middle, else the edge's left end, else its right end, off every word the drawing has (its names, the numbers of
   cells and buckets, arrow labels, chips and speech); where each spot would cover one, only the shaded edge and its
   arrow say so. Over the fixtures with steps it lay on a word on 4 steps at 390 and 4 at 360; now on none.
+- **The story camera cuts less of what it shows** (SPEC.md 6.14; the rc.3 review: the service mesh at 390, from step 7
+  node 1's heading cut at the top). One held view for several steps now gives way where it would cut a thing or a
+  container's heading that a step's own view shows whole; a phone stage grows a little where that lets every step show
+  its things whole; and its heights are judged at the least height the stylesheet draws (360 px; they were judged from
+  260 px). In a browser, the fixtures with steps on a 390 px phone: steps whose view cuts a thing or a heading 31 to
+  24 (360 px: cut headings 48 to 26; laptop none before or after); the service mesh has none. Left: a row of three
+  nodes wider than a phone at the least word size (two fixtures, 10 steps), and 14 steps of three others (the
+  hash table, eight colours, the array, map and tree) whose view cuts a heading or a container larger than it.
 - **Speech stands by the thing that says it** (SPEC.md 6.14; the rc.3 review: the service mesh at 1280). A bubble could
   take a free spot nearer another thing than its speaker, and read as that thing's words ("retries twice on failure"
   36 px from the other proxy, 72 px from its own). Such a spot now costs more than resting on a line, so it is taken

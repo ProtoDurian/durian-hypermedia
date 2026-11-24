@@ -1,5 +1,5 @@
 // A calm story (format version 11): a thing moves once, straight, and only when it must.
-import { inFrame, minFont, MIN_PX, storyView, union, type Box, type Compiled, type Frame } from "./scene";
+import { cutBy, inFrame, minFont, MIN_PX, storyView, union, type Box, type Compiled, type Frame } from "./scene";
 import { leastScale } from "./readable";
 
 const SWAPS = new Set(["array", "list", "queue", "bucket"]);
@@ -29,7 +29,8 @@ export function passing(from: readonly Box[], to: readonly Box[]): Set<number> {
 // ---------------------------------------------------------------- one view from a zoom to the next
 // The steps from one of the author's camera words (zoom, camera, focus, enter, split) to the next share one view, of
 // everything those steps touch on the whole of their way. Only where that view would draw words under the least size
-// does it give way: it then holds for as many steps as fit, and slides once.
+// does it give way: it then holds for as many steps as fit, and slides once. It gives way too where it would cut a thing,
+// or a container's heading, at the stage's edge that a step's own view shows whole: the camera never cuts what it shows.
 export interface Held { steps: number[]; frame: Frame }
 
 const viewKey = (c: Compiled, k: number) => {
@@ -57,13 +58,16 @@ export function heldViews(c: Compiled, ar: number, px: number): Held[] {
   if (old?.key === key) return old.at;
   const at: Held[] = [], keys = c.frames.map((_, k) => viewKey(c, k));
   // one view fits a span when every step keeps in it what its own view kept, with no word smaller than the least
+  // (a step's own view, what it keeps in frame and what it cuts: worked out once a step)
+  const mineOf = new Map<number, { v: ReturnType<typeof storyView>; ok: number; cuts: number }>();
+  const mine = (k: number) => { let m = mineOf.get(k); if (!m) { const own = c.frames[k], v = storyView(own, ar, px); m = { v, ok: inFrame(own, v).ok, cuts: cutBy(own, v).length }; mineOf.set(k, m); } return m; };
   const fits = (f: Frame, steps: number[]) => {
     if (!px) return true;
     const v = storyView(f, ar, px), small = v.w > px / leastScale(f, px) + 0.5;
     return steps.every((k) => {
-      const own = c.frames[k], mine = storyView(own, ar, px);
-      if (small && (px / v.w) * minFont(own) < Math.min(MIN_PX, (px / mine.w) * minFont(own)) - 0.01) return false;
-      return inFrame(own, v).ok >= inFrame(own, mine).ok;
+      const own = c.frames[k], m = mine(k);
+      if (small && (px / v.w) * minFont(own) < Math.min(MIN_PX, (px / m.v.w) * minFont(own)) - 0.01) return false;
+      return inFrame(own, v).ok >= m.ok && cutBy(own, v).length <= m.cuts;
     });
   };
   for (let k = 0; k < c.frames.length;) {
@@ -89,20 +93,32 @@ const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, k)
 
 // On a phone the stage grows a little where that, and only that, keeps the camera still between two zooms: the least
 // height with the fewest moves, never over the part of the window that still leaves room for the caption and player.
-export const PHONE_TALL = { most: 680, ofWindow: 0.82, usual: 0.7, by: 20 } as const;
+export const PHONE_TALL = { most: 680, ofWindow: 0.82, usual: 0.7, by: 20, least: 360, leastOfWindow: 0.62 } as const;
 /** the phone window the calm height is worked out for: the server has no window, and the stage's height must be in the
  *  server's page (no load shift, SPEC 6.14); parts.css holds the stage to min(680px, 82svh) on a shorter screen */
 export const PHONE_WIN = 844;
 export function calmHeight(c: Compiled, px: number, win: number): number | null {
-  const usual = Math.max(260, Math.min(px / c.aspect, win * PHONE_TALL.usual));
+  // (never under the phone's least stage height, parts.css min(62svh, 360px): the views are judged at the height drawn)
+  const usual = Math.max(Math.min(PHONE_TALL.least, win * PHONE_TALL.leastOfWindow), Math.min(px / c.aspect, win * PHONE_TALL.usual));
   const most = Math.min(PHONE_TALL.most, win * PHONE_TALL.ofWindow);
-  const moves = (h: number) => new Set(heldViews(c, px / h, px)).size;
+  // (and, first, the fewest steps whose view cuts a thing or a container's heading at the stage's edge: the camera
+  // never cuts what it shows where a taller stage lets it show it whole)
+  const score = (h: number) => {
+    const held = heldViews(c, px / h, px), views = new Map<Held | number, ReturnType<typeof storyView>>();
+    let cuts = 0;
+    // (the steps of one hold share its view: worked out once a hold)
+    c.frames.forEach((f, k) => { const key = held[k] ?? k; if (!views.has(key)) views.set(key, storyView(held[k]?.frame ?? f, px / h, px)); if (cutBy(f, views.get(key)!).length) cuts++; });
+    return { cuts, moves: new Set(held).size };
+  };
   let wanted = 1;
   for (let k = 1; k < c.frames.length; k++) if (viewKey(c, k) !== viewKey(c, k - 1)) wanted++;
-  let best: number | null = null, least = moves(usual);
-  for (let h = usual + PHONE_TALL.by; least > wanted && h <= most; h += PHONE_TALL.by) {
-    const m = moves(h);
-    if (m < least) { least = m; best = Math.round(h); }
+  let best: number | null = null, least = score(usual);
+  // cuts count only where the tallest stage has fewer (a scene wider than a phone at the least word size is cut at any
+  // height: it searches for moves alone, as before)
+  const floor = least.cuts > 0 && most > usual ? score(most).cuts : least.cuts, cutsCount = floor < least.cuts;
+  for (let h = usual + PHONE_TALL.by; ((cutsCount && least.cuts > floor) || least.moves > wanted) && h <= most; h += PHONE_TALL.by) {
+    const s = score(h);
+    if ((cutsCount && s.cuts < least.cuts) || ((!cutsCount || s.cuts === least.cuts) && s.moves < least.moves)) { least = s; best = Math.round(h); }
   }
   return best;
 }

@@ -52,7 +52,7 @@ describe("the layers example", () => {
     const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
     expect((html.match(/class="stg(?: stg-static)?"/g) ?? []).length).toBe(13); // with the three signal stills
     expect((html.match(/class="stg stg-static"/g) ?? []).length).toBe(1);
-  });
+  }, 15_000); // it checks the drawing, not speed: every scene draws its full set of screen plans (about 5 s under load)
 
   test("the LLM view carries the packet's facts hop by hop", () => {
     const v = llmView(parse(text, { path: "example-layers.dh.md" }));

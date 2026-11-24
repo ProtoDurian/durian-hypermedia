@@ -928,7 +928,7 @@ row job o "desks 0, 1 · old": +print all 0..2; +sort, envelopes 2..3; +fold, ne
   expect(its.filter((it) => it.k === "text" && /^(print|all|fold,|new|sheet)$/.test(String(it.s))).length).toBeGreaterThan(0); // the others wrap level inside their cells
 });
 
-test("phone: a big X over a cell's words stays within 24 px and 10 px clear of them (rc.3)", () => {
+test("phone: a worded [bad] cell is its thick border alone, no X above or over its words (rc.3; was: a 24 px X above them)", () => {
   const src = (row: string) => `job s: sender | sends
 time: 0..7 | sheets
 cells: 1
@@ -936,11 +936,10 @@ row job o "desk 2": ${row}`;
   const steps = [{ title: "One", raw: "", line: 10 }, { title: "Two", raw: "", line: 11 }];
   const xs = (row: string) => { beginDocument(); const c = compileStage(src(row), steps, 1, {}, roles); expect(c.errors).toEqual([]); const its = layoutStage(c.model, 390).items; return { its, x: its.filter((it) => it.k === "path" && (it as { ink?: string }).ink === "bad:line") as unknown as { pts: number[][] }[] }; };
   const tall = xs("no sheets 0..2 [dashed]; sort, envelopes 2..3; copy fails 3..4; JAMMED tray 4..5 [bad]; JAMMED tray 5..7"); // the on-end word makes the row tall
-  expect(tall.x.length).toBe(2);
-  const size = Math.abs(tall.x[0].pts[1][0] - tall.x[0].pts[0][0]), lower = Math.max(...tall.x[0].pts.map((p) => p[1]));
-  expect(size).toBeLessThanOrEqual(24);
-  const words = tall.its.filter((it) => it.k === "text" && (it.s === "JAMMED" || it.s === "JAMMED tray")) as { y: number }[];
-  expect(Math.min(...words.map((w) => w.y)) - 9 - lower).toBeGreaterThanOrEqual(9); // the first word's cap top keeps ~10 px under the X
+  expect(tall.x.length).toBe(0);
+  const cell = tall.its.find((it) => it.k === "box" && String((it as { cls?: string }).cls).includes("stg-time-cell") && (it as { stroke?: string }).stroke === "bad:line") as { thick?: boolean } | undefined;
+  expect(cell?.thick).toBe(true);
+  expect(tall.its.filter((it) => it.k === "text" && (it.s === "JAMMED" || it.s === "JAMMED tray")).length).toBeGreaterThan(0);
 });
 
 test("phone: in a row whose longer phrases sit under it, a phrase that fits its cell (on end or level) stays in it; only the phrases that need it go under the row (rc.3; Parcel receipts)", () => {

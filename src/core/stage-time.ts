@@ -955,7 +955,9 @@ registerBlock({
               const side=(cw-width)/2-8,above0=(rowH-lines.length*leading)/2+11-fontSize(f)-6,above=box.narrow&&label&&above0>=20?Math.min(24,above0-4):above0; // rc.3: on a phone a big X over cell words keeps 10 px clear of them and stays within 24 px; small ones are unchanged
               const inset=Math.min(4+cellGap(cw)/2,cw*.2),size=Math.max(Math.min(2,cw/4),Math.min(30,cw-inset*2,rowH-8,side>=30||!label?30:above));
               const stroke=Math.min(3,cw*.1,size*.4),right=cx+cw-inset,left=right-size,upper=y+4,lower=upper+size;
-              items.push(...shift([{k:"path",pts:[[left,upper],[right,lower]],curve:"round",ink:"bad:line",w:stroke},{k:"path",pts:[[right,upper],[left,lower]],curve:"round",ink:"bad:line",w:stroke}] as Item[],0,0,{from:s.from,to:s.to}));
+              // 0.7.0-rc.3 review (a phone's X over a [bad] cell's words read as 'it died'): an X only beside a
+              // cell's words (30 px or more of room) or in a cell without words; a worded [bad] cell is its thick border alone, in every form
+              if(!label||side>=30)items.push(...shift([{k:"path",pts:[[left,upper],[right,lower]],curve:"round",ink:"bad:line",w:stroke},{k:"path",pts:[[right,upper],[left,lower]],curve:"round",ink:"bad:line",w:stroke}] as Item[],0,0,{from:s.from,to:s.to}));
             }
             if(!label)return;
             if(t.cells&&!s.wide&&turnNumber(label,cw)){

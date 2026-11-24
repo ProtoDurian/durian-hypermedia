@@ -13,6 +13,11 @@ The third release candidate of 0.7.0. The format number stays 10.
 - A waterfall at 390 px drew the values over its bars on top of each other (`−€9.1K` over `−€2.3K`, `€85.1K` over `+€4.8K`), and tilted names under the bars could touch. The words are now measured: names stay level when they all fit, else upright and thinned; a value over a bar is drawn only where it has room (totals first); a histogram keeps only the number ticks that clear each other. Every name and value stays in the card and the LLM view.
 - New `bun scripts/label-check.ts [--widths 390,360] <page>...`: draws pages in a browser and fails when any two words of a chart (svg text, calendar months, Chart.js canvas text) overlap.
 
+### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
+
+- A worded `[bad]` cell draws its corner cross only beside its words (30 px or more of room) or in a cell without
+  words; on a phone's narrow cell it is its thick border alone, as on the wide stage.
+
 ### Added: layer 1 as a signal; no cut words in stage cards (SPEC.md)
 
 - **A plain plot line.** `plot: a..b | unit | line` draws a role's points as one line, a signal: no dots, words only on

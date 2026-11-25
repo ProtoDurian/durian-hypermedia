@@ -165,3 +165,40 @@ export function ixHeight(attrs: Record<string, string>): number {
   const h = Number(attrs.height ?? IX_LIMITS.defaultHeight);
   return Number.isFinite(h) ? Math.max(IX_LIMITS.minHeight, Math.min(IX_LIMITS.maxHeight, Math.round(h))) : IX_LIMITS.defaultHeight;
 }
+
+/** CSP for a host-served shell. Send it as an HTTP header (the meta policy is a second restriction).
+ * The parent page can keep script-src 'self' and trusted-types 'none'. This shell must not require Trusted Types:
+ * it parses the checked markup and creates the author's inline script in its own opaque-origin document. */
+const IX_FRAME_META_CSP = IX_CSP + "; connect-src 'none'; frame-src 'none'; object-src 'none'";
+// sandbox and frame-ancestors work only as response headers, never as a meta policy.
+export const IX_FRAME_CSP = IX_FRAME_META_CSP + "; sandbox allow-scripts; frame-ancestors 'self'";
+
+/** A fixed, content-free frame page for a host to serve. Never interpolate author text into this response. */
+export function interactiveFrame(): { html: string; csp: string } {
+  const boot = `(function(){
+if(window.origin!=="null")return;
+var hostOrigin=location.origin;
+var started=false,last=-1,tokens=${JSON.stringify(IX_TOKENS)};
+function theme(d){var root=document.documentElement;for(var k of tokens){var v=d.dhTokens&&d.dhTokens[k];if(typeof v==="string")root.style.setProperty(k,v)}root.style.colorScheme=d.dark===true?"dark":"light"}
+function height(){if(!started)return;var n=Math.ceil(document.body.getBoundingClientRect().height);if(n!==last){last=n;window.parent.postMessage({dhHeight:n},"*")}}
+window.addEventListener("message",function(e){
+ if(e.source!==window.parent||e.origin!==hostOrigin)return;var d=e.data;if(!d||typeof d!=="object")return;
+ if(started){if(d.dhTokens)theme(d);return}
+ if(d.dhInit!==true||(d.mode!=="on"&&d.mode!=="static")||typeof d.html!=="string"||typeof d.css!=="string"||typeof d.script!=="string")return;
+ if(new TextEncoder().encode(d.html+d.css+d.script).length>204800)return;
+ started=true;theme(d);
+ if(d.mode==="static"){
+  var restriction=document.createElement("meta");restriction.httpEquiv="Content-Security-Policy";restriction.content="script-src 'none'";document.head.append(restriction);
+  var root=document.documentElement,probe=document.createElement("script");
+  probe.textContent="document.documentElement.setAttribute('data-dh-static-probe','ran')";document.head.append(probe);probe.remove();
+  if(root.hasAttribute("data-dh-static-probe")){root.removeAttribute("data-dh-static-probe");return}
+ }
+ var style=document.createElement("style");style.textContent=d.css;document.head.append(style);
+ var parsed=new DOMParser().parseFromString("<!doctype html><body>"+d.html,"text/html");document.body.replaceChildren(...Array.from(parsed.body.childNodes));
+ if(d.mode==="on"&&d.script){var script=document.createElement("script");script.textContent=d.script;document.body.append(script)}
+ if(window.ResizeObserver)new ResizeObserver(height).observe(document.body);height();setTimeout(height,0);
+});
+window.addEventListener("load",function(){window.parent.postMessage({dhReady:true},"*")});
+})();`;
+  return { csp: IX_FRAME_CSP, html: `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${IX_FRAME_META_CSP}"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${IX_BASE_CSS}</style></head><body><script>${boot}</script></body></html>` };
+}

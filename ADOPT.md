@@ -32,7 +32,7 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 | `durian-markdown/react/document` | React | `DocumentView`: the document with only the parts you pass |
 | `durian-markdown/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
 | `durian-markdown/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
-| `durian-markdown/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
+| `durian-markdown/react/interactive` | browser | `InteractivePart`, `InteractivePartProps`, `interactiveFrame()`, `IX_FRAME_CSP`, `IX_LIMITS`, `IX_TOKENS`; the srcdoc path alone creates a Trusted Types policy (`dh-interactive`) |
 | `durian-markdown/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
 | `durian-markdown/styles.css` | CSS | every rule under `.dh-doc` |
 
@@ -328,6 +328,85 @@ const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
   `'unsafe-inline'` for scripts the part stops at its 5 second check and the still stays.
 - **Looks.** Tokens `--ref-chip-*`, `--ref-pending-*`, `--ref-failed-*`, `--ref-refused-*`, `--ix-*`
   (`src/ui/refs.css`); words `refPending`, `refFailed`, `refRefused`, `ixOff` in `ui`.
+
+### A host's interactive component and frame page
+
+`components.interactive` accepts a host React component. Its exact props are `InteractiveProps` from
+`durian-markdown/react/reference` (also re-exported by `durian-markdown/react/interactive`): **`{ block }` only**.
+The `block` is the checked `InteractiveBlock`: `type: "interactive"`, `html`, `css`, `script` (section strings),
+`fallback` (parsed Markdown blocks), `alt` (the reference's label), `title` (`string | null`), `height` (80–1200),
+and the common part fields `id`, `attrs`, `line`, `llm` and `llmKind`.
+There are no separate sections, label, theme, dark, mode or limits props. Read `useDh().interactive` for the host's
+`"off" | "static" | "on"` mode and `useDh().ui` for translated words. Theme values are computed CSS custom properties
+on the rendered slot, not parser data; `InteractivePart` reads the names in `IX_TOKENS` and the nearest `data-theme`
+(or `prefers-color-scheme`) and sends `dhTokens` and `dark` to the frame. It observes `data-theme` changes on the
+document element and the nearest `.dh-doc`; system theme changes alone are not watched.
+The runtime caps exported as `IX_LIMITS` are 5 seconds to answer with a height, 10 minutes of life and 80–1200 px height.
+Parse caps (including a host's lower `maxInteractiveBytes`) are enforced by `parse()` before component dispatch.
+
+For a page that permits no inline scripts, wrap `InteractivePart` with the host-only `frameSrc` prop:
+
+```tsx
+import { InteractivePart, type InteractiveProps } from "durian-markdown/react/interactive";
+const HostInteractive = (props: InteractiveProps) =>
+  <InteractivePart {...props} frameSrc="/interactive-frame.html" />;
+// <DhDocument doc={doc} interactive="on" components={{ interactive: HostInteractive }} />
+```
+
+Serve a fixed response at that route, without redirects, user data or author content. A server can call
+`interactiveFrame()` from the same entry; it returns `{ html, csp }`. Send `html` as `text/html; charset=utf-8` and
+`csp` as the **Content-Security-Policy response header**:
+
+```text
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; sandbox allow-scripts; frame-ancestors 'self'
+```
+
+The response header is mandatory. `sandbox allow-scripts` forces an opaque origin even if a framer omits its
+iframe's sandbox attribute; `frame-ancestors 'self'` refuses cross-origin ancestors. These two directives do not
+work in a meta policy, so the HTML's meta copy deliberately leaves them out. The bootstrap also refuses to start
+unless `window.origin === "null"`, and accepts messages only from `window.parent` with `event.origin` equal to
+the shell URL's own `location.origin`. A cross-site framer must never be able to feed code to a host-origin shell.
+
+Leave this route out of middleware that adds the app's global CSP, Trusted Types directives or frame headers
+(including `X-Frame-Options`). Send the returned CSP itself, rather than appending the app's policy: multiple
+policies intersect, so a global inline-script ban, Trusted Types requirement or frame denial can disable the shell.
+Also send `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`. The route must serve the same fixed,
+secret-free response for query strings and ambient cookies, without login redirects or state-changing actions.
+If it stops after 5 seconds with **"Interactive part did not answer"**, inspect the shell response headers and
+browser console for an inherited/global CSP, Trusted Types or frame-header refusal.
+
+These inline script permissions belong to the frame response only. The parent can retain `script-src 'self'`,
+`require-trusted-types-for 'script'` and `trusted-types 'none'`. The parent **must list the exact shell URL in
+`frame-src`**, for example `frame-src https://app.example/interactive-frame.html`; do not grant all of `'self'`.
+If the app has other shells, list their exact URLs too. `frameSrc` accepts only a same-origin HTTP(S) URL, relative or absolute;
+empty, cross-origin, credential-bearing and non-HTTP URLs are refused. It is a host option, never a Markdown attribute.
+The parent sets `src`, never `srcdoc`, and never creates `dh-interactive` on this path. The shell itself must not
+require Trusted Types: its own bootstrap parses markup and installs the inline script inside the sandbox.
+
+The frame always has `sandbox="allow-scripts"`, with no `allow-same-origin`. After `{ dhReady: true }` from that
+frame, the parent sends `{ dhInit: true, html, css, script, mode, dhTokens, dark }` once; `"static"` sends an empty
+script and the shell adds `script-src 'none'` before installing markup. It tries an inline script probe and refuses
+static initialization if that probe runs. Only the already admitted bootstrap continues. This behavior is measured
+in Chromium; it is not the same barrier as srcdoc static's `sandbox=""`, and other engines need host validation.
+The shell checks both its parent's window and origin on every message, initializes once, and
+later accepts theme updates. The parent's only accepted replies are the ready signal and `{ dhHeight: number }`,
+with no extra fields; every reply must have `event.source === frame.contentWindow`. It clamps finite heights to
+80–1200 px. Both runnable modes retain the 5 second height deadline, 10 minute lifetime and removal on a second load.
+Messages use target origin `"*"` because the sandbox gives the frame an opaque origin.
+Every other message listener on the host page must also check `event.source` against its own expected sender,
+not merely the message's shape: author code in this frame can post arbitrary messages to the parent.
+
+`parse()` still checks all sections and code as in the srcdoc path; the reference shell does not re-run that checker.
+Hosts replacing the component own their isolation and should follow the same rules. A shell request is an ordinary
+same-origin request and may carry ambient HTTP credentials: its response must contain no secrets. Without the parent's
+`frame-src 'none'`, a script can still attempt a self-navigation. Under the deliberately broad test policy `'self'`,
+one navigation that completes makes one request before removal. A 204/205 response or an unfinished navigation
+does not fire the second load: a script can repeat credentialed same-origin GETs until the 10 minute stop. The
+required exact-path policy blocks other paths (measured: 0 requests to the off-route destination), but CSP path
+matching ignores queries, so `?data=...` on the shell URL remains a channel into server/proxy logs. Redirects can
+also make further requests. Do not put state-changing behavior on allowed shell routes, and treat their query
+logs accordingly; removal is not a network firewall.
+See SECURITY.md and `bun scripts/interactive-check.ts --frame-src`.
 
 ## 9. Fixtures for a visual matrix
 

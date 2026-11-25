@@ -1941,6 +1941,34 @@ Revenue grows 20% a year: year 5 is about 2.07 times year 1.
 - **The host sets `frame-src 'none'`.** A sandbox cannot stop a frame from navigating itself; the host page's `frame-src 'none'` refuses every navigation before a request (the srcdoc frame still loads). Without it, one request can leave before the frame is stopped.
 - **Trusted Types.** Only `durian-markdown/react/interactive` makes a policy, named `dh-interactive`. A page that requires Trusted Types lists that name to run the part; otherwise the still stays.
 - **The host page's CSP holds in the frame too** (a srcdoc frame keeps its page's policy). On a page whose CSP has no `'unsafe-inline'` for scripts, the frame's script does not run and the part stops at its 5 second check.
+- **Host-served frame (optional).** `InteractivePart` accepts the host-only `frameSrc` prop: a same-origin HTTP(S) URL,
+  not an author attribute. This path sets `src`, never `srcdoc`, and creates no `dh-interactive` policy. The host serves
+  the fixed HTML returned by `interactiveFrame()` with its returned CSP response header (`IX_FRAME_CSP`, including
+  `connect-src 'none'; sandbox allow-scripts; frame-ancestors 'self'`); the parent's script policy need not permit inline
+  script. The parent's `frame-src` must list the exact shell URL instead of `'none'` or the whole origin. The header's
+  sandbox and ancestor directives are not duplicated in meta CSP, where they would be ignored. The bootstrap requires
+  `window.origin === "null"` and accepts messages only from `window.parent` with the shell URL's own origin.
+  ADOPT.md gives the mandatory serving headers and middleware exclusions.
+  The sandbox remains exactly `allow-scripts`, without `allow-same-origin`; even `"static"` needs the shell bootstrap,
+  but receives no author script and adds a meta `script-src 'none'` before installing markup. A script probe refuses
+  static initialization if that restriction did not block inline script. This is Chromium-measured; unlike srcdoc
+  static's `sandbox=""`, the host-frame static path admits the bootstrap and needs validation in other engines.
+  After the shell sends
+  `{ dhReady: true }`, the parent sends the checked HTML, CSS,
+  script, mode, theme tokens and dark flag once by `postMessage` with target origin `"*"` (the frame's origin is opaque).
+  The shell verifies its parent as the sender. The parent verifies `event.source === frame.contentWindow` on every
+  reply and accepts only ready or a finite height number, with no extra fields; ready alone does not satisfy the
+  5 second height deadline. Both runnable modes stop after 10 minutes or a second load. The parse code checks and
+  byte caps still apply before dispatch. Under the test's broad `frame-src 'self'` policy, self-navigation to an
+  allowed same-origin destination makes **1 request** before removal (`bun scripts/interactive-check.ts --frame-src`);
+  the exact-path test measures 0 off-route requests. A 204/205 or unfinished
+  navigation produces no second load and can be repeated until the lifetime cap under a broad policy. CSP ignores
+  query strings even on an exact path, leaving a channel into server logs. Redirects can make further requests.
+  The host must keep these residuals in its threat model. Without `frameSrc`,
+  the srcdoc page and its CSP/Trusted Types requirements above are unchanged.
+- **Host component contract.** `components.interactive` can be a host component; its exported `InteractiveProps`
+  is `{ block: InteractiveBlock }`. Sections and label are fields of `block`; mode and UI words come from `useDh()`.
+  Theme values are read from computed CSS on the rendered slot, not passed as component props (ADOPT.md).
 - **What it is for:** a picture the reader changes (bars, a curve, a grid, with sliders, toggles, a select). Never a stepper, a slideshow or a quiz: a sequence is prose or steps.
 
 ## 8b. The host media loader (0.8.0)

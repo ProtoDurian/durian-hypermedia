@@ -282,13 +282,74 @@ No module under `src/` sets an HTML string: Markdown, code walk notes and tabs a
   navigation. The page accepts only a height from it; it must answer within 5 s, it stops after 10 minutes, and it is
   stopped if it loads a second page. **A frame may still navigate itself once** (a sandbox cannot forbid it, and the
   frame's own `default-src 'none'` does not cover navigation): that one request leaves before the frame is stopped.
-  A host that turns the part on sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
+  A host using the default srcdoc path sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
   navigation of it is refused before any request (`bun run ix` measures 1 request without it, 0 with it). The fallback is
   Markdown of the page, under the page's URL policy, like every resolved part. The checks refuse code that names the network, storage, cookies, `top`,
   `parent`, `location` or `RTCPeerConnection` before it runs. Not covered: a script that hides those names (the
   checks read words, not meaning); the sandbox and the policy are the barrier. A browser's WebRTC is not governed by
   `default-src`: a host that must rule it out serves the frame from an origin of its own with a
   `Permissions-Policy`.
+
+### Host-served interactive frame (`frameSrc`)
+
+`InteractivePart` can load a fixed host page through its `frameSrc` prop. It accepts only same-origin HTTP(S) URLs
+without credentials; it refuses an empty, cross-origin or other-scheme URL before creating a frame. Markdown cannot
+set this option. The parent uses `src`, not `srcdoc`, and does not call the `dh-interactive` Trusted Types policy
+factory. Its own CSP may keep `script-src 'self'`, `require-trusted-types-for 'script'` and `trusted-types 'none'`.
+The external page has its own response CSP rather than inheriting the parent's script restriction.
+
+The host must serve the fixed `interactiveFrame().html`, with `interactiveFrame().csp` as its HTTP CSP header,
+`Content-Type: text/html; charset=utf-8`, and no redirect, user data or author content in that response. The returned
+policy is `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none';
+base-uri 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; sandbox allow-scripts; frame-ancestors 'self'`.
+The response-header sandbox forces an opaque origin even for an iframe without a sandbox attribute, and
+`frame-ancestors 'self'` blocks cross-origin ancestors. These two directives cannot be delivered by meta CSP: the
+HTML repeats only the remaining restrictions. The bootstrap refuses to start unless `window.origin === "null"`;
+every incoming message must have both `event.source === window.parent` and `event.origin === location.origin`
+(the HTTP shell URL's origin). Thus an arbitrary cross-site framer cannot initialize the shell at the host origin,
+even when the iframe attribute is missing; the origin check still refuses it if the ancestor directive is omitted.
+The header itself is mandatory, not replaced by these checks. In particular, the
+host must not broaden network access. The shell's own policy must allow its inline bootstrap and author script,
+and must not require Trusted Types for its DOMParser/script installation. The parent need not allow either.
+The initial shell request is ordinary HTTP and may carry ambient cookies; the sandbox prevents script access to
+cookies and storage, not server access to credentials. Never serve account data from this route.
+Exclude this route from global app CSP/Trusted Types and frame-header middleware; send `X-Content-Type-Options:
+nosniff` and `Cache-Control: no-store` as well as the response CSP. Keep the same fixed response for query strings
+and cookies, with no login redirect or state-changing action (ADOPT.md).
+
+The parent still sets exactly `sandbox="allow-scripts"`, no `allow-same-origin`, with `referrerpolicy="no-referrer"`
+and an empty `allow`. On `{ dhReady: true }` from `frame.contentWindow`, it sends the checked content, mode and theme
+once. The shell accepts initialization only from the same-origin `window.parent` and only once; it also caps the combined HTML,
+CSS and script at 204,800 UTF-8 bytes. The parser's original section checks, code checks, page budget and host byte
+cap run before component dispatch; the shell does not repeat that code checker. `"static"` sends no author script,
+but runs the shell bootstrap to draw the markup and report height. Before installing static markup, the shell adds
+a second meta CSP, `script-src 'none'`, to block author scripts and inline handlers; its already admitted bootstrap
+continues handling theme and height. An inline script probe checks this restriction before installing markup;
+if that script executes, static initialization is refused, no content or height is installed, and the parent stops
+at the 5 second deadline. This static path is **Chromium-measured**, not a cross-browser guarantee: unlike srcdoc
+static's `sandbox=""`, it admits the shell bootstrap, and other engines require host validation. The parent accepts ready or a finite height
+with no extra fields, verifies `event.source === frame.contentWindow` on every reply, clamps heights to 80–1200 px,
+and accepts no action, link, fetch or storage command. Both `"on"` and host-frame `"static"` require a height within
+5 seconds (ready is insufficient), stop at 10 minutes and are removed on a second load. `"off"` makes no shell request.
+Messages use target origin `"*"` because the sandboxed frame has an opaque origin. Theme updates carry only the
+listed CSS tokens and dark flag. Hosts that replace the component take responsibility for these rules themselves.
+Every other message listener on the host page must also validate `event.source` against its own expected sender:
+author code can post arbitrary messages to the parent; shape checks alone cannot authenticate this frame.
+
+The parent's `frame-src` **must list the exact same-origin shell URL**, not the whole origin (`'self'`). This means it
+cannot use `'none'` to rule out all self-navigation as it can for srcdoc. Under a deliberately broad `'self'` test
+policy, the **measured residual is 1 request** to a same-origin destination that completes a second load, with
+0 beacon requests, in
+`bun scripts/interactive-check.ts --frame-src`. This is a measurement, not a universal one-request ceiling: redirects
+or navigations before a load event can make further requests. A 204/205 response or a navigation that never finishes
+fires no second load: with broad `'self'`, author code can loop credentialed same-origin GETs until the 10 minute
+deadline. The exact-path test runs the shell and measures **0 requests** to an off-route destination. Even that
+policy does not match query strings: self-navigation to the allowed shell URL with `?data=...` can put data in
+server/proxy logs. Allowed shell routes must be fixed, secret-free and have no state-changing behavior; hosts must
+account for that query channel. The frame's own `connect-src 'none'` does not prevent its self-navigation. The same check measures script access to
+storage, cookies, the parent, fetch, XHR, WebSocket, beacon and indexedDB as refused, with 0 parent CSP/Trusted Types
+violations. Obfuscated code is still possible; the word checks are not the sandbox. WebRTC remains a residual
+outside CSP network directives as described above. The default srcdoc page is unchanged.
 
 ## Reporting
 

@@ -12,6 +12,7 @@ import { cutBy, MARGIN, wordRects, type Frame, type Rect } from "./scene";
 
 const inside = (r: Rect, v: Rect) => r.x >= v.x - 0.5 && r.y >= v.y - 0.5 && r.x + r.w <= v.x + v.w + 0.5 && r.y + r.h <= v.y + v.h + 0.5;
 
+export const SLACK = 12;
 // the range of places along one axis that stay within the scene (its bounds b0..b0+bs, with a margin), for a view s long
 function range(s: number, b0: number, bs: number): [number, number] {
   if (s >= bs + 2 * MARGIN) { const c = b0 + (bs - s) / 2; return [c, c]; }
@@ -34,12 +35,14 @@ export function slideWhole(f: Frame, v: Rect, keep: Rect | null): Rect {
       cand.add(r0 + rs + 2); cand.add(r0 - 2 - s); // leave it out, past the low or the high edge
     }
     let pick = best, pickN = cuts.length;
-    for (const c0 of cand) {
-      const c = Math.min(Math.max(c0, lo), hi);
+    // (rc.4) a little past the scene's margin too (SLACK), where only that leaves out what the view cuts: a container
+    // just inside the stage's edge whose far side is past it is left out whole, with a few pixels of empty ground
+    // beyond the scene on the other side; within the margin wins any tie
+    for (const [c, past] of [...cand].flatMap((c0): [number, boolean][] => { const a = Math.min(Math.max(c0, lo), hi), b = Math.min(Math.max(c0, lo - SLACK), hi + SLACK); return Math.abs(a - b) > 0.01 ? [[a, false], [b, true]] : [[a, false]]; })) {
       const w: Rect = { ...best, [ax]: c };
       if (keep && !inside(keep, w)) continue;
       const n = cutBy(f, w).length;
-      if (n < pickN || (n === pickN && Math.abs(c - at) < Math.abs(pick[ax] - at))) { pick = w; pickN = n; }
+      if (past ? n < pickN : n < pickN || (n === pickN && Math.abs(c - at) < Math.abs(pick[ax] - at))) { pick = w; pickN = n; }
     }
     best = pick; cuts = cutBy(f, best);
   }

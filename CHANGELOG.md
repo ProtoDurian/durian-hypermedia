@@ -230,6 +230,11 @@ The third release candidate of 0.7.0. The format number stays 10.
   only when every spot by the speaker covers a word or a thing. Over the fixtures (laptop, phone and narrow layouts, every
   step): bubbles nearer another thing than their speaker 8 to 0; none of the 8 moved bubbles covers a word, a thing
   or a line.
+- **The camera leaves a box out whole rather than cut it** (SPEC.md 6.14; the rc.3 review: the array, map and tree at
+  390 px, its whole view cut the price index at the right edge): where a container sits just inside the stage's edge
+  with its far side past it, and the scene's margin held the view back from leaving it out, the view may now slide up
+  to 12 px past that margin, only when that cuts fewer. On a phone a few views move by a few pixels (and two phone
+  stages are a little shorter, where that slide now does what a taller stage did); at 1280 no view changes.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.

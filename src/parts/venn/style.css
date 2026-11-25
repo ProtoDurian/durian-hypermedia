@@ -18,8 +18,8 @@
 .venn-more { font-size: 15px; font-weight: 600; text-decoration: underline; }
 .dh-svg text.venn-more { fill: var(--acc-ink); }
 .venn-set.is-new, .venn-region.is-new { animation: dh-fade var(--dur-slow, 640ms) both; }
-/* the regions as a list: for a screen reader always, and drawn under the figure on a narrow stage */
-.venn-legend { list-style: none; margin: 0; padding: 4px 14px 10px; font: 400 14px/1.45 var(--font-sans); position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-@container (max-width: 600px) { .venn-legend { position: static; width: auto; height: auto; overflow: visible; clip-path: none; white-space: normal; } .venn-legend li { margin: 3px 0; } }
+/* The membership list is drawn under the figure at every width. */
+.venn-legend { list-style: none; margin: 0; padding: 4px 14px 10px; font: 400 14px/1.45 var(--font-sans); overflow-wrap: anywhere; }
+.venn-legend li { margin: 3px 0; }
 @media (prefers-reduced-motion: reduce) { .venn-set { transition: none; } }
 [data-dh-motion="off"] .venn-set { transition: none; }

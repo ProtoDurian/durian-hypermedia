@@ -21,6 +21,10 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 - Ring names were cut on a phone ("Produc", "latform": the end of the word lay behind the centre or the next arc). A name is now laid along the ring, else along the arc, else cut with an ellipsis, else left out; whatever is drawn lies wholly on its own arc. `scripts/label-check.ts` checks that.
 
+### Fixed: the Venn legend at every width (venn)
+
+- The Venn legend flows under the drawing at every width, so no membership is cut off.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

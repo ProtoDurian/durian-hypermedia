@@ -1,6 +1,6 @@
 // The venn part's view (format version 11): our own SVG, placed by the pure layout, so the box is the same before and
 // after the script runs. A region is a focusable button: hover, tap, focus or Enter opens the one popover card with its
-// items; names that do not fit show as `+N`. On a narrow stage the regions are also listed under the figure. Static
+// items; names that do not fit show as `+N`. The regions are also listed under the figure. Static
 // draws one step whole.
 import React, { useMemo, useRef, useState } from "react";
 import { Budget, partLimitsOf } from "../../core/budget";

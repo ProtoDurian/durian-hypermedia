@@ -267,3 +267,11 @@ test("the definition matches its folder", () => {
   expect(venn.name).toBe("venn");
   expect(venn.steps).toBe(true);
 });
+
+test("the Venn membership legend is visible in normal flow on wide screens", () => {
+  const css = readFileSync(new URL("./style.css", import.meta.url), "utf8");
+  const rule = /^\.venn-legend\s*\{([^}]+)\}/m.exec(css)?.[1];
+  expect(rule).toBeDefined();
+  expect(rule).not.toMatch(/position:\s*absolute|clip-path:|overflow:\s*hidden|white-space:\s*nowrap/);
+  expect(rule).toMatch(/overflow-wrap:\s*anywhere/);
+});

@@ -34,6 +34,7 @@ k1 -> db is=worker
 s1 -> c1 is=api
 @step Eight families on one stage: each has its own border and its own fill.
 @step The services' region holds four other families; the worker of a fifth reads its queue from outside.
+highlight k1
 ```
 
 Which colour a family gets is the theme's business: the source names families and roles, never a colour value. A host restyles the palette with the tokens `--c1` to `--c8` (border and lines), `--c1-soft` (the fill of its boxes and groups alike; `--c1-plane` names the same colour) and `--c1-ink` (words in the family's colour), and the stage's own edges with `--scn-edge`, `--scn-frame-edge` and `--scn-band-edge`.

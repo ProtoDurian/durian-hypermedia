@@ -68,6 +68,12 @@ The fifth release candidate of 0.7.0. The format number stays 10.
   stage (a page's column on a 360 px phone) the scene is taller than the stage's least aspect allows, and the worker
   is below the edge.
 
+- **Eight colours' step 2 lights the worker** (the same review item, on a short phone): on a 320 x 568 phone the
+  stage is held to 82% of the window (466 px), shorter than the whole scene at the least word size, and step 2, which
+  touched nothing, framed the top of the scene with the worker below the edge. The step is about the worker reading
+  its queue, so it now lights it (`highlight k1`), and the camera keeps it in view; there the reader at the top is
+  above the edge instead, on both steps (one held view). On a 360 x 640 phone and up both steps show the whole scene.
+
 ### Fixed: the layers example's section 6 routing tables are step tables
 
 - Routing tables T3 and T4 are step tables (prefix | learned from | next hop | out) with the chosen row lit, as in

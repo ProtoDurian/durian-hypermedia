@@ -677,3 +677,6 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 @container (min-width: 1184px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1184, var(--ar)); } }
 @container (min-width: 1200px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1200, var(--ar)); } }
 }
+
+/* Keep a part's drawing and its caption together whenever the figure fits on a sheet. */
+@media print { figure.part { break-inside: avoid; } figure.part .dh-static-steps { break-before: avoid; } }

@@ -200,6 +200,15 @@ The third release candidate of 0.7.0. The format number stays 10.
   middle, else the edge's left end, else its right end, off every word the drawing has (its names, the numbers of
   cells and buckets, arrow labels, chips and speech); where each spot would cover one, only the shaded edge and its
   arrow say so. Over the fixtures with steps it lay on a word on 4 steps at 390 and 4 at 360; now on none.
+- **A row of containers stacks on a phone** (SPEC.md 6.14; the rc.3 review: pods, nodes and a service at 390, node 3
+  cut at every step): the narrow layout turned the scene's own row into a column but kept every row inside it, so a
+  cluster's three nodes side by side were wider than a phone at the least word size. A row whose children are all
+  containers (not linked to each other, and not a stage the story runs into and on out of) now stacks into a column
+  there, and so do those containers' own rows of things; what links into the
+  column from outside (the service) stands beside it, so its lines reach each node from the side and none runs down
+  through the nodes above. A 3D scene keeps its rows. On a phone only the two fixtures with that cluster change; on a
+  laptop nothing changes at 1280, and between 448 and 640 px layout widths the same two take the stacked layout where
+  the wide one was cut.
 - **The story camera cuts less of what it shows** (SPEC.md 6.14; the rc.3 review: the service mesh at 390, from step 7
   node 1's heading cut at the top). One held view for several steps now gives way where it would cut a thing or a
   container's heading that a step's own view shows whole; a phone stage grows a little where that lets every step show

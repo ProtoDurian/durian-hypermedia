@@ -1425,7 +1425,7 @@ function around(a: Rect, w: number, h: number, sides: ("up" | "down" | "left" | 
 // keep: the size each thing has at its largest in the story (by kind and id): a thing keeps one size for the whole story
 // attrs.room: the widest connector or arrow label of the story, so a graph leaves room for it between its layers
 // heads: where each container's heading sits along its top (0 left, 1 right), chosen for the story so no line crosses it
-export function layoutState(s: State, attrs: { layout: string; dir: string; fit?: number; entered?: boolean; apart?: boolean; size?: string; fill?: string; room?: number; narrow?: boolean; phone?: boolean }, story: [string, string][] = [], keep: Map<string, [number, number]> = new Map(), heads: Map<string, number> | null = null): Frame {
+export function layoutState(s: State, attrs: { layout: string; dir: string; fit?: number; entered?: boolean; apart?: boolean; size?: string; fill?: string; room?: number; narrow?: boolean; view?: string; only3d?: boolean; phone?: boolean }, story: [string, string][] = [], keep: Map<string, [number, number]> = new Map(), heads: Map<string, number> | null = null): Frame {
   // a story link to a thing that is not here now goes to its kept slot, so a graph places the slot where the thing goes
   const slotOf = new Map<string, string>();
   for (const e of Object.values(s.ents)) if (e.ghost && !s.ents[e.ghost] && !slotOf.has(e.ghost)) slotOf.set(e.ghost, e.id);
@@ -1449,12 +1449,23 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
   const kept = (e: Ent, w: number, h: number): [number, number] => { const k = keep.get(`${e.kind}:${e.ghost ?? e.id}`); return k ? [Math.max(w, k[0]), Math.max(h, k[1])] : [w, h]; };
   const rootLayout0 = attrs.layout === "auto" ? (links.some(([a, b]) => top(s, a) !== top(s, b)) ? "graph" : "row") : attrs.layout;
   const rootLayout = attrs.narrow && rootLayout0 === "row" ? "column" : rootLayout0;
-  const rootDir = attrs.narrow ? "down" : attrs.dir;
+  let rootDir = attrs.narrow ? "down" : attrs.dir;
   // when the narrow layout turns a graph downward, a column whose things connect outside it turns into a row, so their
   // lines leave side by side instead of running down through each other
   const within = (id: string, c: string) => { for (let x: string | null = id, n = 0; x && n < 64; x = s.ents[x]?.parent ?? null, n++) if (x === c) return true; return false; };
   const turned = new Set(attrs.narrow && rootLayout0 === "graph" ? Object.values(s.ents).filter((e) => isContainer(e.kind) && e.layout === "column" && (work(e.kids.length * (1 + links.length)), e.kids).some((k) => links.some(([a, b]) => (a === k && !within(b, e.id)) || (b === k && !within(a, e.id))))).map((e) => e.id) : []);
-  const layoutOf = (e: Ent) => (turned.has(e.id) ? "row" : e.layout);
+  // (rc.4) and a row of containers (a cluster's nodes, a region's zones) stacks into a column: side by side they are
+  // wider than a phone at the least word size, so the story camera had to cut one (not where they link to each other,
+  // or where the story runs into the row and on out of it: side by side they read as a flow); a row of things keeps
+  // its row
+  // (a 3D scene keeps its rows: its stage turns, it does not cut)
+  const stacks = (e: Ent) => !!attrs.narrow && attrs.view !== "3d" && !attrs.only3d && e.layout === "row" && isContainer(e.kind) && !["bucket", "array", "list", "queue", "stack", "table", "record", "layer"].includes(e.kind) && e.kids.length > 1 && e.kids.every((k) => isContainer(s.ents[k]?.kind ?? "")) && !links.some(([a, b]) => { const ka = e.kids.find((k) => within(a, k)), kb = e.kids.find((k) => within(b, k)); return !!ka && !!kb && ka !== kb; }) && !(links.some(([a, b]) => within(b, e.id) && !within(a, e.id)) && links.some(([a, b]) => within(a, e.id) && !within(b, e.id)));
+  // (and in that column each container's own row of things stacks too, so the column is as narrow as its widest thing)
+  const inStack = (e: Ent) => { const p = e.parent ? s.ents[e.parent] : null; return !!p && stacks(p) && e.layout === "row" && isContainer(e.kind) && !["bucket", "array", "list", "queue", "stack", "table", "record", "layer"].includes(e.kind); };
+  const layoutOf = (e: Ent) => (turned.has(e.id) ? "row" : stacks(e) || inStack(e) ? "column" : e.layout);
+  // (and the scene then runs left to right, so what links into the stack from outside it stands beside it: its lines
+  // reach each container from the side, never down through the ones above)
+  if (attrs.narrow && rootLayout === "graph" && Object.values(s.ents).some((e) => stacks(e) && links.some(([a, b]) => within(b, e.id) !== within(a, e.id)))) rootDir = "right";
   const rowLike = (e: Ent) => layoutOf(e) === "row" || ["bucket", "array", "list", "queue"].includes(e.kind);
   // measure bottom-up, placing each container's children relative to its inner box
   const measure = (id: string): [number, number] => {

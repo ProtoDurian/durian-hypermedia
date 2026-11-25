@@ -13,6 +13,10 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 - On a phone "Cache lookup" sat over the Response assembly node and "Response assembly" was pushed below it: labels named the wrong nodes. A label that cannot sit right over its node is now tied to it by a thin dashed line, and no line crosses another label.
 - In the dark theme the bands of a yellow family read as a muddy olive. The dark bands are drawn at 0.62 (were 0.42), so they read gold. (A family has different colours in the light and dark themes by the palette's design; that is not changed here.)
 
+### Fixed
+
+- The example build serves the gallery, comparison images, Lottie, PDF and video sample files alongside audio, so those samples load from the same origin.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

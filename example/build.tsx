@@ -6,7 +6,7 @@
 // The style switch (soft, flat, bold) and the theme switch are in the page script (client.tsx).
 import React from "react";
 import { renderToString } from "react-dom/server";
-import { cpSync, mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parse, llmView } from "../src/index";
 import { highlight } from "../src/server";
@@ -24,7 +24,11 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, "assets"), { recursive: true });
-cpSync(join(PKG, "src/parts/audio/media"), join(OUT, "media"), { recursive: true });
+// Each part owns its public sample files; their relative media/ URLs share the example root.
+for (const part of readdirSync(join(PKG, "src/parts"))) {
+  const media = join(PKG, "src/parts", part, "media");
+  if (existsSync(media)) cpSync(media, join(OUT, "media"), { recursive: true });
+}
 // the example self-hosts the faces the package measures its words with (Poppins, IBM Plex Mono; SIL OFL 1.1, licences beside them)
 cpSync(join(HERE, "fonts"), join(OUT, "assets/fonts"), { recursive: true });
 writeFileSync(join(OUT, "assets/styles.css"), buildCss() + "\n" + readFileSync(join(HERE, "site.css"), "utf8"));

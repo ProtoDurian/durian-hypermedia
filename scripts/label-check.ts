@@ -4,7 +4,7 @@
 // Each page is built and drawn in headless Chrome at each width (light theme, scrolled through so lazy drawings run). In every
 // svg (a chart) the words of its <text> elements are measured as the polygons they are drawn as (rotated words too, by their
 // screen matrix) and any two that overlap by more than 1 px are reported with their words; the month names of a calendar chart
-// are measured the same way; a trace's event diamonds count as things words must not cover. A Chart.js canvas draws its words with fillText: those calls are recorded (the last full draw of each
+// are measured the same way; a word on a sunburst arc must lie on its arc; a trace's event diamonds count as things words must not cover. A Chart.js canvas draws its words with fillText: those calls are recorded (the last full draw of each
 // canvas is kept) and measured the same way, by the matrix and the alignment each word was drawn with.
 // Exit 1 on any overlap. The browser and the server are closed in any case.
 import { launch } from "./cdp";
@@ -63,6 +63,19 @@ const MEASURE = `(() => {
     const words = [...svg.querySelectorAll("text")].filter((t) => t.textContent.trim() && getComputedStyle(t).display !== "none" && getComputedStyle(t).visibility !== "hidden" && +getComputedStyle(t).opacity > 0.05).map((t) => ({ t, p: polys(t) })).filter((w) => w.p).map((w) => ({ ...w, q: shrink(w.p) }));
     const part = svg.closest("[data-dh-part]")?.getAttribute("data-dh-part") || svg.getAttribute("class") || "svg";
     for (let i = 0; i < words.length; i++) for (let j = i + 1; j < words.length; j++) if (hit(words[i].q, words[j].q)) out.push({ part, svg: si, a: words[i].t.textContent.trim().slice(0, 40), b: words[j].t.textContent.trim().slice(0, 40) });
+    // a word on a sunburst arc must lie wholly on its own arc: along its middle and both edges, the thing seen at each point (words
+    // are not hit-tested) is the arc it belongs to, not the centre, another arc or the empty page
+    for (const t of svg.querySelectorAll(".ck-arc-t")) {
+      t.scrollIntoView({ block: "center", inline: "center" });
+      const g = t.closest("g"), b = t.getBBox(), m = t.getScreenCTM(); if (!m || !g) continue;
+      let cut = false;
+      for (const fy of [0.15, 0.5, 0.85]) for (let i = 0; i < 9; i++) {
+        const x = b.x + (b.width * (i + 0.5)) / 9, y = b.y + b.height * fy;
+        const e = document.elementFromPoint(m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f);
+        if (!e || e.closest("g") !== g) cut = true;
+      }
+      if (cut) out.push({ part, svg: si, a: t.textContent.trim().slice(0, 40), b: "outside its own arc" });
+    }
     // an event mark (a trace's log diamond) is a thing words must stay clear of, the part of a word the plot's clip hides counts too
     const evMarks = [...svg.querySelectorAll(".tr-log")].map((m) => ({ m, p: polys(m) })).filter((w) => w.p).map((w) => shrink(w.p));
     for (const w of words) for (const q of evMarks) if (hit(w.q, q)) out.push({ part, svg: si, a: w.t.textContent.trim().slice(0, 40), b: "event mark" });

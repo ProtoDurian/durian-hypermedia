@@ -8,7 +8,7 @@ import { Budget, partLimitsOf } from "../../core/budget";
 import { Stepper, stepKeys, useSteps, usePopover, type PopData } from "../kit/view";
 import type { PartViewProps } from "../types";
 import { fmtValue } from "./fmt";
-import { cutWord, fitTicks, niceTicks, placeValues, rotRoom, sunburstLayout, treemapLayout, xLab, type TNode } from "./layout";
+import { arcLabel, cutWord, fitTicks, niceTicks, placeValues, rotRoom, sunburstLayout, treemapLayout, xLab, type TNode } from "./layout";
 import { pct as pctText, type Day, type View } from "./compute";
 import type { ChartKindsData } from "./part";
 
@@ -345,9 +345,8 @@ function Sunburst({ v, w, pop }: { v: Extract<View, { kind: "treemap" | "sunburs
           const mid = (a.a0 + a.a1) / 2, rm = (rin + rout) / 2, len = (a.a1 - a.a0) * rm, chord = (a.a1 - a.a0) * rout;
           const tiny = chord < 24 || rout - rin < 24;
           const flip = mid > Math.PI;
-          const deg = (mid * 180) / Math.PI - 90 + (flip ? 180 : 0);
-          const room = Math.floor((rout - rin - 8) / 7);
-          const inner = len >= 56 && rout - rin >= 26;
+          const word = arcLabel(n.name, rout - rin, len);
+          const deg = word?.tangent ? (mid * 180) / Math.PI + (mid > Math.PI / 2 && mid < (3 * Math.PI) / 2 ? 180 : 0) : (mid * 180) / Math.PI - 90 + (flip ? 180 : 0);
           const common = { className: `ck-arc ${tcls(n.tone)}${branch ? " is-branch" : ""}`, style: { ["--chart-kinds-lvl" as string]: String(a.ring), animationDelay: `${a.ring * 80}ms` } as React.CSSProperties };
           if (tiny) return <path key={a.id} {...common} d={arcPath(cx, cy, rin, rout, a.a0, a.a1, 0.012)} aria-hidden="true" style={{ ...common.style, pointerEvents: "none" }} />;
           const bind = pop.bind(`n-${a.id}`, nodeData(v.nodes, a.id, f, whole, true));
@@ -355,7 +354,7 @@ function Sunburst({ v, w, pop }: { v: Extract<View, { kind: "treemap" | "sunburs
             onClick={(e: React.MouseEvent) => { if (branch) { pop.hide(); setRoot(a.id); } else bind.onClick(e); }}
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (branch) { pop.hide(); setRoot(a.id); } else bind.onClick(e as unknown as React.MouseEvent); } }}>
             <path {...common} d={arcPath(cx, cy, rin, rout, a.a0, a.a1, 0.012)} />
-            {inner && <text className="ck-arc-t" transform={`translate(${cx + rm * Math.sin(mid)} ${cy - rm * Math.cos(mid)}) rotate(${deg})`} textAnchor="middle" dy="0.34em">{trunc(n.name, Math.min(room * 2, Math.floor(len / 6.5)))}</text>}
+            {word && <text className="ck-arc-t" transform={`translate(${cx + rm * Math.sin(mid)} ${cy - rm * Math.cos(mid)}) rotate(${deg})`} textAnchor="middle" dy="0.34em">{word.text}</text>}
           </g>;
         })}
         <g className="ck-core" tabIndex={root !== 0 ? 0 : -1} role={root !== 0 ? "button" : undefined} aria-label={root !== 0 ? `Up to ${v.nodes[whole.parent].name}` : undefined}

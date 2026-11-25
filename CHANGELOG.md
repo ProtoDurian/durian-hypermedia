@@ -17,6 +17,10 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 - The example build serves the gallery, comparison images, Lottie, PDF and video sample files alongside audio, so those samples load from the same origin.
 
+### Fixed: sunburst words on a phone (SPEC.md, chart-kinds)
+
+- Ring names were cut on a phone ("Produc", "latform": the end of the word lay behind the centre or the next arc). A name is now laid along the ring, else along the arc, else cut with an ellipsis, else left out; whatever is drawn lies wholly on its own arc. `scripts/label-check.ts` checks that.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

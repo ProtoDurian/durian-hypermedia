@@ -8,7 +8,7 @@ import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, partLimitsOf } from "../../core/budget";
 import part, { parseChartKinds } from "./part";
 import { capsOf, compute, dayNum, dateOf, flattenTree, llmText } from "./compute";
-import { boxStats, fitTicks, kde, LINE_PX, niceTicks, placeValues, quantile, rotRoom, sunburstLayout, TICK_PX, treemapLayout, xLab } from "./layout";
+import { arcLabel, boxStats, fitTicks, kde, LINE_PX, niceTicks, placeValues, quantile, rotRoom, sunburstLayout, TICK_PX, treemapLayout, xLab } from "./layout";
 import { textW } from "../kit/text";
 import { LIMITS as OWN, UNTRUSTED_LIMITS as OWN_UNTRUSTED } from "./limits";
 import { fmtValue } from "./fmt";
@@ -347,6 +347,28 @@ describe("chart-kinds: labels never overlap", () => {
       const kept = fitTicks(niceTicks(e0, e1, 6), mx, (x) => x.toLocaleString("en-US"));
       for (let i = 1; i < kept.length; i++) expect(mx(kept[i]) - textW(kept[i].toLocaleString("en-US"), TICK_PX) / 2).toBeGreaterThanOrEqual(mx(kept[i - 1]) + textW(kept[i - 1].toLocaleString("en-US"), TICK_PX) / 2 + 8 - 1e-9);
       expect(kept.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("chart-kinds: the words on a sunburst's arcs", () => {
+  test("a name that fits along the ring is radial, else laid along the arc, else cut to the roomier way, else left out", () => {
+    expect(arcLabel("Web", 80, 120)).toEqual({ text: "Web", tangent: false });
+    // "Platform" in a 58 px ring (the phone's inner ring) cannot be radial, but its arc is 120 px long
+    expect(arcLabel("Platform", 58, 120)).toEqual({ text: "Platform", tangent: true });
+    const cut = arcLabel("Infrastructure services", 58, 60)!;
+    expect(cut.text.endsWith("…")).toBe(true);
+    expect(textW(cut.text, TICK_PX)).toBeLessThanOrEqual(Math.max(58 - 8, 60 - 10));
+    expect(arcLabel("Docs", 20, 14)).toBeNull();   // an arc 14 px long and a ring 20 px wide has no room for a 12 px word
+  });
+  test("whatever is drawn fits the room it is drawn in, at every ring width and arc length", () => {
+    for (const name of ["A", "Web", "Platform", "Infrastructure", "Storage engine team"]) for (let ring = 16; ring <= 120; ring += 4) for (let arc = 16; arc <= 300; arc += 12) {
+      const r = arcLabel(name, ring, arc);
+      if (!r) continue;
+      const room = r.tangent ? arc - 10 : ring - 8;
+      expect(textW(r.text, TICK_PX)).toBeLessThanOrEqual(room + 1e-9);
+      expect(r.tangent ? ring : arc).toBeGreaterThanOrEqual(LINE_PX);
+      expect(r.text === name || r.text === name.slice(0, r.text.length - 1) + "…").toBe(true);
     }
   });
 });

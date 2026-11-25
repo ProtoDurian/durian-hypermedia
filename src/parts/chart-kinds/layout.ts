@@ -194,3 +194,20 @@ export function fitTicks<T>(xs: T[], at: (x: T) => number, text: (x: T) => strin
   }
   return out;
 }
+
+// ---------------------------------------------------------------- the words on a sunburst's arcs
+/** The name written on an arc: whole when it fits along the ring's width (radial) or along its length (tangent), else cut with
+ *  "…" to the roomier way, else none (the card has every name). A ring 60 px wide cannot hold "Platform" radially, but its arc is
+ *  long, so the word is laid along the arc and nothing is hidden behind the centre or the next ring. */
+export function arcLabel(name: string, ringW: number, arcLen: number): { text: string; tangent: boolean } | null {
+  const radial = ringW - 8, along = arcLen - 10, w = textW(name, TICK_PX);
+  const ok = (room: number, across: number) => across >= LINE_PX && room > 0;   // a word 12 px high needs a line of space across it
+  const canRadial = ok(radial, arcLen), canTangent = ok(along, ringW);
+  if (canRadial && w <= radial) return { text: name, tangent: false };
+  if (canTangent && w <= along) return { text: name, tangent: true };
+  const tangent = canTangent && (!canRadial || along > radial), room = tangent ? along : radial;
+  if (!(tangent ? canTangent : canRadial)) return null;
+  let s = name;
+  while (s.length > 1 && textW(s + "…", TICK_PX) > room) s = s.slice(0, -1);
+  return s.length >= 2 && textW(s + "…", TICK_PX) <= room ? { text: s + "…", tangent } : null;
+}

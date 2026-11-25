@@ -38,6 +38,8 @@ export const GRAPH_UI = {
 type GUi = typeof GRAPH_UI;
 
 const NODE_H = 30, FOLD_H = 40, MIN_PX = 11, LOD_PX = 12, LOD_MAX = 80;
+// the zoom buttons sit at the box's right edge (8 px in, 46 wide): the graph is framed in the room left of them, so no name hides under one
+export const CONTROLS_W = 56;
 
 // ------------------------------------------------------------------ tokens to cytoscape's style sheet
 const TONES = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "acc", "good", "warn", "bad", "muted"];
@@ -420,7 +422,7 @@ function GraphLive({ spec, t, theme, motionOff }: { spec: GraphSpec; t: GUi; the
     const cy = cyRef.current; if (!cy || !eles.length) return;
     const b = eles.boundingBox({ includeLabels: false });
     const bb = { x1: b.x1 - extra, y1: b.y1 - extra, w: b.w + 2 * extra, h: b.h + 2 * extra };
-    const W = cy.width(), H = cy.height(), pad = 28, top = 64;
+    const W = cy.width() - CONTROLS_W, H = cy.height(), pad = 28, top = 64;
     let z = Math.min((W - 2 * pad) / Math.max(bb.w, 1), (H - pad - top) / Math.max(bb.h, 1));
     z = Math.max(cy.minZoom(), Math.min(maxZ, z));
     const pan = { x: W / 2 - z * (bb.x1 + bb.w / 2), y: (H + top - pad) / 2 - z * (bb.y1 + bb.h / 2) };
@@ -430,7 +432,7 @@ function GraphLive({ spec, t, theme, motionOff }: { spec: GraphSpec; t: GUi; the
     const cy = cyRef.current; if (!cy) return;
     const pad = Math.max(0, ...hullsRef.current.map((h) => h.pad));
     const b = cy.elements().boundingBox({ includeLabels: false });
-    const W = cy.width(), H = cy.height(), m0 = 20, top = hullsRef.current.length ? 22 : 0;
+    const W = cy.width() - CONTROLS_W, H = cy.height(), m0 = 20, top = hullsRef.current.length ? 22 : 0;
     const z = Math.max(cy.minZoom(), Math.min(1.4, (W - 2 * m0) / Math.max(1, b.w + 2 * pad), (H - 2 * m0 - top) / Math.max(1, b.h + 2 * pad)));
     const pan = { x: W / 2 - z * (b.x1 + b.w / 2), y: (H + top) / 2 - z * (b.y1 + b.h / 2) };
     cy.stop();

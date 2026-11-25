@@ -443,58 +443,33 @@ Each team keeps its own UL inside a bounded context. The second use of UL in the
 
 ## Graph
 
-A graph is for finding your way around a big network: what uses what, and what breaks if one part goes. Write `group` and `node` lines, then one edge a line (`a -> b`, with a label in quotes if it needs one). A node an edge names and no line declares is added (here the outside libraries). `layout=layers` puts each package above what it uses. **Explore it:** search a package, tap one to focus it and its neighbours (1 or 2 steps out), fold a group into one box, pan and zoom; the list beside the graph shows its links in and out. A graph this size reads as over 400 tokens, so the `:::llm` after it says the same in short.
+A graph is for finding your way around a big network: what uses what, and what breaks if one part goes. Write `group` and `node` lines, then one edge a line (`a -> b`, with a label in quotes if it needs one). A node an edge names and no line declares is added (here the outside libraries). `layout=layers` puts each package above what it uses. **Explore it:** search a package, tap one to focus it and its neighbours (1 or 2 steps out), fold a group into one box, pan and zoom; the list beside the graph shows its links in and out. Its LLM view is the graph itself, as lines.
 
 ```graph title="A shop's packages, and what each one uses" layout=layers
 group apps "apps" [c1]
-group ui "user interface" [c4]
 group domain "domain" [c2]
 group data "data access" [c6]
 group core "core" [c3]
-group tools "build and test" [muted]
 node web "web shop" in apps
 node admin "admin console" in apps
 node worker "background worker" in apps
-node cli "command line" in apps
-node ui-kit, charts, forms, icons, theme in ui
-node cart, checkout, catalog, accounts, search, pricing, orders, money, auth in domain
-node db, cache, queue, events, http-client, storage in data
-node config, log, errors, util, i18n, time in core
-node build, lint, test-kit in tools
-web -> ui-kit, forms, cart, checkout, catalog, search, accounts, i18n
-admin -> ui-kit, charts, forms, orders, catalog, accounts
-worker -> orders, events, queue, log
-cli -> config, catalog, db
-ui-kit -> theme, icons, react
-charts -> ui-kit, chart.js "lazy"
-forms -> ui-kit, zod
-cart -> pricing, catalog, cache
-checkout -> cart, orders, money, auth
-catalog -> db, search, storage
-accounts -> auth, db, events
-search -> http-client, cache
-pricing -> money, catalog
-orders -> db, money, events, queue
-money -> util
-auth -> db, cache, errors
-db -> pg, config, log, errors
+node cart, checkout, catalog, accounts, orders, search in domain
+node db "database" in data
+node cache, queue in data
+node config, log in core
+web -> cart, checkout, search
+admin -> catalog, accounts, orders
+worker -> orders
+cart -> cache, db
+checkout -> db, queue
+catalog -> db, cache
+accounts -> db
+orders -> db, queue
+search -> cache
+queue -> ioredis
 cache -> ioredis, config
-queue -> ioredis, events
-events -> log, time
-http-client -> undici, errors
-storage -> http-client, config
-config -> zod, util
-log -> time, util
-errors -> util
-i18n -> date-fns, util
-time -> date-fns
-test-kit -> db, cache, config "fakes"
-build, lint -> config
+db -> pg, config, log
 ```
-
-:::llm
-A layered package graph of a shop: 33 packages in 6 groups, plus 7 outside libraries (react, chart.js, zod, pg, ioredis, undici, date-fns); 80 edges. The apps (web shop, admin console, background worker, command line) use the user interface packages (ui-kit, charts, forms, icons, theme) and the domain packages (cart, checkout, catalog, accounts, search, pricing, orders, money, auth). The domain uses data access (db, cache, queue, events, http-client, storage), which uses core (config, log, errors, util, i18n, time). Checkout needs cart, orders, money and auth; auth needs db, cache and errors. Most connected: db (6 in, 4 out), config (7 in, 2 out), web (8 out), catalog (5 in, 3 out).
-:::
 
 `layout=force` pulls linked services together and pushes the rest apart, so the clusters show. It fits calls between services, where there is no top or bottom. An id may carry a numbered range: `node db-orders-{1..6} in data` declares six shards, and `orders -> db-orders-{1..6}` draws a line to each. **Fold a group** (beside the graph, or a double tap on its box) and its lines join on one box with a count; **Fold groups** folds them all. A graph over 300 nodes, or one that would be drawn too small to touch in its box (a phone), starts with every group folded. Its LLM view is the nodes by group, the edges as `a -> b` lines, and the most connected nodes: here far over 400 tokens, so a `:::llm` says it in short.
 

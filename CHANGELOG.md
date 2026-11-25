@@ -72,6 +72,14 @@ The fourth release candidate of 0.7.0. The format number stays 10.
   and the font's own widths). A card line whose drawn width would reach its border breaks again; other lines, sizes
   and layout choices keep their place. Hosts must map the stage font to Poppins.
 
+### Fixed: the graph's first sample reads at a glance (SPEC.md, graph)
+
+- **The first sample is a graph a reader can take in** (the rc.3 review: a 40-node tangle, many unnamed pills,
+  crossing lines, a name under the zoom buttons): it is now 16 nodes in 4 groups and 23 edges, every node
+  named, 7 line crossings (it was 80 edges), and its LLM view is the graph itself, with no `:::llm`. The graph
+  is also framed in the room left of the zoom buttons (a 56 px margin at the right edge, on fit, focus and
+  zoom to a group), so no name sits under a button.
+
 ### Fixed: sankey colours and sample words (SPEC.md, sankey)
 
 - A node with no colour word now skips the family colours that other nodes of the same sankey were given by word: on the parts page `auth` and `Redis` both drew in `c2` (and `handler` and `Postgres` in `c3`). Nothing changes when no node is given a colour word.

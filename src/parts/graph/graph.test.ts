@@ -432,16 +432,17 @@ describe("graph: the view's HTML (strict page: no HTML string anywhere)", () => 
 
 describe("graph: the Format page sample", () => {
   test("0 refusals and 0 warnings on the sample page", () => { expect(check(sampleDoc)).toEqual([]); });
-  test("the three samples and the still one: a package graph (layers, about 40), a service graph (force, 120 in 8 groups), a small radial one", () => {
+  test("the three samples and the still one: a package graph (layers, 16 nodes), a service graph (force, 120 in 8 groups), a small radial one", () => {
     const a = sample("A shop's packages"), b = sample("Calls between"), c = sample("What touches the sign-in");
-    expect([a.layout, a.nodes.length, a.groups.length]).toEqual(["layers", 40, 6]);
+    expect([a.layout, a.nodes.length, a.groups.length]).toEqual(["layers", 16, 4]);
     expect([b.layout, b.nodes.length, b.groups.length, b.size]).toEqual(["force", 120, 8, "l"]);
     expect([c.layout, c.centre, c.nodes.length]).toEqual(["radial", "auth", 12]);
     expect(sampleBlock("The same sign-in").attrs?.static ?? sampleBlock("The same sign-in").static).toBeDefined();
   });
-  test("the small radial one fits the 400-token rule with no :::llm; the two big ones carry one", () => {
+  test("the two small ones fit the 400-token rule with no :::llm; the big service graph carries one", () => {
     const bs = sampleDoc.blocks.filter((b: any) => b.type === "graph") as any[];
-    expect(bs.map((b) => b.llmKind)).toEqual(["text", "text", "own", "own"]);
+    expect(bs.map((b) => b.llmKind)).toEqual(["own", "text", "own", "own"]);
+    expect(Math.ceil(graphLlm(bs[0].data).length / 3)).toBeLessThanOrEqual(400);
     expect(Math.ceil(graphLlm(bs[2].data).length / 3)).toBeLessThanOrEqual(400);
   });
 });
@@ -603,5 +604,28 @@ describe("graph: the still picture's words stay 11 px on a phone", () => {
     }
     expect(sizes.length).toBeGreaterThanOrEqual(3);
     for (const px of sizes) expect(px * (11 / 13)).toBeGreaterThanOrEqual(11 - 1e-9);
+  });
+});
+
+// crossings: pairs of edges (straight lines between the nodes' middles) that cross, as the layers layout leaves them
+const crossings = (s: GraphSpec) => {
+  const at = new Map(s.nodes.map((n) => [n.id, n]));
+  const segs = s.edges.map((e) => [at.get(e.from), at.get(e.to), e] as const).filter(([a, b]) => a && b).map(([a, b, e]) => ({ a: a!, b: b!, e }));
+  const ccw = (p: any, q: any, r: any) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  let n = 0;
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
+    const s1 = segs[i], s2 = segs[j];
+    if (s1.a === s2.a || s1.a === s2.b || s1.b === s2.a || s1.b === s2.b) continue;
+    if (ccw(s1.a, s1.b, s2.a) * ccw(s1.a, s1.b, s2.b) < 0 && ccw(s2.a, s2.b, s1.a) * ccw(s2.a, s2.b, s1.b) < 0) n++;
+  }
+  return n;
+};
+describe("graph: the first sample reads at a glance", () => {
+  test("every node of the first sample is named by the author (a label or an id of a word), and it has few crossings and few nodes to draw", () => {
+    const s = sample("A shop's packages");
+    expect(s.nodes.length).toBeLessThanOrEqual(20);
+    expect(s.edges.length).toBeLessThanOrEqual(30);
+    for (const n of s.nodes) expect(n.label.length).toBeGreaterThan(1);
+    expect(crossings(s)).toBeLessThanOrEqual(8);
   });
 });

@@ -9,7 +9,7 @@
 //   node db "Postgres" [c3]
 //   ```
 import { definePart } from "../types";
-import { COLOUR_WORDS, familyOf, isSpace, mdTable, type Err } from "../kit/text";
+import { COLOUR_WORDS, FAMILY, familyOf, isSpace, mdTable, type Err } from "../kit/text";
 import type { Budget } from "../../core/budget";
 
 /** d3-sankey's relaxation passes: the view asks for exactly this many, and the budget charges for them */
@@ -76,7 +76,7 @@ export function parseSankey(chunks: Chunk[], attrs: Record<string, string>, line
   const spec: SankeySpec = { title: attrs.title ?? "", unit: attrs.unit ?? "", nodes: [], flows: [], steps: stepTitles.map((s) => s.title), errors, warnings };
   for (const k of Object.keys(attrs)) if (!["title", "unit", "id", "llm", "static"].includes(k)) errors.push({ line, msg: `sankey: unknown attribute "${k}" (the attributes are title, unit, static)` });
   if (stepTitles.length > lim.sankeySteps) errors.push({ line: stepTitles[0].line, msg: `sankey: at most ${lim.sankeySteps} steps (this one has ${stepTitles.length}); merge some` });
-  const byId = new Map<string, SNode>();
+  const byId = new Map<string, SNode>(), written = new Set<string>();
   const node = (id: string): SNode => {
     let n = byId.get(id);
     if (!n) { n = { id, label: id, colour: familyOf(byId.size), named: false }; byId.set(id, n); spec.nodes.push(n); }
@@ -113,7 +113,7 @@ export function parseSankey(chunks: Chunk[], attrs: Record<string, string>, line
             const n = node(nm.id);
             if (spec.nodes.length > lim.sankeyNodes) { errors.push({ line: ln, msg: `sankey: more than ${lim.sankeyNodes} nodes; merge the small ones` }); stop = true; break; }
             if (nm.label !== undefined) { n.label = nm.label; n.named = true; if (nm.label.length > SANKEY_LABEL) warnings.push({ line: ln, msg: `sankey: the label "${nm.label.slice(0, 24)}..." is ${nm.label.length} characters; keep it under ${SANKEY_LABEL}` }); }
-            if (nm.colour !== undefined) { if (!COLOUR_WORDS.includes(nm.colour)) errors.push({ line: ln, msg: `sankey: ${colourMsg(nm.colour)}` }); else n.colour = nm.colour; }
+            if (nm.colour !== undefined) { if (!COLOUR_WORDS.includes(nm.colour)) errors.push({ line: ln, msg: `sankey: ${colourMsg(nm.colour)}` }); else { n.colour = nm.colour; written.add(nm.id); } }
           }
         } else errors.push({ line: ln, msg: `sankey: line not understood: "${t.slice(0, 50)}"; write a flow as: from -> to: amount (for example: request -> auth: 12), or a node as: node db "Postgres" [c3]` });
       }
@@ -121,6 +121,12 @@ export function parseSankey(chunks: Chunk[], attrs: Record<string, string>, line
     }
   }
   if (!spec.flows.length && !errors.length) errors.push({ line, msg: `sankey: no flows; write one per line as: from -> to: amount` });
+  // a node with no colour word takes the family colours in order, skipping every one a node of this sankey was given by word
+  // (so an automatic colour never equals a written one while the eight last, and two automatic ones differ); nothing is skipped when no colour is written
+  if (written.size) {
+    const taken = new Set(spec.nodes.filter((n) => written.has(n.id)).map((n) => n.colour)), free = FAMILY.filter((c) => !taken.has(c));
+    if (free.length) { let k = 0; for (const n of spec.nodes) if (!written.has(n.id)) n.colour = free[k++ % free.length]; }
+  }
   // the layout the view will run, and the loop search below: their cost is a function of the sizes only
   budget?.charge(lines + 4 * (spec.nodes.length + spec.flows.length) + sankeyCost(spec.nodes.length, spec.flows.length), spec.nodes.length + 2 * spec.flows.length);
   const loop = findLoop(spec);

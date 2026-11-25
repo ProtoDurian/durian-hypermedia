@@ -152,6 +152,35 @@ describe("sankey: the layout", () => {
   });
 });
 
+describe("sankey: colours and words of the samples", () => {
+  test("a node with no colour word never takes a colour another node was given by word", () => {
+    const s = spec("request -> auth: 12\nrequest -> handler: 80\nhandler -> db: 55\nhandler -> render: 20\nhandler -> cache: 5\nnode db \"Postgres\" [c3]\nnode cache \"Redis\" [c2]");
+    const by = Object.fromEntries(s.nodes.map((n) => [n.id, n.colour]));
+    expect(by.db).toBe("c3");
+    expect(by.cache).toBe("c2");
+    expect(new Set(Object.values(by)).size).toBe(s.nodes.length);   // six nodes, six colours
+    expect(spec("a -> b: 1\nb -> c: 1").nodes.map((n) => n.colour)).toEqual(["c1", "c2", "c3"]);   // nothing written: as before
+  });
+  test("every sankey of the sample and of the good fixture: its colours differ while eight last, and a step caption does not count wrongly", () => {
+    const words: Record<string, number> = { two: 2, three: 3, four: 4, five: 5, six: 6 };
+    for (const file of [join(import.meta.dir, "sample.md"), join(import.meta.dir, "fixtures/good-basic.dh.md")]) {
+      const text = readFileSync(file, "utf8");
+      const blocks = parse(file.endsWith("sample.md") ? `# P\n\n${text}` : text, { path: "s.dh.md" }).blocks.filter((b) => b.type === "sankey");
+      expect(blocks.length).toBeGreaterThan(0);
+      for (const b of blocks) {
+        const d = (b as unknown as { data: ReturnType<typeof spec> }).data;
+        if (d.nodes.length <= 8) expect(new Set(d.nodes.map((n) => n.colour)).size).toBe(d.nodes.length);
+        d.steps.forEach((caption, k) => {
+          const n = /\b(two|three|four|five|six)\b/i.exec(caption);
+          if (!n) return;
+          const targets = new Set(d.flows.filter((f) => Math.min(f.appear, d.steps.length - 1) === k).map((f) => f.to));
+          expect(targets.size).toBe(words[n[1].toLowerCase()]);   // "the big three" over four targets was a fault
+        });
+      }
+    }
+  });
+});
+
 describe("sankey: fixtures", () => {
   const dir = join(import.meta.dir, "fixtures");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".dh.md"))) {

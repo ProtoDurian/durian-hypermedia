@@ -8,6 +8,11 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 The third release candidate of 0.7.0. The format number stays 10.
 
+### Fixed: sankey colours and sample words (SPEC.md, sankey)
+
+- A node with no colour word now skips the family colours that other nodes of the same sankey were given by word: on the parts page `auth` and `Redis` both drew in `c2` (and `handler` and `Postgres` in `c3`). Nothing changes when no node is given a colour word.
+- The sample's first step said "the big three" over four targets; it now reads "The money in and where it goes". A test checks that a step caption that counts (two to six) counts the targets its flows add.
+
 ### Fixed: chart labels never overlap, at any width (SPEC.md, chart-kinds)
 
 - A waterfall at 390 px drew the values over its bars on top of each other (`−€9.1K` over `−€2.3K`, `€85.1K` over `+€4.8K`), and tilted names under the bars could touch. The words are now measured: names stay level when they all fit, else upright and thinned; a value over a bar is drawn only where it has room (totals first); a histogram keeps only the number ticks that clear each other. Every name and value stays in the card and the LLM view.

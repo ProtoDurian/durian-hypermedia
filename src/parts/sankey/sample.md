@@ -17,7 +17,7 @@ income -> payroll: 62000
 income -> infra: 21000
 income -> tools: 6000
 income -> reserve: 11000
-@step The money in and the big three
+@step The money in and where it goes
 @step Infrastructure breaks down
 infra -> compute: 12500
 infra -> storage: 5200

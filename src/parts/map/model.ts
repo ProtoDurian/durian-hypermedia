@@ -110,12 +110,14 @@ export function fillPoints(s: MapSpec): LL[] {
 }
 /** a camera: the centre in Mercator units and `scale`, pixels per unit square (256 * 2^zoom) */
 export type Camera = { cx: number; cy: number; zoom: number };
-/** the camera that fits a box in a w by h pixel area with a margin; zoom is fractional */
-export function fitBox(b: Box | null, w: number, h: number, pad = 56, maxZoom = 17): Camera {
+/** the camera that fits a box in a w by h pixel area with a margin; zoom is fractional. `gutter` px at the right are kept clear of the
+ *  box (the zoom buttons sit there): the box is fitted in what is left and centred in it. */
+export function fitBox(b: Box | null, w: number, h: number, pad = 56, maxZoom = 17, gutter = 0): Camera {
   if (!b) return { cx: 0.5, cy: 0.5, zoom: 1 };
   const bw = Math.max(b.maxX - b.minX, 1e-7), bh = Math.max(b.maxY - b.minY, 1e-7);
-  const zx = Math.log2(Math.max(10, w - pad * 2) / (256 * bw)), zy = Math.log2(Math.max(10, h - pad * 2) / (256 * bh));
-  return { cx: (b.minX + b.maxX) / 2, cy: (b.minY + b.maxY) / 2, zoom: Math.max(0, Math.min(maxZoom, zx, zy)) };
+  const zx = Math.log2(Math.max(10, w - pad * 2 - gutter) / (256 * bw)), zy = Math.log2(Math.max(10, h - pad * 2) / (256 * bh));
+  const zoom = Math.max(0, Math.min(maxZoom, zx, zy));
+  return { cx: (b.minX + b.maxX) / 2 + gutter / 2 / (256 * 2 ** zoom), cy: (b.minY + b.maxY) / 2, zoom };
 }
 export function cameraAt(center: LL, zoom: number): Camera { const m = merc(center); return { cx: m.x, cy: m.y, zoom }; }
 /** a point in pixels inside a w by h area under a camera */

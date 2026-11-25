@@ -8,6 +8,11 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 The fourth release candidate of 0.7.0. The format number stays 10.
 
+### Fixed: the choropleth's first view and sample (SPEC.md, map)
+
+- The "Daily flow" sample coloured Germany, France and California, so the first view framed the whole Atlantic: Germany and France were squeezed against the right edge under the zoom buttons and the arc was tiny. The sample now shows Germany and France (the arc fills the view) and a second map shows western US states.
+- The first view of a map of regions or arcs keeps 52 px at the right clear of the coloured places, where the zoom buttons sit.
+
 ### Fixed: the weather sample and the hourly frame (SPEC.md, weather)
 
 - The Sydney sample forecast said sleet and an ice warning in November, which is spring there: a wrong fact. It is now an example spring forecast (rain, "Showers later"), and the samples are introduced as examples, not current conditions.

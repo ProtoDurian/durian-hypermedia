@@ -16,6 +16,7 @@ function part(body: string, info = "") {
 const msgs = (e: { msg: string }[]) => e.map((x) => x.msg).join("\n");
 import {readFileSync} from "node:fs";
 import {gzipSync} from "node:zlib";
+import {cameraFor} from "./view";
 import {MAP_CAPS,allPoints,fillPoints,mapLlm,parseMap,arc,boxOf,cameraAt,fitBox,haversine,kmWords,merc,routeLength,scaleBar,toPx,unmerc,hasWrittenPath} from "./model";
 import {CODE_COUNT,GEO_LIMITS,US_STATES,WORLD,binEdges,decodeRegions,fmtNum,inRegion,mixCss,mixOf,rangeOf,regionBox,regionPoint,suggestRegions,type Scale} from "./geo";
 import {US_DATA,US_Q} from "./geo-us";
@@ -97,6 +98,30 @@ describe("map: every refusal names the fix", () => {
   });
   test("the work is charged to the document budget", () => {
     expect(() => parseMap(part(Array.from({ length: 20 }, (_, i) => `place p${i} "P" 1, 1`).join("\n")),new Budget({steps:5,values:500,chars:5000}))).toThrow(BudgetError);
+  });
+});
+
+describe("choropleth: the first view is framed on the coloured places, clear of the zoom buttons", () => {
+  const view = (body: string, w = 640, h = 420) => { const spec = parseMap(part(body)); return { spec, cam: cameraFor(spec, 0, w, h) }; };
+  test("Germany and France fill the frame, and nothing coloured lies under the zoom buttons at the right", () => {
+    for (const w of [360, 390, 640, 1000]) {
+      const { spec, cam } = view("fill DE 83.2\nfill FR 68.4\narc DE -> FR 24 \"Flow\"", w);
+      const box = boxOf(allPoints(spec))!, S = 256 * 2 ** cam.zoom;
+      const right = w / 2 + (box.maxX - cam.cx) * S, left = w / 2 + (box.minX - cam.cx) * S;
+      expect(right).toBeLessThanOrEqual(w - 52 + 1);   // the buttons take the 52 px at the right
+      expect(left).toBeGreaterThanOrEqual(19);
+      const top = 420 / 2 + (box.minY - cam.cy) * S, bottom = 420 / 2 + (box.maxY - cam.cy) * S;
+      expect(Math.max((right - left) / (w - 52 - 40), (bottom - top) / (420 - 40))).toBeGreaterThan(0.85);   // the places fill the frame, not a corner of the Atlantic
+    }
+  });
+  test("the sample's maps no longer set an ocean between two coloured places", () => {
+    const text = readFileSync(new URL("./sample.md", import.meta.url), "utf8");
+    for (const m of text.matchAll(/```map([^\n]*)\n([\s\S]*?)\n```/g)) {
+      if (!/fill /.test(m[2])) continue;
+      const spec = parseMap(part(m[2]));
+      const b = boxOf(allPoints(spec))!;
+      expect(b.maxX - b.minX).toBeLessThan(0.2);   // a fifth of the world's width at most (Europe, or the western states)
+    }
   });
 });
 

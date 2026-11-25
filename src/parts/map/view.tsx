@@ -26,7 +26,8 @@ const WAY_WORDS: Record<string, string> = { walk: "on foot", bike: "by bike", dr
 /** the camera of step i: the view line, the last focus, or everything fitted */
 export function cameraFor(spec: MapSpec, i: number, w: number, h: number): Camera {
   const clampZ = (z: number) => Math.max(minZOf(spec), Math.min(MAX_Z, z));
-  const fitAll = fitBox(boxOf(allPoints(spec)), w, h, isGeo(spec) ? 20 : 56);
+  // a map of regions keeps its zoom buttons (top right, 8 px in, 32 px wide) off the data: 52 px at the right stay clear
+  const fitAll = fitBox(boxOf(allPoints(spec)), w, h, isGeo(spec) ? 20 : 56, 17, isGeo(spec) ? 52 : 0);
   let cam: Camera = spec.view ? cameraAt(spec.view.center, spec.view.zoom ?? fitAll.zoom) : fitAll;
   const find = (id: string): LL[] | null => {
     const p = spec.places.find((x) => x.id === id); if (p) return [p];

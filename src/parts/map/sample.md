@@ -11,13 +11,22 @@ show walk
 focus walk
 ```
 
-Country values, US states and flows share the same map and value list.
+Country values and flows share one map and one value list; the map is framed on the places that have a value.
 
 ```map title="Daily flow" unit="units per day" scale=steps steps=4
 fill DE 83.2
 fill FR 68.4
-fill US-CA 39.5
 arc DE -> FR 24 "Daily flow" [c2]
+```
+
+US states work the same way.
+
+```map title="Western states" unit="units per day" scale=steps steps=4
+fill US-CA 39.5
+fill US-WA 7.7
+fill US-AZ 7.2
+fill US-OR 4.2
+fill US-NV 3.1
 ```
 
 The globe uses the same data; with no WebGL it falls back to the flat map.

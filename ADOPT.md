@@ -5,15 +5,15 @@ view, the theme tokens to map, the sizes, what is optional, and how to add the h
 
 ## 0. Pin a version
 
-Releases are git tags `v<version>` (`v0.1.0` was the first, `v0.3.0` is the latest); the package is not on a registry. Pin the tag, never a
+Releases are git tags `v<version>` (`v0.1.0` was the first; the latest is at the top of the repository's tags and releases pages); the package is not on a registry. Pin the tag, never a
 branch, so the renderer under your pages only changes when you move the pin:
 
 ```sh
-bun add git+https://github.com/<owner>/durian-markdown.git#v0.3.0
+bun add git+https://github.com/<owner>/durian-markdown.git#v<version>   # the tag you chose, e.g. v0.8.0
 ```
 
 ```json
-{ "dependencies": { "durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v0.3.0" } }
+{ "dependencies": { "durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v<version>" } }
 ```
 
 Bun reads the TypeScript sources directly (the `bun` export condition); for Node and other bundlers the install runs

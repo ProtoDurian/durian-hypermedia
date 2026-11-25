@@ -105,7 +105,7 @@ export interface PartDef<D = unknown> {
    *  the content (an audio part's transcript). doccheck asks it with the part's data. */
   llmExempt?(data: D): boolean;
   /** The local files this part's data names (a download, a Lottie, a poster, a caption file). Read only by the Node entry
-   *  (durian-hypermedia/node checkLocalFiles); parse, the checks and the browser never call it. `ctx.limits` are the caps the
+   *  (durian-markdown/node checkLocalFiles); parse, the checks and the browser never call it. `ctx.limits` are the caps the
    *  page was parsed with, `ctx.line` the fence's line (for a path given in the info string). A path with a scheme or `//` is not local and is skipped; the rest is read under the host's root. */
   files?(data: D, ctx: { limits: Limits; line: number }): PartFileRef[];
 }

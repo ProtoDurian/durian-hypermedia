@@ -2,7 +2,7 @@
 // what it answered. No resolver: the label as a chip. Pending and failed have their own looks (tokens --ref-*, light and
 // dark). Ready: the part, drawn by the same part dispatch as a part written inline (Blocks, in document.tsx, draws it).
 // Also the two reference-only parts' plain views: an SVG drawn only through an <img>, and an interactive part's still
-// (its fallback; it runs only with the InteractivePart of "durian-hypermedia/react/interactive", when the host turns it on).
+// (its fallback; it runs only with the InteractivePart of "durian-markdown/react/interactive", when the host turns it on).
 import React from "react";
 import { useDh } from "./context";
 import { Md } from "./markdown";

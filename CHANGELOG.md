@@ -6,12 +6,19 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 ## 0.7.0
 
-0.7.0 is the five release candidates listed below made final; they hold every detail. Two things come with 0.7.0
+<!-- rename:changelog-sub:begin -->
+### Changed
+
+- **The package is now `durian-markdown`** (display name DurianMarkdown; the repository is renamed to match). Change the name in
+  `package.json` and in every import path (`durian-hypermedia/react` becomes `durian-markdown/react`); nothing after the name changes. See
+  "Moving from durian-hypermedia" in ADOPT.md.
+<!-- rename:changelog-sub:end -->
+
+0.7.0 is the five release candidates listed below made final; they hold every detail. One more thing comes with 0.7.0
 itself:
 
 - **The format number is now 11** (`FORMAT_VERSION`, `doc.format`, SPEC.md): the additions marked "format version 11"
   in the release candidates and in SPEC.md are the format 11 additions.
-- **The package is now `durian-markdown`** (display name DurianMarkdown).
 
 In short, the release candidates bring:
 

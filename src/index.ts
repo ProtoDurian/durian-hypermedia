@@ -1,11 +1,11 @@
-// durian-hypermedia: the format, a pure parser, the LLM view and the checks. No DOM, no files, no network.
-//   import { parse, llmView, check } from "durian-hypermedia";
+// durian-markdown: the format, a pure parser, the LLM view and the checks. No DOM, no files, no network.
+//   import { parse, llmView, check } from "durian-markdown";
 //   const doc = parse(text, { urlPolicy, blocks });   // typed, safe tree (types.ts)
 //   llmView(doc);                                     // what an LLM reads
 //   check(doc);                                       // doccheck's rules, as a list
 //   animationTexts(block);                            // the texts of an animation block (also block.texts)
-// Colours for code: highlight(doc) from "durian-hypermedia/server" (Bun or Node; Code Hike needs WebAssembly).
-// Drawing: "durian-hypermedia/react" (all parts) or "durian-hypermedia/react/<part>" (one part each).
+// Colours for code: highlight(doc) from "durian-markdown/server" (Bun or Node; Code Hike needs WebAssembly).
+// Drawing: "durian-markdown/react" (all parts) or "durian-markdown/react/<part>" (one part each).
 export { parse, llmView, check, animationTexts, FORMAT_VERSION, type ParseOptions } from "./document";
 export { defineBlock, registerBlock, unregisterBlock, type BlockDef, type BlockInput } from "./blocks";
 export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";

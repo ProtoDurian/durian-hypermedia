@@ -82,7 +82,7 @@ export function buildCss(): string {
   // the parts in their own folders (src/parts/<name>/style.css), the kit first: listed by scripts/parts.ts
   for (const f of PART_CSS) parts.push(`/* ---- parts/${f} (scoped) ---- */\n${transform(readFileSync(join(PKG, "src/parts", f), "utf8"), false)}`);
   const own = readFileSync(join(PKG, "src/styles/dh.css"), "utf8");
-  return `/* durian-hypermedia styles: every rule is scoped under .dh-doc. Theme tokens: THEME.md. */\n${parts.join("\n\n")}\n\n/* ---- dh.css (the package's own rules) ---- */\n${own}`;
+  return `/* durian-markdown styles: every rule is scoped under .dh-doc. Theme tokens: THEME.md. */\n${parts.join("\n\n")}\n\n/* ---- dh.css (the package's own rules) ---- */\n${own}`;
 }
 if (import.meta.main) {
   mkdirSync(join(PKG, "dist"), { recursive: true });

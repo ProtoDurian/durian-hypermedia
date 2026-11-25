@@ -1,6 +1,6 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse, chargeYaml } from "../host/yaml";
-// doccheck, Durian Hypermedia part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
+// doccheck, DurianMarkdown part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
 // Usage: bun tools/doccheck.ts check <docs-dir|file...> [--src <code-root>]
 // Each error names its check, as in the design's check table. Exit codes: 0 ok, 1 a check refused, 2 usage error.
 // Format version 3: parts are fenced blocks (```terminal ...) or containers (:::tabs ...); see SPEC.md.

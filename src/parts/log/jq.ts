@@ -1,4 +1,4 @@
-// The "jq subset": our own small jq, written for Durian Hypermedia's data explorer (pass 11, helper "data").
+// The "jq subset": our own small jq, written for DurianMarkdown's data explorer (pass 11, helper "data").
 // It runs at parse time (the author's `query=`) and in the browser (the reader's query box). jq-in-the-browser and jq
 // compiled to WebAssembly were not used: their evaluators cannot be metered, so `range(1e9)` would hang a tab. Here
 // every step charges a Budget (tools/budget.ts): a bad query ends with "too much work: make it smaller" and the tab stays live.

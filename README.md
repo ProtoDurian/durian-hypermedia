@@ -1,6 +1,10 @@
-# durian-hypermedia
+# durian-markdown
 
 **Markdown with rich parts, for two readers: a person sees the rich page; an LLM reads the same content without the wrappers.**
+
+<!-- rename:readme:begin -->
+Coming from `durian-hypermedia`? See [Moving from durian-hypermedia](ADOPT.md#moving-from-durian-hypermedia).
+<!-- rename:readme:end -->
 
 Plain Markdown is used wherever it already says the thing. A part with data is a code fence named for the part
 (```` ```terminal ````, ```` ```chart ````, ```` ```animation ````); a part that holds prose is a `:::` container
@@ -11,12 +15,12 @@ This package holds:
 | Piece | Import | What it does |
 | --- | --- | --- |
 | the format | [SPEC.md](SPEC.md) | every part, its syntax and its LLM view |
-| the parser | `durian-hypermedia` | `parse(text)` to a typed, safe tree; pure (no DOM, no files, no network) |
-| the LLM view | `durian-hypermedia` | `llmView(doc)`: what an LLM reads |
-| the checks | `durian-hypermedia` | `check(doc)`: the doccheck rules, as a list |
-| colours for code | `durian-hypermedia/server` | `highlight(doc)`, once, on the server |
-| the renderer | `durian-hypermedia/react` | React 18 or 19 components; one entry per part |
-| the styles | `durian-hypermedia/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
+| the parser | `durian-markdown` | `parse(text)` to a typed, safe tree; pure (no DOM, no files, no network) |
+| the LLM view | `durian-markdown` | `llmView(doc)`: what an LLM reads |
+| the checks | `durian-markdown` | `check(doc)`: the doccheck rules, as a list |
+| colours for code | `durian-markdown/server` | `highlight(doc)`, once, on the server |
+| the renderer | `durian-markdown/react` | React 18 or 19 components; one entry per part |
+| the styles | `durian-markdown/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
 | fixtures | `fixtures/` | one page per part and option, plus a hostile set |
 
 Licence: to be decided (see [Licence](#licence)).
@@ -24,16 +28,16 @@ Licence: to be decided (see [Licence](#licence)).
 ## Quick start
 
 ```sh
-bun add durian-hypermedia react react-dom
+bun add durian-markdown react react-dom
 ```
 
 On the server (Bun or Node):
 
 ```ts
-import { parse, llmView } from "durian-hypermedia";
-import { highlight } from "durian-hypermedia/server";
+import { parse, llmView } from "durian-markdown";
+import { highlight } from "durian-markdown/server";
 import { renderToString } from "react-dom/server";
-import { DhDocument } from "durian-hypermedia/react";
+import { DhDocument } from "durian-markdown/react";
 
 const doc = await highlight(parse(text));        // untrusted text is fine: see SECURITY.md
 const html = renderToString(<DhDocument doc={doc} />);
@@ -44,8 +48,8 @@ const forLlm = llmView(doc);
 In the browser:
 
 ```ts
-import "durian-hypermedia/styles.css";
-import { hydrateDocument, readDocument } from "durian-hypermedia/react/hydrate";
+import "durian-markdown/styles.css";
+import { hydrateDocument, readDocument } from "durian-markdown/react/hydrate";
 
 hydrateDocument(document.getElementById("dh-root")!, readDocument("dh-doc")!);
 ```
@@ -59,9 +63,9 @@ Or render in the browser only: `renderDocument(el, parse(text))` (code then show
 A smaller bundle: draw only the parts you use.
 
 ```tsx
-import { DocumentView } from "durian-hypermedia/react/document";
-import { TerminalPart } from "durian-hypermedia/react/terminal";
-import { ChartPart } from "durian-hypermedia/react/chart";
+import { DocumentView } from "durian-markdown/react/document";
+import { TerminalPart } from "durian-markdown/react/terminal";
+import { ChartPart } from "durian-markdown/react/chart";
 
 <DocumentView doc={doc} components={{ terminal: TerminalPart, chart: ChartPart }} />
 // a part with no component shows its LLM text, so nothing is lost
@@ -113,7 +117,7 @@ budget (SECURITY.md).
 
 ## Trusted Types
 
-`durian-hypermedia/react/strict` is every part for a page under `require-trusted-types-for 'script'`: no module it
+`durian-markdown/react/strict` is every part for a page under `require-trusted-types-for 'script'`: no module it
 reaches sets an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
 policy in headless Chrome (0 violations).
 
@@ -126,7 +130,7 @@ the page budget and offers day, week, month and list views; narrow parts start w
 Host code can opt in to a base map (install the chosen optional peer dependency and its CSS):
 
 ```tsx
-import { mapProvider } from "durian-hypermedia/react/map-providers";
+import { mapProvider } from "durian-markdown/react/map-providers";
 import "leaflet/dist/leaflet.css";
 const map = mapProvider({ provider: "leaflet", tiles: "https://tiles.example.org/{z}/{x}/{y}.png", attribution: "Map data credit" });
 <DhDocument doc={doc} map={map} now={Date.now()} />

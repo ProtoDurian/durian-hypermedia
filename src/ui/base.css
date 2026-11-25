@@ -1,4 +1,4 @@
-/* Durian Hypermedia renderer. Reads only the theme tokens (theme.css) plus the animation tones below. */
+/* DurianMarkdown renderer. Reads only the theme tokens (theme.css) plus the animation tones below. */
 
 /* ---- animation tones: one colour per role, the same on every page ---- */
 :root {

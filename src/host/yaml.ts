@@ -27,7 +27,7 @@ export function yamlParse(text: string): any {
   if (custom) v = custom(text);
   else {
     const B = (globalThis as any).Bun;
-    if (!B?.YAML?.parse) throw new Error("durian-hypermedia: no YAML parser; call setYamlParser() (for example with parse from the yaml package)");
+    if (!B?.YAML?.parse) throw new Error("durian-markdown: no YAML parser; call setYamlParser() (for example with parse from the yaml package)");
     v = B.YAML.parse(text);
   }
   yamlGuard(v, text.length, part.values, part.chars);

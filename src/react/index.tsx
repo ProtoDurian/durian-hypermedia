@@ -1,8 +1,8 @@
-// durian-hypermedia/react: every part, ready to draw a Document.
-//   import { DhDocument } from "durian-hypermedia/react";
-//   import "durian-hypermedia/styles.css";
+// durian-markdown/react: every part, ready to draw a Document.
+//   import { DhDocument } from "durian-markdown/react";
+//   import "durian-markdown/styles.css";
 //   <DhDocument doc={doc} variant="flat" />
-// For a smaller bundle, import DocumentView from "durian-hypermedia/react/document" and only the parts you need.
+// For a smaller bundle, import DocumentView from "durian-markdown/react/document" and only the parts you need.
 import React from "react";
 import { DocumentView, Blocks, type DocumentProps } from "./document";
 import { MarkdownPart } from "./markdown";

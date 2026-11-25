@@ -1,9 +1,9 @@
-// durian-hypermedia/react/strict: every part, for a page under Trusted Types (require-trusted-types-for 'script').
-// The same parts as "durian-hypermedia/react" (since 0.7.0 the two entries hold the same parts; this one stays so a
+// durian-markdown/react/strict: every part, for a page under Trusted Types (require-trusted-types-for 'script').
+// The same parts as "durian-markdown/react" (since 0.7.0 the two entries hold the same parts; this one stays so a
 // host can name the promise in its import). No module this entry reaches sets an HTML string (no
 // dangerouslySetInnerHTML, no innerHTML); test/trusted-types.test.ts checks the import graph, and `bun run tt` renders
 // every fixture in Chrome under the policy.
-//   import { DhDocument } from "durian-hypermedia/react/strict";
+//   import { DhDocument } from "durian-markdown/react/strict";
 //   <DhDocument doc={doc} slots={{ Code: MyCode, Link: MyLink }} />
 import React from "react";
 import { DocumentView, Blocks, type DocumentProps } from "./document";

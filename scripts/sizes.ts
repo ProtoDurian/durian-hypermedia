@@ -11,10 +11,10 @@ import { join, resolve } from "node:path";
 
 const PKG = resolve(import.meta.dir, "..");
 export const ENTRIES: [string, string][] = [
-  ["durian-hypermedia (parse, llmView, check)", "src/index.ts"],
-  ["durian-hypermedia/react (every part)", "src/react/index.tsx"],
-  ["durian-hypermedia/react/strict (every part, under Trusted Types)", "src/react/strict.tsx"],
-  ["durian-hypermedia/react/document (no part)", "src/react/document.tsx"],
+  ["durian-markdown (parse, llmView, check)", "src/index.ts"],
+  ["durian-markdown/react (every part)", "src/react/index.tsx"],
+  ["durian-markdown/react/strict (every part, under Trusted Types)", "src/react/strict.tsx"],
+  ["durian-markdown/react/document (no part)", "src/react/document.tsx"],
   ["react/terminal", "src/react/terminal.tsx"],
   ["react/filetree", "src/react/filetree.tsx"],
   ["react/editor", "src/react/editor.tsx"],

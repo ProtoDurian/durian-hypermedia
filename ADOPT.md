@@ -1,6 +1,6 @@
-# Adopting durian-hypermedia in another app
+# Adopting durian-markdown in another app
 
-What a host app needs to render Durian Hypermedia written by agents or people: the entry points, the input, the LLM
+What a host app needs to render DurianMarkdown written by agents or people: the entry points, the input, the LLM
 view, the theme tokens to map, the sizes, what is optional, and how to add the host's own blocks without forking.
 
 ## 0. Pin a version
@@ -9,15 +9,15 @@ Releases are git tags `v<version>` (`v0.1.0` was the first, `v0.3.0` is the late
 branch, so the renderer under your pages only changes when you move the pin:
 
 ```sh
-bun add git+https://github.com/<owner>/durian-hypermedia.git#v0.3.0
+bun add git+https://github.com/<owner>/durian-markdown.git#v0.3.0
 ```
 
 ```json
-{ "dependencies": { "durian-hypermedia": "git+https://github.com/<owner>/durian-hypermedia.git#v0.3.0" } }
+{ "dependencies": { "durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v0.3.0" } }
 ```
 
 Bun reads the TypeScript sources directly (the `bun` export condition); for Node and other bundlers the install runs
-`prepare` (`bun scripts/build.ts`), which writes `dist/`. `import { VERSION } from "durian-hypermedia"` says which
+`prepare` (`bun scripts/build.ts`), which writes `dist/`. `import { VERSION } from "durian-markdown"` says which
 version is installed; CHANGELOG.md says what changed between tags (before 1.0.0 a minor version may break the API, and
 says so there). To move: read the CHANGELOG entries between your tag and the new one, change the tag, run the fixtures.
 
@@ -25,16 +25,16 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 
 | Import | Runs where | Gives |
 | --- | --- | --- |
-| `durian-hypermedia` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `UNTRUSTED_LIMITS`, `defaultUrlPolicy`, every type |
-| `durian-hypermedia/server` | Bun or Node | `highlight(doc)`: colours for code (Code Hike on WebAssembly) |
-| `durian-hypermedia/react` | React 18 or 19 | `DhDocument` (every part), each part component, `DEFAULT_SLOTS`, `UI` |
-| `durian-hypermedia/react/strict` | React, under Trusted Types | `DhDocument` with every part; no HTML-string sink |
-| `durian-hypermedia/react/document` | React | `DocumentView`: the document with only the parts you pass |
-| `durian-hypermedia/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
-| `durian-hypermedia/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
-| `durian-hypermedia/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
-| `durian-hypermedia/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
-| `durian-hypermedia/styles.css` | CSS | every rule under `.dh-doc` |
+| `durian-markdown` | anywhere (Bun, Node, a browser, a worker) | `parse`, `llmView`, `check`, `defineBlock`, `registerBlock`, `defineInline`, `LIMITS`, `UNTRUSTED_LIMITS`, `defaultUrlPolicy`, every type |
+| `durian-markdown/server` | Bun or Node | `highlight(doc)`: colours for code (Code Hike on WebAssembly) |
+| `durian-markdown/react` | React 18 or 19 | `DhDocument` (every part), each part component, `DEFAULT_SLOTS`, `UI` |
+| `durian-markdown/react/strict` | React, under Trusted Types | `DhDocument` with every part; no HTML-string sink |
+| `durian-markdown/react/document` | React | `DocumentView`: the document with only the parts you pass |
+| `durian-markdown/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
+| `durian-markdown/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
+| `durian-markdown/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
+| `durian-markdown/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
+| `durian-markdown/styles.css` | CSS | every rule under `.dh-doc` |
 
 All of it is ESM. React is a peer dependency (`>=18 <20`); the tests run on React 18.3.1.
 
@@ -67,7 +67,7 @@ with smaller YAML and animation work caps, so its slowest pages parse about thre
 the measured worst cases). Lower any cap further by spreading it:
 
 ```ts
-import { parse, UNTRUSTED_LIMITS } from "durian-hypermedia";
+import { parse, UNTRUSTED_LIMITS } from "durian-markdown";
 const doc = parse(reply, { limits: { ...UNTRUSTED_LIMITS, maxInputBytes: 100_000 } });
 ```
 
@@ -124,7 +124,7 @@ server's wide drawing with words of about 6 px; without scripts the server's dra
 or its own `hydrateRoot` must add the class itself, before the page paints:** `<script>document.documentElement.classList.add("js")</script>`
 in the `<head>` (a nonce or hash under a strict CSP). A host that calls `hydrateRoot` itself gets the old behaviour
 (every part at once), unless it opts in: `const order = new HydrationOrder(); hydrateRoot(el, <TurnContext.Provider value={order}><DhDocument ... /></TurnContext.Provider>); order.watch(el);`
-(both exported from `durian-hypermedia/react/hydrate`; `order.stop()` lets every waiting part go).
+(both exported from `durian-markdown/react/hydrate`; `order.stop()` lets every waiting part go).
 So `hydrateDocument` is that, with the class `js`. A page that re-renders its root (a variant or theme prop)
 while it hydrates should wrap that update in `React.startTransition`: React switches a part that gets an update before it
 has hydrated to client rendering (its error 424), which throws the server's drawing away. The queue finds a part by a block with no height, class
@@ -139,7 +139,7 @@ server-rendered HTML (code colours, sizes). Without
 `'unsafe-inline'` a page rendered only in the browser works for every part (React sets styles through
 the DOM, which CSP allows); see the notes in SECURITY.md.
 
-**Trusted Types.** Under `require-trusted-types-for 'script'`, use `durian-hypermedia/react/strict`. That
+**Trusted Types.** Under `require-trusted-types-for 'script'`, use `durian-markdown/react/strict`. That
 entry's import graph holds no HTML-string sink (`test/trusted-types.test.ts`), and every fixture renders under the
 policy with 0 violations (`bun run tt`).
 
@@ -180,7 +180,7 @@ the package's code in every chunk, first load and later, with the dependencies l
 
 | Entry | First load (min / gzip) | Later, on demand (min / gzip) | Own code only (min / gzip) |
 | --- | --- | --- | --- |
-| `durian-hypermedia` (parse, llmView, check) | 954 KB / 349 KB | none | 902 KB / 324 KB |
+| `durian-markdown` (parse, llmView, check) | 954 KB / 349 KB | none | 902 KB / 324 KB |
 | `react` (every part) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (libraries loaded only when needed: chart.js when a chart mounts, three.js when a reader opens 3D, and others) | 3.0 MB / 1.0 MB |
 | `react/strict` (every part, under Trusted Types) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (the same) | 3.0 MB / 1.0 MB |
 | `react/document` (no part) | 646 KB / 237 KB | none | 581 KB / 207 KB |
@@ -210,7 +210,7 @@ A host adds its own fenced blocks (a terminal session, a browser recording, a ta
 prose (`@src/a.ts`, `&T-12`) without forking. One definition serves the parser and the renderer.
 
 ```tsx
-import { defineBlock, defineInline } from "durian-hypermedia";
+import { defineBlock, defineInline } from "durian-markdown";
 
 export const taskBlock = defineBlock({
   name: "fy-task",                                   // the fence word: ```fy-task
@@ -269,7 +269,7 @@ const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
 - **svg** is drawn only through an `<img>` with a `data:` address; a host CSP needs `img-src data:` for it.
 - **interactive** is off unless the host turns it on:
   `<DhDocument doc={doc} interactive="on" components={{ interactive: InteractivePart }} />` with
-  `InteractivePart` from `durian-hypermedia/react/interactive` (`"static"` draws it with no script). Under Trusted
+  `InteractivePart` from `durian-markdown/react/interactive` (`"static"` draws it with no script). Under Trusted
   Types add `dh-interactive` to the page's `trusted-types` list. **Set `frame-src 'none'`** in the page's CSP: the
   frame still loads, and a script that navigates it can make no request (without it, one request leaves before the
   frame is stopped; SECURITY.md). The frame keeps the page's CSP: with no
@@ -283,3 +283,25 @@ const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
 kind and option, tier lists, alignment grids, 2D and 3D animations, code walks animated and still, editor, terminal,
 file trees, tabs, accordions, callouts, human and LLM segments), the hand-written pages (plain Markdown, a code walk,
 host blocks), and `fixtures/hostile/`, one attack per page. `bun run example` serves them all, with a style switch.
+
+<!-- rename:moving:begin -->
+## Moving from durian-hypermedia
+
+The package, the repository and the display name are now **durian-markdown** / **DurianMarkdown** (0.7.0). The format, the
+parser, the renderer and every name below the package name are unchanged: pages (`.md`, `.dh.md`) and themes need no edit.
+
+1. **Install.** Replace the dependency:
+   `bun remove durian-hypermedia && bun add git+https://github.com/<owner>/durian-markdown.git#v0.7.0`
+   (in package.json: `"durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v0.7.0"`, and remove `"durian-hypermedia"`).
+2. **Imports.** Change the package name in every import path; the part after it stays:
+   `import { parse } from "durian-hypermedia"` becomes `import { parse } from "durian-markdown"`, and likewise
+   `durian-hypermedia/react`, `/react/strict`, `/react/document`, `/react/<part>`, `/react/hydrate`, `/server`, `/styles.css` and `/fixtures/*`.
+   One command for a whole app: `rg -l 'durian-hypermedia' src | xargs sed -i 's#durian-hypermedia#durian-markdown#g'`.
+3. **What did not change.** Exports (`DhDocument`, `parse`, `llmView`, `check`, ...), the `.dh-doc` class and every
+   `dh-*` class, `data-dh-*` attributes, the `.dh.md` file name, the `doc.ast` and `doc.format` numbers and the `DH_*`
+   environment variables.
+4. **Redirects.** GitHub sends the old repository address to the new one, so an old `git+https://github.com/<owner>/durian-hypermedia.git`
+   link keeps installing, but it installs under the old package name, so imports still need step 2 after you switch the
+   dependency. There is no redirect for an import path: change it. Error messages now start with `durian-markdown:`; a test
+   that matched `durian-hypermedia:` in an error message needs the new prefix.
+<!-- rename:moving:end -->

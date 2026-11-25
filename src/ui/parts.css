@@ -1,4 +1,4 @@
-/* ===== Durian Hypermedia, format version 2: the parts ===== */
+/* ===== DurianMarkdown, format version 2: the parts ===== */
 :root { --tone-good: #18964A; --tone-good-soft: #DCF1E3; --stage-bg: var(--surface); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .part { margin: 28px 0; min-width: 0; }

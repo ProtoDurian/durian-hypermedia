@@ -21,7 +21,7 @@ const global = new Map<string, BlockDef<any, any>>();
 
 /** Make a block definition (type help only; it returns what it is given, after checking the name). */
 export function defineBlock<D = unknown, C = unknown>(def: BlockDef<D, C>): BlockDef<D, C> {
-  if (!NAME_RE.test(def.name)) throw new Error(`durian-hypermedia: a block name is lower case letters, digits and dashes, starting with a letter: "${def.name}"`);
+  if (!NAME_RE.test(def.name)) throw new Error(`durian-markdown: a block name is lower case letters, digits and dashes, starting with a letter: "${def.name}"`);
   return def;
 }
 /** Register a block for every parse() and every renderer in this process (or pass `blocks` to parse() and the renderer

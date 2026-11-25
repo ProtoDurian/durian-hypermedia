@@ -1,6 +1,6 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse, chargeYaml } from "../host/yaml";
-// dh-lib: the Durian Hypermedia parser and writers, shared by dh (parse and write) and doccheck (checks).
+// dh-lib: the DurianMarkdown parser and writers, shared by dh (parse and write) and doccheck (checks).
 // Format version 3: plain Markdown first.
 //   - a part with data is a fenced code block whose info string names it: ```terminal, ```filetree, ```editor,
 //     ```codewalk, ```chart, ```animation <kind>

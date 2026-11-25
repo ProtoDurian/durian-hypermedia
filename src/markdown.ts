@@ -473,7 +473,7 @@ function keepLineStarts(md: Reader) {
 
 function makeReader(defs: InlineDef<any, any>[] | undefined, lazyInline = false): Reader {
   const finders: RefFinder[] = (defs ?? []).map((d) => {
-    if (!/^[a-z][a-z0-9-]{0,40}$/.test(d.name)) throw new Error(`durian-hypermedia: an inline name is lower case letters, digits and dashes: "${d.name}"`);
+    if (!/^[a-z][a-z0-9-]{0,40}$/.test(d.name)) throw new Error(`durian-markdown: an inline name is lower case letters, digits and dashes: "${d.name}"`);
     const flags = d.match.flags.replace(/[gy]/g, "");
     return { name: d.name, def: d, find: new RegExp(d.match.source, flags + "g"), at: new RegExp(d.match.source, flags + "y") };
   });

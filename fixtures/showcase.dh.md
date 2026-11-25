@@ -8,8 +8,8 @@ description: Several parts on one page, to compare the style variants (soft, fla
 ## A terminal
 
 ```terminal title="setup"
-$ bun add durian-hypermedia
-installed durian-hypermedia@0.1.0
+$ bun add durian-markdown
+installed durian-markdown@0.1.0
 $ bun test
 301 pass, 0 fail
 ```
@@ -53,8 +53,8 @@ Parse and render in the browser; code shows without colours.
 
 ```codewalk
 @file src/page.tsx
-import { parse } from "durian-hypermedia";
-import { DhDocument } from "durian-hypermedia/react";
+import { parse } from "durian-markdown";
+import { DhDocument } from "durian-markdown/react";
 
 export function Page({ text }: { text: string }) {
   const doc = parse(text);

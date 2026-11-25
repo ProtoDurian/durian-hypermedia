@@ -1,9 +1,9 @@
 // DocumentView: draws a Document with the part components it is given (tree-shakeable: import only the parts you use).
-//   import { DocumentView } from "durian-hypermedia/react/document";
-//   import { ChartPart } from "durian-hypermedia/react/chart";
+//   import { DocumentView } from "durian-markdown/react/document";
+//   import { ChartPart } from "durian-markdown/react/chart";
 //   <DocumentView doc={doc} components={{ chart: ChartPart }} />
 // A part with no component is shown as what an LLM reads (plain text), so nothing is lost.
-// "durian-hypermedia/react" exports DhDocument, the same with every part.
+// "durian-markdown/react" exports DhDocument, the same with every part.
 import React, { useMemo, useRef } from "react";
 import { UI, type Ui } from "../ui/ui";
 import { registeredBlocks, type BlockDef } from "../blocks";
@@ -50,7 +50,7 @@ export interface DocumentProps {
   /** draw every folder part that steps or moves static: "" the finished state, "<n>" step n, or a step's title */
   static?: import("../parts/types").StaticProp;
   /** an interactive part a reference resolved to: "off" (the default) shows its still; "static" draws its HTML and CSS
-   *  in a sandboxed frame with no script; "on" runs it there. Needs InteractivePart from durian-hypermedia/react/interactive */
+   *  in a sandboxed frame with no script; "on" runs it there. Needs InteractivePart from durian-markdown/react/interactive */
   interactive?: "off" | "static" | "on";
   /** options for the folder parts, by part name: `{ weather: { units: { temp: "f", wind: "mph" } } }` sets the default units of every weather part (the reader's own choice still wins) */
   partOptions?: Readonly<Record<string, unknown>>;

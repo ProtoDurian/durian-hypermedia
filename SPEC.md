@@ -1,8 +1,8 @@
-# Durian Hypermedia: the format
+# DurianMarkdown: the format
 
 > Format version 11 (0.7.0, 2026-11-25 Pacific time). Version 10 is the SPEC.md of tag v0.6.2, version 9 is in SPEC.v9.md, version 8 in SPEC.v8.md, version 7 in SPEC.v7.md, version 6 in SPEC.v6.md, version 5 in SPEC.v5.md, version 4 in SPEC.v4.md, version 3 in SPEC.v3.md, version 2 in SPEC.v2.md.
 
-**Answer first.** Durian Hypermedia is plain Markdown plus a few parts. Plain Markdown is used wherever it already says the thing. A part with data is a fenced code block whose info string names the part (```` ```terminal ````, ```` ```animation ````). A part that holds prose is one of four containers (`:::tabs`, `:::accordion`, `:::human`, `:::llm`). Steps are not a part: any part becomes step by step when it holds `@step` lines. An animation is one engine for everything: entities, layouts, a camera the reader can move, and steps (section 6). The same scene draws flat (2D) or in 3D, where its layers can be split apart and zoomed into (section 6.9). Every size, colour and placement on the stage comes from a small design system (section 6.10). The LLM view takes the wrapper off and keeps the content; only a chart (its data, as a table), a tier list (one line per tier), an alignment grid (a table of cells or points) and an animation (what it starts with, then its captions) get something in their place.
+**Answer first.** DurianMarkdown is plain Markdown plus a few parts. Plain Markdown is used wherever it already says the thing. A part with data is a fenced code block whose info string names the part (```` ```terminal ````, ```` ```animation ````). A part that holds prose is one of four containers (`:::tabs`, `:::accordion`, `:::human`, `:::llm`). Steps are not a part: any part becomes step by step when it holds `@step` lines. An animation is one engine for everything: entities, layouts, a camera the reader can move, and steps (section 6). The same scene draws flat (2D) or in 3D, where its layers can be split apart and zoomed into (section 6.9). Every size, colour and placement on the stage comes from a small design system (section 6.10). The LLM view takes the wrapper off and keeps the content; only a chart (its data, as a table), a tier list (one line per tier), an alignment grid (a table of cells or points) and an animation (what it starts with, then its captions) get something in their place.
 
 People write one source file (`.dh.md`; a page with no part stays `.md`). A person reads the rich page made from it; an LLM reads the LLM view, which `dh llm` writes from the same source. The `dh` tool only parses and writes; every check is doccheck's.
 
@@ -428,7 +428,7 @@ media/requests.csv "Raw data" note="one row per request"
 - **Addresses:** every address goes through the host's `urlPolicy` when the card is drawn; a refused one shows a plain note instead of the link. The parser itself never allows `data:`, `blob:`, `javascript:`, `file:`, any other scheme, a protocol-relative `//` address, or a space or control character.
 - **LLM view:** `Downloads: <title>.` then `- <label>: <address> (PDF, 2.4 MB, sha256 9f86d0...0a08)` a line each, with the whole checksum on the next line.
 - **Caps:** `downloadsFiles` (100; 40 in UNTRUSTED_LIMITS) files in one list, and `downloadsCheckBytes` (64 MB; 16 MB) the most the Node entry reads of one file to check its checksum.
-- **Local files:** `checkLocalFiles` from `durian-hypermedia/node` (never the core) reads each file named under the host's root: the stated size must be what the file has at the precision written, and the checksum must match; a missing file, an absolute path or a `..` is refused.
+- **Local files:** `checkLocalFiles` from `durian-markdown/node` (never the core) reads each file named under the host's root: the stated size must be what the file has at the precision written, and the checksum must match; a missing file, an absolute path or a `..` is refused.
 - **doccheck refuses:** an address that is not allowed; a size with no unit (B, KB, MB, GB; decimal); a checksum of the wrong length or not hex; `md5=` or `sha1=` (weak: use `sha256=`); a second label; an unknown `key=`; a word that is not a size, a label or a key; a file listed twice; no files; more files than the cap; an unknown option; a part over the page's work budget.
 
 #### Explore
@@ -624,7 +624,7 @@ colours: dh-c1 = c1, dh-warn = warn
 - **Addresses:** the file goes through the host's `urlPolicy` as `image` when the part is drawn. Response bytes are capped while reading.
 - **Static** (`static` on the fence, a static page, the host or print; SPEC 4.1): the still frame, with no play, slider or speed.
 - **LLM view:** `Lottie animation: <title>. <alt>`. **Tokens:** `--lottie-bg`, `--lottie-radius`. **Slots:** `stage`, `play`, `speed`, `alt`.
-- **Local file:** `checkLocalFiles` from `durian-hypermedia/node` reads the file and runs the checks the browser runs at load (size, frames, layers, no expression, nothing loaded from outside the file) and checks that every `colours:` name is in the file.
+- **Local file:** `checkLocalFiles` from `durian-markdown/node` reads the file and runs the checks the browser runs at load (size, frames, layers, no expression, nothing loaded from outside the file) and checks that every `colours:` name is in the file.
 - **Caps** (travel in the data, checked in the browser when the file loads): `lottieBytes` (1 MB; 256 KB in UNTRUSTED_LIMITS), `lottieFrames` (3,600; 1,800), `lottieLayers` (500; 200), `lottieNodes` (200,000; 50,000).
 - **doccheck refuses:** no `alt:` line; no `src`; a `src` that is not a `.json` file or not an allowed address; a `colours:` entry that is not `name = colour` or names a colour that is not a theme colour word; `speed=` outside 0.25 to 4; `start=` other than paused or play; a bad `height`; an unknown option; a line the part does not know; a part over the page's work budget.
 
@@ -691,7 +691,7 @@ arc DE -> US 40
 - **Tokens** (the map’s `style.css`): `--map-ocean`, `--map-land`, `--map-border`, `--map-graticule`, `--map-region-line`, `--map-region-hover`, `--map-arc-opacity`, `--map-globe-h`, `--map-halo`. Slots: `land`, `regions`, `arc`, `scale`, `values`, `arcs`, `globe`.
 
 - **Static:** draws the selected step immediately, without controls, gestures, routing or provider requests. A globe becomes a flat map; bundled boundaries and every value remain available without JavaScript.
-- **Provider integration:** import `mapProvider` from `durian-hypermedia/react/map-providers` in host code and pass its result as `DocumentView map={...}`. Install the chosen optional provider and its CSS. This opt-in entry is outside the default and strict renderer graphs; Leaflet, MapLibre and Google have their own CSP requirements. The host can instead supply its own `MapHost` capabilities without these libraries.
+- **Provider integration:** import `mapProvider` from `durian-markdown/react/map-providers` in host code and pass its result as `DocumentView map={...}`. Install the chosen optional provider and its CSS. This opt-in entry is outside the default and strict renderer graphs; Leaflet, MapLibre and Google have their own CSP requirements. The host can instead supply its own `MapHost` capabilities without these libraries.
 
 #### Maths (`$...$`, `$$...$$` and `math`)
 
@@ -724,7 +724,7 @@ $$
 - **The worker.** Under strict Trusted Types the viewer must not start a `Worker` (a script-URL sink), so by default pdf.js's worker module is imported into the main thread (`globalThis.pdfjsWorker`, pdf.js's own hook): no `Worker`, no `eval`, no HTML string, no policy. A host that wants a real Worker serves `pdf.worker.min.mjs` from its own origin and sets `<html data-dh-pdf-worker="worker" data-dh-pdf-worker-src="/assets/pdf.worker.min.mjs">` (used only when the page's own header does not require Trusted Types).
 - **Static** (`static` on the fence, a static page, the host or print; SPEC 4.1): one page (`page=`, else the first) at the box's width, with no toolbar, search, outline or swipe.
 - **LLM view:** `PDF: <title>, <address>.` (the text of the file is not read by the parser; a host that wants it gives a `:::llm`). **Tokens:** `--pdf-bg`, `--pdf-radius`, `--pdf-page-bg` (white in dark too, pages are paper), `--pdf-gap`. **Slots:** `toolbar`, `page`, `outline`, `search`.
-- **Local file:** `checkLocalFiles` from `durian-hypermedia/node` checks the file is a PDF within its cap and has the page `page=` names (pages are counted as page objects; a file that keeps them in compressed object streams is not page-checked).
+- **Local file:** `checkLocalFiles` from `durian-markdown/node` checks the file is a PDF within its cap and has the page `page=` names (pages are counted as page objects; a file that keeps them in compressed object streams is not page-checked).
 - **Caps** (travel in the data, checked in the browser at load): `pdfPages` (500; 200 in UNTRUSTED_LIMITS), `pdfBytes` (20 MB; 8 MB).
 - **doccheck refuses:** a `src` that is not a `.pdf` file or not an allowed address, no `src`, `page=` that is not a number from 1, a `view` other than page or scroll, a bad `height`, an unknown option, any body line, a part over the page's work budget.
 
@@ -1935,11 +1935,11 @@ g.addEventListener("input", () => { o.textContent = g.value + "%"; });
 Revenue grows 20% a year: year 5 is about 2.07 times year 1.
 ```
 
-- **Off unless the host turns it on.** Off (the default) shows the still and a chip, "Interactive part: off on this site". `interactive="static"` draws the HTML and CSS with no script; `interactive="on"` runs it. Both need `InteractivePart` from `durian-hypermedia/react/interactive`.
+- **Off unless the host turns it on.** Off (the default) shows the still and a chip, "Interactive part: off on this site". `interactive="static"` draws the HTML and CSS with no script; `interactive="on"` runs it. Both need `InteractivePart` from `durian-markdown/react/interactive`.
 - **Isolated.** An `<iframe sandbox="allow-scripts">` with no `allow-same-origin`: an empty origin of its own, so no cookies, no storage and no reach into the page; no forms, pop-ups or top navigation. Its page has the policy `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'`, so nothing is fetched. It gets the theme tokens as CSS variables, and new values when the theme changes.
 - **One message.** The page accepts only the frame's height, a number, from that frame. With `interactive="on"` the frame must say it within 5 seconds; it is stopped after 10 minutes; a frame that loads a second page (it tried to leave) is stopped. A stopped frame is removed and the still comes back.
 - **The host sets `frame-src 'none'`.** A sandbox cannot stop a frame from navigating itself; the host page's `frame-src 'none'` refuses every navigation before a request (the srcdoc frame still loads). Without it, one request can leave before the frame is stopped.
-- **Trusted Types.** Only `durian-hypermedia/react/interactive` makes a policy, named `dh-interactive`. A page that requires Trusted Types lists that name to run the part; otherwise the still stays.
+- **Trusted Types.** Only `durian-markdown/react/interactive` makes a policy, named `dh-interactive`. A page that requires Trusted Types lists that name to run the part; otherwise the still stays.
 - **The host page's CSP holds in the frame too** (a srcdoc frame keeps its page's policy). On a page whose CSP has no `'unsafe-inline'` for scripts, the frame's script does not run and the part stops at its 5 second check.
 - **What it is for:** a picture the reader changes (bars, a curve, a grid, with sliders, toggles, a select). Never a stepper, a slideshow or a quiz: a sequence is prose or steps.
 
@@ -2076,7 +2076,7 @@ Phone rules (no new words):
 
 - New: `[[<type>:<name> "label"]]` stands for a part the host keeps; on its own paragraph a block, in a sentence a chip, in code text. A version 10 page with none reads and draws as before.
 - New types that exist only as references: `svg` (drawn through an `<img>`) and `interactive` (run in a sandboxed frame, off unless the host turns it on). A fenced ```` ```svg ```` or ```` ```interactive ```` is refused, naming the reference form; its text still shows as code.
-- New `parse()` option `resolveReference`, new caps `maxReferences`, `maxReferenceBytes`, `maxSvgBytes`, `maxInteractiveBytes`, new entry `durian-hypermedia/react/interactive`, new tokens `--ref-*` and `--ix-*`.
+- New `parse()` option `resolveReference`, new caps `maxReferences`, `maxReferenceBytes`, `maxSvgBytes`, `maxInteractiveBytes`, new entry `durian-markdown/react/interactive`, new tokens `--ref-*` and `--ix-*`.
 
 ## 11. What changed from version 9
 

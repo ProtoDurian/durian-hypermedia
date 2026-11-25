@@ -243,10 +243,10 @@ DOM, which CSP allows (0 violations on every other part).
 
 No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements. For a page under `require-trusted-types-for 'script'`:
 
-- `durian-hypermedia/react/strict`: its whole import graph (dependencies
+- `durian-markdown/react/strict`: its whole import graph (dependencies
   included, React left out) has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
   `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`), and never reaches
-  `durian-hypermedia/react/interactive`, the only module that sets a frame's page, under its own policy
+  `durian-markdown/react/interactive`, the only module that sets a frame's page, under its own policy
   `dh-interactive` (`test/refs-tt.test.ts`).
 - `bun run tt` renders every fixture (hostile ones included) in the browser only, through the strict entry, under the
   policy: 0 violations. A control page that puts a plain string into `innerHTML` must be refused, or the check fails.

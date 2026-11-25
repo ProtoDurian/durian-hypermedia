@@ -1,6 +1,6 @@
-// durian-hypermedia/react/interactive: runs an interactive part a reference resolved to (format version 11), in a frame
+// durian-markdown/react/interactive: runs an interactive part a reference resolved to (format version 11), in a frame
 // of its own, only when the host turns it on:
-//   import { InteractivePart } from "durian-hypermedia/react/interactive";
+//   import { InteractivePart } from "durian-markdown/react/interactive";
 //   <DhDocument doc={doc} interactive="on" components={{ interactive: InteractivePart }} />
 // - the frame: <iframe sandbox="allow-scripts"> (no allow-same-origin: an empty origin of its own, so no cookies, no
 //   storage and no reach into the page; no forms, pop-ups or top navigation), its page under the policy

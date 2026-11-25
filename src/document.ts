@@ -1,4 +1,4 @@
-// parse(): Durian Hypermedia text to the typed, safe Document. Pure: no files, no network, no DOM.
+// parse(): DurianMarkdown text to the typed, safe Document. Pure: no files, no network, no DOM.
 // The format's own parser (core/dh-lib.ts, shared with the site and doccheck) reads the parts; this file adds the caps,
 // the URL policy, the safe Markdown tree, host blocks, and turns every part into plain typed data.
 import {

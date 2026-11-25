@@ -44,8 +44,8 @@ web -> log "visit"
 Live:
 
 ```terminal title="setup"
-$ bun add durian-hypermedia
-installed durian-hypermedia
+$ bun add durian-markdown
+installed durian-markdown
 $ bun test
 301 pass, 0 fail
 ```
@@ -53,8 +53,8 @@ $ bun test
 Static, every command typed:
 
 ```terminal title="setup" static
-$ bun add durian-hypermedia
-installed durian-hypermedia
+$ bun add durian-markdown
+installed durian-markdown
 $ bun test
 301 pass, 0 fail
 ```

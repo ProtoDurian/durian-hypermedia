@@ -1,4 +1,4 @@
-// No HTML-string sink under the strict React entry: bundle "durian-hypermedia/react/strict" with every dependency it
+// No HTML-string sink under the strict React entry: bundle "durian-markdown/react/strict" with every dependency it
 // reaches (React and React DOM left out: the host ships them) and look at both the module list and the code.
 // The browser half of this check is `bun run tt`: every fixture rendered under require-trusted-types-for 'script'.
 import { describe, expect, test } from "bun:test";

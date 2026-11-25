@@ -1,10 +1,10 @@
-// durian-hypermedia/node: what only a machine with files can check (format version 11). The parser and the core checks
+// durian-markdown/node: what only a machine with files can check (format version 11). The parser and the core checks
 // are pure and never touch a disk; this entry reads the local files a page's parts name (a download's size and checksum,
 // that a Lottie file is a Lottie and has the colour slots the page uses, that a poster, a caption file or an audio file
-// is there) and returns the same issues the core check does. It is imported by name, never from "durian-hypermedia".
+// is there) and returns the same issues the core check does. It is imported by name, never from "durian-markdown".
 //
-//   import { parse } from "durian-hypermedia";
-//   import { checkLocalFiles } from "durian-hypermedia/node";
+//   import { parse } from "durian-markdown";
+//   import { checkLocalFiles } from "durian-markdown/node";
 //   const issues = checkLocalFiles(parse(text, { path: "docs/guide.dh.md" }), { root: process.cwd() });
 //
 // Every path is read under `root` and nowhere else: an absolute path, a `..`, a path that resolves (also through a

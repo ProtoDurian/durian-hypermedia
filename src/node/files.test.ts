@@ -221,7 +221,7 @@ describe("the page and the pure entries never reach src/node/", () => {
   const src = resolve(import.meta.dir, "..");
   const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? (e.name === "node" || e.name === "vendor" ? [] : files(join(dir, e.name))) : /\.(ts|tsx)$/.test(e.name) && !/\.test\./.test(e.name) ? [join(dir, e.name)] : []));
   test("no source file outside src/node imports it", () => {
-    const hits = files(src).filter((f) => !f.endsWith("server.ts") && /from\s+["'][^"']*\/node\/files["']|["']durian-hypermedia\/node["']/.test(readFileSync(f, "utf8")));
+    const hits = files(src).filter((f) => !f.endsWith("server.ts") && /from\s+["'][^"']*\/node\/files["']|["']durian-markdown\/node["']/.test(readFileSync(f, "utf8")));
     expect(hits).toEqual([]);
   });
   test("nothing src/index.ts or the strict react entry imports, however far, is under src/node/", () => {

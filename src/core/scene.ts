@@ -1565,15 +1565,19 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; loos
     // (rc.5) in the narrow layout a row of things wider than the narrowest phone stage (ROW_FIT) runs on in rows, in
     // reading order, each centred under the one before: the story camera then never has to leave one of them, or what
     // links to them, out (a row turned from a column keeps its row: its words wrap instead, above)
+    // (and a row of data structures, which the story reads one at a time, the same, in rows that fit a 360 px phone:
+    // DS_FIT)
     const o = owner ? s.ents[owner] : null;
-    if (layout === "row" && o && attrs.narrow && !turned.has(o.id) && attrs.view !== "3d" && !attrs.only3d && isContainer(o.kind) && !["bucket", "array", "list", "queue", "stack", "table", "record", "layer"].includes(o.kind) && kids.length > 2 && !kids.some((k) => isContainer(s.ents[k].kind)) && sz.reduce((n, x) => n + x[0], 0) + gap * (kids.length - 1) > ROW_FIT) {
+    const ds = kids.length > 1 && kids.every((k) => ["array", "list", "stack", "queue", "tree", "buckets", "table"].includes(s.ents[k].kind)), fit = ds ? DS_FIT : ROW_FIT;
+    if (layout === "row" && o && attrs.narrow && !turned.has(o.id) && attrs.view !== "3d" && !attrs.only3d && isContainer(o.kind) && !["bucket", "array", "list", "queue", "stack", "table", "record", "layer"].includes(o.kind) && (ds || (kids.length > 2 && !kids.some((k) => isContainer(s.ents[k].kind)))) && sz.reduce((n, x) => n + x[0], 0) + gap * (kids.length - 1) > fit) {
       const rows: string[][] = [[]];
       let rx = 0;
-      for (const k of kids) { const kw = size.get(k)![0]; if (rows[rows.length - 1].length && rx + kw > ROW_FIT) { rows.push([]); rx = 0; } rows[rows.length - 1].push(k); rx += kw + gap; }
-      const rw = rows.map((r) => r.reduce((n, k) => n + size.get(k)![0] + gap, -gap)), W = Math.max(...rw);
+      for (const k of kids) { const kw = size.get(k)![0]; if (rows[rows.length - 1].length && rx + kw > fit) { rows.push([]); rx = 0; } rows[rows.length - 1].push(k); rx += kw + gap; }
+      // (rows a line runs between keep a line's room; rows of data structures, which no line joins, the gap)
+      const rw = rows.map((r) => r.reduce((n, k) => n + size.get(k)![0] + gap, -gap)), W = Math.max(...rw), rgap = joined(kids) ? Math.max(gap, LINK_GAP) : gap;
       let y = 0;
-      rows.forEach((r, i) => { const rh = Math.max(...r.map((k) => size.get(k)![1])); let x = (W - rw[i]) / 2; for (const k of r) { const [kw, kh] = size.get(k)!; set(k, x, y + (rh - kh) / 2); x += kw + gap; } y += rh + Math.max(gap, LINK_GAP); });
-      return [W, y - Math.max(gap, LINK_GAP)];
+      rows.forEach((r, i) => { const rh = Math.max(...r.map((k) => size.get(k)![1])); let x = (W - rw[i]) / 2; for (const k of r) { const [kw, kh] = size.get(k)!; set(k, x, y + (rh - kh) / 2); x += kw + gap; } y += rh + rgap; });
+      return [W, y - rgap];
     }
     // row (a queue's row: the newest on the left, the front on the right)
     const h = Math.max(...sz.map((x) => x[1]));
@@ -1983,6 +1987,9 @@ export const MARGIN = 16;
 // (rc.4) the widest a row the narrow layout turns from a column may be: the narrowest stage a page gives a story on a
 // phone (a 360 px window, the page's gutters and a column's padding: 294 px) less the scene's margins
 export const ROW_FIT = 294 - 2 * MARGIN;
+// (rc.5) the widest a row of data structures may run in the narrow layout before it runs on in rows: a 360 px phone
+// less the scene's margins
+export const DS_FIT = 360 - 2 * MARGIN;
 // the smallest type a frame draws, in stage units: labels, container and layer headings, chips, indexes, speech
 export function minFont(f: Frame): number {
   const Z = tokens(f.phone);

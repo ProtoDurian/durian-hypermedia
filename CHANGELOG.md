@@ -74,6 +74,18 @@ The fifth release candidate of 0.7.0. The format number stays 10.
   its queue, so it now lights it (`highlight k1`), and the camera keeps it in view; there the reader at the top is
   above the edge instead, on both steps (one held view). On a 360 x 640 phone and up both steps show the whole scene.
 
+- **The array, map and tree shows its whole-scene steps on a phone** (the rc.5 re-check: at 390 px step 1, "the
+  service keeps three structures in memory", showed two, and the last step, "answered from memory, not the
+  database", had the database below the edge). The three structures side by side were 563 units wide at the least
+  word size. In the narrow layout a row of data structures, which the story reads one at a time, now runs on in rows
+  that fit a 360 px phone (no line runs between them, so the rows keep the plain gap), and the phone takes the narrow
+  layout where, cutting as many steps' subjects as the phone layout, it shows more of the steps about the whole scene
+  whole. The sample is trimmed to fit a 360 px phone, its words true of the drawing: three ids (index 2 is 34), a
+  tree of three (find 50), Ana's words to her right, and the tree before the map (on a laptop: array, tree, map). On
+  a 390 x 844 and a 360 x 780 phone its first and last steps show Ana, the three structures and the database whole.
+  Over every fixture only this one changes its phone layout. Left: on a 320 x 568 phone the scene is still taller
+  than the stage at the least word size.
+
 ### Fixed: the layers example's section 6 routing tables are step tables
 
 - Routing tables T3 and T4 are step tables (prefix | learned from | next hop | out) with the chosen row lit, as in

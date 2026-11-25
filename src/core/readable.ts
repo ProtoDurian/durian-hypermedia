@@ -91,6 +91,14 @@ function cutSteps(c: Compiled, px: number): number {
   const ar = px / phoneStageH(px, c.aspect);
   return c.frames.filter((f) => { const t = touchedRect(f); return t && !fits(t, px / leastScale(f, px), ar); }).length;
 }
+// (rc.5) the steps with no camera or focus of their own, which talk about the whole scene, that a phone stage px wide
+// cannot show whole at the least scale: on a stage as tall as the scene's shape asks (the stage's floor of 0.62 wide
+// per unit of height is a least height, not a most)
+function cutWholeSteps(c: Compiled, px: number): number {
+  if (!c.frames.length) return 0;
+  const all = union(c.frames.map((f) => f.bounds)), ar = px / phoneStageH(px, Math.min(c.aspect, (all.w + 2 * MARGIN) / (all.h + 2 * MARGIN)));
+  return c.frames.filter((f) => f.look == null && f.focus == null && !fits(f.bounds, px / leastScale(f, px), ar)).length;
+}
 // the phone's layouts of a scene (the phone's tokens, and the narrow layout too), each compiled once per scene, on a
 // budget of its own (core/work.ts): null when it is over it, and then the stage keeps the wide layout
 const phones = new WeakMap<Compiled, { phone?: Compiled | null; narrow?: Compiled | null }>();
@@ -124,11 +132,12 @@ export function narrowWins(wide: Compiled, px: number): boolean {
   const hit = m.get(px);
   if (hit != null) return hit;
   const phone = phoneScene(wide, false);
-  const cp = phone ? cutSteps(phone, px) : 0;
+  const cp = phone ? cutSteps(phone, px) : 0, wp = phone ? cutWholeSteps(phone, px) : 0;
   let win = false;
-  if (cp > 0) {
+  // (and, where both cut as many, the one that shows more of the steps about the whole scene whole: rc.5)
+  if (cp > 0 || wp > 0) {
     const narrow = phoneScene(wide, true);
-    win = !!narrow && !narrow.errors.length && cutSteps(narrow, px) < cp;
+    if (narrow && !narrow.errors.length) { const cn = cutSteps(narrow, px); win = cn < cp || (cn === cp && cutWholeSteps(narrow, px) < wp); }
   }
   m.set(px, win);
   return win;

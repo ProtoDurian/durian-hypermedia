@@ -44,6 +44,12 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 - The step that said "conntrack writes the rewrite down" lit only the rules box; conntrack was lit only on the way back. The rule's rewrite and conntrack's note are now two steps, each lighting the thing it names (23 steps).
 
+### Fixed: the router's segments have names (Format, 3D: a message through a router, in segments)
+
+- A step about no token (a zoom, a lit table row) muted every token's name, and so did a step whose last line named a token that had left (drop msg.4): segments 1 to 4 were nameless on steps 3 to 5. Such a step now keeps every token's name.
+- A token the step is not about keeps its number in its pill, in 2D and 3D (seg 3 shows 3), so the story's 'segment 3 waits its turn' can be followed; before, it was an empty capsule.
+- While a step plays in 3D, the things its caption names keep their names next to who takes part: 'the routing table says host B is behind port 2' names the routing table and port 2 in the close-up.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

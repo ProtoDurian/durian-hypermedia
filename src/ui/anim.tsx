@@ -12,7 +12,7 @@ import { stageScene, phoneScene, leastScale } from "../core/readable";
 // items that pass each other arc, one held view from a camera word to the next, one token's words at a time
 import { layoutWidth, oneStep, STAGE, staticView, wholeAspect, wholeHeightVars, wholeLayout, wholeSize, wholeView, WHOLE_WS } from "../core/whole";
 import { cssVars } from "./css-vars";
-import { calmHeight, heldViews, tokenSubject, passing, stepT, PHONE_WIN } from "../core/calm";
+import { calmHeight, captionNamed, heldViews, tokenMark, tokenSubject, passing, stepT, PHONE_WIN } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
 import { cueAt, moreSides, rideHeads } from "../core/edge10";
@@ -587,7 +587,8 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       hl: new Map(fx.highlights.map((h) => [h.key, h.tone])), framed: new Set(fx.framed ?? []), sel,
       layers: B.layers, levels: B.levels, spread: lerp(A.spread ? 1 : 0, B.spread ? 1 : 0, te), focus: B.focus, look: into ? [into.viaKey as number] : B.look, touched: mv && !(mv.dir === "out" && mv.half === 1) ? [] : B.touched, foot, stepKey: String(i),
       cam: into ? { close: true, far: false, turn: B.view?.turn ?? null, tilt: B.view?.tilt ?? null } : B.view ?? null,
-      part: quiet && B.part ? B.part : null,
+      // (0.7.0-rc.5) what the caption names keeps its name too: "the routing table says host B is behind port 2"
+      part: quiet && B.part ? [...new Set([...B.part, ...captionNamed(B.boxes, plain(src.steps[i]?.title ?? ""))])] : null,
       takes: B.part ?? null, // who takes part in the step, at rest too: other names keep off them
       toks: tokS, // (format version 11) only the token the step is about keeps its label
       least: hold?.least ?? MIN_PX / minFont(B),
@@ -734,7 +735,8 @@ function Shape({ s, hl, framed, sel, sh, Z = DESIGN, mute, slot, ride }: { slot?
     case "text": body = <Words lines={b.lines} x={tx} y={ty} z={z} cls="scn-label scn-text" />; break;
     case "dot": body = <><circle className="scn-shape scn-dot" cx={tx} cy={r.y + 8} r={6} />{words}</>; break;
     // a token is small: a dot and a short word, next to what it sits on
-    case "token": body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} />{wo > 0.02 && <text x={r.x + 10 + (r.w - 10) / 2} y={ty} className={mute ? "scn-chip-t is-mute" : "scn-chip-t"} textAnchor="middle" dominantBaseline="central" style={wo < 1 ? { opacity: wo } : undefined}>{b.lines[0] ?? b.label}</text>}</>; break;
+    // (0.7.0-rc.5) a token the step is not about keeps its number (tokenMark), never an empty pill
+    case "token": { const mark = mute ? tokenMark(b.id, b.label) : ""; body = <><rect className="scn-chip" x={r.x} y={r.y} width={r.w} height={r.h} rx={r.h / 2} /><circle className="scn-chip-dot" cx={r.x + 9} cy={ty} r={CHIP.dot} />{wo > 0.02 && <text x={r.x + 10 + (r.w - 10) / 2} y={ty} className={mute && !mark ? "scn-chip-t is-mute" : "scn-chip-t"} textAnchor="middle" dominantBaseline="central" style={wo < 1 ? { opacity: wo } : undefined}>{mark || (b.lines[0] ?? b.label)}</text>}</>; break; }
     case "pointer": {
       // above its anchor it points down; below it, up
       const up = s.anchorY != null && r.y > s.anchorY;

@@ -149,7 +149,7 @@ describe("one focus: at rest only the token a step is about keeps its words", ()
   });
   test("the 2D and 3D stages mute the others' words", () => {
     const a = readFileSync(join(ROOT, "src/ui/anim.tsx"), "utf8"), t = readFileSync(join(ROOT, "src/ui/anim3d.ts"), "utf8");
-    expect(a).toContain('className={mute ? "scn-chip-t is-mute" : "scn-chip-t"}');
-    expect(t).toContain('const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key);');
+    expect(a).toContain('className={mute && !mark ? "scn-chip-t is-mute" : "scn-chip-t"}');
+    expect(t).toContain('const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key) && !tokenMark(it.id, it.label || "");');
   });
 });

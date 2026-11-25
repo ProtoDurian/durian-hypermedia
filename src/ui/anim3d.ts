@@ -12,6 +12,7 @@ import { FAINT } from "../core/story";
 import { clampCam, outOfBlocks, peelFor, angleOf, nearTurn, FAR, CLOSE_FILL, type PlaneRect, type Block } from "./cam3d";
 import type { CamView } from "../core/camera";
 import { LIFT_UP, labelOn, wireLabelOn } from "../core/depth";
+import { tokenMark } from "../core/calm";
 import type { Route } from "../core/route";
 import { floorCurve, footY, curveSig, tubeSegs, type Slab } from "./route3d";
 import { mkMeter, placeMeter, dropMeter, type Meter } from "./meter3d";
@@ -481,7 +482,9 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
       // its label: on a container's back-left corner, else above its top
       const lb = o.label;
       lb.className = `scn3-l k-${k} sz-${it.size}${it.cc && it.tone === "plain" ? ` cc cc-${it.cc}` : ""}${it.container ? " is-cont" : ""} tone-${it.tone}${it.down ? " is-down" : ""}${hlt ? " is-hl" : ""}${sel ? " is-sel" : ""}`;
-      const words = k === "token" ? cut(it.label || "", CHIP.font, CHIP.maxW) : it.label || "";
+      // (0.7.0-rc.5) a token the step is not about keeps its number (tokenMark); one with no number lets its label fade
+      const mark = k === "token" && tokSet && !tokSet.has(it.key) ? tokenMark(it.id, it.label || "") : "";
+      const words = mark || (k === "token" ? cut(it.label || "", CHIP.font, CHIP.maxW) : it.label || "");
       if (lb.textContent !== words) lb.textContent = words;
       if (!it.container) lb.style.maxWidth = `${(DESIGN as any)[it.size]?.maxW ?? 160}px`;
       lb.dataset.o = String(gh < 1 ? op * Math.max(0, (gh - FAINT) / (1 - FAINT)) / gh : op); lb.dataset.k = String(it.key);
@@ -987,7 +990,7 @@ export function mount3d(host: HTMLElement, on: { pick: (p: Pick) => void; user: 
     for (const it of view.items) {
       const o = objs.get(it.key), p = pos.get(it.key);
       if (!o || !p) continue;
-      const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key);
+      const tokOff = it.kind === "token" && !!tokSet && !tokSet.has(it.key) && !tokenMark(it.id, it.label || "");
       const op = +(o.label.dataset.o ?? 1) * ease(o.label, still && labelOn([it.key], partSet) && !tokOff);
       o.label.dataset.on = (partSet && !labelOn([it.key], partSet)) || tokOff ? "0" : "1";
       if (it.container) project(o.label, p.c.x - it.w / 2 + 8, p.top + 1, p.c.z - it.h / 2 + 2, it.label ? op : 0);

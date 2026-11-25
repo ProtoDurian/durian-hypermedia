@@ -129,9 +129,10 @@ export function calmHeight(c: Compiled, px: number, win: number): number | null 
 export const stepT = (now: number, start: number, d: number): number => (d > 0 ? Math.max(0, Math.min(1, (now - start) / d)) : 1);
 
 /** (format version 11: one focus at a time) the tokens a step is about, whose labels show at rest; every other token keeps its
- *  pill and lets its label fade. The step's last line that names a token decides (a `split` line: its pieces); a step
- *  that names none is about the tokens that take part (what a `pop` moves). Null: one token or none on the stage, and
- *  nothing changes. Ids: every token id the scene ever has (a token that has left still counts as named). */
+ *  pill and lets its label fade. The step's last line that names a token on the stage decides (a `split` line: its
+ *  pieces); a step that names none is about the tokens that take part (what a `pop` moves). Null: one token or none on
+ *  the stage, or a step about no token on it (a zoom, a lit table row: 0.7.0-rc.5, every segment of the router had lost
+ *  its name), and nothing changes. Ids: every token id the scene ever has. */
 export function tokenSubject(f: Frame, raw: string, ids: Set<string>): number[] | null {
   const on = f.boxes.filter((b) => b.kind === "token" && !(b as { hidden?: boolean }).hidden);
   if (on.length < 2 || !raw.trim()) return null; // a still scene (no step words) keeps every label
@@ -139,9 +140,24 @@ export function tokenSubject(f: Frame, raw: string, ids: Set<string>): number[] 
   for (const line of raw.split("\n").map((l) => l.trim()).reverse()) {
     const w = words(line);
     if (w[0] === "split" && w[1]) return on.filter((b) => b.id.startsWith(`${w[1]}.`)).map((b) => b.key);
-    const named = w.filter((x) => ids.has(x));
-    if (named.length) return on.filter((b) => named.includes(b.id)).map((b) => b.key);
+    const named = w.filter((x) => ids.has(x)), got = on.filter((b) => named.includes(b.id)).map((b) => b.key);
+    if (got.length) return got; // (a line that names only a token that has left, `drop msg.4`: an earlier line decides)
   }
-  const part = new Set(f.part ?? []);
-  return on.filter((b) => part.has(b.key)).map((b) => b.key);
+  const part = new Set(f.part ?? []), got = on.filter((b) => part.has(b.key)).map((b) => b.key);
+  return got.length ? got : null;
+}
+
+/** (0.7.0-rc.5) what a token whose label fades keeps in its pill: its number (a split's piece `msg.3`, or a label that
+ *  ends in a number, "seg 3"), so "segment 3 waits its turn" can be followed on the drawing; "" when it has none. */
+export function tokenMark(id: string, label: string): string {
+  return (/\.(\d+)$/.exec(id) ?? /(?:^|\s)(\d+)$/.exec(label.trim()))?.[1] ?? "";
+}
+
+/** (0.7.0-rc.5) the things a step's caption names by their label (whole words, any case): while the step plays in 3D they
+ *  keep their names with who takes part, so "the routing table says host B is behind port 2" names the routing table
+ *  and port 2 on the drawing. Tokens are left to tokenSubject. */
+export function captionNamed(boxes: Box[], caption: string): number[] {
+  const t = ` ${caption.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ")} `;
+  return boxes.filter((b) => b.kind !== "token" && !(b as { hidden?: boolean }).hidden && (b.label ?? "").trim().length > 2)
+    .filter((b) => t.includes(` ${b.label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `)).map((b) => b.key);
 }

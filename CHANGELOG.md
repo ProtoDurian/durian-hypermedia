@@ -8,6 +8,11 @@ every such change is listed here. The `Document` shape has its own number (`doc.
 
 The third release candidate of 0.7.0. The format number stays 10.
 
+### Fixed: the trace waterfall fits its box, no sideways scroll (SPEC.md, trace)
+
+- The waterfall was drawn for a width guessed from the stage and, on a phone, never narrower than 570 px, so inside a narrow box it was a sideways scroller and the bars started off to the right until swiped. It is now as wide as its measured box at every width; on a phone the name sits on a line above each bar and the bars use the whole width.
+- New `bun scripts/fit-check.ts --part <name> [--widths 1280,390,360] [--column N] [<page>]`: draws a part's page in a browser and fails when anything inside the part scrolls sideways or a drawing is wider than the part.
+
 ### Fixed: sankey colours and sample words (SPEC.md, sankey)
 
 - A node with no colour word now skips the family colours that other nodes of the same sankey were given by word: on the parts page `auth` and `Redis` both drew in `c2` (and `handler` and `Postgres` in `c3`). Nothing changes when no node is given a colour word.

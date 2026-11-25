@@ -38,7 +38,17 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
   const box = useRef<HTMLDivElement>(null);
   const mini = useRef<SVGSVGElement>(null);
   const clipId = useId().replace(/:/g, "");
-  const width = Math.max(240, (stage.width || 760) - (stage.width > 0 && stage.width <= 600 ? 26 : 34));
+  // the drawing is as wide as the box it is in, measured (the stage's width is only the guess for the server's first drawing)
+  const [boxW, setBoxW] = useState(0);
+  useEffect(() => {
+    const el = host.current; if (!el) return;
+    const read = () => { const cs = getComputedStyle(el); setBoxW(Math.floor(el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0))); };
+    read();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(read); ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const width = boxW > 0 ? Math.max(200, boxW) : Math.max(240, (stage.width || 760) - (stage.width > 0 && stage.width <= 600 ? 26 : 34));
   const still = useSteps(0, stp).sx.on;
   const [barH, setBarH] = useState(18);
   const [view, setView] = useState<"waterfall" | "flame">("waterfall");
@@ -138,10 +148,12 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
 
   if (!spec || spec.errors.length || !spec.spans.length) return <div className="trace"><div className="cw-error">{w.cannot} {error || spec?.errors[0]?.msg || "No spans"}</div></div>;
   const phone = width < 560;
-  const pitch = barH + (phone ? 22 : 10);
-  const labelW = (phone ? 210 : 250) + Math.min(8, Math.max(...spec.spans.map((s) => s.depth))) * 8;
-  const svgW = phone ? Math.max(width, labelW + 360) : width;
-  const plotW = Math.max(120, svgW - labelW - 14);
+  // wide: the names in a column on the left, the bars beside it. On a phone there is no column: the name sits on a line above each
+  // bar and the bars use the whole width, so nothing scrolls sideways
+  const pitch = barH + (phone ? 30 : 10);
+  const labelW = phone ? 12 : 250 + Math.min(8, Math.max(...spec.spans.map((s) => s.depth))) * 8;
+  const svgW = width;
+  const plotW = Math.max(120, svgW - labelW - (phone ? 12 : 14));
   const full: [number, number] = [spec.origin, spec.origin + Math.max(spec.length, 1e-9)];
   const [lo, hi] = (!still && range) || full;
   const k = plotW / Math.max(1e-9, hi - lo);
@@ -158,7 +170,7 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
     if (!still && folded.has(id) && !forced.has(id) && spec.children[id].length) skip = s.depth;
   }
   const isFolded = (id: number) => !still && folded.has(id) && !forced.has(id) && spec.children[id].length > 0;
-  const axisH = 28, height = axisH + rows.length * pitch + 6;
+  const axisH = phone ? 44 : 28, tickY = phone ? 38 : 14, height = axisH + rows.length * pitch + 6;
   const step = niceStep(hi - lo, phone ? 4 : 7);
   const ticks: number[] = [];
   for (let t = Math.ceil((lo - spec.origin) / step) * step; t <= hi - spec.origin + 1e-9 && ticks.length < 40; t += step) ticks.push(Math.round(t * 1e6) / 1e6 + spec.origin);
@@ -299,15 +311,15 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
             <svg width={svgW} height={height} viewBox={`0 0 ${svgW} ${height}`} role="tree" aria-label={spec.title || w.trace} onKeyDown={still ? undefined : rowKey}>
               <defs><clipPath id={`${clipId}c`}><rect x={labelW} y={0} width={plotW} height={height} /></clipPath></defs>
               <g className="tr-axis" aria-hidden="true">
-                {ticks.map((t) => <g key={t}><line x1={X(t)} x2={X(t)} y1={axisH - 4} y2={height} className="tr-grid" /><text x={X(t)} y={14} textAnchor={X(t) > svgW - 30 ? "end" : "middle"} className="tr-tick">{rel(t)}</text></g>)}
-                <text x={labelW - 8} y={14} textAnchor="end" className="tr-tick tr-unit">{spec.unit}</text>
+                {ticks.map((t) => <g key={t}><line x1={X(t)} x2={X(t)} y1={axisH - 4} y2={height} className="tr-grid" /><text x={X(t)} y={tickY} textAnchor={X(t) > svgW - 30 ? "end" : phone && X(t) < labelW + 14 ? "start" : "middle"} className="tr-tick">{rel(t)}</text></g>)}
+                {phone ? <text x={labelW} y={14} className="tr-tick tr-unit">{spec.unit}</text> : <text x={labelW - 8} y={14} textAnchor="end" className="tr-tick tr-unit">{spec.unit}</text>}
               </g>
               {rows.map((id, i) => {
-                const s = spec.spans[id], y = axisH + i * pitch, by = y + (pitch - barH) / 2, dimmed = dim(s), hit = found.ids.has(id);
+                const s = spec.spans[id], y = axisH + i * pitch, by = phone ? y + pitch - barH - 5 : y + (pitch - barH) / 2, ny = phone ? y + 12 : y + pitch / 2, dimmed = dim(s), hit = found.ids.has(id);
                 const col = s.colour ?? svcColour[s.service], x0 = Math.max(labelW, X(s.start)), x1 = Math.min(labelW + plotW, X(s.end));
                 const barW = Math.max(2, x1 - x0), inRange = s.end >= lo && s.start <= hi, has = spec.children[id].length > 0, fo = isFolded(id);
-                const chev = 6 + s.depth * 8, chipX = chev + (phone ? 40 : 24), chipTxt = fit(svcLabel[s.service], phone ? 5 : 9), chipW = Math.max(14, chipTxt.length * CH + 12);
-                const nameX = chipX + chipW + 6, room = Math.floor((labelW - 8 - (s.error !== null ? 14 : 0) - (fo ? 36 : 0) - nameX) / CH);
+                const chev = 6 + s.depth * 8, chipX = chev + (phone ? 20 : 24), chipTxt = fit(svcLabel[s.service], phone ? 7 : 9), chipW = Math.max(14, chipTxt.length * CH + 12);
+                const edge = phone ? svgW - 8 : labelW - 8, nameX = chipX + chipW + 6, room = Math.floor((edge - (s.error !== null ? 14 : 0) - (fo ? 36 : 0) - nameX) / CH);
                 const lenTxt = fmtLen(lenOf(s), spec.unit), marks = s.logs.map((li) => X(spec.logs[li].time));
                 const lenAt = lengthSpot(x0, x0 + barW, lenTxt.length * CH, marks, labelW, labelW + plotW);
                 const onPath = crit && s.critical;
@@ -322,20 +334,20 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
                     <rect className="tr-stripe" x={0} y={y} width={svgW} height={pitch} />
                     {has && !still && (
                       <g className="tr-chev" role="button" aria-label={`${fo ? w.unfold : w.fold} ${s.name}`} onClick={(e) => { e.stopPropagation(); toggle(id); }} onPointerEnter={(e) => e.stopPropagation()}>
-                        <rect x={chev - 6} y={y} width={phone ? 40 : 24} height={pitch} fill="transparent" />
-                        <path d={`M ${chev + 2} ${y + pitch / 2 - 4} l 6 4 l -6 4 z`} className={`tr-arrow${fo ? "" : " is-open"}`} style={{ transformOrigin: `${chev + 5}px ${y + pitch / 2}px` }} />
+                        <rect x={chev - 6} y={y} width={phone ? 26 : 24} height={phone ? 24 : pitch} fill="transparent" />
+                        <path d={`M ${chev + 2} ${ny - 4} l 6 4 l -6 4 z`} className={`tr-arrow${fo ? "" : " is-open"}`} style={{ transformOrigin: `${chev + 5}px ${ny}px` }} />
                       </g>
                     )}
-                    <g data-dh-slot="service"><rect x={chipX} y={y + pitch / 2 - 9} width={chipW} height={18} rx={9} fill={colourVar(svcColour[s.service], "soft")} stroke={colourVar(svcColour[s.service])} strokeWidth={1} />
-                      <text x={chipX + chipW / 2} y={y + pitch / 2} textAnchor="middle" dominantBaseline="central" className="tr-chip-t" fill={colourVar(svcColour[s.service], "ink")}>{chipTxt}</text></g>
-                    <text x={nameX} y={y + pitch / 2} dominantBaseline="central" className="tr-name">{fit(s.name, room)}</text>
-                    {fo && <text x={labelW - 8 - (s.error !== null ? 14 : 0)} y={y + pitch / 2} textAnchor="end" dominantBaseline="central" className="tr-more">+{desc[id]}</text>}
-                    {s.error !== null && <g className="tr-err" aria-hidden="true"><circle cx={labelW - 12} cy={y + pitch / 2} r={7} /><text x={labelW - 12} y={y + pitch / 2} textAnchor="middle" dominantBaseline="central">!</text></g>}
+                    <g data-dh-slot="service"><rect x={chipX} y={ny - 9} width={chipW} height={18} rx={9} fill={colourVar(svcColour[s.service], "soft")} stroke={colourVar(svcColour[s.service])} strokeWidth={1} />
+                      <text x={chipX + chipW / 2} y={ny} textAnchor="middle" dominantBaseline="central" className="tr-chip-t" fill={colourVar(svcColour[s.service], "ink")}>{chipTxt}</text></g>
+                    <text x={nameX} y={ny} dominantBaseline="central" className="tr-name">{fit(s.name, room)}</text>
+                    {fo && <text x={edge - (s.error !== null ? 14 : 0)} y={ny} textAnchor="end" dominantBaseline="central" className="tr-more">+{desc[id]}</text>}
+                    {s.error !== null && <g className="tr-err" aria-hidden="true"><circle cx={edge - 4} cy={ny} r={7} /><text x={edge - 4} y={ny} textAnchor="middle" dominantBaseline="central">!</text></g>}
                     <g clipPath={`url(#${clipId}c)`}>
                       {inRange && <>
                         {onPath && <rect className="tr-crit" x={x0 - 2.5} y={by - 2.5} width={barW + 5} height={barH + 5} rx={5} />}
                         <rect data-dh-slot="span-bar" className="tr-bar" x={x0} y={by} width={barW} height={barH} rx={4} fill={colourVar(col, "soft")} stroke={s.error !== null ? "var(--trace-error)" : colourVar(col)} strokeWidth={s.error !== null ? 2 : 1} />
-                        <text x={lenAt.x} y={y + pitch / 2} dominantBaseline="central" className="tr-len" textAnchor={lenAt.anchor}>{lenTxt}</text>
+                        <text x={lenAt.x} y={by + barH / 2} dominantBaseline="central" className="tr-len" textAnchor={lenAt.anchor}>{lenTxt}</text>
                         {s.logs.map((li) => { const g = spec.logs[li], cx = X(g.time); return <path key={li} className="tr-log" d={`M ${cx} ${by + barH / 2 - 5} l 5 5 l -5 5 l -5 -5 z`} fill={LEVEL_VAR[g.level]} />; })}
                       </>}
                     </g>
@@ -344,7 +356,7 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
               })}
             </svg>
           </div>
-          {!still && <p className="part-hint">{w.hint}{phone ? ` ${w.swipe}` : ""}</p>}
+          {!still && <p className="part-hint">{w.hint}</p>}
           <details className="chart-table"><summary>{ui.table}</summary>
             <div className="table-wrap"><table><thead><tr><th>{w.trace}</th><th>{w11.length}</th><th>{w.self}</th><th>{w.error}</th></tr></thead>
               <tbody>{spec.order.map((id) => { const s = spec.spans[id]; return <tr key={id}><th>{"· ".repeat(s.depth)}{svcLabel[s.service]} {s.name}</th><td>{fmtLen(lenOf(s), spec.unit)}</td><td>{fmtLen(s.self, spec.unit)}</td><td>{s.error ?? ""}</td></tr>; })}</tbody></table></div>

@@ -186,6 +186,22 @@ describe("trace: the drawing, read back from the markup", () => {
     expect(html).toContain('data-dh-slot="minimap"');
     expect(html).toContain("Postgres"); // the @service label
   });
+  test("the drawing is never wider than its stage, at any width: no sideways scroller (the browser check is scripts/fit-check.ts)", () => {
+    const s = parseTrace(src(BIG, { title: "POST /checkout" }));
+    for (let w = 280; w <= 1400; w += 20) {
+      const html = renderToStaticMarkup(React.createElement(TraceView, { spec: s, error: null, ui: UI.en, stage: { ...stage, width: w } }));
+      const svg = /<svg width="(\d+)" height="\d+" viewBox="[^"]*" role="tree"/.exec(html);
+      expect(svg).not.toBeNull();
+      expect(Number(svg![1])).toBeLessThanOrEqual(w);
+    }
+  });
+  test("on a phone the names sit above the bars and every row stays inside the drawing", () => {
+    const s = parseTrace(src(BIG, { title: "POST /checkout" }));
+    const html = renderToStaticMarkup(React.createElement(TraceView, { spec: s, error: null, ui: UI.en, stage: { ...stage, width: 390 } }));
+    const W = Number(/<svg width="(\d+)"[^>]*role="tree"/.exec(html)![1]);
+    for (const m of html.matchAll(/class="tr-bar" x="([\d.]+)" y="[\d.]+" width="([\d.]+)"/g)) { expect(Number(m[1])).toBeGreaterThanOrEqual(0); expect(Number(m[1]) + Number(m[2])).toBeLessThanOrEqual(W + 0.5); }
+    expect(html).not.toContain("Swipe");
+  });
   test("open=2 starts with the third level folded; a folded span says how many it hides", () => {
     const s = parseTrace(src(BIG, { open: "2" }));
     const html = draw(s);

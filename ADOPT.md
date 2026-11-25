@@ -170,6 +170,8 @@ Map these first; the rest follow from them:
 A host with several styles and palettes: one `variant` per style (a block of token overrides and selectors under
 `.dh-doc[data-dh-variant="<style>"]`, see THEME.md), and the palette's colours as token values, light and dark.
 
+**Maths fonts.** The renderer emits native MathML; the package ships no font or KaTeX stylesheet. Its `--math-font` token starts with `KaTeX_Main`: self-host the regular, italic, bold and bold-italic WOFF2 faces from `katex/dist/fonts`, declare each as `font-family: KaTeX_Main` with its matching style and weight, and retain the OFL notice. Or map `--math-font` to a maths font your host already supplies. The example declares and serves the KaTeX faces under `assets/fonts/`, with `OFL-KaTeX.txt` beside them; these example-only files are outside the published package. A policy with `font-src 'self'` keeps those requests on your origin.
+
 ## 6. Sizes
 
 Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0-rc.3. React and react-dom are

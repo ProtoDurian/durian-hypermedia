@@ -15,6 +15,8 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 ### Fixed
 
+- The example self-hosts KaTeX WOFF2 faces and their OFL notice, so MathML roots and exponents use the intended face at phone widths. Host setup is documented; the published package still bundles no fonts.
+
 - The example build serves the gallery, comparison images, Lottie, PDF and video sample files alongside audio, so those samples load from the same origin.
 
 ### Fixed: sunburst words on a phone (SPEC.md, chart-kinds)

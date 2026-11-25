@@ -18,14 +18,14 @@ export async function partPage(source: string) {
     naming: { entry: "[name].[ext]", chunk: "c-[hash].[ext]" }, define: { "process.env.NODE_ENV": '"production"' } });
   if (!built.success) { rmSync(dir, { recursive: true, force: true }); throw new Error("test page did not build"); }
   const css = buildCss() + readFileSync(join(root, "example/site.css"), "utf8");
-  const html = '<!doctype html><html class="fonts-ready"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><script type="module" src="/client.js"></script><main class="ex-main"><div id="dh-root">' + renderToString(<DhDocument doc={doc} />) + '</div></main><script type="application/json" id="dh-doc">' + documentJson(doc) + '</script>';
+  const html = '<!doctype html><html class="fonts-ready"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><script type="module" src="/client.js"></script><main class="ex-main"><div id="dh-root">' + renderToString(<DhDocument doc={doc} />) + '</div></main><script type="application/json" id="dh-doc">' + documentJson(doc) + '</script>';
   const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch(req) {
     const path = new URL(req.url).pathname;
     const policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; require-trusted-types-for 'script'";
     if (path === "/favicon.ico") return new Response(null, { status: 204 });
-    if (path === "/") return new Response(html, { headers: { "content-type": "text/html", "content-security-policy": policy } });
+    if (path === "/") return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": policy } });
     if (path === "/style.css") return new Response(css, { headers: { "content-type": "text/css" } });
-    if (path.startsWith("/fonts/") && /^[a-z0-9-]+\.woff2$/.test(path.slice(7))) return new Response(Bun.file(join(root, "example", path.slice(1))), { headers: { "content-type": "font/woff2" } });
+    if (path.startsWith("/fonts/") && /^[A-Za-z0-9_-]+\.woff2$/.test(path.slice(7))) return new Response(Bun.file(join(root, "example", path.slice(1))), { headers: { "content-type": "font/woff2" } });
     return new Response(Bun.file(join(dir, path.slice(1))), { headers: { "content-type": "text/javascript" } });
   }});
   let page;

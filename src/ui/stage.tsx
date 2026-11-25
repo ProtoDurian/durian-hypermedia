@@ -208,6 +208,19 @@ export const STAGE_OVER_MESSAGE = `This scene needs more work than one stage may
 // 0.7.0-rc.3 review: the step scroll never works against the reader: the last time the reader moved
 // the page (wheel, touch, scroll keys, or a scroll the page did not make itself); the step scroll waits USER_SCROLL_MS after it (a tap is not a move)
 const USER_SCROLL_MS = 800;
+/** How far the page scrolls after a step the reader asked for, on a phone (0.7.0-rc.5, rc.4 review SHOULD 3): the step's lit items (screen
+ *  coordinates) go between the page bar (lo) and the floating caption (its top, ft), all of them when they fit; else the
+ *  screenful that holds the most of them, from the lit item that starts it (the first such), so the lit fields and the
+ *  chosen row of a table share a screen where they can. 0 when they are already in view. */
+export function followBy(hot: { top: number; bottom: number }[], ft: number, lo = 72): number {
+  if (!hot.length) return 0;
+  const top = Math.min(...hot.map((b) => b.top)), bottom = Math.max(...hot.map((b) => b.bottom)), room = ft - 8 - lo;
+  if (top >= lo && bottom <= ft - 8) return 0;
+  if (bottom - top <= room) return top < lo ? top - lo : bottom - (ft - 8);
+  let start = top, most = -1;
+  for (const a of hot) { const n = hot.filter((b) => b.top >= a.top && b.bottom <= a.top + room).length; if (n > most || (n === most && a.top < start)) { most = n; start = a.top; } }
+  return start - lo;
+}
 let userScrollAt = -1e9, ownScrollUntil = 0, userScrollHooked = false;
 function hookUserScroll() {
   if (userScrollHooked || typeof window === "undefined") return; userScrollHooked = true;
@@ -294,11 +307,11 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
     const raf = requestAnimationFrame(() => {
       if (performance.now() - userScrollAt < USER_SCROLL_MS) return;
       const root = box.current?.closest(".stg"), foot = root?.querySelector(".stg-foot"); if (!root || !foot) return;
-      const hot = [...root.querySelectorAll(".stg-plan .stg-hot")].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0 && b.height > 0);
+      // the step's lit items, and the lit cells of its own tables (a chosen row: accent ink, drawn in this step only; 0.7.0-rc.5, rc.4 review SHOULD 3)
+      const hot = [...root.querySelectorAll(`.stg-plan .stg-hot, .stg-plan g.stg-i:not(.stg-off)[data-from="${kLive}"][data-to="${kLive}"] text[style*="--acc-ink"]`)].map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0 && b.height > 0);
       if (!hot.length) return;
-      const top = Math.min(...hot.map((b) => b.top)), bottom = Math.max(...hot.map((b) => b.bottom)), ft = foot.getBoundingClientRect().top, lo = 72;
-      if (top >= lo && bottom <= ft - 8) return;
-      const by = bottom - top <= ft - 8 - lo ? (top < lo ? top - lo : bottom - (ft - 8)) : top - lo;
+      const by = followBy(hot, foot.getBoundingClientRect().top);
+      if (Math.abs(by) < 1) return;
       ownScrollUntil = performance.now() + 1200; // the scroll events of this scroll are the page's, not the reader's
       scrollBy({ top: by, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     });

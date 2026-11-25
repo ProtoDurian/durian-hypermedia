@@ -83,6 +83,11 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 - Stage text stays at least 11 px at tablet viewports from 768 to 1024 px.
 
+### Fixed: on a phone, the step scroll keeps a step's lit fields and its table's chosen row on one screen where it can
+
+- After a step the reader asks for, the chosen row of the step's own table counts as lit, and when the lit items do
+  not fit one screen the page scrolls to the screenful that holds the most of them.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

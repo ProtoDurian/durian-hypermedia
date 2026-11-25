@@ -23,7 +23,7 @@ import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-run
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 import { RefSession, fencedSource, type ResolveReference } from "./refs";
 
-export const FORMAT_VERSION = 10;
+export const FORMAT_VERSION = 11;
 /** check() evaluates every chart at several control values: its budget is this many times the page's */
 const CHECK_FACTOR = 8;
 // check() reads a page's YAML texts again (about once more each): its YAML page totals are this many times the page's

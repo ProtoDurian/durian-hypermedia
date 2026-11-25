@@ -1879,6 +1879,11 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
     const fr = rects.get(e.from)!, tr = rects.get(e.to)!, upper = fr.y <= tr.y ? e.from : e.to, side = Math.abs(fr.y - tr.y) < 1 ? nav.sideY.get(e.from) : fr.lane === tr.lane ? nav.sideY.get(upper) : undefined;
     let gy = side ?? nav.gapY.get(gi) ?? (tr.y - 14); const cw = measure(e.label, "chip") + 18;
     let cx = side !== undefined && Math.abs(fr.y - tr.y) < 1 ? Math.max(NPAD + cw / 2, Math.min(w - NPAD - cw / 2, (Math.min(fr.x + fr.w, tr.x + tr.w) + Math.max(fr.x, tr.x)) / 2)) : NPAD + cw / 2;
+    // 0.7.0-rc.4: a shared label whose line hops over the row sits on the hop's level
+    // stretch, the line it names, not in the strip under the row by the short neighbour arrow
+    const hop = side !== undefined && Math.abs(fr.y - tr.y) < 1 ? es.filter((x) => x.label && phoneLabelKey(m, x) === key).map((x) => items.find((it) => it.k === "path" && (it as { id?: string }).id === `${x.from}>${x.to}` && (!it.on || it.on.includes(x.step))) as Extract<Item, { k: "path" }> | undefined)
+      .find((p) => !!p && p.pts.length === 4 && Math.abs(p.pts[1][1] - p.pts[2][1]) < 0.5 && p.pts[1][1] < Math.min(fr.y, tr.y)) : undefined;
+    if (hop) { cx = Math.max(NPAD + cw / 2, Math.min(w - NPAD - cw / 2, (hop.pts[1][0] + hop.pts[2][0]) / 2)); gy = hop.pts[1][1] - 10; }
     // the steps it is drawn in: a neutral connector's label for its steps, a data label its own step only (as wide; cecde04), a kept one its line's steps
     const on = (m.roles[e.role ?? m.cards.get(e.from)!.role] ?? 0) === 0 || e.keep ? labelSteps(m, e) : [e.step], meets = (r: { on?: number[] }) => (scans.charge("stage label scan", 1), true) && (!r.on || r.on.some((k) => on.includes(k)));
     // a box drawn before the connectors is in the way only when on screen in one of the label's steps (a card of

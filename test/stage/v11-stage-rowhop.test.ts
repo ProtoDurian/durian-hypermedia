@@ -36,3 +36,15 @@ for (const w of [1178, 800, 766]) test(`at ${w}: the kitchen-to-table line passe
   expect(pills.length).toBe(2);
   expect([cn, ...pills].filter((b) => through(line, b)).map((b) => (b as { id?: string }).id)).toEqual([]);
 });
+
+// 0.7.0-rc.4: one line "a, b -> c: words" shares one label; where the first card's line hops
+// over the row, the label sits on that hop (the line it names), not under the row by the second card's short arrow
+for (const w of [800, 766]) test(`at ${w}: a shared label sits on the hop line it names`, () => {
+  beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY)); const c = compileStage(SRC, [{ title: "One", raw: "", line: 30 }, { title: "Two", raw: "k, c -> t: menu", line: 31 }], 1, {}, { job: 1, server: 3 }); expect(c.errors).toEqual([]);
+  beginDocument(newBudget(STAGE_WORK, STAGE_MEMORY)); const its = layoutStage(c.model, w).items;
+  const hop = its.find((i): i is Path => i.k === "path" && (i as { id?: string }).id === "k>t")!;
+  expect(hop.pts.length).toBe(4); const y = hop.pts[1][1];
+  const chip = its.find((i): i is Box => i.k === "box" && (i as { bar?: Record<string, unknown> }).bar?.["edge-label"] === "menu")!;
+  expect(Math.abs(chip.y + chip.h / 2 - y)).toBeLessThan(2); // on the hop's level stretch
+  expect(chip.x).toBeGreaterThanOrEqual(Math.min(hop.pts[1][0], hop.pts[2][0])); expect(chip.x + chip.w).toBeLessThanOrEqual(Math.max(hop.pts[1][0], hop.pts[2][0]));
+});

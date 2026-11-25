@@ -17,6 +17,8 @@ The third release candidate of 0.7.0. The format number stays 10.
 
 - In the narrow form, two cards side by side in one row with a card between them are joined over the row (else under
   it), 14 to 30 px clear of every card, never straight through the card between or its pills.
+- One line "a, b -> c: words" shares one label; where the first card's line hops over the row, the label sits on
+  that hop, the line it names.
 
 ### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
 

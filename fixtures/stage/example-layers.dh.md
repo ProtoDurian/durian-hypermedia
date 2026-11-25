@@ -583,12 +583,10 @@ title: Two internet routers: how they know the way | BGP between A and B; OSPF i
 ## AS 64496
 router ra: router A | 198.51.100.6/31 to the home | 198.51.100.200/31 to B | 198.51.100.197/30 to its core
   link ga: dropped here | the frame from the home router: to 00:00:5E:00:53:A1, from 00:00:5E:00:53:02
-  table t3: routing table T3 | 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link
 router ca: core router | inside AS 64496
 ## AS 64497
 router rb: router B | 198.51.100.201/31 to A | 203.0.113.65/26 to the server | 203.0.113.1/30 to its core
   link gb: dropped here | the radio link's frame: to 00:00:5E:00:53:B1, from 00:00:5E:00:53:A2
-  table t4: routing table T4 | 203.0.113.64/26: connected, next hop on this network, out copper to the server — matches | 203.0.113.0/30: connected, next hop on this network, out core link | 198.51.100.200/31: connected, next hop on this network, out radio to A | 203.0.113.0/24: OSPF, next hop 203.0.113.2, out core link — matches | 198.51.100.0/24: BGP, from AS 64496, next hop 198.51.100.200, out radio to A | 0.0.0.0/0: default (set by hand), next hop 203.0.113.2, out core link — matches
 app sv: server | 203.0.113.80/26
 router cb: core router | inside AS 64497
 nest: The packet | layer 2 outside, layer 3 inside
@@ -601,19 +599,47 @@ unwrap fr
 show ga
 light pk: to 203.0.113.80
 @step Where routes come from: Where do routes come from? Connected ones are A's own links. The default, set by hand, is for everything else.
-show t3
-say t3: Learned from: connected, OSPF, static, BGP, default
+rows plain table
+  ^ routing table T3 | learned from | next hop | out
+  198.51.100.6/31 | connected | on this network | fibre to the home
+  198.51.100.200/31 | connected | on this network | radio to B
+  198.51.100.196/30 | connected | on this network | core link
+  198.51.100.128/26 | OSPF | 198.51.100.198 | core link
+  198.51.100.0/24 | static (so A can announce it) | discard | none
+  203.0.113.0/24 | BGP, from AS 64497 | 198.51.100.201 | radio to B
+  0.0.0.0/0 | default (set by hand) | 198.51.100.198 | core link
 @step OSPF: Inside AS 64496 the routers flood the state of their links with OSPF, and each works out routes, such as the one to 198.51.100.128/26.
-text t3: 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | * 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link
-light t3
+rows plain table
+  ^ routing table T3 | learned from | next hop | out
+  198.51.100.6/31 | connected | on this network | fibre to the home
+  198.51.100.200/31 | connected | on this network | radio to B
+  198.51.100.196/30 | connected | on this network | core link
+  * 198.51.100.128/26 | * OSPF | * 198.51.100.198 | * core link
+  198.51.100.0/24 | static (so A can announce it) | discard | none
+  203.0.113.0/24 | BGP, from AS 64497 | 198.51.100.201 | radio to B
+  0.0.0.0/0 | default (set by hand) | 198.51.100.198 | core link
 ra --> ca: OSPF
 @step BGP: Between networks it is BGP: router B announced that AS 64497 has 203.0.113.0/24, with next hop 198.51.100.201.
-text t3: 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | * 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link
-light t3
+rows plain table
+  ^ routing table T3 | learned from | next hop | out
+  198.51.100.6/31 | connected | on this network | fibre to the home
+  198.51.100.200/31 | connected | on this network | radio to B
+  198.51.100.196/30 | connected | on this network | core link
+  198.51.100.128/26 | OSPF | 198.51.100.198 | core link
+  198.51.100.0/24 | static (so A can announce it) | discard | none
+  * 203.0.113.0/24 | * BGP, from AS 64497 | * 198.51.100.201 | * radio to B
+  0.0.0.0/0 | default (set by hand) | 198.51.100.198 | core link
 rb --> ra: BGP: 203.0.113.0/24
 @step Longest match: Two rows cover the server: /0 and /24. The longer prefix wins, so the next hop is 198.51.100.201, on A's radio link.
-text t3: 198.51.100.6/31: connected, next hop on this network, out fibre to the home | 198.51.100.200/31: connected, next hop on this network, out radio to B | 198.51.100.196/30: connected, next hop on this network, out core link | 198.51.100.128/26: OSPF, next hop 198.51.100.198, out core link | 198.51.100.0/24: static (so A can announce it), next hop discard, out none | * 203.0.113.0/24: BGP, from AS 64497, next hop 198.51.100.201, out radio to B — matches, longest: chosen | 0.0.0.0/0: default (set by hand), next hop 198.51.100.198, out core link — matches
-light t3
+rows plain table
+  ^ routing table T3 | learned from | next hop | out
+  198.51.100.6/31 | connected | on this network | fibre to the home
+  198.51.100.200/31 | connected | on this network | radio to B
+  198.51.100.196/30 | connected | on this network | core link
+  198.51.100.128/26 | OSPF | 198.51.100.198 | core link
+  198.51.100.0/24 | static (so A can announce it) | discard | none
+  * 203.0.113.0/24 | * BGP, from AS 64497 | * 198.51.100.201 | * radio to B: matches, longest: chosen
+  0.0.0.0/0 | default (set by hand) | 198.51.100.198 | core link: matches
 @step Sent on: TTL 63 becomes 62, and a new frame goes to B's MAC. Both IP addresses stay: A does no NAT.
 show fr
 fields fr: to 00:00:5E:00:53:B1; from 00:00:5E:00:53:A2; type 0x0800 (IPv4); > FCS 59 c6 51 a7, at the end
@@ -626,10 +652,24 @@ foot: where it is: on the radio link: leaving AS 64496, entering AS 64497
 @step At router B: B takes that frame off and looks in its own table. Three rows cover the server: /0, /24 from OSPF, and /26.
 clear
 unwrap fr
-show gb, t4
+show gb
+rows plain table
+  ^ routing table T4 | learned from | next hop | out
+  203.0.113.64/26 | connected | on this network | copper to the server: matches
+  203.0.113.0/30 | connected | on this network | core link
+  198.51.100.200/31 | connected | on this network | radio to A
+  203.0.113.0/24 | OSPF | 203.0.113.2 | core link: matches
+  198.51.100.0/24 | BGP, from AS 64496 | 198.51.100.200 | radio to A
+  0.0.0.0/0 | default (set by hand) | 203.0.113.2 | core link: matches
 @step B's longest match: /26 is the longest, and it is connected: the server is on B's own link. This time the next hop is the destination itself.
-text t4: * 203.0.113.64/26: connected, next hop on this network, out copper to the server — matches, longest: chosen | 203.0.113.0/30: connected, next hop on this network, out core link | 198.51.100.200/31: connected, next hop on this network, out radio to A | 203.0.113.0/24: OSPF, next hop 203.0.113.2, out core link — matches | 198.51.100.0/24: BGP, from AS 64496, next hop 198.51.100.200, out radio to A | 0.0.0.0/0: default (set by hand), next hop 203.0.113.2, out core link — matches
-light t4
+rows plain table
+  ^ routing table T4 | learned from | next hop | out
+  * 203.0.113.64/26 | * connected | * on this network | * copper to the server: matches, longest: chosen
+  203.0.113.0/30 | connected | on this network | core link
+  198.51.100.200/31 | connected | on this network | radio to A
+  203.0.113.0/24 | OSPF | 203.0.113.2 | core link: matches
+  198.51.100.0/24 | BGP, from AS 64496 | 198.51.100.200 | radio to A
+  0.0.0.0/0 | default (set by hand) | 203.0.113.2 | core link: matches
 @step The server's MAC: B takes 1 off the TTL: 62 becomes 61. It is the first router on the path that uses the server's own MAC.
 set pk: TTL 62 => TTL 61; header checksum 0xb9c3 => header checksum 0xbac3
 say rb (link): neighbour cache: 203.0.113.80 is 00:00:5E:00:53:80

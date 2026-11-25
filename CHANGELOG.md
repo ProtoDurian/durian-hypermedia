@@ -68,6 +68,11 @@ The fifth release candidate of 0.7.0. The format number stays 10.
   stage (a page's column on a 360 px phone) the scene is taller than the stage's least aspect allows, and the worker
   is below the edge.
 
+### Fixed: the layers example's section 6 routing tables are step tables
+
+- Routing tables T3 and T4 are step tables (prefix | learned from | next hop | out) with the chosen row lit, as in
+  sections 5 and 8, not card lines of prose; routers A and B no longer hold room for them from step 1.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

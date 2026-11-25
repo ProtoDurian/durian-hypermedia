@@ -42,7 +42,7 @@ describe("the layers example", () => {
 
   test("in a scene, a router, its routing table and the packet are three families", () => {
     const doc = parse(text, { path: "example-layers.dh.md" });
-    const used = doc.blocks.filter((b: any) => b.type === "animation" && b.stage).map((b: any) => new Set([...b.stage.src.head.matchAll(/^\s*(ip|router|table) [a-z0-9]+:/gm)].map((m: RegExpMatchArray) => m[1])));
+    const used = doc.blocks.filter((b: any) => b.type === "animation" && b.stage).map((b: any) => new Set([...[b.stage.src.head, ...b.stage.src.steps.map((st: any) => st.raw)].join("\n").matchAll(/^\s*(ip|router|table) [a-z0-9]+:|^rows (?:plain )?(table)$/gm)].map((m: RegExpMatchArray) => m[1] ?? m[2]))); // a table card or a step table (rc.5)
     expect(used.filter((u) => u.has("ip") && u.has("router") && u.has("table")).length).toBeGreaterThan(0);
     expect(used.every((u) => !u.has("ip") || u.size === 1 || u.has("router") || u.has("table"))).toBe(true);
   });

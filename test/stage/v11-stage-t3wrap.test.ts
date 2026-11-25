@@ -1,4 +1,4 @@
-// 0.7.0-rc.3 review MUST 4: the layers example's routing table T3 at 1280: a card line of addresses ran past the card's
+// 0.7.0-rc.3 review MUST 4 (rc.5: now step tables, below): the layers example's routing table T3 at 1280: a card line of addresses ran past the card's
 // border (digits draw wider than the measure says). Off a phone, a card line whose drawn width would cross the border
 // breaks again by drawn width; a line that fits keeps its place. Public fixtures/stage/example-layers.dh.md.
 import { expect, test } from "bun:test";
@@ -20,14 +20,19 @@ const section = (title: string, w: number) => {
 };
 type Box = Extract<Item, { k: "box" }>; type Text = Extract<Item, { k: "text" }>;
 
-for (const w of [1280, 1180]) test(`6 at ${w}: every line of routing tables T3 and T4 stays inside its card, drawn`, () => {
+// 0.7.0-rc.5 (rc.4 review SHOULD 1 and 2): section 6's routing tables are step tables (prefix | learned from | next hop |
+// out), the chosen row lit, as sections 5 and 8 draw theirs; routers A and B hold no room for a table shown later
+const sh = (i: Item, k: number) => (i.on ? i.on.includes(k) : k >= (i.from ?? 1) && (!i.to || k <= i.to));
+for (const w of [1280, 1180]) test(`6 at ${w}: routing tables T3 and T4 are step tables, the chosen row lit, every line inside the stage`, () => {
   const p = section("6. Two internet routers: how they know the way", w);
-  for (const id of ["t3", "t4"]) {
-    const card = p.items.filter((it): it is Box => it.k === "box" && (it as { id?: string }).id === id); expect(card.length).toBeGreaterThan(0);
-    for (const b of card) {
-      const lines = p.items.filter((it): it is Text => it.k === "text" && (!it.anchor || it.anchor === "start") && it.x > b.x && it.x < b.x + b.w && it.y > b.y + 20 && it.y < b.y + b.h);
-      expect(lines.length).toBeGreaterThan(5);
-      for (const t of lines) expect({ id, s: t.s, past: Math.round(t.x + drawnW(t.s, t.f) - (b.x + b.w - 4)) > 0 }).toEqual({ id, s: t.s, past: false });
-    }
+  for (const [k, name, chosen] of [[2, "T3", ""], [3, "T3", "198.51.100.128/26"], [4, "T3", "203.0.113.0/24"], [5, "T3", "203.0.113.0/24"], [8, "T4", ""], [9, "T4", "203.0.113.64/26"]] as const) {
+    const ts = p.items.filter((it): it is Text => it.k === "text" && sh(it, k));
+    const head = ts.find((t) => t.s === `routing table ${name}`)!; expect(head).toBeDefined();
+    expect(ts.filter((t) => Math.abs(t.y - head.y) < 1).map((t) => t.s)).toEqual([`routing table ${name}`, "learned from", "next hop", "out"]); // four columns
+    const lit = ts.filter((t) => t.y > head.y && t.ink === "acc:ink").map((t) => t.s);
+    expect(lit[0] ?? "").toBe(chosen); // the chosen row is lit, from its prefix on (none in the step that only shows the table)
+    for (const t of ts.filter((t) => t.y > head.y - 2 && (!t.anchor || t.anchor === "start"))) expect({ s: t.s, past: t.x + drawnW(t.s, t.f) > p.w - 4 }).toEqual({ s: t.s, past: false });
   }
+  const step1 = p.items.filter((it): it is Box => it.k === "box" && sh(it, 1) && ["ra", "rb"].includes(String((it as { id?: string }).id)));
+  expect(step1.length).toBe(2); for (const b of step1) expect(b.h).toBeLessThan(200); // no room held inside for a table (they were 330-530 px)
 });

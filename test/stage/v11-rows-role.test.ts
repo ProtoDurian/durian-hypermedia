@@ -37,7 +37,7 @@ describe("rows <role>", () => {
   test("the layers example draws its routing tables in the table family and the switch's MAC table in link", () => {
     const text = readFileSync(join(import.meta.dir, "../../fixtures/stage/example-layers.dh.md"), "utf8");
     const lines = text.split("\n"), word = (head: RegExp) => lines.filter((_, i) => head.test(lines[i + 1] ?? "")).map((l) => l.trim());
-    expect(word(/^\s+\^ (routing table T\d|the server's table T5) \|/)).toEqual(["rows table", "rows table", "rows table", "rows plain table", "rows plain table"]);
+    expect(word(/^\s+\^ (routing table T\d|the server's table T5) \|/)).toEqual(["rows table", "rows table", ...Array(6).fill("rows plain table") /* section 6 (rc.5) */, "rows table", "rows plain table", "rows plain table"]);
     expect(word(/^\s+\^ the switch's MAC table \|/)).toEqual(["rows link", "rows link"]);
   });
 });

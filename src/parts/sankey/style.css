@@ -1,9 +1,9 @@
 /* sankey: flows between nodes. Its tokens read the base tokens, so light and dark follow; a host sets one to restyle it. */
 :root { --sankey-band-opacity: .35; --sankey-band-lit: .6; --sankey-band-dim: .08; --sankey-node-dim: .35; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --sankey-band-opacity: .42; --sankey-band-lit: .7; }
+  :root:not([data-theme="light"]) { --sankey-band-opacity: .62; --sankey-band-lit: .9; --sankey-band-dim: .12; }
 }
-:root[data-theme="dark"] { --sankey-band-opacity: .42; --sankey-band-lit: .7; }
+:root[data-theme="dark"] { --sankey-band-opacity: .62; --sankey-band-lit: .9; --sankey-band-dim: .12; }
 
 .sankey { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); padding: 14px 16px; box-shadow: var(--shadow-sm); }
 .sankey:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
@@ -24,6 +24,7 @@
 .sk-node.is-dim { opacity: var(--sankey-node-dim); }
 .sk-label { font: 500 12px var(--font-sans); fill: var(--ink); pointer-events: none; }
 .sk-plate { fill: var(--surface); stroke: none; pointer-events: none; }
+.sk-lead { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
 .sk-flow:focus-visible .sk-band, .sk-node:focus-visible .sk-rect { stroke: var(--ink); stroke-width: 2px; }
 @media (prefers-reduced-motion: reduce) { .sk-band, .sk-node { transition: none; } }
 [data-dh-motion="off"] .sk-band, [data-dh-motion="off"] .sk-node { transition: none; }

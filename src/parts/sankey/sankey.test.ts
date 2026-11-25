@@ -181,6 +181,17 @@ describe("sankey: colours and words of the samples", () => {
   });
 });
 
+describe("sankey: bands in the dark theme", () => {
+  test("the dark bands are drawn at 0.55 or more (at 0.42 a yellow family read as a muddy olive), in both dark forms", () => {
+    const css = readFileSync(join(import.meta.dir, "style.css"), "utf8");
+    const dark = [...css.matchAll(/--sankey-band-opacity: (\.?\d*\.?\d+);/g)].map((m) => Number(m[1]));
+    expect(dark.length).toBe(3);   // light, the media form, the attribute form
+    expect(dark[0]).toBeLessThan(0.5);
+    expect(dark[1]).toBeGreaterThanOrEqual(0.55);
+    expect(dark[2]).toBe(dark[1]);
+  });
+});
+
 describe("sankey: fixtures", () => {
   const dir = join(import.meta.dir, "fixtures");
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".dh.md"))) {

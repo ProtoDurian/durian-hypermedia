@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { decodeHTML } from "entities";
@@ -49,4 +51,30 @@ test("many words in a label do not overflow the JavaScript argument stack", () =
   const spec = { ...block.data, nodes: block.data.nodes.map((n, i) => i ? n : { ...n, label }) };
   const { labels } = labelledLayout(spec, 1180, s => s.length * 7.2);
   expect(labels.get(spec.nodes[0].id)!.lines.join(" ")).toBe(label);
+});
+test("on a phone every label is tied to its own node: right over it, or by a line that crosses no other label", () => {
+  const measure = (s: string) => s.length * 7.2;
+  const text = readFileSync(join(import.meta.dir, "../../../fixtures/format/00-sankey.dh.md"), "utf8");
+  const spec = (parse(text, { path: "00-sankey.dh.md" }).blocks.find(b => b.type === "sankey") as PartBlock<SankeySpec>).data;
+  for (const width of [420, 390, 360, 320]) {
+    const { layout, labels } = labelledLayout(spec, width, measure);
+    expect(layout.vertical).toBe(true);
+    for (const n of layout.nodes) {
+      const p = labels.get(n.id)!, cx = n.x + n.w / 2;
+      const over = cx >= p.x + 6 && cx <= p.x + p.w - 6 && p.y + p.h + 6 >= n.y;
+      if (!over) {
+        expect(p.lead).toBeDefined();
+        expect(p.lead!.x).toBeGreaterThanOrEqual(n.x - 0.5);
+        expect(p.lead!.x).toBeLessThanOrEqual(n.x + n.w + 0.5);
+        expect(p.lead!.y1).toBeCloseTo(n.y, 3);
+        for (const [id, q] of labels) {
+          if (labels.get(n.id) === q) continue;
+          const crosses = !(q.y + q.h <= p.lead!.y0 || q.y >= p.lead!.y1 || p.lead!.x < q.x - 2 || p.lead!.x > q.x + q.w + 2);
+          expect(crosses).toBe(false);
+        }
+      }
+    }
+    // the label of the 5 ms node, far right and tiny, is the one a reader mistook for the node beside it: it is tied by a line
+    expect(labels.get("cache")!.lead).toBeDefined();
+  }
 });

@@ -74,6 +74,7 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
                   onPointerEnter={(e) => { if (e.pointerType === "mouse") setHover({ kind: "node", k }); }} onPointerLeave={() => setHover(null)} onFocus={(e) => { setHover({ kind: "node", k }); pop.bind(`n${k}`, d).onFocus(e); }} onBlur={(e) => { setHover(null); pop.bind(`n${k}`, d).onBlur(e); }}>
                   <rect x={n.x} y={n.y} width={Math.max(n.w, 2)} height={Math.max(n.h, 2)} rx={3} fill={colBase(n.colour)} className="sk-rect" />
                   <rect x={n.x - 6} y={n.y - 4} width={Math.max(24, n.w + 12)} height={Math.max(24, n.h + 8)} fill="transparent" />
+                  {a.lead && <line x1={a.lead.x} x2={a.lead.x} y1={a.lead.y0} y2={a.lead.y1} className="sk-lead" />}
                   <rect x={a.x} y={a.y} width={a.w} height={a.h} rx={4} className="sk-plate" />
                   <text x={a.x + 4} y={a.y + 14} className="sk-label" data-dh-slot="node-label">{a.lines.map((line, i) => <tspan key={i} x={a.x + 4} dy={i ? 16 : 0}>{line}{i < a.lines.length - 1 ? " " : ""}</tspan>)}</text>
                 </g>

@@ -2,7 +2,8 @@ import { layoutSankey, type LNode, type SankeyLayout } from "./layout";
 import type { SankeySpec } from "./part";
 
 export type Measure = (text: string) => number;
-export type Label = { x: number; y: number; w: number; h: number; lines: string[] };
+/** `lead`: a thin line from the label down to its node (top-to-bottom layout), drawn when the label does not sit right over it */
+export type Label = { x: number; y: number; w: number; h: number; lines: string[]; lead?: { x: number; y0: number; y1: number } };
 const gap = 4, lineHeight = 16;
 /** Wrap at spaces, keeping every word intact, including a word wider than the requested room. */
 export function labelLines(text: string, room: number, measure: Measure): string[] {
@@ -85,10 +86,40 @@ export function labelledLayout(spec: SankeySpec, availableWidth: number, measure
   const band = Math.max(...rowPlans.map(r => r.height));
   const height = Math.max(360, probe.columns * (band + 38));
   const layout = layoutSankey(spec, width, height, true, 14, 14, { l: 0, r: 0, t: band + gap, b: 8 });
-  for (const row of rowPlans) for (const plan of row.plans) {
-    const n = layout.nodes.find(n => n.id === plan.id)!, p = labels.get(plan.id)!;
-    p.x = clamp(n.x + n.w / 2 - p.w / 2, gap, width - p.w - gap);
-    p.y = n.y - gap - row.shelves.slice(0, plan.shelf + 1).reduce((h, s) => h + s.height + gap, 0) + gap;
+  const byId = new Map(layout.nodes.map(n => [n.id, n]));
+  for (const row of rowPlans) {
+    for (const plan of row.plans) {
+      const n = byId.get(plan.id)!, p = labels.get(plan.id)!;
+      p.x = clamp(n.x + n.w / 2 - p.w / 2, gap, width - p.w - gap);
+      p.y = n.y - gap - row.shelves.slice(0, plan.shelf + 1).reduce((h, s) => h + s.height + gap, 0) + gap;
+    }
+    // A label that sits on a higher shelf, or off to one side of its node, is tied to it by a thin line, so no label can be read
+    // as the name of the node beside it. The line must not cross another label of the row: that label moves aside (left of
+    // the line, else right of it) when it has room.
+    const ids = row.plans.map(plan => plan.id);
+    for (const id of ids) {
+      const n = byId.get(id)!, p = labels.get(id)!, cx = n.x + n.w / 2;
+      if (p.y + p.h + gap + 2 < n.y || cx < p.x + 6 || cx > p.x + p.w - 6) p.lead = { x: clamp(cx, p.x + 6, p.x + p.w - 6), y0: p.y + p.h, y1: n.y };
+    }
+    const mid = (a: Label, b: Label) => a.x + a.w + gap <= b.x || b.x + b.w + gap <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+    for (const id of ids) {
+      const a = labels.get(id)!;
+      if (!a.lead) continue;
+      for (const other of ids) {
+        const b = labels.get(other)!;
+        if (other === id || b.y + b.h <= a.lead.y0 || b.y >= a.lead.y1 || a.lead.x < b.x - 2 || a.lead.x > b.x + b.w + 2) continue;
+        for (const x of [a.lead.x - 3 - b.w, a.lead.x + 3]) {
+          const old = b.x; b.x = x;
+          const ok = x >= gap && x + b.w <= width - gap && ids.every(o => o === other || mid(labels.get(o)!, b));
+          if (ok) break;
+          b.x = old;
+        }
+      }
+    }
+    for (const id of ids) {
+      const n = byId.get(id)!, p = labels.get(id)!, cx = n.x + n.w / 2;
+      if (!p.lead && (cx < p.x + 6 || cx > p.x + p.w - 6)) p.lead = { x: clamp(cx, p.x + 6, p.x + p.w - 6), y0: p.y + p.h, y1: n.y };
+    }
   }
   return { layout, labels };
 }

@@ -128,7 +128,7 @@ export interface SceneStep { caption: string; line: number; ops: Op[]; beat?: nu
 // phone: the phone's spacing (PHONE: the same type sizes, tighter padding, gaps and wrap widths), so more of a scene
 // fits a phone at a size where its words stay readable; the narrow layout always uses it
 // only3d (format version 10): the scene has no flat form; labels: the 3D labels rule, part (default) or all
-export interface Scene { attrs: { layout: string; dir: string; view: string; size: string; fill?: string; narrow?: boolean; phone?: boolean; only3d?: boolean; still?: boolean; fit?: number; entered?: boolean; apart?: boolean; labels?: string }; setup: Op[]; steps: SceneStep[]; texts: string[]; subs?: SubScene[] }
+export interface Scene { attrs: { layout: string; dir: string; loose?: boolean; view: string; size: string; fill?: string; narrow?: boolean; phone?: boolean; only3d?: boolean; still?: boolean; fit?: number; entered?: boolean; apart?: boolean; labels?: string }; setup: Op[]; steps: SceneStep[]; texts: string[]; subs?: SubScene[] }
 
 // ---------------------------------------------------------------- lexing one line
 type Tok = { t: "str" | "arrow" | "kv" | "word"; v: string; k?: string };
@@ -983,7 +983,7 @@ export interface SendGeom { show: string; label: string; cc: number; path: numbe
 // layers: the declared layers (none: every nesting level is one, unnamed); bands: the 2D stage draws them as bands;
 // levels: how many layers there are; spread: split apart (3D); focus: the layer the story looks at, or null
 // look: the keys the story's camera frames (null: everything, or the focused layer); touched: the keys this step touches
-export interface Frame { boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean; view?: CamView; part?: number[] }
+export interface Frame { tight?: boolean; boxes: Box[]; edges: Edge[]; bounds: Rect; camera: Rect; layers: Layer[]; bands: boolean; levels: number; spread: boolean; focus: number | null; look: number[] | null; size: SizeName; marks: Mark[]; sends: SendGeom[]; touched: number[]; families: Family[]; phone?: boolean; view?: CamView; part?: number[] }
 
 // text width: Latin about 7.3 per character at 13px, CJK about 13, Indic scripts about 8.6
 const chW = (ch: string) => { const c = ch.codePointAt(0)!; return c >= 0x2e80 ? 13 : c >= 0x0900 && c <= 0x0dff ? 8.6 : /[A-Z@#%&mwMW]/.test(ch) ? 8.6 : /[ilj.,:;'|!]/.test(ch) ? 3.8 : 7.1; };
@@ -1425,7 +1425,7 @@ function around(a: Rect, w: number, h: number, sides: ("up" | "down" | "left" | 
 // keep: the size each thing has at its largest in the story (by kind and id): a thing keeps one size for the whole story
 // attrs.room: the widest connector or arrow label of the story, so a graph leaves room for it between its layers
 // heads: where each container's heading sits along its top (0 left, 1 right), chosen for the story so no line crosses it
-export function layoutState(s: State, attrs: { layout: string; dir: string; fit?: number; entered?: boolean; apart?: boolean; size?: string; fill?: string; room?: number; narrow?: boolean; view?: string; only3d?: boolean; phone?: boolean }, story: [string, string][] = [], keep: Map<string, [number, number]> = new Map(), heads: Map<string, number> | null = null): Frame {
+export function layoutState(s: State, attrs: { layout: string; dir: string; loose?: boolean; fit?: number; entered?: boolean; apart?: boolean; size?: string; fill?: string; room?: number; narrow?: boolean; view?: string; only3d?: boolean; phone?: boolean }, story: [string, string][] = [], keep: Map<string, [number, number]> = new Map(), heads: Map<string, number> | null = null): Frame {
   // a story link to a thing that is not here now goes to its kept slot, so a graph places the slot where the thing goes
   const slotOf = new Map<string, string>();
   for (const e of Object.values(s.ents)) if (e.ghost && !s.ents[e.ghost] && !slotOf.has(e.ghost)) slotOf.set(e.ghost, e.id);
@@ -1446,6 +1446,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
   const size = new Map<string, [number, number]>();
   const head = new Map<string, number>();
   const lines = new Map<string, string[]>();
+  const wrapAt = new Map<string, number>(); // (rc.4) a thing in a turned row wraps its words here, not at its size's maxW
   const kept = (e: Ent, w: number, h: number): [number, number] => { const k = keep.get(`${e.kind}:${e.ghost ?? e.id}`); return k ? [Math.max(w, k[0]), Math.max(h, k[1])] : [w, h]; };
   const rootLayout0 = attrs.layout === "auto" ? (links.some(([a, b]) => top(s, a) !== top(s, b)) ? "graph" : "row") : attrs.layout;
   const rootLayout = attrs.narrow && rootLayout0 === "row" ? "column" : rootLayout0;
@@ -1472,7 +1473,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
     const e = s.ents[id];
     const z = DZ[sizeOf(id)];
     if (!isContainer(e.kind)) {
-      const g = leafGeom(e, e.parent ? s.ents[e.parent].kind : null, z);
+      const g = leafGeom(e, e.parent ? s.ents[e.parent].kind : null, wrapAt.has(id) ? { ...z, maxW: wrapAt.get(id)! } : z);
       lines.set(id, g.lines);
       const sz = kept(e, g.w, g.h);
       size.set(id, sz);
@@ -1567,6 +1568,21 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
     for (const k of layout === "queue" ? [...kids].reverse() : kids) { const [kw, kh] = size.get(k)!; set(k, x, (h - kh) / 2); x += kw + gap; }
     return [x - gap, h];
   };
+  // (rc.4) and a column the narrow layout turns into a row fits the narrowest phone stage (ROW_FIT): its things wrap
+  // their words tighter, never inside a word (a row that would not fit even so keeps its words: as a column its lines
+  // would run down through its things)
+  for (const id of attrs.loose ? [] : [...turned]) {
+    const e = s.ents[id], kids = e.kids.filter((k) => !(isOverlay(s.ents[k].kind) && s.ents[k].anchor));
+    if (!kids.length || kids.some((k) => isContainer(s.ents[k].kind))) continue;
+    work(kids.length * 16);
+    const z = DZ[sizeOf(id)], gap = joined(kids) ? Math.max(gapOf(e.kind, z), LINK_GAP) : gapOf(e.kind, z);
+    const wrapW = (k: string, by: number) => { const zk = DZ[sizeOf(k)]; return Math.max(zk.maxW * by, ...(s.ents[k].label ?? "").split(/\s+/).map((w) => textW(w, zk.font))); };
+    const rowW = (by: number) => kids.reduce((n, k) => n + kept(s.ents[k], leafGeom(s.ents[k], e.kind, { ...DZ[sizeOf(k)], maxW: wrapW(k, by) }).w, 0)[0], 2 * z.pad + gap * (kids.length - 1));
+    let by = 1;
+    while (by > 0.3 && rowW(by) > ROW_FIT) by -= 0.05;
+    if (rowW(by) > ROW_FIT) continue;
+    if (by < 1) for (const k of kids) wrapAt.set(k, wrapW(k, by));
+  }
   const rootKids = s.root.filter((k) => !(isOverlay(s.ents[k].kind) && s.ents[k].anchor));
   const open = openSet(s);
   const lay = (id: string) => layerIndex(s, id);
@@ -1720,7 +1736,7 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; fit?
   const onFocus = focus < 0 ? [] : banded ? bandBoxes.filter((b) => b.layer === focus) : all.filter((b) => b.layer === focus);
   const cam = s.camera ? union(s.camera.map((id) => boxes.get(id)).filter(Boolean) as Rect[]) : onFocus.length ? union(onFocus) : bounds;
   const levels = s.layers.length || Math.max(1, ...all.map((b) => b.layer + 1));
-  return { boxes: all, edges, bounds, camera: pad(cam, 12), layers: s.layers, bands: banded, levels, spread: s.spread, focus: focus < 0 ? null : focus, look: s.camera ? s.camera.map((id) => boxes.get(id)?.key).filter((k): k is number => k != null) : null, size: sz0, marks: [], sends: [], touched: [], families: s.families, phone: !!attrs.phone, view: s.view };
+  return { ...(wrapAt.size ? { tight: true } : {}), boxes: all, edges, bounds, camera: pad(cam, 12), layers: s.layers, bands: banded, levels, spread: s.spread, focus: focus < 0 ? null : focus, look: s.camera ? s.camera.map((id) => boxes.get(id)?.key).filter((k): k is number => k != null) : null, size: sz0, marks: [], sends: [], touched: [], families: s.families, phone: !!attrs.phone, view: s.view };
 }
 // inside a closed=hidden thing that is not open (format version 10): not drawn at all
 function hiddenDeep(s: State, id: string, open: Set<string>): boolean {
@@ -1951,6 +1967,9 @@ export function touchedRect(f: Frame): Rect | null {
   return rs.length ? union(rs) : null;
 }
 export const MARGIN = 16;
+// (rc.4) the widest a row the narrow layout turns from a column may be: the narrowest stage a page gives a story on a
+// phone (a 360 px window, the page's gutters and a column's padding: 294 px) less the scene's margins
+export const ROW_FIT = 294 - 2 * MARGIN;
 // the smallest type a frame draws, in stage units: labels, container and layer headings, chips, indexes, speech
 export function minFont(f: Frame): number {
   const Z = tokens(f.phone);
@@ -2443,6 +2462,9 @@ export function compileParsed(scene: Scene, errors: SceneError[]): Compiled {
     }
   };
   grow();
+  // (rc.4) a turned row's tighter words stay only where the scene's things then fit ROW_FIT (as first laid out, before
+  // shared slots): elsewhere they would only move the camera, and show no more
+  if (frames.some((f) => f.tight) && union(frames.map((f) => f.bounds)).w > ROW_FIT + 0.5) { scene.attrs.loose = true; keep = new Map(); grow(); }
   // now that sizes are known, things never in a container together share a slot (format version 9); containers are
   // measured again with that plan (what they hold keeps its size)
   slotted = keepSlots(seq, keep);

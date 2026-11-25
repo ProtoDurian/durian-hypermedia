@@ -34,6 +34,16 @@ The fourth release candidate of 0.7.0. The format number stays 10.
   to 12 px past that margin, only when that cuts fewer. On a phone a few views move by a few pixels (and two phone
   stages are a little shorter, where that slide now does what a taller stage did); at 1280 no view changes.
 
+- **A row a phone turns from a column fits a page's column** (SPEC.md 6.14; the rc.4 review: one question becomes
+  three in a page's column at 390 px, its third branch cut at every step): on a phone a column whose things link
+  outside it turns into a row, so their lines leave side by side, and three branch catalogues side by side were 342
+  units wide: whole on a stage as wide as the phone, cut on a narrower one. Their words now wrap tighter, never inside
+  a word, so the row fits a 294 px stage (a 360 px window's page column), where the scene's other things then fit too
+  (elsewhere tighter words would only move the camera). On a phone two fixtures change (one question becomes three:
+  342 to 249 units wide; streams, meters and colours), and the same two between 448 and 640 px layout widths; at 1280
+  nothing changes. In a browser on a 321 and a 294 px stage both are whole at every step (one question becomes three
+  was cut at every step).
+
 ### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
 
 - A worded `[bad]` cell draws its corner cross only beside its words (30 px or more of room) or in a cell without

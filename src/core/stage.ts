@@ -1630,13 +1630,28 @@ function narrowConnectors(m: Model, rects: Map<string, Rect & { lane: number }>,
       const ok = (x: number) => free(x, y0 + 1, t.y - 1, [e.from, e.to]) && !nav.texts.some((r) => x > r.x - 3 && x < r.x + r.w + 3 && t.y > r.y && y0 < r.y + r.h);
       for (let d = 0; b >= a && d <= (b - a) / 2 && !drop; d += 4) for (const x of [mid + d, mid - d]) if (!drop && x >= a && x <= b && ok(x)) drop = [[x, y0], [x, t.y]];
     }
-    if (!fc && !tc && Math.abs(f.y - t.y) < 1 && (t.x >= f.x + f.w - 1 || f.x >= t.x + t.w - 1)) { const lr = t.x >= f.x + f.w - 1, foot = Math.min(f.y + f.h, t.y + t.h), mid = f.y + f.h / 2;
+    // side by side in one row: straight across only when no other card of its steps (nor a pill in one) stands between the
+    // two (0.7.0-rc.4: a line from the first card to the third ran through the middle card's pill)
+    let hop: [number, number][] | null = null;
+    const between = (lr0: boolean) => [...live].some(([id, r]) => id !== e.from && id !== e.to && (lr0 ? r.x >= f.x + f.w - 1 && r.x + r.w <= t.x + 1 : r.x >= t.x + t.w - 1 && r.x + r.w <= f.x + 1) && r.y < f.y + f.h && r.y + r.h > f.y);
+    if (!fc && !tc && Math.abs(f.y - t.y) < 1 && (t.x >= f.x + f.w - 1 || f.x >= t.x + t.w - 1) && !between(t.x >= f.x + f.w - 1)) { const lr = t.x >= f.x + f.w - 1, foot = Math.min(f.y + f.h, t.y + t.h), mid = f.y + f.h / 2;
       // a labelled one between tall cards runs near their foot, by its label in the strip under the gap (the label
       // stood 150 px under its arrow); others at the middle as before
       const copies=es.filter(x=>x.step===e0.step&&x.from===e0.from&&x.to===e0.to&&!!x.back===!!e0.back&&!relabelOf(m,x)),hi=Math.min(f.y+f.h,t.y+t.h),lo=Math.max(f.y,t.y);
       const targetKids=m.cards.get(e.to)?.kids??[],targetKid=copies.length>1&&targetKids.length>=copies.length?pillBox(`card:${targetKids[copies.indexOf(e0)]}`,e.step):undefined;
       const entryY=targetKid?targetKid.y+targetKid.h/2:NaN;
       const my = Number.isFinite(entryY)&&entryY>=lo+8&&entryY<=hi-8?entryY:copies.length>1?lo+8+(hi-lo-16)*(copies.indexOf(e0)+1)/(copies.length+1):e.label && foot - mid > 30 ? Math.max(Math.max(f.y, t.y) + 10, foot - 14 - 8 * slotOf(`${[e.from, e.to].sort().join("|")}|foot|${e.step}`)) : mid; pts = lr ? [[f.x + f.w, my], [t.x, my]] : [[f.x, my], [t.x + t.w, my]]; curve = "h"; } // side by side in one row
+    else if (!fc && !tc && Math.abs(f.y - t.y) < 1 && (t.x >= f.x + f.w - 1 || f.x >= t.x + t.w - 1) && (hop = (() => {
+      // ... and with a card between them: a hop over the row (else under it), 14 to 30 px clear of every card it passes,
+      // out of the source's top near its facing side and into the target's top near its facing side (0.7.0-rc.4)
+      const lr = t.x >= f.x + f.w - 1, on = edgeSteps(m, e.step, e), mids = [...live].filter(([id, r]) => id !== e.from && id !== e.to && r.y < f.y + f.h && r.y + r.h > f.y).map(([, r]) => r);
+      const sx = lr ? f.x + f.w - 24 : f.x + 24, ex = lr ? t.x + 24 : t.x + t.w - 24, top = Math.min(f.y, t.y, ...mids.map((r) => r.y)), bot = Math.max(f.y + f.h, t.y + t.h, ...mids.map((r) => r.y + r.h));
+      for (const [y0, y1, dir] of [[f.y, t.y, -1], [f.y + f.h, t.y + t.h, 1]] as const) for (const d of [14, 18, 22, 26, 30]) {
+        const y = dir < 0 ? top - d : bot + d; if (y < 2) continue;
+        const ps: [number, number][] = [[sx, y0], [sx, y], [ex, y], [ex, y1]];
+        if (ps.slice(1).every((q, k) => segOk(ps[k], q, [e.from, e.to], on, k === 0) || (k === 2 && !hitsCard(ps[k][0], ps[k][1], q[0], q[1], [e.to], 2)))) return ps;
+      }
+      return null; })())) { pts = hop; curve = "round"; }
     else if (drop) { pts = drop; curve = drop.length > 2 ? "round" : Math.abs(drop[0][1] - drop[1][1]) < 1 ? "h" : "v"; }
     // a card inside a box with nothing of the box under it leaves by its foot, out through the
     // box's, and takes its own way to a card under the box (not the side channel with the box's other lines)

@@ -19,7 +19,7 @@ import type { PartViewProps } from "../types";
 import { useStatic } from "../kit/static";
 import type { GNode, GraphSpec, Still } from "./shape";
 import { nodeWidth as nodeW } from "./shape";
-import { ancestors, anchorId, compactOf, hullOf, modelOf, nearHull, parentOf, repOf, startsFolded, viewOf, type Hull, type Pt } from "./model";
+import { ancestors, anchorId, compactOf, hullOf, modelOf, nearHull, parentOf, repOf, stageHeights, startsFolded, viewOf, type Hull, type Pt } from "./model";
 import { forceLayout } from "./force";
 
 // the words of the part (English; the renderer's shared words come from `ui`)
@@ -150,6 +150,7 @@ function StaticGraph({ spec, t }: { spec: GraphSpec; t: GUi }) {
 }
 function GraphLive({ spec, t, theme, motionOff }: { spec: GraphSpec; t: GUi; theme: "light" | "dark"; motionOff: boolean }) {
   const m = useMemo(() => modelOf(spec), [spec]);
+  const heights = useMemo(() => stageHeights(spec, m), [spec, m]);
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const topGroups = useMemo(() => spec.groups.filter((g) => !g.parent).map((g) => g.id), [spec]);
   const hullsOn = spec.layout !== "radial";
@@ -547,7 +548,7 @@ function GraphLive({ spec, t, theme, motionOff }: { spec: GraphSpec; t: GUi; the
   const ariaOf = (it: Item) => { const d = deg.get(it.id); return `${it.label}${it.kind === "folded" ? `, ${t.folded} ${t.group}, ${it.count} ${t.nodes}` : it.kind === "open" ? `, ${t.group}, ${it.count} ${t.nodes}` : ""}${it.group ? `, ${t.inGroup} ${labelOf(it.group)}` : ""}${d ? `, ${d[0]} in, ${d[1]} out` : ""}`; };
 
   return (
-    <div ref={rootRef} className={`gr size-${spec.size}${ready ? " is-ready" : ""}`} data-layout={spec.layout} onKeyDown={onRootKey}>
+    <div ref={rootRef} className={`gr size-${spec.size}${ready ? " is-ready" : ""}`} data-layout={spec.layout} style={heights ? ({ "--graph-gh-open": `${heights.open}px`, "--graph-gh-fold": `${heights.fold}px` } as React.CSSProperties) : undefined} onKeyDown={onRootKey}>
       {spec.title ? <div className="gr-title" data-dh-slot="title">{spec.title}</div> : null}
       <div className="gr-bar" data-dh-slot="toolbar">
         <div className="gr-find" role="search">

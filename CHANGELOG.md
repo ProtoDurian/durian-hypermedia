@@ -39,6 +39,12 @@ The fifth release candidate of 0.7.0. The format number stays 10.
   names at 8.5 px or more), counted in the room left of the zoom buttons. On a 390 px phone the first sample
   opens as four named group pills (with a count each) and its two libraries, at 12 px or more, and the reader
   opens the groups; on a laptop it opens whole.
+- **The graph's box is as tall as its first view needs** (the rc.4 review: a small graph in a tall, mostly empty
+  frame): the part works the height out from the sample (the whole graph at full size on a wide box, the folded
+  pills on one under 480 px) and writes it into the page, so it does not move when the graph loads; the box
+  never grows past its size's height (`size=s|m|l`) nor goes under 260 px. The first sample's empty height in the
+  box went from 142 to 90 px at 1280 and from 174 to 90 px at 390. A force layout is placed in the browser, so it
+  keeps its size's height.
 
 ### Fixed: kube-proxy lights conntrack when it writes the rewrite down (fixture 66)
 

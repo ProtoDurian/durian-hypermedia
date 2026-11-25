@@ -1,7 +1,7 @@
 // The graph part's view model (format version 11): which elements show for a fold state, a group's area (a padded convex
 // hull of its members) and the lookups the view uses. Pure: no DOM, no React, no cytoscape; the tests call it directly.
 import type { GGroup, GNode, GraphSpec } from "./shape";
-import { nodeWidth as nodeW } from "./shape";
+import { NODE_H, nodeWidth as nodeW } from "./shape";
 
 export type Model = { nodes: Map<string, GNode>; groups: Map<string, GGroup>; order: Map<string, number>; under: Map<string, string[]> };
 export function modelOf(spec: GraphSpec): Model {
@@ -108,3 +108,19 @@ export type Hull = { id: string; label: string; tone: string; depth: number; pad
  * the zoom buttons take at the right, bw x bh: the open graph. */
 export const START_FOLDED_Z = 0.65;
 export const startsFolded = (w: number, h: number, bw: number, bh: number, room = 0): boolean => Math.min((w - room - 40) / Math.max(1, bw), (h - 40) / Math.max(1, bh)) < START_FOLDED_Z;
+
+/** The stage's height that shows the first view with no empty frame, worked out from the sample so the server writes it and the page does not
+ * move when the graph loads: open = the whole graph at zoom 1 (its nodes, the groups' areas round them, and the margins fitAll keeps), fold =
+ * the folded pills of the still picture. A force layout is placed in the browser (cytoscape), so it has no height here: null (the stage keeps
+ * its size's height). The stage never grows past that height, and never goes under its least (style.css). */
+export function stageHeights(spec: GraphSpec, m: Model = modelOf(spec)): { open: number; fold: number } | null {
+  if (spec.layout === "force" || !spec.nodes.length) return null;
+  const ys = spec.nodes.map((n) => [n.y - NODE_H / 2, n.y + NODE_H / 2]);
+  const bh = Math.max(...ys.map((a) => a[1])) - Math.min(...ys.map((a) => a[0]));
+  const depth = (g: string): number => { let d = 0; for (let p = m.groups.get(g)?.parent ?? null; p; p = m.groups.get(p)?.parent ?? null) d++; return d; };
+  const maxDepth = Math.max(0, ...spec.groups.map((g) => depth(g.id)));
+  const pad = spec.groups.length ? 14 + 10 * maxDepth : 0, top = spec.groups.length ? 22 : 0;
+  const open = Math.ceil(bh + 2 * pad + 40 + top);
+  const fold = spec.still ? Math.ceil(spec.still.h + 28) : open;
+  return { open, fold: Math.min(fold, open) };
+}

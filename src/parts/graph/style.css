@@ -56,10 +56,12 @@
 /* the stage and the side list (beside it on a wide part, below it on a phone) */
 .gr-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
 @container (min-width: 700px) { .gr-body { grid-template-columns: minmax(0, 1fr) 248px; } .gr-side { max-height: var(--graph-h); overflow: auto; } }
-.gr { --graph-h: var(--graph-h-m); }
+.gr { --graph-h: var(--graph-h-m); --graph-gh: var(--graph-gh-open, 9999px); }
+/* the stage follows its first view: open on a wide box, the folded pills on a narrow one (the part writes --graph-gh-open and --graph-gh-fold from the sample) */
+@container (max-width: 480px) { .gr-stage { --graph-gh: var(--graph-gh-fold, 9999px); } }
 .gr.size-s { --graph-h: var(--graph-h-s); }
 .gr.size-l { --graph-h: var(--graph-h-l); }
-.gr-stage { position: relative; height: min(var(--graph-h), 68vh); min-height: 260px; border-radius: var(--r-m); border: 1px solid var(--line); background-color: var(--graph-stage-bg); background-image: radial-gradient(circle, var(--graph-dot) 1px, transparent 1.3px); background-size: 22px 22px; overflow: hidden; touch-action: none; }
+.gr-stage { position: relative; height: clamp(260px, var(--graph-gh, 9999px), min(var(--graph-h), 68vh)); min-height: 260px; border-radius: var(--r-m); border: 1px solid var(--line); background-color: var(--graph-stage-bg); background-image: radial-gradient(circle, var(--graph-dot) 1px, transparent 1.3px); background-size: 22px 22px; overflow: hidden; touch-action: none; }
 .gr-cy { position: absolute; inset: 0; z-index: 1; }
 
 /* the groups' areas, under the canvas: a padded hull of the members, the group's name above it (13 px at any zoom) */

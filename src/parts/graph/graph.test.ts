@@ -14,7 +14,7 @@ import { Budget, BudgetError, partLimitsOf } from "../../core/budget";
 import { UI } from "../../ui/ui";
 import graph, { expandPattern, graphLlm, mostConnected, parseGraph, type GraphSpec } from "./part";
 import { FORCE_ITER_MAX, FORCE_RUN_MIN, NODE_H, forceCost, forceIterations, forceRunIterations } from "./shape";
-import { anchorId, hullOf, modelOf, nearHull, startsFolded, START_FOLDED_Z, viewOf } from "./model";
+import { anchorId, hullOf, modelOf, nearHull, stageHeights, startsFolded, START_FOLDED_Z, viewOf } from "./model";
 import { forceLayout } from "./force";
 import GraphView from "./view";
 
@@ -645,5 +645,27 @@ describe("graph: when the groups start folded", () => {
     const w = 400, room = 56, bw = (w - room - 40) / START_FOLDED_Z;
     expect(startsFolded(w, 900, bw * 0.99, 100, room)).toBe(false);
     expect(startsFolded(w, 900, bw * 1.02, 100, room)).toBe(true);
+  });
+});
+
+describe("graph: the stage follows its first view", () => {
+  test("the first sample's stage is as tall as its first view needs (open and folded), under the size's height, and the page writes both", () => {
+    const s = sample("A shop's packages"), h = stageHeights(s)!;
+    expect(h.open).toBeGreaterThanOrEqual(380);
+    expect(h.open).toBeLessThanOrEqual(440);
+    expect(h.fold).toBeLessThan(h.open);
+    expect(h.fold).toBeGreaterThanOrEqual(300);
+    const out = html(s);
+    expect(out).toContain(`--graph-gh-open:${h.open}px`);
+    expect(out).toContain(`--graph-gh-fold:${h.fold}px`);
+  });
+  test("a force layout is placed in the browser, so it has no height here; the stage keeps its size's height", () => {
+    expect(stageHeights(sample("Calls between"))).toBeNull();
+    expect(html(sample("Calls between"))).not.toContain("--graph-gh-open");
+  });
+  test("the css takes the least of the stage's height, the first view's and the size's", () => {
+    const css = readFileSync(join(HERE, "style.css"), "utf8");
+    expect(css).toContain("height: clamp(260px, var(--graph-gh, 9999px), min(var(--graph-h), 68vh))");
+    expect(css).toMatch(/@container \(max-width: 480px\) \{ \.gr-stage \{ --graph-gh: var\(--graph-gh-fold/);
   });
 });

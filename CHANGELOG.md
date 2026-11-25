@@ -56,6 +56,18 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 - A token the step is not about keeps its number in its pill, in 2D and 3D (seg 3 shows 3), so the story's 'segment 3 waits its turn' can be followed; before, it was an empty capsule.
 - While a step plays in 3D, the things its caption names keep their names next to who takes part: 'the routing table says host B is behind port 2' names the routing table and port 2 in the close-up.
 
+### Fixed: a row of things wider than a phone runs on in rows (SPEC.md 6.14)
+
+- **Eight colours on a phone shows step 2's subject** (the rc.4 review, MUST 4: the region's five things side by side
+  were 590 units wide, so on a phone web, the cache and the region were cut on both sides and the worker, the step's
+  subject, was below the edge). In the narrow layout a container's row of things wider than a 294 px stage (less the
+  scene's margins) now runs on in rows, in reading order, each centred under the one before; a data structure's cells
+  keep their row, and a row the phone turned from a column keeps its row (its words wrap instead). The region is now
+  248 units wide, and on a 390, 360 and 321 px stage every step shows the whole scene, the worker with it. On a phone
+  only that fixture changes, and between 448 and 640 px layout widths too; at 1280 nothing changes. Left: on a 294 px
+  stage (a page's column on a 360 px phone) the scene is taller than the stage's least aspect allows, and the worker
+  is below the edge.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

@@ -1562,6 +1562,19 @@ export function layoutState(s: State, attrs: { layout: string; dir: string; loos
     if (layout === "tree") return treeLayout(s, kids, size, set);
     // format version 11: lines with marks or words at their ends need more room between the ranks
     if (layout === "graph") return graphLayout(s, kids, size, set, dir, gap, links, attrs.room ?? 0, s.conns.some((c) => c.ends) ? END_CLEAR + CHIP.lh : 0, owner ? 0 : attrs.fit ?? 0, !owner && !!attrs.apart);
+    // (rc.5) in the narrow layout a row of things wider than the narrowest phone stage (ROW_FIT) runs on in rows, in
+    // reading order, each centred under the one before: the story camera then never has to leave one of them, or what
+    // links to them, out (a row turned from a column keeps its row: its words wrap instead, above)
+    const o = owner ? s.ents[owner] : null;
+    if (layout === "row" && o && attrs.narrow && !turned.has(o.id) && attrs.view !== "3d" && !attrs.only3d && isContainer(o.kind) && !["bucket", "array", "list", "queue", "stack", "table", "record", "layer"].includes(o.kind) && kids.length > 2 && !kids.some((k) => isContainer(s.ents[k].kind)) && sz.reduce((n, x) => n + x[0], 0) + gap * (kids.length - 1) > ROW_FIT) {
+      const rows: string[][] = [[]];
+      let rx = 0;
+      for (const k of kids) { const kw = size.get(k)![0]; if (rows[rows.length - 1].length && rx + kw > ROW_FIT) { rows.push([]); rx = 0; } rows[rows.length - 1].push(k); rx += kw + gap; }
+      const rw = rows.map((r) => r.reduce((n, k) => n + size.get(k)![0] + gap, -gap)), W = Math.max(...rw);
+      let y = 0;
+      rows.forEach((r, i) => { const rh = Math.max(...r.map((k) => size.get(k)![1])); let x = (W - rw[i]) / 2; for (const k of r) { const [kw, kh] = size.get(k)!; set(k, x, y + (rh - kh) / 2); x += kw + gap; } y += rh + Math.max(gap, LINK_GAP); });
+      return [W, y - Math.max(gap, LINK_GAP)];
+    }
     // row (a queue's row: the newest on the left, the front on the right)
     const h = Math.max(...sz.map((x) => x[1]));
     let x = 0;

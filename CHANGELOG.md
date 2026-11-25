@@ -25,6 +25,19 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 
 - The Venn legend flows under the drawing at every width, so no membership is cut off.
 
+### Fixed: the graph's first sample names every node on a laptop and on a phone (SPEC.md, graph)
+
+- **The first sample is a graph a reader can take in** (the rc.3 and rc.4 reviews: a 40-node tangle, then 8 px
+  names on a laptop and 11 of 16 names missing on a phone): it is 14 nodes in 4 groups and 17 edges, every node
+  named, one line crossing, narrow enough that on a laptop the canvas draws every name at 13 px (it was 8), and
+  its LLM view is the graph itself, with no `:::llm`. The graph is framed in the room left of the zoom buttons
+  (a 56 px margin at the right edge, on fit and on focus), so no name sits under a button.
+- **A graph that would draw its names too small starts with its groups folded** (SPEC.md, graph): the limit
+  was a third of its size, which suits touching a node but not reading one; it is now 0.65 of its size (13 px
+  names at 8.5 px or more), counted in the room left of the zoom buttons. On a 390 px phone the first sample
+  opens as four named group pills (with a count each) and its two libraries, at 12 px or more, and the reader
+  opens the groups; on a laptop it opens whole.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

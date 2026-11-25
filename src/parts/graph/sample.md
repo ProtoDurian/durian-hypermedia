@@ -6,27 +6,24 @@ group domain "domain" [c2]
 group data "data access" [c6]
 group core "core" [c3]
 node web "web shop" in apps
-node admin "admin console" in apps
-node worker "background worker" in apps
-node cart, checkout, catalog, accounts, orders, search in domain
+node admin, worker in apps
+node cart, checkout, catalog, orders in domain
 node db "database" in data
 node cache, queue in data
 node config, log in core
-web -> cart, checkout, search
-admin -> catalog, accounts, orders
+web -> cart, checkout, catalog
+admin -> catalog, orders
 worker -> orders
-cart -> cache, db
+cart -> db
 checkout -> db, queue
-catalog -> db, cache
-accounts -> db
-orders -> db, queue
-search -> cache
-queue -> ioredis
+catalog -> cache
+orders -> queue
 cache -> ioredis, config
+queue -> ioredis
 db -> pg, config, log
 ```
 
-`layout=force` pulls linked services together and pushes the rest apart, so the clusters show. It fits calls between services, where there is no top or bottom. An id may carry a numbered range: `node db-orders-{1..6} in data` declares six shards, and `orders -> db-orders-{1..6}` draws a line to each. **Fold a group** (beside the graph, or a double tap on its box) and its lines join on one box with a count; **Fold groups** folds them all. A graph over 300 nodes, or one that would be drawn too small to touch in its box (a phone), starts with every group folded. Its LLM view is the nodes by group, the edges as `a -> b` lines, and the most connected nodes: here far over 400 tokens, so a `:::llm` says it in short.
+`layout=force` pulls linked services together and pushes the rest apart, so the clusters show. It fits calls between services, where there is no top or bottom. An id may carry a numbered range: `node db-orders-{1..6} in data` declares six shards, and `orders -> db-orders-{1..6}` draws a line to each. **Fold a group** (beside the graph, or a double tap on its box) and its lines join on one box with a count; **Fold groups** folds them all. A graph over 300 nodes, or one that would be drawn too small to read or touch in its box (a phone), starts with every group folded. Its LLM view is the nodes by group, the edges as `a -> b` lines, and the most connected nodes: here far over 400 tokens, so a `:::llm` says it in short.
 
 ```graph title="Calls between the services of a shop" layout=force size=l
 group edge "edge" [c1]

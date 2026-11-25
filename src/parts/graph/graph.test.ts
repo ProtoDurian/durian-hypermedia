@@ -14,7 +14,7 @@ import { Budget, BudgetError, partLimitsOf } from "../../core/budget";
 import { UI } from "../../ui/ui";
 import graph, { expandPattern, graphLlm, mostConnected, parseGraph, type GraphSpec } from "./part";
 import { FORCE_ITER_MAX, FORCE_RUN_MIN, NODE_H, forceCost, forceIterations, forceRunIterations } from "./shape";
-import { anchorId, hullOf, modelOf, nearHull, viewOf } from "./model";
+import { anchorId, hullOf, modelOf, nearHull, startsFolded, START_FOLDED_Z, viewOf } from "./model";
 import { forceLayout } from "./force";
 import GraphView from "./view";
 
@@ -432,9 +432,9 @@ describe("graph: the view's HTML (strict page: no HTML string anywhere)", () => 
 
 describe("graph: the Format page sample", () => {
   test("0 refusals and 0 warnings on the sample page", () => { expect(check(sampleDoc)).toEqual([]); });
-  test("the three samples and the still one: a package graph (layers, 16 nodes), a service graph (force, 120 in 8 groups), a small radial one", () => {
+  test("the three samples and the still one: a package graph (layers, 14 nodes), a service graph (force, 120 in 8 groups), a small radial one", () => {
     const a = sample("A shop's packages"), b = sample("Calls between"), c = sample("What touches the sign-in");
-    expect([a.layout, a.nodes.length, a.groups.length]).toEqual(["layers", 16, 4]);
+    expect([a.layout, a.nodes.length, a.groups.length]).toEqual(["layers", 14, 4]);
     expect([b.layout, b.nodes.length, b.groups.length, b.size]).toEqual(["force", 120, 8, "l"]);
     expect([c.layout, c.centre, c.nodes.length]).toEqual(["radial", "auth", 12]);
     expect(sampleBlock("The same sign-in").attrs?.static ?? sampleBlock("The same sign-in").static).toBeDefined();
@@ -626,6 +626,24 @@ describe("graph: the first sample reads at a glance", () => {
     expect(s.nodes.length).toBeLessThanOrEqual(20);
     expect(s.edges.length).toBeLessThanOrEqual(30);
     for (const n of s.nodes) expect(n.label.length).toBeGreaterThan(1);
-    expect(crossings(s)).toBeLessThanOrEqual(8);
+    expect(crossings(s)).toBeLessThanOrEqual(3);
+    // narrow enough that the canvas draws every name at 11 px or more in the first graph's box on a laptop (about 456 px of room left of the
+    // zoom buttons, less 40 px of margin, at 13 px words: the fit zoom is 11/13 or more), so no name needs the zoomed-out label layer
+    const x1 = Math.min(...s.nodes.map((n) => n.x - n.w / 2)), x2 = Math.max(...s.nodes.map((n) => n.x + n.w / 2));
+    expect(x2 - x1).toBeLessThanOrEqual((456 - 40) * (13 / 11) - 2 * 28);
+  });
+});
+
+describe("graph: when the groups start folded", () => {
+  const first = () => { const s = sample("A shop's packages"); const x = s.nodes.map((n) => [n.x - n.w / 2, n.x + n.w / 2]), y = s.nodes.map((n) => [n.y - NODE_H / 2, n.y + NODE_H / 2]); return [Math.max(...x.map((a) => a[1])) - Math.min(...x.map((a) => a[0])), Math.max(...y.map((a) => a[1])) - Math.min(...y.map((a) => a[0]))]; };
+  test("the first sample starts open in its laptop box (512 x 478, the zoom buttons at the right) and folded in a phone's (330 x 478)", () => {
+    const [bw, bh] = first();
+    expect(startsFolded(512, 478, bw, bh, 56)).toBe(false);
+    expect(startsFolded(330, 478, bw, bh, 56)).toBe(true);
+  });
+  test("it is the fit zoom that decides: just under START_FOLDED_Z folds, just over does not", () => {
+    const w = 400, room = 56, bw = (w - room - 40) / START_FOLDED_Z;
+    expect(startsFolded(w, 900, bw * 0.99, 100, room)).toBe(false);
+    expect(startsFolded(w, 900, bw * 1.02, 100, room)).toBe(true);
   });
 });

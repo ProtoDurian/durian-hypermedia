@@ -102,3 +102,9 @@ export function nearHull(h: Pt[], x: number, y: number, pad: number): boolean {
   return false;
 }
 export type Hull = { id: string; label: string; tone: string; depth: number; pad: number; pts: Pt[]; d: string; cx: number; top: number; count: number };
+
+/** The least zoom at which the whole graph still names its nodes (a name is 13 px at zoom 1, and the zoomed-out label layer can place only some of the
+ * rest): under it the groups start folded, a pill each with its count, big enough to read and tap, and the reader opens them. w x h: the box, room: what
+ * the zoom buttons take at the right, bw x bh: the open graph. */
+export const START_FOLDED_Z = 0.65;
+export const startsFolded = (w: number, h: number, bw: number, bh: number, room = 0): boolean => Math.min((w - room - 40) / Math.max(1, bw), (h - 40) / Math.max(1, bh)) < START_FOLDED_Z;

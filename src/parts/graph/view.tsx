@@ -19,7 +19,7 @@ import type { PartViewProps } from "../types";
 import { useStatic } from "../kit/static";
 import type { GNode, GraphSpec, Still } from "./shape";
 import { nodeWidth as nodeW } from "./shape";
-import { ancestors, anchorId, compactOf, hullOf, modelOf, nearHull, parentOf, repOf, viewOf, type Hull, type Pt } from "./model";
+import { ancestors, anchorId, compactOf, hullOf, modelOf, nearHull, parentOf, repOf, startsFolded, viewOf, type Hull, type Pt } from "./model";
 import { forceLayout } from "./force";
 
 // the words of the part (English; the renderer's shared words come from `ui`)
@@ -202,13 +202,13 @@ function GraphLive({ spec, t, theme, motionOff }: { spec: GraphSpec; t: GUi; the
           for (const [id, p] of placed) posRef.current.set(id, p);
         }
         if (gone) return;
-        // when the whole graph would be drawn too small to read or touch (under a third of its size, as on a phone or in a
+        // when the whole graph would be drawn too small to name its nodes or touch them (under START_FOLDED_Z, as on a phone or in a
         // narrow column), start with the groups folded (a pill each, big enough to tap) and let the reader open them
         const W = cyBox.current.clientWidth, H = cyBox.current.clientHeight;
         if (topGroups.length && !spec.foldFirst) {
           let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
           for (const n of spec.nodes) { const p = posRef.current.get(n.id)!; x1 = Math.min(x1, p.x - n.w / 2); x2 = Math.max(x2, p.x + n.w / 2); y1 = Math.min(y1, p.y - NODE_H / 2); y2 = Math.max(y2, p.y + NODE_H / 2); }
-          if (Math.min((W - 40) / Math.max(1, x2 - x1), (H - 40) / Math.max(1, y2 - y1)) < 0.3) setFolded(new Set(topGroups));
+          if (startsFolded(W, H, x2 - x1, y2 - y1, CONTROLS_W)) setFolded(new Set(topGroups));
         }
         fitNext.current = true;
         setReady(true);

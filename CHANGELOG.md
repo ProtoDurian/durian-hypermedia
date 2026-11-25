@@ -18,6 +18,10 @@ The fourth release candidate of 0.7.0. The format number stays 10.
 - The Sydney sample forecast said sleet and an ice warning in November, which is spring there: a wrong fact. It is now an example spring forecast (rain, "Showers later"), and the samples are introduced as examples, not current conditions.
 - The hourly view drew its columns at a fixed width and left a third of a wide frame empty. The hours now share the frame (the line and the rain bars stretch with them); a still forecast wraps whole day cards instead of swiping.
 
+### Fixed: readable file-type badges
+
+- The shared file-type badge in file trees, marked trees and the editor now draws its letters at 11 px in a 20 px box. The two-letter file type stays readable and inside its badge on phones and larger screens.
+
 ### Fixed: the story camera on a phone (SPEC.md 6.14)
 
 - **A row of containers stacks on a phone** (SPEC.md 6.14; the rc.3 review: pods, nodes and a service at 390, node 3

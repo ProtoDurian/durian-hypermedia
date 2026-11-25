@@ -98,7 +98,7 @@
 }
 
 /* ---- file icons, chevrons ---- */
-.fi { flex: none; display: inline-grid; place-items: center; width: 16px; height: 14px; border-radius: 3px; font: 700 8px var(--font-mono); text-transform: uppercase; color: #fff; background: #6B7896; }
+.fi { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 3px; font: 700 11px var(--font-mono); text-transform: uppercase; color: #fff; background: #6B7896; }
 .fi-dir { background: none; width: 16px; height: 13px; position: relative; }
 .fi-dir::before { content: ""; position: absolute; inset: 2px 0 0 0; border-radius: 2px 3px 3px 3px; background: #E8B04A; }
 .fi-dir::after { content: ""; position: absolute; left: 0; top: 0; width: 7px; height: 4px; border-radius: 2px 2px 0 0; background: #E8B04A; }

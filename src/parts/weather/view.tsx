@@ -67,13 +67,15 @@ export function Forecast({ spec, units: u }: { spec: WxSpec; units: Units }) {
   }
   const w = rows.length * COL_HOUR;
   return (
-    <div className="wx-hours" style={{ width: w }}>
-      <ol className="wx-hrow" style={{ gridTemplateColumns: `repeat(${rows.length}, ${COL_HOUR}px)` }}>{rows.map((r) => <li key={r.line} aria-label={aria(r)}><span className="wx-dl">{r.time}</span><SkyIcon sky={r.sky} /></li>)}</ol>
-      <svg className="wx-plot" width={w} height="84" viewBox={`0 0 ${w} 84`} aria-hidden="true">
-        <polyline points={rows.map((r, k) => `${k * COL_HOUR + COL_HOUR / 2},${ptsY(r.hi)}`).join(" ")} />
-        {rows.map((r, k) => <g key={r.line}><circle cx={k * COL_HOUR + COL_HOUR / 2} cy={ptsY(r.hi)} r="4" /><text x={k * COL_HOUR + COL_HOUR / 2} y={ptsY(r.hi) - 10} textAnchor="middle" data-wx="hi">{T(r.hi)}</text></g>)}
+    <div className="wx-hours" style={{ minWidth: w }}>
+      <ol className="wx-hrow" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>{rows.map((r) => <li key={r.line} aria-label={aria(r)}><span className="wx-dl">{r.time}</span><SkyIcon sky={r.sky} /></li>)}</ol>
+      <svg className="wx-plot" width="100%" height="84" aria-hidden="true">
+        <svg width="100%" height="84" viewBox={`0 0 ${w} 84`} preserveAspectRatio="none">
+          <polyline vectorEffect="non-scaling-stroke" points={rows.map((r, k) => `${k * COL_HOUR + COL_HOUR / 2},${ptsY(r.hi)}`).join(" ")} />
+        </svg>
+        {rows.map((r, k) => <g key={r.line}><circle cx={`${((k + 0.5) / rows.length) * 100}%`} cy={ptsY(r.hi)} r="4" /><text x={`${((k + 0.5) / rows.length) * 100}%`} y={ptsY(r.hi) - 10} textAnchor="middle" data-wx="hi">{T(r.hi)}</text></g>)}
       </svg>
-      <ol className="wx-hrow wx-hbars" style={{ gridTemplateColumns: `repeat(${rows.length}, ${COL_HOUR}px)` }}>{rows.map((r) => <li key={r.line}><span className="wx-rain"><i style={{ height: `${r.chance ?? 0}%` }} /><em>{r.chance !== null ? `${r.chance}%` : "–"}</em></span>{has.wind ? <span className="wx-m" data-wx="wind">{W(r)}</span> : null}</li>)}</ol>
+      <ol className="wx-hrow wx-hbars" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }}>{rows.map((r) => <li key={r.line}><span className="wx-rain"><i style={{ height: `${r.chance ?? 0}%` }} /><em>{r.chance !== null ? `${r.chance}%` : "–"}</em></span>{has.wind ? <span className="wx-m" data-wx="wind">{W(r)}</span> : null}</li>)}</ol>
     </div>
   );
 }

@@ -1093,7 +1093,7 @@ evolve kettle 0.65 "smart kettle"
 
 ## Weather
 
-A forecast written in the source; it never fetches. The units menu on the part switches °C and °F, km/h, mph, m/s and knots, mm and inches, hPa and inHg, and your choice is remembered in this browser.
+Example forecasts written in the source, not current conditions; nothing is fetched. The units menu on the part switches °C and °F, km/h, mph, m/s and knots, mm and inches, hPa and inHg, and your choice is remembered in this browser.
 
 ```weather place="San Francisco" unit=c tz=America/Los_Angeles
 2026-11-22 sun 18/11 rain=0% wind=12km/h pressure=1021hPa
@@ -1114,10 +1114,10 @@ Hours work the same way, with one temperature, here written in °F and mph.
 2026-11-24 21:00 cloud 51 rain=25% wind=7mph
 ```
 
-The same forecast with `static`: drawn whole in the fence's unit, with no menu.
+A different example forecast with `static`: drawn whole in the fence's unit, with no menu.
 
-```weather static place="Sydney" unit=c wind=kmh
+```weather static place="Sydney" title="Example spring forecast" unit=c wind=kmh
 2026-11-22 sun 24/17 rain=0% wind=14km/h
 2026-11-23 partly 22/16 rain=20% wind=18km/h
-2026-11-24 sleet 3/-1 rain=70% wind=22km/h note="Ice on the road"
+2026-11-24 rain 20/15 rain=70% wind=22km/h note="Showers later"
 ```

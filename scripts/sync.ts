@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // FROZEN: this package is now the source of src/core, src/ui and SPEC.md. Running this script overwrites them with the
 // private prototype's older copy and loses every change made here (such as animation texts). Keep it only as history.
-// Copy the current Durian Hypermedia sources into the package, with the rewrites the package needs.
+// Copy the current DurianMarkdown sources into the package, with the rewrites the package needs.
 //   bun scripts/sync.ts [<source folder>]      (default: the folder above this package)
 // Re-runnable: it only writes src/core/, src/ui/, SPEC.md and scripts/cdp.ts. Package-only code lives elsewhere
 // in src/ (index.ts, document.ts, safety.ts, react/, host/, styles/) and is never touched.

@@ -1,0 +1,38 @@
+:root {
+  --math-ink: var(--ink);
+  --math-font: KaTeX_Main, "STIX Two Math", "Cambria Math", "Latin Modern Math", "Noto Serif", Georgia, "Times New Roman", serif, math;
+  --math-block-bg: var(--surface);
+  --math-block-border: var(--line);
+  --math-fail-ink: var(--bad-ink);
+  --math-fail-bg: var(--bad-soft);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --math-ink: var(--ink);
+  --math-font: KaTeX_Main, "STIX Two Math", "Cambria Math", "Latin Modern Math", "Noto Serif", Georgia, "Times New Roman", serif, math;
+  --math-block-bg: var(--surface);
+  --math-block-border: var(--line);
+  --math-fail-ink: var(--bad-ink);
+  --math-fail-bg: var(--bad-soft);
+  }
+}
+:root[data-theme="dark"] {
+  --math-ink: var(--ink);
+  --math-font: KaTeX_Main, "STIX Two Math", "Cambria Math", "Latin Modern Math", "Noto Serif", Georgia, "Times New Roman", serif, math;
+  --math-block-bg: var(--surface);
+  --math-block-border: var(--line);
+  --math-fail-ink: var(--bad-ink);
+  --math-fail-bg: var(--bad-soft);
+}
+.math { color: var(--math-ink); font-family: var(--math-font); }
+.math math { font-family: var(--math-font); font-size: 1.12em; }
+.math mi, .math mn, .math mo, .math mtext { text-transform: none; }
+.math mi.math-it { font-style: italic; }
+.math .math-bf { font-weight: 700; }
+.math mi:not(.math-it) { font-style: normal; }
+.math-inline { display: inline-block; vertical-align: baseline; max-width: 100%; }
+.math-block { display: block; margin: 18px 0; padding: 14px 16px; text-align: center; overflow-x: auto; background: var(--math-block-bg); border: 1px solid var(--math-block-border); border-radius: var(--r-m); max-width: 100%; }
+.math-block math { font-size: 1.3em; }
+.math-block math[display="block"] { margin: 0 auto; }
+.math-fail { color: var(--math-fail-ink); }
+.math-fail code { font: 400 .9em var(--font-mono); background: var(--math-fail-bg); border-radius: 6px; padding: 1px 6px; white-space: pre-wrap; }

@@ -41,6 +41,8 @@ export class Budget {
     /** what part() gives each part; a page budget sets it, a part budget has none */
     readonly partLimits: BudgetLimits | null = null,
     readonly parent: Budget | null = null,
+    /** what this part budget pays for, named in its refusal ("the jq query"); none keeps the expressions wording */
+    readonly name: string | null = null,
   ) {}
 
   /** Pay for work before doing it. Throws a BudgetError when this budget or one above it would go over. */
@@ -57,16 +59,16 @@ export class Budget {
     const over: keyof BudgetLimits = this.steps > L.steps ? "steps" : this.values > L.values ? "values" : "chars";
     const [verb, unit] = WORDS[over];
     this.spent = !this.isPage
-      ? `the expressions ${verb} (the limit for one part is ${fmt(L[over])} ${unit})`
+      ? `${this.name ?? "the expressions"} ${this.name ? verb.replace(/^do /, "does ").replace(/^make /, "makes ") : verb} (the limit for one part is ${fmt(L[over])} ${unit})`
       : `the expressions on this page ${verb} (the limit for the whole page is ${fmt(L[over])} ${unit}); this part and the ones after it are not evaluated`;
     throw new BudgetError(this.spent, this.isPage);
   }
 
-  /** A budget for one part that also draws from this one. Throws if this one is already spent. */
-  part(): Budget {
+  /** A budget for one part that also draws from this one. Throws if this one is already spent. `name` names the part in its refusal. */
+  part(name: string | null = null): Budget {
     if (this.spent) throw new BudgetError(this.spent, this.isPage);
     for (let b = this.parent; b; b = b.parent) if (b.spent) throw new BudgetError(b.spent, b.isPage);
-    return new Budget(this.partLimits ?? this.limits, null, this);
+    return new Budget(this.partLimits ?? this.limits, null, this, name);
   }
 }
 
@@ -85,5 +87,5 @@ export function withBudget<T>(b: Budget, fn: () => T): T {
   try { return fn(); } finally { ambient = before; }
 }
 export const currentBudget = (): Budget | null => ambient;
-/** A budget for one part: from the running parse() call's page budget, or a fresh one (a reader's action, a direct call). */
-export const partBudget = (): Budget => (ambient ? ambient.part() : new Budget(partLimitsOf(LIMITS)));
+/** A budget for one part: from the running parse() call's page budget, or a fresh one (a reader's action, a direct call). `name` names the part in its refusal. */
+export const partBudget = (name: string | null = null): Budget => (ambient ? ambient.part(name) : new Budget(partLimitsOf(LIMITS), null, null, name));

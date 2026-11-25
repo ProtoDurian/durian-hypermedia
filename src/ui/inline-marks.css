@@ -1,0 +1,8 @@
+/* inline marks in an animation's captions, speech and notes (SPEC 6.15): code, bold and italic */
+.scn .scn-code { font-family: var(--font-mono); font-size: max(11px, .9em); font-weight: 500; line-height: 1.35; background: var(--code-bg, var(--surface-2)); color: var(--ink); border: 0; border-radius: 4px; padding: .05em .3em; overflow-wrap: anywhere; white-space: break-spaces; }
+.scn .scn-cap strong, .scn .scn-note strong, .scn .scn-steps strong { font-weight: var(--w-strong); }
+.scn-code-bg { fill: var(--code-bg, var(--surface-2)); }
+.scn-say-t.is-code { font-family: var(--font-mono); font-weight: 500; fill: var(--ink); }
+.scn-say-t.is-b { font-weight: 700; }
+.scn-say-t.is-i { font-style: italic; }
+

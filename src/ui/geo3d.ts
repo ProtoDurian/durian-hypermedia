@@ -6,7 +6,7 @@ export const SLAB = 4;          // a container's slab height
 export const PLANE_H = 2;       // a layer plane's thickness
 export const PLANE_GAP = 0.5;   // the plane's top surface sits this far below the layer's floor line
 // heights of things standing on a layer, in world units (one unit is about one CSS pixel of the 2D stage)
-export const HEIGHT: Record<string, number> = { box: 16, pill: 14, diamond: 14, row: 10, circle: 16, cylinder: 30, cloud: 22, person: 0, dot: 8, text: 0, token: 9, pointer: 0 };
+export const HEIGHT: Record<string, number> = { box: 16, pill: 14, diamond: 14, row: 10, field: 6, initial: 6, final: 6, circle: 16, cylinder: 30, cloud: 22, person: 0, dot: 8, text: 0, token: 9, pointer: 0 };
 
 export type Rest = { key: number; kind: string; container: boolean; bare: boolean; parent: number | null; L: number };
 type Foot = { w: number; h: number };

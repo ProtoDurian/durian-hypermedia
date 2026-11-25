@@ -18,9 +18,13 @@ const ids = (f: Frame) => (f.part ? f.part.map((k) => f.boxes.find((b) => b.key 
 const wire = (f: Frame, label: string) => f.edges.filter((e) => e.label === label).map((e) => e.part);
 const FIX = join(import.meta.dir, "../fixtures/format");
 const slug = (h: string) => h.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+// (0.7.0-rc.3, owner row 6) the Format page's kube-proxy scene is flat now and goes through node 2 and the VPC; these
+// 3D-engine tests keep the 3D scene it replaced as a test fixture (test/fixtures-3d/66-3d-only-a-packet-through-kube-proxy.dh.md)
+const FIX3D = join(import.meta.dir, "fixtures-3d");
 const page = (h: string) => {
-  const file = readdirSync(FIX).find((x) => x.replace(/^\d+-/, "").startsWith(slug(h)))!;
-  const m = readFileSync(join(FIX, file), "utf8").match(/^```animation([^\n]*)\n([\s\S]*?)^```$/m)!;
+  const dir = h === "3D only: a packet through kube-proxy" ? FIX3D : FIX;
+  const file = readdirSync(dir).find((x) => x.replace(/^\d+-/, "").startsWith(slug(h)))!;
+  const m = readFileSync(join(dir, file), "utf8").match(/^```animation([^\n]*)\n([\s\S]*?)^```$/m)!;
   const info: Record<string, string> = {};
   for (const w of m[1].trim().split(/\s+/).filter(Boolean)) { const [k, v] = w.split("="); if (v) info[k] = v; else if (k === "3d" || k === "2d") info.view = k; else if (k === "only") info.only = info.view ?? "3d"; }
   const s = steps(m[2]);

@@ -1,0 +1,35 @@
+/* stats: tiles with a figure, its change and a sparkline. Its tokens read the base tokens, so light and dark follow;
+   a host sets one to restyle the part. */
+:root {
+  --stats-spark: var(--acc); --stats-value-fs: var(--fs-2xl); --stats-gap: 14px; --stats-min: 190px;
+  --stats-tile-bg: var(--surface); --stats-tile-border: var(--line); --stats-name: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --stats-spark: var(--acc); --stats-tile-bg: var(--surface); }
+}
+:root[data-theme="dark"] { --stats-spark: var(--acc); --stats-tile-bg: var(--surface); }
+
+.stats { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--stats-gap); grid-template-columns: repeat(auto-fit, minmax(var(--stats-min), 1fr)); }
+.stats-tile { --stats-tone: var(--stats-spark); position: relative; border: 1px solid var(--stats-tile-border); border-radius: var(--r-l); background: var(--stats-tile-bg); box-shadow: var(--shadow-sm); padding: 16px 18px 14px; overflow: hidden; display: grid; gap: 2px; align-content: start; min-width: 0; }
+.stats-tile::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--stats-tone); }
+.stats-tile.tone-good { --stats-tone: var(--good); } .stats-tile.tone-bad { --stats-tone: var(--bad); } .stats-tile.tone-warn { --stats-tone: var(--warn); } .stats-tile.tone-muted { --stats-tone: var(--muted); } .stats-tile.tone-acc { --stats-tone: var(--acc); }
+.stats-tile.tone-c1 { --stats-tone: var(--c1); } .stats-tile.tone-c2 { --stats-tone: var(--c2); } .stats-tile.tone-c3 { --stats-tone: var(--c3); } .stats-tile.tone-c4 { --stats-tone: var(--c4); } .stats-tile.tone-c5 { --stats-tone: var(--c5); } .stats-tile.tone-c6 { --stats-tone: var(--c6); } .stats-tile.tone-c7 { --stats-tone: var(--c7); } .stats-tile.tone-c8 { --stats-tone: var(--c8); }
+.stats-glyph { font-size: 18px; line-height: 1; color: var(--stats-tone); }
+.stats-name { font: 500 var(--fs-xs) var(--font-sans); color: var(--stats-name); letter-spacing: .02em; overflow-wrap: anywhere; }
+.stats-value { font: 600 var(--stats-value-fs)/1.1 var(--font-display); letter-spacing: var(--ls-head); color: var(--ink); font-variant-numeric: tabular-nums; margin: 2px 0 4px; overflow-wrap: anywhere; }
+.stats-sub { font: 400 var(--fs-xs) var(--font-sans); color: var(--ink-2); overflow-wrap: anywhere; }
+.stats-trend { font: 500 12px var(--font-sans); color: var(--muted); }
+.stats-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 26px; }
+.stats-change { display: inline-flex; align-items: center; gap: 5px; font: 600 12.5px var(--font-mono); padding: 3px 10px 3px 8px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink-2); }
+.stats-change svg { fill: currentColor; }
+.stats-change.is-good { background: var(--good-soft); color: var(--good-ink); } .stats-change.is-bad { background: var(--bad-soft); color: var(--bad-ink); } .stats-change.is-warn { background: var(--warn-soft); color: var(--warn-ink); } .stats-change.is-acc { background: var(--acc-soft); color: var(--acc-ink); }
+.stats-note { font: 400 var(--fs-xs) var(--font-sans); color: var(--muted); overflow-wrap: anywhere; }
+.stats-spark { width: 100%; height: 40px; margin-top: 8px; overflow: visible; }
+.stats-spark .ln { stroke: var(--stats-tone); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.stats-spark .area { fill: var(--stats-tone); opacity: .12; }
+.stats-spark circle { fill: var(--stats-tone); stroke: var(--surface); stroke-width: 2; }
+@container (max-width: 640px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stats-tile { padding: 14px 12px 12px 16px; }
+  .stats-value { font-size: 1.5rem; }
+}

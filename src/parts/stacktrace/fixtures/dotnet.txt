@@ -1,0 +1,7 @@
+System.InvalidOperationException: Cart failed
+ ---> System.ArgumentException: Index out of range (Parameter 'i')
+   at Acme.Shop.Cart.Item(Int32 i) in /src/shop/Cart.cs:line 42
+   at System.Linq.Enumerable.First[TSource](IEnumerable`1 source)
+   --- End of inner exception stack trace ---
+   at Acme.Shop.Api.GetItem(Int32 id) in /src/shop/Api.cs:line 88
+   at Microsoft.AspNetCore.Mvc.Invoke()

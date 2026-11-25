@@ -10,9 +10,12 @@ A segment for people only. The `:::llm` block right after it is what an LLM read
 :::human
 This segment is long on purpose: it walks a new reader through the idea, slowly, with a picture.
 
-```mermaid
-flowchart LR
-  A["person"] --> B["CLI"] --> C["template container"]
+```animation
+person p "person"
+box c "CLI"
+box t "template container"
+p -> c "talks to"
+c -> t "calls"
 ```
 :::
 

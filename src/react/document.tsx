@@ -1,10 +1,10 @@
 // DocumentView: draws a Document with the part components it is given (tree-shakeable: import only the parts you use).
-//   import { DocumentView } from "durian-hypermedia/react/document";
-//   import { ChartPart } from "durian-hypermedia/react/chart";
+//   import { DocumentView } from "durian-markdown/react/document";
+//   import { ChartPart } from "durian-markdown/react/chart";
 //   <DocumentView doc={doc} components={{ chart: ChartPart }} />
 // A part with no component is shown as what an LLM reads (plain text), so nothing is lost.
-// "durian-hypermedia/react" exports DhDocument, the same with every part.
-import React, { useMemo } from "react";
+// "durian-markdown/react" exports DhDocument, the same with every part.
+import React, { useMemo, useRef } from "react";
 import { UI, type Ui } from "../ui/ui";
 import { registeredBlocks, type BlockDef } from "../blocks";
 import type { UrlPolicy } from "../safety";
@@ -13,9 +13,17 @@ import type { Block, Document, HostBlock } from "../types";
 import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type Slots, cx } from "./context";
 import { Md } from "./markdown";
 import { Turn } from "./turn";
+import { ReferencePart } from "./reference";
+import { pageStatic } from "../parts/kit/static";
+import { useTableMore } from "./table-more";
+
 
 export interface DocumentProps {
   doc: Document;
+  /** Host-owned base-map/routing adapters, created by react/map-providers or supplied by the host. */
+  map?: import("../parts/map/host").MapHost;
+  /** A host clock in milliseconds for calendars; without it, Today returns to the authored date. */
+  now?: number;
   /** a component per part type; parts without one show their LLM text */
   components?: Components;
   /** host blocks (their Component draws them); added to the ones registered with registerBlock */
@@ -31,7 +39,7 @@ export interface DocumentProps {
   /** "off" stills every animation, morph, typing and chart transition (also set by prefers-reduced-motion) */
   motion?: "on" | "off";
   /** swap the chrome (the part frame, callouts, error blocks, the spinner) and draw Markdown elements
-   *  yourself (Code, InlineCode, Link, Table, Heading) or mermaid diagrams (Mermaid) */
+   *  yourself (Code, InlineCode, Link, Table, Heading) */
   slots?: Partial<Slots>;
   /** add this to every Markdown heading's level, so a page's "#" sits below the host's own headings (default 0) */
   demoteHeadings?: number;
@@ -39,6 +47,13 @@ export interface DocumentProps {
   urlPolicy?: UrlPolicy;
   /** show "What an LLM reads here" under each part */
   llmPeek?: boolean;
+  /** draw every folder part that steps or moves static: "" the finished state, "<n>" step n, or a step's title */
+  static?: import("../parts/types").StaticProp;
+  /** an interactive part a reference resolved to: "off" (the default) shows its still; "static" draws its HTML and CSS
+   *  in a sandboxed frame with no script; "on" runs it there. Needs InteractivePart from durian-markdown/react/interactive */
+  interactive?: "off" | "static" | "on";
+  /** options for the folder parts, by part name: `{ weather: { units: { temp: "f", wind: "mph" } } }` sets the default units of every weather part (the reader's own choice still wins) */
+  partOptions?: Readonly<Record<string, unknown>>;
   className?: string;
 }
 
@@ -62,6 +77,8 @@ export function Blocks({ blocks }: { blocks: Block[] }): React.ReactElement {
   return <>{blocks.map((b, i) => {
     if (b.type === "markdown") return <Md key={i} blocks={b.md} />;
     if (b.type === "error") return <slots.Error key={i} block={b} />;
+    // a reference (format version 11): when ready, its part through this same dispatch; else its chip or card
+    if (b.type === "reference") return b.state === "ready" && b.blocks?.length ? <div key={i} className="dh-xref-part" data-dh-ref-type={b.ref.type} data-dh-ref-name={b.ref.name}><Blocks blocks={b.blocks} /></div> : <ReferencePart key={i} block={b} />;
     if (b.type === "toc") return b.items.length ? <nav key={i} className={`toc-block toc-${b.scope}`} aria-label="Contents"><ol>{b.items.map((h, k) => <li key={k} className={`toc-${h.depth}`}><a href={`#${h.id}`}>{h.text}</a></li>)}</ol></nav> : null;
     if (b.type === "human") { const C = components.human; return C ? <C key={i} block={b} /> : <Fallback key={i} block={b} />; }
     const C = (b.type === "host" ? HostPart : components[b.type]) as React.ComponentType<{ block: Block }> | undefined;
@@ -80,11 +97,21 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     hostInlines: new Map((p.inlines ?? []).filter((d) => d.Component).map((d) => [d.name, d.Component!])),
     llmPeek: !!p.llmPeek,
     demoteHeadings: Math.max(0, Math.min(5, Math.floor(p.demoteHeadings ?? 0) || 0)),
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings]);
+    // the host's option first, then the page's front matter `static: true` (the finished state of every part)
+    static: p.static !== undefined ? p.static : pageStatic(p.doc.frontMatter) ? "" : undefined,
+    interactive: p.interactive === "on" || p.interactive === "static" ? p.interactive : "off",
+    map: p.map,
+    now: p.now,
+    partOptions: p.partOptions,
+  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions]);
+
   const { doc } = p;
+  // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)
+  const root = useRef<HTMLDivElement>(null);
+  useTableMore(root, settings.ui.hintTable ?? "↔ Swipe the table to see all of it");
   return (
     <DhContext.Provider value={settings}>
-      <div className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>
+      <div ref={root} className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>
         <Blocks blocks={doc.blocks} />
       </div>
     </DhContext.Provider>

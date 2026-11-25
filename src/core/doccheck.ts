@@ -1,6 +1,6 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse, chargeYaml } from "../host/yaml";
-// doccheck, Durian Hypermedia part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
+// doccheck, DurianMarkdown part: the rich-doc checks of design section 4.1 and 11.4, run on .md and .dh.md pages.
 // Usage: bun tools/doccheck.ts check <docs-dir|file...> [--src <code-root>]
 // Each error names its check, as in the design's check table. Exit codes: 0 ok, 1 a check refused, 2 usage error.
 // Format version 3: parts are fenced blocks (```terminal ...) or containers (:::tabs ...); see SPEC.md.
@@ -10,10 +10,16 @@ import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, Parse
 import { parseDefs } from "./expr";
 import { BudgetError, partBudget } from "./budget";
 import { chartRoom, briefJson } from "./chart";
+import { chart11Check } from "./chart11";
 import { animOverMessage } from "./work";
+import { isStagePart, stagePartCheck } from "./stage-part"; // the composed stage (0.7.0)
+import { BudgetError as StageBudgetError } from "./stage-budget";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
+import { diagramOf, isDiagram } from "./diagrams";
 import type { Doc, Issue, MdNode, Node, PartNode } from "./dh-lib";
+import { folderPart, folderCheck, folderLlmExempt } from "../parts/runtime";
+import { staticIssues, frontMatterStaticIssue } from "./static"; // static (SPEC 4.1)
 
 type Ctx = "page" | "part" | "segment" | "llm";
 const SEC_RE = /\*\*Security finding:\*\*/g;
@@ -71,16 +77,18 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   let inSummary = true; // the summary is the text before the first ## heading
   let partsSeen = 0;
   for (const e of doc.defErrors ?? []) err(1, "part data", e);
+  { const s = frontMatterStaticIssue(doc.fm); if (s) err(1, "part data", s); }
   if (doc.fm && "banner" in doc.fm) err(1, "part data", `banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
   const visit = (nodes: Node[], ctx: Ctx) => {
     for (const n of nodes) {
       if (n.kind === "md") checkMd(n, ctx);
-      else if (n.kind === "part") checkPart(n, ctx);
+      else if (n.kind === "part") { checkPart(n, ctx); for (const s of staticIssues(n)) (s.level === "error" ? err : warn)(s.line, "part data", s.msg); }
       else if (n.kind === "toc") { for (const k of Object.keys(n.attrs)) if (!["depth", "section"].includes(k)) err(n.line, "part data", `::toc takes depth=2..4 and section, not "${k}"`); if (n.attrs.depth && !/^[234]$/.test(n.attrs.depth)) err(n.line, "part data", `::toc depth is 2, 3 or 4`); }
     }
   };
   const checkMd = (n: MdNode, ctx: Ctx) => {
     for (const m of mapCodeRefs(n.text)) { const e = checkCodeRef(doc, m, src); if (e) err(n.line, "code references", e); }
+    for (const [off, kind] of mermaidFences(n.text)) err(n.line + off, "part data", mermaidMessage(kind));
     const noCode = n.text.replace(/```[\s\S]*?```/g, "");
     for (const m of noCode.matchAll(/^>\s*\*\*([^*]+?):\*\*/gm)) if (!CALLOUTS.includes(m[1])) err(n.line, "part data", `"**${m[1]}:**" is not a callout marker (markers: ${CALLOUTS.join(", ")})`);
     if (/^:::\s*banner/m.test(noCode)) err(n.line, "part data", `:::banner was removed in format version 10: put the note in a callout under the title (> **Note:** ...), or drop it`);
@@ -115,19 +123,20 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   const checkPart = (p: PartNode, ctx: Ctx) => {
     partsSeen++;
     const def = PARTS[p.name];
-    if (!def) { err(p.line, "parts known", `unknown container ":::${p.name}" (containers: tabs, accordion, human, llm; data parts are fenced blocks: \`\`\`terminal, \`\`\`filetree, \`\`\`editor, \`\`\`codewalk, \`\`\`chart, \`\`\`tierlist, \`\`\`alignment, \`\`\`mermaid, \`\`\`animation)`); return; }
+    if (!def) { err(p.line, "parts known", `unknown container ":::${p.name}" (containers: tabs, accordion, human, llm; data parts are fenced blocks: \`\`\`terminal, \`\`\`filetree, \`\`\`editor, \`\`\`codewalk, \`\`\`chart, \`\`\`tierlist, \`\`\`alignment, \`\`\`animation)`); return; }
     if (p.attrs.id) { if (ids.has(p.attrs.id)) err(p.line, "part data", `id "${p.attrs.id}" is used twice (first at line ${ids.get(p.attrs.id)})`); else ids.set(p.attrs.id, p.line); }
     if (p.steps.length && !def.steps) err(p.steps[0].line, "part data", `${p.name} takes no @step lines`);
-    // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none
-    if (p.steps.length === 1 && p.name !== "editor") err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
+    // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none (a composed stage says so itself, once)
+    if (p.steps.length === 1 && p.name !== "editor" && !(p.name === "animation" && isStagePart(p))) err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
     // an animation over its layout budget is said once and not checked further (core/work.ts)
-    if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
+    if (p.name === "animation" && isStagePart(p)) { try { stagePartCheck(p); } catch (e) { if (!(e instanceof StageBudgetError)) throw e; err(p.line, "part data", `animation: ${e.message}`); return; } }
+    else if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
     const none = p.attrs.llm === "none";
     if (p.name === "human") {
       if (p.llm && none) err(p.line, "fence partner", `human-only segment has both llm=none and a :::llm after it`);
       if (!p.llm && !none) err(p.line, "fence partner", `human-only segment has no :::llm after it and no llm=none mark (write :::human llm=none when LLMs need nothing)`);
     } else if (none) err(p.line, "LLM text present", `${p.name} may not use llm=none: only a human-only segment may; wrap it in :::human llm=none if LLMs need nothing`);
-    else if (def.form === "fenced" && !p.llm && ctx !== "segment") {
+    else if (def.form === "fenced" && !p.llm && ctx !== "segment" && !folderLlmExempt(p) && !isStagePart(p)) { // a composed stage's LLM view is its content (it warns over 2,000 tokens instead)
       const t = tok(llmFormOf(p, false));
       if (t > LLM_LIMIT) err(p.line, "LLM text present", `${p.name}${p.attrs.id ? ` #${p.attrs.id}` : ""} reads as ${t} tokens in the LLM view, over the ${LLM_LIMIT}-token limit; add a :::llm block after it, or make it smaller`);
     }
@@ -139,7 +148,8 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     }
     checkPartData(doc, p, (l, m) => err(l, "part data", m), src, (l, m) => warn(l, "part data", m));
     // an animation's warnings (format version 6): a token's label too long for its small chip
-    if (p.name === "animation") for (const w of animOf(p).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
+    if (isDiagram(p.name)) for (const w of diagramOf(p).warnings) warn(w.line, "part data", `${p.name}: ${w.msg}`);
+    if (p.name === "animation") for (const w of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
     if (def.form === "container") visit(p.nodes, p.name === "human" || ctx === "segment" ? "segment" : "part");
     if (p.name === "codewalk") codewalkRefs(doc, p).forEach((r, i) => {
       const s = p.steps[i];
@@ -153,7 +163,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
   for (const ref of (doc.fm?.code ?? []) as string[]) { const e = checkCodeRef(doc, ref, src); if (e) err(1, "code references", `front matter code: ${e}`); }
   visit(doc.body, "page");
   const isDh = doc.path.endsWith(".dh.md");
-  if (isDh && !partsSeen) err(1, "parts known", `a .dh.md page with no part and no human-only segment; name it .md`);
+  if (isDh && !partsSeen && !doc.refs) err(1, "parts known", `a .dh.md page with no part and no human-only segment; name it .md`);
   if (!isDh && partsSeen) err(1, "parts known", `a .md page holds a part; name it .dh.md`);
 }
 function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: number, m: string) => void): void {
@@ -164,9 +174,13 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   const spent = (e: BudgetError) => (e.page ? warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`) : err(p.line, `chart: ${e.message}`));
   try { const pb = partBudget(); chargeYaml(d, pb); chartRoom(d, pb); }
   catch (e) { if (e instanceof BudgetError) { spent(e); return; } if (/anchors and aliases/.test((e as Error).message)) { err(p.line, `chart: ${(e as Error).message}`); return; } throw e; }
+  // steps, a time axis, annotations, formats, heatmaps and the page-chart words are checked first (core/chart11.ts); what is left is
+  // the plain chart the evaluator's own checks understand
+  let firstSchema: string[] = [];
+  { const c11 = chart11Check(d); for (const e of c11.errors) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); for (const w of c11.warnings) warn(p.line, `chart: ${w}`); if (c11.errors.length) { for (const e of c11.first) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`); return; } d = c11.base; firstSchema = c11.first; }
   for (const k of Object.keys(d)) if (!CHART_KEYS.includes(k)) err(p.line, `chart: unknown key "${briefJson(k).slice(1, -1)}" (keys: ${CHART_KEYS.join(", ")})`);
-  if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}`);
-  for (const e of chartCheck(d)) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
+  if (!CHART_KINDS.includes(d.kind)) err(p.line, `chart kind must be one of ${CHART_KINDS.join(", ")}, heatmap`);
+  for (const e of firstSchema) err(p.line, `chart: ${e.length > 300 ? e.slice(0, 299) + "…" : e}`);
   const { controls, errors } = chartControls(d);
   for (const e of errors) err(p.line, `chart: ${e}`);
   const names = controls.filter((c) => c.kind !== "button").map((c) => c.name);
@@ -184,8 +198,11 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   for (const v of cases) { const r = evalChart(d, v); if (r.limit === "page") { warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`); return; } if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${briefJson(v, 80)}` : ""}: ${r.error}`); return; } }
 }
 function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => void, src?: string, warn: (l: number, m: string) => void = err) {
+  // a part in its own folder (src/parts/<name>/, format version 11) has its checks there
+  if (folderPart(p.name)) { folderCheck(p, err, warn); return; }
   switch (p.name) {
-    case "animation": for (const e of animOf(p).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
+    case "state": case "class": case "er": for (const e of diagramOf(p).errors) err(e.line < p.line ? p.line : e.line, `${p.name}: ${e.msg}`); break;
+    case "animation": for (const e of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;
     case "chart": {
       // at most 20 problems per chart (each at most 300 characters), then a count of the rest
@@ -202,7 +219,6 @@ function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => voi
       for (const e of r.errors) err(e.line, `${name}: ${e.msg}`);
       break;
     }
-    case "mermaid": if (!p.body.trim()) err(p.line, `empty mermaid block`); break;
     case "filetree": {
       if (p.steps.length && p.head.trim()) err(p.line, "filetree: with @step lines, put every tree under a step");
       for (const s of treeSteps(p)) { const t = parseTree(s.text, s.line, p.defs); for (const e of t.errors) err(e.line, e.msg); if (!t.rows.length) err(s.line, "filetree has no entries"); }
@@ -298,3 +314,28 @@ function main() {
 }
 if (import.meta.main) main();
 export { checkDoc, checkTranslation, checkLlmViews };
+
+// mermaid was removed in 0.7.0 (one migration message for each mermaid code block): a page that still has one gets
+// the part that draws it now. Line by line, no backtracking: a fence opens with three or more backticks or tildes and
+// the word mermaid, and closes with a run of the same character at least as long.
+export function mermaidFences(text: string): [number, string][] {
+  const out: [number, string][] = [];
+  const ls = text.split("\n");
+  for (let i = 0; i < ls.length; i++) {
+    const t = ls[i].trimStart(), ch = t[0];
+    if (ch !== "`" && ch !== "~") continue;
+    let n = 0; while (t[n] === ch) n++;
+    if (n < 3) continue;
+    const info = t.slice(n).trim(), word = info.split(/\s/)[0].toLowerCase();
+    let j = i + 1;
+    const closes = (l: string) => { const u = l.trim(); if (u.length < n) return false; for (const c of u) if (c !== ch) return false; return true; };
+    while (j < ls.length && !closes(ls[j])) j++;
+    if (word === "mermaid") { const first = ls.slice(i + 1, j).map((l) => l.trim()).find((l) => l && !l.startsWith("%%")) ?? ""; out.push([i, first.split(/\s/)[0]]); }
+    i = j;
+  }
+  return out;
+}
+export function mermaidMessage(kind: string): string {
+  const k = /^(sequenceDiagram)$/.test(kind) ? " This one is a sequence diagram: ```sequence draws it (SPEC.md, the sequence part)." : "";
+  return `\`\`\`mermaid was removed in 0.7.0: draw boxes and lines as an \`\`\`animation (with no @step lines it stands still; SPEC.md section 6).${k}`;
+}

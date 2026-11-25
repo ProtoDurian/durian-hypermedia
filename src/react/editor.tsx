@@ -2,6 +2,7 @@
 import React, { useMemo } from "react";
 import type { HighlightedCode } from "codehike/code";
 import { Editor, type EdStep } from "../ui/parts";
+import { staticOfAttr } from "../parts/react";
 import { useDh, plainCode, linesUpTo } from "./context";
 import type { EditorBlock } from "../types";
 export function editorProps(b: EditorBlock) {
@@ -18,9 +19,10 @@ export function editorProps(b: EditorBlock) {
   return { files, steps, rows: Math.min(rows, 18) };
 }
 export function EditorPart({ block }: { block: EditorBlock }) {
-  const { ui } = useDh();
+  // static (SPEC 4.1): the fence's own static= wins, then the page's (front matter static: true) or the host's
+  const { ui, static: docStatic } = useDh(), fence = staticOfAttr(block.attrs?.static), stp = fence !== undefined ? fence : docStatic;
   const p = useMemo(() => editorProps(block), [block]);
   if (!p.files.length) return <div className="cw-error">an editor needs at least one file</div>;
-  return <Editor files={p.files} steps={p.steps} rows={p.rows} ui={ui} />;
+  return <Editor files={p.files} steps={p.steps} rows={p.rows} ui={ui} static={stp} />;
 }
 export default EditorPart;

@@ -6,6 +6,8 @@ import { mark, add, del, lineTokens } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
 import { inlineText } from "../markdown";
+import { FOLDER_INLINE_COMPONENTS } from "../parts/generated/inline";
+import { ReferenceInline } from "./reference";
 import type { MdBlock, MdInline, MarkdownBlock } from "../types";
 
 // the mouse icon: the button the action presses is filled; a double click adds a "2", a scroll arrows, a drag a move arrow
@@ -54,7 +56,8 @@ export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
           {x.chords.map((ch, k) => <React.Fragment key={k}>{k > 0 && <span className="dh-then">then</span>}<span className="dh-chord">{ch.map((key, j) => <React.Fragment key={j}>{j > 0 && <span className="dh-plus">+</span>}<kbd>{key}</kbd></React.Fragment>)}</span></React.Fragment>)}
         </span>
       );
-      case "ref": { const R = hostInlines.get(x.name); return R ? <R key={i} text={x.text} data={x.data} /> : <span key={i} className="dh-ref" data-dh-ref={x.name}>{x.text}</span>; }
+      case "ref": { const R = hostInlines.get(x.name) ?? (Object.hasOwn(FOLDER_INLINE_COMPONENTS, x.name) ? FOLDER_INLINE_COMPONENTS[x.name] : undefined); return R ? <R key={i} text={x.text} data={x.data} /> : <span key={i} className="dh-ref" data-dh-ref={x.name}>{x.text}</span>; }
+      case "reference": return <ReferenceInline key={i} x={x} />;
       case "mouse": return <span key={i} className="dh-mouse"><MouseIcon press={x.press} badge={x.badge} /><span className="dh-mouse-act">{x.act}</span>{x.target ? <> <b>{x.target}</b></> : null}</span>;
     }
   })}</>;

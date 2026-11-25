@@ -1,0 +1,118 @@
+/* chart-kinds: histogram, boxplot, violin, funnel, waterfall, treemap, sunburst, calendar heatmap. Its tokens read the base
+   tokens, so light and dark follow; a host sets one to restyle the part. */
+:root {
+  --chart-kinds-bar-radius: 4px; --chart-kinds-grid: var(--grid, var(--line)); --chart-kinds-axis: var(--axis, var(--line-2)); --chart-kinds-mark: var(--ink-2);
+  --chart-kinds-box-fill: 22%; --chart-kinds-violin-fill: 30%; --chart-kinds-tile-gap: 2px; --chart-kinds-bar-fade: .52;
+  --chart-kinds-cell-radius: 6px; --chart-kinds-empty: var(--surface-2); --chart-kinds-heat-lo: var(--surface-2);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --chart-kinds-box-fill: 30%; --chart-kinds-violin-fill: 38%; --chart-kinds-bar-fade: .62; }
+}
+:root[data-theme="dark"] { --chart-kinds-box-fill: 30%; --chart-kinds-violin-fill: 38%; --chart-kinds-bar-fade: .62; }
+
+.ck-t-c1 { --chart-kinds-tone: var(--c1); } .ck-t-c2 { --chart-kinds-tone: var(--c2); } .ck-t-c3 { --chart-kinds-tone: var(--c3); } .ck-t-c4 { --chart-kinds-tone: var(--c4); }
+.ck-t-c5 { --chart-kinds-tone: var(--c5); } .ck-t-c6 { --chart-kinds-tone: var(--c6); } .ck-t-c7 { --chart-kinds-tone: var(--c7); } .ck-t-c8 { --chart-kinds-tone: var(--c8); }
+.ck-t-acc { --chart-kinds-tone: var(--acc); } .ck-t-good { --chart-kinds-tone: var(--good); } .ck-t-warn { --chart-kinds-tone: var(--warn); } .ck-t-bad { --chart-kinds-tone: var(--bad); }
+.ck-t-muted { --chart-kinds-tone: var(--faint); }
+
+.ck { padding: 4px 0; }
+.ck-title { font-weight: 600; color: var(--ink); margin: 0 0 8px; }
+.ck-box { position: relative; max-width: 100%; overflow-x: auto; }
+.ck .chart-table > summary { padding: 4px 0; min-height: 24px; cursor: pointer; }
+.ck .ctl { margin-top: 8px; }
+.ck .anim-cap { border-top: 0; padding-left: 0; padding-right: 0; }
+.ck:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 2px; }
+.ck-hint { margin: 8px 0 0; font-size: var(--fs-xs); color: var(--muted); }
+.ck-svg { display: block; max-width: none; overflow: visible; font-family: var(--font-sans); }
+.ck-svg:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 4px; border-radius: 6px; }
+.ck-grid { stroke: var(--chart-kinds-grid); stroke-width: 1; }
+.ck-base { stroke: var(--chart-kinds-axis); stroke-width: 1.5; }
+.ck-tick { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ck-axis-title { fill: var(--ink-2); font-size: 12px; font-weight: 500; }
+.ck-hit { fill: transparent; cursor: pointer; }
+.ck-hit:hover { fill: color-mix(in oklab, var(--acc) 5%, transparent); }
+.ck-pick { fill: transparent; pointer-events: none; }
+.ck-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 6px 58px; font-size: var(--fs-xs); color: var(--ink-2); }
+.ck-key { display: inline-flex; align-items: center; gap: 6px; } .ck-key i { width: 12px; height: 12px; border-radius: 4px; background: var(--chart-kinds-tone); }
+
+/* histogram */
+.ck-stop-a { stop-color: var(--chart-kinds-tone); stop-opacity: 1; } .ck-stop-b { stop-color: var(--chart-kinds-tone); stop-opacity: var(--chart-kinds-bar-fade); }
+.ck-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ck-grow var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+@keyframes ck-grow { from { transform: scaleY(0); opacity: 0; } }
+.ck-mark { cursor: pointer; outline: none; }
+.ck-mark line { stroke: var(--chart-kinds-mark); stroke-width: 1.6; stroke-dasharray: 5 4; }
+.ck-mark-hit { fill: transparent; }
+.ck-chip { fill: var(--surface); stroke: var(--chart-kinds-mark); stroke-width: 1.2; }
+.ck-chip-t { fill: var(--ink); font-size: 12px; font-weight: 600; }
+.ck-mark:focus-visible .ck-chip, .ck-mark:hover .ck-chip { fill: var(--acc-softer); stroke: var(--acc); }
+.ck-mark:focus-visible line, .ck-mark:hover line { stroke: var(--acc); }
+
+/* box plot and violin */
+.ck-bx, .ck-viol { animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+@keyframes ck-fade { from { opacity: 0; transform: translateY(6px); } }
+.ck-whisker, .ck-cap { stroke: var(--chart-kinds-tone); stroke-width: 1.8; stroke-linecap: round; }
+.ck-boxr { fill: color-mix(in oklab, var(--chart-kinds-tone) var(--chart-kinds-box-fill), var(--surface)); stroke: var(--chart-kinds-tone); stroke-width: 2; }
+.ck-median { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.ck-mean { fill: var(--surface); stroke: var(--chart-kinds-tone); stroke-width: 1.6; }
+.ck-out { fill: var(--surface); stroke: var(--chart-kinds-tone); stroke-width: 1.6; }
+.ck-violin { fill: color-mix(in oklab, var(--chart-kinds-tone) var(--chart-kinds-violin-fill), var(--surface)); stroke: var(--chart-kinds-tone); stroke-width: 2; stroke-linejoin: round; }
+.ck-ibox { fill: var(--chart-kinds-tone); }
+.ck-median-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+
+/* funnel */
+.ck-stage { animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+.ck-fun { fill: color-mix(in oklab, var(--chart-kinds-tone) var(--chart-kinds-ramp, 100%), var(--surface)); stroke: color-mix(in oklab, var(--chart-kinds-tone) 60%, var(--surface)); stroke-width: 1; stroke-linejoin: round; }
+.ck-st-name { fill: var(--ink); font-size: 14px; font-weight: 500; } .ck-st-val { fill: var(--ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ck-fun-pct { fill: var(--ink); font-size: 13px; font-weight: 700; paint-order: stroke; stroke: color-mix(in oklab, var(--surface) 65%, transparent); stroke-width: 3px; stroke-linejoin: round; }
+.ck-drop rect { fill: var(--bad-soft); } .ck-drop text { fill: var(--bad-ink); font-size: 12px; font-weight: 600; }
+
+/* waterfall */
+.ck-wf { animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+.ck-wfbar { fill: color-mix(in oklab, var(--chart-kinds-tone) 86%, var(--surface)); stroke: var(--chart-kinds-tone); stroke-width: 1; }
+.ck-conn { stroke: var(--faint); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.ck-wf-val { fill: var(--ink); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* treemap */
+.ck-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 8px; font-size: var(--fs-s); color: var(--muted); min-height: 28px; }
+.ck-crumb { min-height: 28px; padding: 0 10px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); border-radius: var(--r-pill); font: 500 var(--fs-xs) var(--font-sans); cursor: pointer; }
+.ck-crumb:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 2px; }
+.ck-crumb-now { font-weight: 600; color: var(--ink); }
+.ck-tm { position: relative; max-width: 100%; border-radius: var(--r-m); overflow: hidden; background: var(--surface-2); }
+.ck-tile { position: absolute; box-sizing: border-box; margin: 0; padding: 4px 7px; border: var(--chart-kinds-tile-gap) solid var(--surface); text-align: left; cursor: pointer; overflow: hidden; font: 500 12px/1.25 var(--font-sans); color: var(--ink);
+  background: color-mix(in oklab, var(--chart-kinds-tone) calc(14% + var(--chart-kinds-lvl, 1) * 9%), var(--surface)); border-radius: 6px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; justify-content: flex-start; animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+.ck-tile.has-head { background: color-mix(in oklab, var(--chart-kinds-tone) 26%, var(--surface)); }
+.ck-tile.has-head .ck-tn { font-weight: 700; }
+.ck-tile:hover { background: color-mix(in oklab, var(--chart-kinds-tone) calc(26% + var(--chart-kinds-lvl, 1) * 9%), var(--surface)); }
+.ck-tile:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: -3px; z-index: 30 !important; }
+.ck-tile-tiny { cursor: default; padding: 0; }
+.ck-tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-weight: 600; } .ck-tv { color: var(--ink-2); font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 400; }
+.ck-head { display: flex; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; align-items: baseline; }
+.ck-head .ck-tn { flex: 0 1 auto; min-width: 0; } .ck-tv-head { flex: none; }
+
+/* sunburst */
+.ck-sb { display: flex; justify-content: center; }
+.ck-arc { fill: color-mix(in oklab, var(--chart-kinds-tone) calc(86% - var(--chart-kinds-lvl, 1) * 15%), var(--surface)); stroke: var(--surface); stroke-width: 1; transition: filter .15s; animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
+g[data-arc] { cursor: pointer; outline: none; } g[data-arc]:hover .ck-arc { filter: brightness(1.1) saturate(1.1); }
+g[data-arc]:focus-visible .ck-arc { stroke: var(--ink); stroke-width: 3; }
+.ck-arc-t { fill: var(--ink); font-size: 12px; font-weight: 600; pointer-events: none; paint-order: stroke; stroke: color-mix(in oklab, var(--surface) 70%, transparent); stroke-width: 3px; stroke-linejoin: round; }
+.ck-core circle { fill: var(--surface-2); stroke: var(--line-2); } .ck-core[role="button"] { cursor: pointer; } .ck-core[role="button"]:hover circle { fill: var(--acc-softer); }
+.ck-core:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 2px; }
+.ck-core-n { fill: var(--ink); font-size: 13px; font-weight: 700; } .ck-core-v { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* calendar heatmap */
+.ck-cal { display: flex; align-items: flex-start; gap: 6px; }
+.ck-cal-wd { position: relative; flex: 0 0 34px; font-size: 12px; color: var(--muted); } .ck-cal-wd span { position: absolute; left: 0; display: flex; align-items: center; }
+.ck-cal-scroll { flex: 1; min-width: 0; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+.ck-cal-in { position: relative; }
+.ck-cal-m { position: absolute; top: 0; font-size: 12px; color: var(--muted); font-weight: 500; }
+.ck-day { position: absolute; padding: 0; border: 1px solid color-mix(in oklab, var(--chart-kinds-tone) 18%, var(--line)); border-radius: var(--chart-kinds-cell-radius); cursor: pointer; background: var(--chart-kinds-empty); }
+.ck-day.is-empty { border-style: dashed; border-color: var(--line-2); }
+.ck-day:hover { box-shadow: 0 0 0 2px var(--chart-kinds-tone); }
+.ck-day:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 1px; z-index: 2; }
+.ck-cal-key { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-xs); color: var(--muted); }
+.ck-cal-ramp { width: 120px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--chart-kinds-heat-lo), var(--chart-kinds-tone)); border: 1px solid var(--line); }
+
+@media (prefers-reduced-motion: reduce) { .ck-bar, .ck-bx, .ck-viol, .ck-stage, .ck-wf, .ck-tile, .ck-arc { animation: none !important; } }
+[data-dh-motion="off"] .ck-bar, [data-dh-motion="off"] .ck-bx, [data-dh-motion="off"] .ck-viol, [data-dh-motion="off"] .ck-stage, [data-dh-motion="off"] .ck-wf, [data-dh-motion="off"] .ck-tile, [data-dh-motion="off"] .ck-arc { animation: none !important; }
+.ck[data-dh-static] * { transition: none !important; animation: none !important; }
+@container (max-width: 480px) { .ck-legend { margin-left: 0; } }

@@ -1,12 +1,12 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 import { yamlParse, chargeYaml } from "../host/yaml";
-// dh-lib: the Durian Hypermedia parser and writers, shared by dh (parse and write) and doccheck (checks).
+// dh-lib: the DurianMarkdown parser and writers, shared by dh (parse and write) and doccheck (checks).
 // Format version 3: plain Markdown first.
 //   - a part with data is a fenced code block whose info string names it: ```terminal, ```filetree, ```editor,
-//     ```codewalk, ```chart, ```mermaid, ```animation <kind>
+//     ```codewalk, ```chart, ```animation <kind>
 //   - a part that holds prose is one of four containers, `:::tabs`, `:::accordion`, `:::human`, `:::llm`,
 //     closed by a line `:::`; inside tabs and accordions every heading starts one tab or row
-//   - steps are an attachment: a line `@step <title>` inside a fenced part (`%% @step <title>` in mermaid)
+//   - steps are an attachment: a line `@step <title>` inside a fenced part
 //   - `:::llm` right after a part or a `:::human` segment replaces it in the LLM view
 import { createHash } from "../host/crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
@@ -14,11 +14,18 @@ import { dirname, extname, join, resolve } from "../host/path";
 import { spawnSync } from "../host/child_process";
 import { chartControls, evalChart } from "./chart";
 import { chartTable } from "./chart-llm";
+import { chartTable11, evalChart11, usesChart11 } from "./chart11";
 import { currentBudget, BudgetError } from "./budget";
 import { unmetered } from "./work";
 import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./scene";
+import { codeSpans } from "./inline";
+import { diagramOf, isDiagram } from "./diagrams"; // state, class and ER diagrams: each compiles to a scene
+import { isStagePart, setStageRoles, stagePartJson, stagePartLlm, stagePartTexts } from "./stage-part"; // the composed stage (0.7.0)
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
+import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
+import { inlineLlmText } from "../parts/inline-runtime";
+import { normaliseStatic } from "./static";
 
 // ---------- part registry ----------
 // fenced: a code block with this info word. llm: how the LLM view shows it when no :::llm follows.
@@ -26,21 +33,26 @@ import { parseAlign, alignLlm } from "./align";
 //   data   a chart: its data as a table; with controls, its source as it is
 //   steps  an animation: its step captions as a numbered list
 // container: holds Markdown and fenced parts; containers do not nest.
-export interface PartDef { form: "fenced" | "container"; llm: "as-is" | "data" | "steps" | "lines" | "unwrap" | "drop" | "replace"; steps: boolean }
+// part: a part in its own folder (src/parts/<name>/, format version 11): its own LLM view, else as-is
+export interface PartDef { form: "fenced" | "container"; llm: "as-is" | "data" | "steps" | "lines" | "unwrap" | "drop" | "replace" | "part"; steps: boolean }
 export const PARTS: Record<string, PartDef> = {
   terminal: { form: "fenced", llm: "as-is", steps: true },
   filetree: { form: "fenced", llm: "as-is", steps: true },
   editor: { form: "fenced", llm: "as-is", steps: true },
   codewalk: { form: "fenced", llm: "as-is", steps: true },
-  mermaid: { form: "fenced", llm: "as-is", steps: true },
   chart: { form: "fenced", llm: "data", steps: false },
   animation: { form: "fenced", llm: "steps", steps: true },
+  // state, class and ER diagrams (core/diagrams.ts): their own small languages, drawn by the animation engine
+  state: { form: "fenced", llm: "lines", steps: true },
+  class: { form: "fenced", llm: "lines", steps: true },
+  er: { form: "fenced", llm: "lines", steps: true },
   tierlist: { form: "fenced", llm: "lines", steps: false },
   alignment: { form: "fenced", llm: "data", steps: false },
   tabs: { form: "container", llm: "unwrap", steps: false },
   accordion: { form: "container", llm: "unwrap", steps: false },
   human: { form: "container", llm: "drop", steps: false },
   llm: { form: "container", llm: "replace", steps: false },
+  ...folderPartRows(),
 };
 // other names people already use for a shell session
 export const ALIASES: Record<string, string> = { console: "terminal", shellsession: "terminal" };
@@ -69,9 +81,11 @@ export interface PartNode {
   nodes: Node[]; items: Item[];      // container: its content, and (tabs, accordion) one item per heading
   llm?: PartNode;                    // a :::llm right after this part
   defs?: Defs;                       // the page's and the site's own marks and prefixes (format version 10), set by parseDoc
+  fm?: Record<string, unknown>;      // the page's front matter (an object, else {}), set by parseDoc, for folder parts
+  texts?: readonly string[];         // the page's Markdown text nodes as written, in page order, set by parseDoc, for folder parts that count marks over the page (citations)
 }
 export type Node = MdNode | TocNode | PartNode;
-export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[] }
+export interface Doc { path: string; fmRaw: string; fm: any; body: Node[]; bodyText: string; bodyStart: number; defErrors?: string[]; /** references parse() read (format version 11) */ refs?: number }
 export interface Issue { file: string; line: number; msg: string; level: "error" | "warn" }
 
 // ---------- parsing ----------
@@ -97,16 +111,46 @@ function headOf(line: string): [string, string, string] | null {
 }
 
 // attributes: #id, key=value, key="two words", bare words (flags; an animation's first bare word is its kind)
+const isWordCh = (c: number) => (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c === 45;
+const isSpaceCh = (c: number) => c === 32 || (c >= 9 && c <= 13) || c === 0xa0 || c === 0xfeff || c === 0x1680 || (c >= 0x2000 && c <= 0x200a) || c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000;
+/** `#id`, `key=value` (value "double", 'single' or bare) and bare words, by one hand scan (linear: every character is
+ *  read a fixed number of times). Inside a double-quoted value \" is a quote and \\ a backslash (a LogQL
+ *  filter="{level=~\"warn\"}"); an unclosed quote is read as a bare value. */
 export function parseAttrs(s: string | undefined): { attrs: Attrs; words: string[] } {
   const attrs: Attrs = {}, words: string[] = [];
   if (!s) return { attrs, words };
   const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
-  const re = /#([\w-]+)|([\w-]+)=("([^"]*)"|'([^']*)'|[^\s}]+)|([^\s{}=]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(inner))) {
-    if (m[1]) attrs.id = m[1];
-    else if (m[2]) attrs[m[2]] = m[4] ?? m[5] ?? m[3];
-    else if (m[6]) words.push(m[6]);
+  const n = inner.length;
+  // a bare run: no space, no "}" (a value) or no space, "{", "}" or "=" (a word)
+  const bareEnd = (i: number, word: boolean) => { while (i < n) { const c = inner.charCodeAt(i); if (isSpaceCh(c) || c === 125 || (word && (c === 123 || c === 61))) break; i++; } return i; };
+  // A " is escaped when an odd run of backslashes stands right before it (each backslash takes the next character), which
+  // does not depend on where the value began; so the next closing quote and the next ' are found once, from the right,
+  // and an unclosed quote costs nothing per attempt.
+  const open = new Uint8Array(n); // 1: a " no backslash escapes
+  for (let i = 0, run = 0; i < n; i++) { const c = inner.charCodeAt(i); if (c === 34 && run % 2 === 0) open[i] = 1; run = c === 92 ? run + 1 : 0; }
+  const nextQ = new Int32Array(n + 1), nextApos = new Int32Array(n + 1); nextQ[n] = nextApos[n] = -1;
+  for (let i = n - 1; i >= 0; i--) { nextQ[i] = open[i] ? i : nextQ[i + 1]; nextApos[i] = inner.charCodeAt(i) === 39 ? i : nextApos[i + 1]; }
+  let i = 0;
+  while (i < n) {
+    const c = inner.charCodeAt(i);
+    if (c === 35 && i + 1 < n && isWordCh(inner.charCodeAt(i + 1))) { let j = i + 1; while (j < n && isWordCh(inner.charCodeAt(j))) j++; attrs.id = inner.slice(i + 1, j); i = j; continue; }
+    if (isWordCh(c)) {
+      let j = i; while (j < n && isWordCh(inner.charCodeAt(j))) j++;
+      if (j < n && inner.charCodeAt(j) === 61 && j + 1 < n) {
+        const key = inner.slice(i, j), v = j + 1, q = inner.charCodeAt(v);
+        if (q === 34) {
+          const closed = nextQ[v + 1];
+          if (closed >= 0) { attrs[key] = inner.slice(v + 1, closed).replace(/\\(["\\])/g, "$1"); i = closed + 1; continue; }
+        } else if (q === 39) {
+          const e = nextApos[v + 1];
+          if (e >= 0) { attrs[key] = inner.slice(v + 1, e); i = e + 1; continue; }
+        }
+        const e = bareEnd(v, false);
+        if (e > v) { attrs[key] = inner.slice(v, e); i = e; continue; }
+      }
+    }
+    if (!isSpaceCh(c) && c !== 123 && c !== 125 && c !== 61) { const e = bareEnd(i, true); words.push(inner.slice(i, e)); i = e; continue; }
+    i++;
   }
   return { attrs, words };
 }
@@ -168,16 +212,18 @@ function parseNodes(lines: string[], start: number, end: number, base: number, i
     if (f) {
       const close = closeFence(lines, i, end, f[2]);
       if (close < 0) throw new ParseError(base + i + 1, "a code fence is never closed");
-      const word = ALIASES[f[3]] ?? f[3];
+      // a folder part may claim another fence (```json explore) or a chart kind (src/parts/<name>/, format version 11)
+      const word = folderFenceWord(f[3], f[4] ?? "", () => lines.slice(i + 1, close)) ?? ALIASES[f[3]] ?? f[3];
       if (PARTS[word]?.form === "fenced") {
         flush();
         out.push(fencedPart(lines, i, close, base, word, f[4]));
+        bufLine = close + 1;
       } else {
+        // a plain code block is Markdown: it joins the text before it, which keeps its first line
         if (!buf.length) bufLine = i;
         buf.push(...lines.slice(i, close + 1));
       }
       i = close;
-      bufLine = i + 1;
       continue;
     }
     const o = openLine(l);
@@ -214,16 +260,22 @@ function emptyPart(name: string, attrs: Attrs, line: number, endLine: number, so
 }
 
 function fencedPart(lines: string[], open: number, close: number, base: number, name: string, rest: string): PartNode {
-  const { attrs, words } = parseAttrs(rest);
+  const { attrs, words: allWords } = parseAttrs(rest);
+  // static (SPEC 4.1): the bare word static on any part is static="" (the finished state); it is never an animation's kind
+  const words = allWords.filter((w) => w !== "static"); if (allWords.includes("static") && attrs.static === undefined) attrs.static = "";
+  // a folder part reads a bare word as a flag (```video loop: loop is "true")
+  if (folderPart(name)) for (const w of words) if (!Object.hasOwn(attrs, w)) attrs[w] = "true";
+  // format version 11 (SPEC 6.14): the bare word zoom gives an animation the reader's camera (pan, zoom, show everything)
+  if (name === "animation" && words.includes("zoom")) { if (attrs.zoom === undefined) attrs.zoom = "yes"; words.splice(words.indexOf("zoom"), 1); }
   // an animation's first bare word: 3d or 2d is the view it opens in (format version 5); any other word was a version 3 kind
   if (name === "animation" && words.length) { if (/^[23]d$/i.test(words[0])) attrs.view = words[0].toLowerCase(); else if (words[0] === "only") attrs.only = "?"; else attrs.kind = words[0]; }
   // format version 10: ```animation 3d only: the scene has no flat form (tools/depth.ts)
   if (name === "animation" && words[1] === "only") attrs.only = attrs.view ?? "?";
   const bodyLines = lines.slice(open + 1, close);
   const p = emptyPart(name, attrs, base + open + 1, base + close + 1, lines.slice(open, close + 1).join("\n"), lines[open], bodyLines.join("\n"), base + open + 2);
-  // steps: "@step title" (in mermaid "%% @step title", a mermaid comment, so the diagram still draws on any Markdown viewer)
+  // steps: "@step title"
   // the spaces after @step taken whole (no backtracking into them when the title holds a line end)
-  const stepRe = name === "mermaid" ? /^\s*%%\s*@step\b(?=(\s*))\1(.*)$/ : /^@step\b(?=(\s*))\1(.*)$/;
+  const stepRe = /^@step\b(?=(\s*))\1(.*)$/;
   let cur: Step | null = null;
   const head: string[] = [];
   const raw: string[] = [];
@@ -239,6 +291,7 @@ function fencedPart(lines: string[], open: number, close: number, base: number, 
   });
   if (cur) { (cur as Step).raw = raw.join("\n"); p.steps.push(cur); }
   p.head = head.join("\n");
+  normaliseStatic(p); // static (SPEC 4.1): static="<title>" becomes its step number
   return p;
 }
 // a code walk step line is a code reference then key=value words; any other step line is a title
@@ -291,8 +344,19 @@ export function parseDoc(path: string, text?: string, opts: { frontMatter?: bool
   const lines = bodyText.split("\n");
   const body = parseNodes(lines, 0, lines.length, bodyStart, null);
   const defs = defsOf(path, fm, opts.site);
-  for (const p of allParts(body)) p.defs = defs.defs;
+  const fmObj = fm && typeof fm === "object" && !Array.isArray(fm) ? (fm as Record<string, unknown>) : {};
+  const texts = mdTexts(body);
+  for (const p of allParts(body)) { p.defs = defs.defs; p.fm = fmObj; p.texts = texts; }
+  setStageRoles(allParts(body), fm); // the composed stage: the page's roles
   return { path, fmRaw, fm, body, bodyText, bodyStart, defErrors: defs.errors };
+}
+// the Markdown text nodes of a page, as written, in page order (containers' and tabs' too)
+function mdTexts(nodes: Node[], out: string[] = []): string[] {
+  for (const n of nodes) {
+    if (n.kind === "md") out.push(n.text);
+    else if (n.kind === "part") { mdTexts(n.nodes, out); for (const it of n.items) mdTexts(it.nodes, out); }
+  }
+  return out;
 }
 // every part of a page, in order, including parts inside containers and :::llm blocks
 export function allParts(nodes: Node[]): PartNode[] {
@@ -330,7 +394,7 @@ export function mouseParts(inner: string): { act: string; target: string } {
 const chords = (k: string) => { const p = k.split(","); return p.map((x, i) => (i > 0 ? (i < p.length - 1 ? x.trim() : x.trimStart()) : i < p.length - 1 ? x.trimEnd() : x)); };
 const keysOf = (chord: string) => chord.split(/\+(?!$)/);
 export function inlineToLlm(md: string): string {
-  return mapOutsideCode(md, (t) => replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner));
+  return mapOutsideCode(md, (t) => inlineLlmText(replaceBracketed(replaceBracketed(t, ":kbd[", (_, k: string) => chords(k).map((c) => keysOf(c).map((x) => KEY_NAMES[x.toLowerCase()] ?? x).join("+")).join(", then ")), ":mouse[", (_, inner) => inner)));
 }
 // The mouse icon: the button the action presses is filled. A double click adds a "2", a scroll arrows by the wheel,
 // a drag a move arrow, a drop a down arrow, a hover motion lines; so single and double click differ at a glance.
@@ -685,10 +749,9 @@ export function editorFiles(doc: Doc, p: PartNode, src: string | undefined) {
 }
 
 // How many characters a part's steps carry, at most, when every step holds a whole text: an editor's file before and
-// after each edit, a code walk's lines of a made-up file, a mermaid diagram up to each step. That is the steps times
+// after each edit, a code walk's lines of a made-up file. That is the steps times
 // the text, so parse() caps it (a part whose steps would carry too much is shown as its source). Other parts: 0.
 export function stepTextSize(doc: Doc, p: PartNode): number {
-  if (p.name === "mermaid") { let acc = p.head.length, n = p.steps.length ? 0 : acc; for (const s of p.steps) { acc += 1 + s.raw.length; n += acc; } return n; }
   if (p.name === "codewalk") { const keys = new Set<string>(); let n = 0; for (const r of codewalkRefs(doc, p)) { const k = `${r.repo}/${r.file}`; n += (r.made?.length ?? 0) + (keys.has(k) ? 0 : (keys.add(k), r.made?.length ?? 0)); } return n; }
   if (p.name === "editor") {
     // a file after an edit is no longer than before it plus the lines the edit adds
@@ -700,21 +763,12 @@ export function stepTextSize(doc: Doc, p: PartNode): number {
   }
   return 0;
 }
-// mermaid steps: each "%% @step" line ends a step; step k draws every line up to its end (the diagram builds up)
-export function mermaidSteps(p: PartNode): { title: string; src: string }[] {
-  if (!p.steps.length) return [{ title: "", src: p.head }];
-  const out: { title: string; src: string }[] = [];
-  let acc = p.head;
-  for (const s of p.steps) { acc = acc + "\n" + s.raw; out.push({ title: s.title, src: acc.replace(/(?<!\n)\n+$/, "") }); }
-  return out;
-}
-
 // chart: see tools/chart.ts (pure, shared with the browser)
 export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEYS, SERIES_KEYS, type ChartControl } from "./chart";
 // animation: see tools/scene.ts (pure, shared with the browser)
 export function animSrc(p: PartNode) {
   const info: Record<string, string> = {};
-  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels"]) if (p.attrs[k]) info[k] = p.attrs[k];
+  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels", "zoom"]) if (p.attrs[k]) info[k] = p.attrs[k];
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
 // one compile per part: the page, its JSON, its LLM view and its checks share it (a part over its work budget keeps
@@ -763,8 +817,9 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
   switch (def.llm) {
     case "as-is": if (p.defs && (p.name === "filetree" || p.name === "terminal")) { const t = ownAsIs(p); if (t) return t; } { const fence = p.open.match(FENCE_RE)![2]; const text = `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}`; return p.name === "codewalk" ? text.split("\n").map((l, i) => (i === 0 || /^@step\b/.test(l) ? dropAnimate(l) : l)).join("\n") : text; }
     case "data": return p.name === "alignment" ? alignLlm(parseAlign(p.body, p.bodyLine, p.attrs.title ?? "")) : chartLlm(p);
-    case "lines": return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
+    case "lines": if (isDiagram(p.name)) return diagramOf(p).llm; return tierLlm(parseTier(p.body, p.bodyLine, p.attrs.title ?? ""));
     case "steps": return animLlm(p);
+    case "part": { const t = folderLlm(p); if (t != null) return t; const fence = p.open.match(FENCE_RE)![2]; return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n${fence}`; }
     case "unwrap": return p.items.map((it) => `${it.heading.trim()}\n\n${llmOfNodes(it.nodes, publicView)}`).join("\n\n");
     default: return "";
   }
@@ -772,13 +827,14 @@ export function llmFormOf(p: PartNode, publicView: boolean): string {
 // the LLM view of a chart: its data as a table; a chart with controls or formulas goes as its source
 function chartLlm(p: PartNode): string {
   const d = chartYaml(p);
-  if (!d || d.controls || d.let) return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
+  if (!d || ((d.controls || d.let) && d.layout !== "calculator")) return `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
+  if (usesChart11(d)) return chartTable11(d) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``;
   return chartTable(d, chartInitial(p, d)) ?? `${llmOpen(p)}\n${p.body.replace(/(?<!\n)\n+$/, "")}\n\`\`\``; // tools/chart-llm.ts
 }
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
 // (made once per compile; it plays the story again, which the compile already paid for: not charged twice)
 const llmText = new WeakMap<Compiled, string>();
-function animLlm(p: PartNode): string { const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
+function animLlm(p: PartNode): string { if (isStagePart(p)) return stagePartLlm(p); const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
 function llmOfNodes(nodes: Node[], publicView: boolean): string {
   const out: string[] = [];
   for (const n of nodes) {
@@ -817,7 +873,7 @@ export function llmKindOf(p: PartNode): "text" | "none" | PartDef["llm"] {
   if (p.attrs.llm === "none" || p.name === "human") return "none";
   return PARTS[p.name]?.llm ?? "none";
 }
-const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "marks", "prefixes"];
+const LLM_FM_KEYS = ["title", "concept", "description", "namespaces", "type", "pins", "marks", "prefixes", "glossary"];
 export function llmView(doc: Doc, sourceRel: string, publicView = false): string {
   const fm = keepTopKeys(doc.fmRaw, LLM_FM_KEYS);
   const body = llmOfNodes(doc.body, publicView).replace(/\n{3,}/g, "\n\n");
@@ -842,7 +898,8 @@ export function humanText(doc: Doc, src?: string): string {
       if (n.kind === "md") out.push(inlineToLlm(n.text));
       else if (n.kind === "part") {
         if (n.name === "llm") continue;
-        if (n.name === "animation") out.push(...animOf(n).scene.texts);
+        if (n.name === "animation") out.push(...(isStagePart(n) ? stagePartTexts(n) : animOf(n).scene.texts));
+        else if (isDiagram(n.name)) out.push(...diagramOf(n).texts);
         else if (n.name === "chart") out.push(yamlTexts(chartYaml(n)).join("\n"));
         else if (n.name === "codewalk") { out.push(...n.steps.map((s) => s.raw)); if (src) codewalkRefs(doc, n).forEach((r) => { const t = readRange(doc, r, src); if (t.text) out.push(t.text); }); }
         else if (PARTS[n.name]?.form === "fenced") out.push(n.body);
@@ -992,8 +1049,9 @@ export function structureOf(doc: Doc) {
         const a = { ...n.attrs }; delete a.title;
         let data = "";
         if (n.name === "chart") data = JSON.stringify(stripTexts(chartYaml(n)));
-        if (n.name === "mermaid") data = `${n.body.split("\n").length} lines, ${n.steps.length} steps`;
+        if (isDiagram(n.name)) { const d = diagramOf(n); data = d.shape; for (const t of d.code) inline.push(...codeSpans(t)); } // what a translation must keep of a state, class or ER diagram
         if (n.name === "animation") data = `${n.head.split("\n").filter((l) => l.trim()).length} setup lines, ${n.steps.length} steps: ${n.steps.map((s) => s.raw.split("\n").filter((l) => l.trim()).length).join(",")}`;
+        if (n.name === "animation") for (const t of [n.head, ...n.steps.flatMap((s) => [s.title, s.raw])]) inline.push(...codeSpans(t)); // a translation keeps the code spans of captions, speech and notes
         if (n.name === "terminal") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => t.trim()));
         if (n.name === "filetree") data = JSON.stringify([n.head, ...n.steps.map((s) => s.raw)].map((t) => parseTree(t, 0, n.defs).rows.map((r) => `${r.depth}${r.name}${r.badges}${r.closed}`)));
         if (n.name === "editor") data = JSON.stringify([n.head.trim(), ...n.steps.map((s) => s.raw.trim())]);
@@ -1033,12 +1091,13 @@ function chartYaml(p: PartNode): any { return chartYamlOf(p).d; }
 /** Why a chart's YAML could not be read (too many anchors and aliases, not YAML at all), or null. */
 export function chartYamlError(p: PartNode): string | null { return chartYamlOf(p).err; }
 function chartInitial(p: PartNode, d: any): ReturnType<typeof evalChart> {
+  const run = (x: any): ReturnType<typeof evalChart> => (usesChart11(x) ? evalChart11(x) : evalChart(x));
   const b = currentBudget();
-  if (!b) return evalChart(d);
+  if (!b) return run(d);
   let m = initials.get(b);
   if (!m) { m = new WeakMap(); initials.set(b, m); }
   let r = m.get(p);
-  if (!r) { r = evalChart(d); m.set(p, r); }
+  if (!r) { r = run(d); m.set(p, r); }
   return r;
 }
 // ---------- JSON for the renderer ----------
@@ -1049,11 +1108,11 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
     if (n.kind === "toc") return { type: "toc", line: n.line, depth: +(n.attrs.depth ?? 3), scope: n.attrs.section ? "section" : "page", source: n.src };
     const base: any = { type: n.name, id: n.attrs.id ?? null, attrs: n.attrs, line: n.line, source: n.source + (n.llm ? "\n\n" + n.llm.source : ""), llm: llmOfPart(n, publicView) || null, llmKind: llmKindOf(n), size: tok(llmOfPart(n, publicView)) };
     switch (n.name) {
-      case "animation": base.anim = animSrc(n); break;
+      case "animation": base.anim = animSrc(n); if (isStagePart(n)) base.stage = stagePartJson(n); break; // a composed stage also carries its stage source
+      case "state": case "class": case "er": { const d = diagramOf(n); base.anim = d.src; base.refused = d.errors; base.body = n.body; break; }
       case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;
       case "alignment": base.align = parseAlign(n.body, n.bodyLine, n.attrs.title ?? ""); break;
-      case "mermaid": base.steps = mermaidSteps(n); break;
       case "filetree": base.trees = treeSteps(n).map((s) => ({ title: s.title, rows: parseTree(s.text, 0, n.defs).rows })); base.marks = usedMarks(n.defs, base.trees.flatMap((t: any) => t.rows.flatMap((r: any) => r.badges))); break;
       case "terminal": base.steps = terminalSteps(n); base.prompt = n.attrs.prompt ?? "$"; { const ps = Object.entries(n.defs?.prefixes ?? {}); const used = ps.length ? usedPrompts(base.steps) : new Set<string>(); base.prefixes = Object.fromEntries(ps.filter(([k]) => used.has(k))); } base.title = n.attrs.title ?? null; break;
       case "codewalk": { const refs = codewalkRefs(doc, n); const modes = codewalkModes(n, refs); base.walkFiles = {}; base.steps = refs.map((r, i) => { const t = readRange(doc, r, src); const key = `${r.repo}/${r.file}`; if (!(key in base.walkFiles)) base.walkFiles[key] = readWhole(doc, r, src); return { animated: modes[i], key, repo: r.repo, file: r.file, commit: t.commit, lines: r.lines, focus: r.focus, marks: r.marks, lang: t.lang, code: t.text, error: t.err, note: noteHtml(n.steps[i].raw.trim()) }; }); break; }

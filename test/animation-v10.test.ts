@@ -39,8 +39,8 @@ const fences = (): Fence[] => {
 };
 const ALL = fences();
 
-describe("format version 10: the numbers", () => {
-  test("format version 10, package 0.6.2", () => { expect(FORMAT_VERSION).toBe(10); expect(VERSION).toBe("0.6.2"); expect(JSON.parse(readFileSync(join(import.meta.dir, "../package.json"), "utf8")).version).toBe("0.6.2"); });
+describe("format version 11: the numbers", () => {
+  test("format version 11, package 0.7.0", () => { expect(FORMAT_VERSION).toBe(11); expect(VERSION).toBe("0.7.0"); expect(JSON.parse(readFileSync(join(import.meta.dir, "../package.json"), "utf8")).version).toBe("0.7.0"); });
   test("every Format fixture parses and its animations compile with no refusal", () => {
     expect(ALL.length).toBeGreaterThanOrEqual(27);
     expect(ALL.flatMap((x) => x.c.errors.map((e) => `${x.name}: ${e.msg}`))).toEqual([]);
@@ -52,7 +52,8 @@ describe("format version 10: the numbers", () => {
     expect(bad).toEqual([]);
   }, 30000);
   test("the version 10 samples are fixtures", () => {
-    const names = fixtureFiles().join(" ");
+    // (0.7.0-rc.3, owner row 6) the Format page's kube-proxy scene is flat now; the 3D-only sample it replaced is a test fixture
+    const names = [...fixtureFiles(), ...readdirSync(join(import.meta.dir, "fixtures-3d"))].join(" ");
     for (const n of ["candlestick", "your-own-tiers", "three-tiers-or-seven", "alignment-grid-any-size", "colours-and-regions", "marks-and-prefixes", "3d-only", "seven-network-layers", "array-a-map-and-a-tree"]) expect(names).toContain(n);
     expect(names).not.toContain("banner");
   });

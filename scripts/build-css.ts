@@ -9,6 +9,7 @@
 // - src/styles/dh.css (the package's own rules, variants and the reduced-motion rules) is added as written.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { PART_CSS } from "../src/parts/generated/css";
 
 const PKG = resolve(import.meta.dir, "..");
 const UI = join(PKG, "src/ui");
@@ -75,10 +76,13 @@ function transform(css: string, dropChrome: boolean): string {
 
 export function buildCss(): string {
   const all = readdirSync(UI).filter((f) => f.endsWith(".css"));
-  const order = ["theme.css", "base.css", ...all.filter((f) => f !== "theme.css" && f !== "base.css").sort()];
+  // colours.css (the measured role palette's planes and 3:1 edges) comes after the other part sheets, so its edges win
+  const order = ["theme.css", "base.css", ...all.filter((f) => f !== "theme.css" && f !== "base.css" && f !== "colours.css").sort(), "colours.css"];
   const parts = order.filter((f) => all.includes(f)).map((f) => `/* ---- ${f} (scoped) ---- */\n${transform(readFileSync(join(UI, f), "utf8"), f === "base.css")}`);
+  // the parts in their own folders (src/parts/<name>/style.css), the kit first: listed by scripts/parts.ts
+  for (const f of PART_CSS) parts.push(`/* ---- parts/${f} (scoped) ---- */\n${transform(readFileSync(join(PKG, "src/parts", f), "utf8"), false)}`);
   const own = readFileSync(join(PKG, "src/styles/dh.css"), "utf8");
-  return `/* durian-hypermedia styles: every rule is scoped under .dh-doc. Theme tokens: THEME.md. */\n${parts.join("\n\n")}\n\n/* ---- dh.css (the package's own rules) ---- */\n${own}`;
+  return `/* durian-markdown styles: every rule is scoped under .dh-doc. Theme tokens: THEME.md. */\n${parts.join("\n\n")}\n\n/* ---- dh.css (the package's own rules) ---- */\n${own}`;
 }
 if (import.meta.main) {
   mkdirSync(join(PKG, "dist"), { recursive: true });

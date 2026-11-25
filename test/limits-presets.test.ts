@@ -2,6 +2,7 @@
 // are made up with the counts of the largest real pages measured (one chart of about 1,800 nodes; a page of about
 // 11,500 nodes and 80,500 characters of YAML): LIMITS reads them, UNTRUSTED_LIMITS refuses them. Counts only.
 import { describe, expect, test } from "bun:test";
+import { PART_LIMITS } from "../src/parts/generated/limits";
 import { parse, LIMITS, UNTRUSTED_LIMITS } from "../src/index";
 import { yamlNodeCount } from "../src/host/yaml";
 import { workTotal } from "../src/core/work";
@@ -17,9 +18,10 @@ function chartOf(nodes: number, chars: number): { text: string; yaml: string } {
 const yamlRefused = (d: ReturnType<typeof parse>) => d.problems.filter((p) => /YAML/.test(p.message)).length + d.blocks.filter((b: any) => /YAML/.test(String(b.initial?.error ?? (b.type === "error" ? b.message : "")))).length;
 
 describe("the two sets of caps", () => {
-  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML and animation caps", () => {
-    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork"] as const;
+  test("UNTRUSTED_LIMITS is LIMITS with smaller YAML, animation, chart and reference caps", () => {
+    const smaller = ["maxYamlNodes", "maxPageYamlNodes", "maxPageYamlChars", "maxAnimWork", "maxPageAnimWork", "maxChartAnnotations", "maxChartSteps", "maxChartHeatCells", "maxCalcRows", "maxCalcInputs", "maxReferences", "maxReferenceBytes", "maxSvgBytes"] as const;
     for (const k of Object.keys(LIMITS) as (keyof typeof LIMITS)[]) {
+      if (k in PART_LIMITS) continue; // a folder part's own caps: test/parts.test.ts checks the strict one is no higher
       if ((smaller as readonly string[]).includes(k)) expect(UNTRUSTED_LIMITS[k]).toBeLessThan(LIMITS[k]);
       else expect(UNTRUSTED_LIMITS[k]).toBe(LIMITS[k]);
     }

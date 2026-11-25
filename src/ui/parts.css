@@ -1,4 +1,4 @@
-/* ===== Durian Hypermedia, format version 2: the parts ===== */
+/* ===== DurianMarkdown, format version 2: the parts ===== */
 :root { --tone-good: #18964A; --tone-good-soft: #DCF1E3; --stage-bg: var(--surface); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .part { margin: 28px 0; min-width: 0; }
@@ -98,7 +98,7 @@
 }
 
 /* ---- file icons, chevrons ---- */
-.fi { flex: none; display: inline-grid; place-items: center; width: 16px; height: 14px; border-radius: 3px; font: 700 8px var(--font-mono); text-transform: uppercase; color: #fff; background: #6B7896; }
+.fi { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 3px; font: 700 11px var(--font-mono); text-transform: uppercase; color: #fff; background: #6B7896; }
 .fi-dir { background: none; width: 16px; height: 13px; position: relative; }
 .fi-dir::before { content: ""; position: absolute; inset: 2px 0 0 0; border-radius: 2px 3px 3px 3px; background: #E8B04A; }
 .fi-dir::after { content: ""; position: absolute; left: 0; top: 0; width: 7px; height: 4px; border-radius: 2px 2px 0 0; background: #E8B04A; }
@@ -162,14 +162,6 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .cc-slider { flex: 1 1 240px; } .cc-slider input { flex: 1; accent-color: var(--acc); min-width: 80px; }
 .cc-val { font: 600 13px var(--font-mono); color: var(--acc-ink); min-width: 2.4em; text-align: right; }
 .cc select { font: 500 13px var(--font-sans); border: 1px solid var(--line-2); border-radius: 8px; padding: 4px 8px; background: var(--surface); color: var(--ink); }
-
-/* ---- diagram ---- */
-.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; overflow-x: auto; }
-.diagram.is-drawn .mermaid-src { display: none; }
-.mermaid-src { margin: 0; font: 400 12px var(--font-mono); color: var(--muted); white-space: pre-wrap; }
-.mermaid-svg svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-/* format version 8: on a phone a wide diagram keeps 11 px words (client.tsx sets the svg's min-width) and scrolls */
-.mermaid-more { margin: 6px 0 0; font: 500 12px var(--font-sans); color: var(--muted); }
 
 /* ---- inline: keys and mouse ---- */
 .dh-keys { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; vertical-align: baseline; }
@@ -237,21 +229,12 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .callout-label { font-weight: 600; }
 
 
-/* stepped diagram: every step drawn into one cell; only the current one shows */
-.dg { border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); overflow: hidden; }
-.dg:focus-visible { outline: 2px solid var(--acc); }
-.dg-stack { display: grid; }
-.dg-stack > .diagram { grid-area: 1 / 1; border: 0; border-radius: 0; visibility: hidden; opacity: 0; transition: opacity .35s; }
-.dg-stack > .diagram.is-active { visibility: visible; opacity: 1; }
-.dg .ctl { border-top: 0; }
-
 /* editor without tabs */
 .ide-crumbs { display: flex; align-items: center; gap: 8px; }
 .ide-step-t { flex: 1; }
 
 /* ---- the caption under a stepped diagram ---- */
 .anim-cap { display: flex; align-items: flex-start; padding: 12px 16px 6px; font-size: var(--fs-s); color: var(--ink); min-height: calc(2 * 1.5em + 18px); line-height: 1.5; border-top: 1px solid var(--line); }
-.diagram:has(.mermaid-svg) .mermaid-src { display: none; }
 .ctl-count { white-space: nowrap; flex: none; }
 @media (max-width: 480px) { .ctl { flex-wrap: wrap; row-gap: 8px; } .ctl .ctl-mid { order: -1; flex: 1 0 100%; } .ctl > .btn:last-child { margin-left: auto; } }
 
@@ -270,6 +253,9 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-frame.d-1 { fill: var(--surface-2); }
 .scn-open { fill: none; stroke-width: 2; }
 .scn-head { fill: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: .01em; pointer-events: none; }
+/* (rc.4) a heading riding with the view, just inside its edge: a halo of its container's own colour (core/edge10.ts rideHeads) */
+.scn-head.is-ride { paint-order: stroke; stroke: color-mix(in srgb, var(--surface) 82%, var(--surface-2)); stroke-width: 4px; stroke-linejoin: round; }
+.scn-frame.d-1 ~ .scn-head.is-ride { stroke: var(--surface-2); }
 .scn-th { fill: var(--muted); font-size: 12px; font-weight: 600; }
 .scn-row { stroke-width: 1; }
 .scn-bucket { fill: var(--surface); }
@@ -294,6 +280,8 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .hl-good .scn-ring { stroke: var(--good); } .hl-warn .scn-ring { stroke: var(--warn); } .hl-hot .scn-ring { stroke: var(--hot); } .hl-muted .scn-ring { stroke: var(--line-2); }
 .is-hl .scn-shape, .is-hl .scn-frame { stroke-width: 2.4; }
 .is-sel .scn-ring { stroke-dasharray: 5 4; }
+/* (0.7.0-rc.3) framed, not lit: a lookup's bucket around its lit entry; a quiet outline, its fill, ink and border stay */
+.is-framed .scn-ring { stroke: color-mix(in srgb, var(--faint) 50%, var(--line-2)); stroke-width: 1.5; opacity: 1; }
 .scn-ent:hover .scn-shape, .scn-ent:hover .scn-frame { stroke: var(--acc); }
 /* connectors follow their ends */
 .scn-conn path { stroke: var(--muted); stroke-width: 1.6; fill: none; }
@@ -382,15 +370,17 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn.is-active .scn-svg, .scn.is-active .scn3 { touch-action: none; }
 .scn-tools .scn-reset svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .scn-tools button:disabled { opacity: .4; cursor: default; }
-@media (max-width: 560px) { .scn-stage { min-height: min(62vh, 360px); max-height: 74vh; } .scn-legend { order: 2; flex-basis: 100%; } .scn-tools { margin-left: auto; } }
+@media (max-width: 560px) { .scn-stage { min-height: min(62svh, 360px); max-height: min(680px, 82svh); } .scn-legend { order: 2; flex-basis: 100%; } .scn-tools { margin-left: auto; } }
 /* format version 8, the phone variant: the animation runs edge to edge (the stage gains the page's side margins, so the
    scene is drawn bigger), the camera's buttons sit under the stage, by the thumb, at a finger's size; an edge with more
    of the scene beyond it is shaded, with a small arrow (anim.tsx); 3D words are 11 px or more */
 @media (max-width: 560px) {
   /* --page-w: the page's width without a scrollbar (100vw would count the scrollbar); --bleed-l: where the part's
-     column starts on the screen (a column need not be centred). Both set by anim.tsx; until then the part keeps its
-     column's width */
-  .scn { display: flex; flex-direction: column; width: var(--page-w, 100%); max-width: var(--page-w, 100%); margin-left: calc(-1 * var(--bleed-l, 0px)); margin-right: 0; border-radius: 0; border-inline: 0; box-shadow: none; }
+     column starts on the screen (a column need not be centred). Both set by anim.tsx. Until then (the server's page; no
+     load shift, SPEC 6.14) a centred column is assumed, moved by --col-skew: half of what a container adds on its left
+     only (a human-only segment's rule and padding) */
+  .scn { display: flex; flex-direction: column; width: var(--page-w, 100vw); max-width: var(--page-w, 100vw); margin-left: calc(-1 * var(--bleed-l, calc(50vw - 50% + var(--col-skew, 0px)))); margin-right: 0; border-radius: 0; border-inline: 0; box-shadow: none; }
+  .human { --col-skew: 10.5px; }
   .scn > .scn-stage { order: -1; }
   .scn-bar { border-bottom: 0; border-top: 1px solid var(--line); padding: 6px 8px 6px 14px; }
   .scn-tools { gap: 6px; }
@@ -401,6 +391,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
   /* (format version 10) .scn raises it over the general 10.5 px rule further down, which won before */
   .scn .scn3-l.is-cont.sz-s { font-size: 11px; }
 }
+@media (max-width: 520px) { .human { --col-skew: 7.5px; } }
 .scn-more { position: absolute; inset: 0; pointer-events: none; }
 .scn-more span { position: absolute; display: grid; place-items: center; color: var(--muted); }
 .scn-more-l, .scn-more-r { top: 0; bottom: 0; width: 24px; }
@@ -505,6 +496,187 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    it. Only when scripts run (the html has class js); without them the server's drawing stays */
 @media (max-width: 560px) { .js .scn:not([data-live]) .scn-svg { visibility: hidden; } }
 
-/* ---- format version 10: a mermaid edge label sits on a solid card, so its arrow never runs through the words
-   (mermaid's own sheet draws that card at half opacity; its rules are by id, so these need !important) ---- */
-.mermaid-svg svg .edgeLabel rect, .mermaid-svg svg .edgeLabel .background { opacity: 1 !important; fill: var(--surface) !important; }
+/* ---- format version 11: still and static scenes, a calm story (src/ui/anim.tsx, src/core/whole.ts, src/core/calm.ts) */
+.scn.is-whole .scn-stage, .scn.is-still .scn-stage { min-height: 0; max-height: none; }
+/* a phone's stage that grew to keep the camera still between two zooms (core/calm.ts calmHeight, the same numbers) */
+/* a calm (taller) phone stage: its height is in its shape (--ar, core/calm.ts PHONE_WIN); the phone rule above holds it to min(680px, 82svh) */
+/* a scene taller than its frame says so in words */
+.scn-more-say { position: absolute; left: 50%; translate: -50% 0; bottom: 6px; max-width: calc(100% - 64px); padding: 2px 9px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface-2); color: var(--ink); font: normal 11.5px/1.35 var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scn-more-say[data-side="t"] { bottom: auto; top: 6px; }
+/* off the words: at an end of its edge, past the shaded strips (core/edge10.ts cueAt) */
+.scn-more-say[data-at="l"] { left: 30px; translate: none; }
+.scn-more-say[data-at="r"] { left: auto; right: 30px; translate: none; }
+/* a still or static drawing wider than the stage at its least word size scrolls in its box, the side with more fades (as a table) */
+.scn.is-swipe .scn-stage { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+.scn.is-swipe .scn-svg { width: var(--swipe-w); max-width: none; }
+.scn.is-swipe .scn-stage[data-more="r"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.scn.is-swipe .scn-stage[data-more="l"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.scn.is-swipe .scn-stage[data-more="lr"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
+.scn-swipe-more { margin: 4px 14px 8px; color: var(--muted); font-size: var(--fs-xs); }
+/* its step list looks like one: the summary keeps its marker */
+.scn > .dh-static-steps details > summary { display: list-item; }
+/* static (SPEC 4.1): one state, whole; nothing to grab */
+.scn.is-static .scn-stage { max-height: none; min-height: 0; }
+.scn.is-static .scn-svg { touch-action: auto; cursor: default; }
+/* a steady scene has no pan or zoom (SPEC 6.14): the page scrolls and pinches over it, a tap reads a note */
+.scn.is-fixed .scn-svg, .scn.is-steady .scn-svg { touch-action: auto; cursor: default; }
+/* the static caption sits inside the card, in line with the bar's words */
+.scn > .dh-static-steps { margin: 0; padding: 8px 14px 10px; border-top: 1px solid var(--line); background: var(--surface); }
+/* in print a scene is never taller than its page and is never blank, also one the reader never scrolled to */
+@media print {
+  .scn .scn-stage { max-height: 85vh; min-height: 0; break-inside: avoid; }
+  .js .scn:not([data-live]) .scn-svg { visibility: visible; }
+  .scn.is-static .scn-stage.scn-stage { max-height: calc(100vh - 300px); }
+}
+/* (one focus at a time) a token the step is not about keeps its pill; its words fade */
+.scn-chip-t { transition: opacity .25s var(--ease); }
+.scn-chip-t.is-mute { opacity: 0 !important; }
+/* the line under a zoomed step's caption */
+.scn-cap .scn-zoomed { display: block; margin-top: 2px; font-style: normal; font-size: var(--fs-xs); color: var(--muted); }
+/* no load shift (SPEC 6.14, src/core/whole.ts wholeHeightVars): a whole scene's stage height for the width its stage lays out at,
+   from the custom properties the server wrote on the part; one rule per layout width (WHOLE_WS), the widest that fits wins */
+.scn[data-wq] { container-type: inline-size; }
+@media screen {
+.scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh240, var(--wh)); }
+@container (min-width: 240px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh240, var(--wh)); } }
+@container (min-width: 256px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh256, var(--wh)); } }
+@container (min-width: 272px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh272, var(--wh)); } }
+@container (min-width: 288px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh288, var(--wh)); } }
+@container (min-width: 304px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh304, var(--wh)); } }
+@container (min-width: 320px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh320, var(--wh)); } }
+@container (min-width: 336px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh336, var(--wh)); } }
+@container (min-width: 352px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh352, var(--wh)); } }
+@container (min-width: 368px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh368, var(--wh)); } }
+@container (min-width: 384px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh384, var(--wh)); } }
+@container (min-width: 400px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh400, var(--wh)); } }
+@container (min-width: 416px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh416, var(--wh)); } }
+@container (min-width: 432px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh432, var(--wh)); } }
+@container (min-width: 448px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh448, var(--wh)); } }
+@container (min-width: 464px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh464, var(--wh)); } }
+@container (min-width: 480px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh480, var(--wh)); } }
+@container (min-width: 496px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh496, var(--wh)); } }
+@container (min-width: 512px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh512, var(--wh)); } }
+@container (min-width: 528px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh528, var(--wh)); } }
+@container (min-width: 544px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh544, var(--wh)); } }
+@container (min-width: 560px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh560, var(--wh)); } }
+@container (min-width: 576px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh576, var(--wh)); } }
+@container (min-width: 592px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh592, var(--wh)); } }
+@container (min-width: 608px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh608, var(--wh)); } }
+@container (min-width: 624px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh624, var(--wh)); } }
+@container (min-width: 640px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh640, var(--wh)); } }
+@container (min-width: 656px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh656, var(--wh)); } }
+@container (min-width: 672px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh672, var(--wh)); } }
+@container (min-width: 688px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh688, var(--wh)); } }
+@container (min-width: 704px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh704, var(--wh)); } }
+@container (min-width: 720px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh720, var(--wh)); } }
+@container (min-width: 736px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh736, var(--wh)); } }
+@container (min-width: 752px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh752, var(--wh)); } }
+@container (min-width: 768px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh768, var(--wh)); } }
+@container (min-width: 784px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh784, var(--wh)); } }
+@container (min-width: 800px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh800, var(--wh)); } }
+@container (min-width: 816px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh816, var(--wh)); } }
+@container (min-width: 832px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh832, var(--wh)); } }
+@container (min-width: 848px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh848, var(--wh)); } }
+@container (min-width: 864px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh864, var(--wh)); } }
+@container (min-width: 880px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh880, var(--wh)); } }
+@container (min-width: 896px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh896, var(--wh)); } }
+@container (min-width: 912px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh912, var(--wh)); } }
+@container (min-width: 928px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh928, var(--wh)); } }
+@container (min-width: 944px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh944, var(--wh)); } }
+@container (min-width: 960px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh960, var(--wh)); } }
+@container (min-width: 976px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh976, var(--wh)); } }
+@container (min-width: 992px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh992, var(--wh)); } }
+@container (min-width: 1008px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1008, var(--wh)); } }
+@container (min-width: 1024px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1024, var(--wh)); } }
+@container (min-width: 1040px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1040, var(--wh)); } }
+@container (min-width: 1056px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1056, var(--wh)); } }
+@container (min-width: 1072px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1072, var(--wh)); } }
+@container (min-width: 1088px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1088, var(--wh)); } }
+@container (min-width: 1104px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1104, var(--wh)); } }
+@container (min-width: 1120px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1120, var(--wh)); } }
+@container (min-width: 1136px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1136, var(--wh)); } }
+@container (min-width: 1152px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1152, var(--wh)); } }
+@container (min-width: 1168px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1168, var(--wh)); } }
+@container (min-width: 1184px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1184, var(--wh)); } }
+@container (min-width: 1200px) { .scn[data-wq]:not(.is-swipe):not(.is-tall) > .scn-stage { height: var(--wh1200, var(--wh)); } }
+}
+
+/* ---- static (SPEC 4.1) and print: a terminal, file tree, editor or code walk prints whole, as its static state, with
+   no control row; its panes grow to what they hold instead of scrolling. A part the reader never reached is drawn for
+   print by react/hydrate.tsx (printUnseen) in a .dh-print-copy box where the server's HTML stood. ---- */
+@media print {
+  .term .ctl, .fx .ctl, .ide .ctl, .cw .ctl, .term .btn-play { display: none !important; }
+  .term-body, .ide-code .ch-pre, .cw-code { height: auto !important; max-height: none !important; overflow: visible !important; }
+  .term, .fx, .ide, .cw, .dh-print-copy { break-inside: avoid; }
+}
+
+/* no load shift (SPEC 6.14, src/ui/anim.tsx laptopArVars): a scene with steps that takes the narrow layout at some laptop
+   widths has its stage shape for each in the style attribute; one rule per layout width, the widest that fits wins */
+.scn[data-wa] { container-type: inline-size; }
+@media screen {
+.scn[data-wa] > .scn-stage { aspect-ratio: var(--ar240, var(--ar)); }
+@container (min-width: 240px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar240, var(--ar)); } }
+@container (min-width: 256px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar256, var(--ar)); } }
+@container (min-width: 272px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar272, var(--ar)); } }
+@container (min-width: 288px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar288, var(--ar)); } }
+@container (min-width: 304px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar304, var(--ar)); } }
+@container (min-width: 320px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar320, var(--ar)); } }
+@container (min-width: 336px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar336, var(--ar)); } }
+@container (min-width: 352px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar352, var(--ar)); } }
+@container (min-width: 368px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar368, var(--ar)); } }
+@container (min-width: 384px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar384, var(--ar)); } }
+@container (min-width: 400px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar400, var(--ar)); } }
+@container (min-width: 416px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar416, var(--ar)); } }
+@container (min-width: 432px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar432, var(--ar)); } }
+@container (min-width: 448px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar448, var(--ar)); } }
+@container (min-width: 464px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar464, var(--ar)); } }
+@container (min-width: 480px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar480, var(--ar)); } }
+@container (min-width: 496px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar496, var(--ar)); } }
+@container (min-width: 512px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar512, var(--ar)); } }
+@container (min-width: 528px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar528, var(--ar)); } }
+@container (min-width: 544px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar544, var(--ar)); } }
+@container (min-width: 560px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar560, var(--ar)); } }
+@container (min-width: 576px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar576, var(--ar)); } }
+@container (min-width: 592px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar592, var(--ar)); } }
+@container (min-width: 608px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar608, var(--ar)); } }
+@container (min-width: 624px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar624, var(--ar)); } }
+@container (min-width: 640px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar640, var(--ar)); } }
+@container (min-width: 656px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar656, var(--ar)); } }
+@container (min-width: 672px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar672, var(--ar)); } }
+@container (min-width: 688px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar688, var(--ar)); } }
+@container (min-width: 704px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar704, var(--ar)); } }
+@container (min-width: 720px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar720, var(--ar)); } }
+@container (min-width: 736px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar736, var(--ar)); } }
+@container (min-width: 752px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar752, var(--ar)); } }
+@container (min-width: 768px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar768, var(--ar)); } }
+@container (min-width: 784px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar784, var(--ar)); } }
+@container (min-width: 800px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar800, var(--ar)); } }
+@container (min-width: 816px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar816, var(--ar)); } }
+@container (min-width: 832px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar832, var(--ar)); } }
+@container (min-width: 848px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar848, var(--ar)); } }
+@container (min-width: 864px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar864, var(--ar)); } }
+@container (min-width: 880px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar880, var(--ar)); } }
+@container (min-width: 896px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar896, var(--ar)); } }
+@container (min-width: 912px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar912, var(--ar)); } }
+@container (min-width: 928px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar928, var(--ar)); } }
+@container (min-width: 944px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar944, var(--ar)); } }
+@container (min-width: 960px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar960, var(--ar)); } }
+@container (min-width: 976px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar976, var(--ar)); } }
+@container (min-width: 992px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar992, var(--ar)); } }
+@container (min-width: 1008px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1008, var(--ar)); } }
+@container (min-width: 1024px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1024, var(--ar)); } }
+@container (min-width: 1040px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1040, var(--ar)); } }
+@container (min-width: 1056px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1056, var(--ar)); } }
+@container (min-width: 1072px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1072, var(--ar)); } }
+@container (min-width: 1088px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1088, var(--ar)); } }
+@container (min-width: 1104px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1104, var(--ar)); } }
+@container (min-width: 1120px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1120, var(--ar)); } }
+@container (min-width: 1136px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1136, var(--ar)); } }
+@container (min-width: 1152px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1152, var(--ar)); } }
+@container (min-width: 1168px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1168, var(--ar)); } }
+@container (min-width: 1184px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1184, var(--ar)); } }
+@container (min-width: 1200px) { .scn[data-wa] > .scn-stage { aspect-ratio: var(--ar1200, var(--ar)); } }
+}
+
+/* Keep a part's drawing and its caption together whenever the figure fits on a sheet. */
+@media print { figure.part { break-inside: avoid; } figure.part .dh-static-steps { break-before: avoid; } }

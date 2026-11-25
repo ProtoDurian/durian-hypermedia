@@ -1,0 +1,15 @@
+/* The sparkline in a sentence (:spark[...]). Tokens only; light and dark follow the base tokens. */
+:root { --spark-w: 4.2em; --spark-ink: var(--acc); --spark-card-w: 260px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --spark-w: 4.2em; --spark-ink: var(--acc); --spark-card-w: 260px; }
+}
+:root[data-theme="dark"] { --spark-w: 4.2em; --spark-ink: var(--acc); --spark-card-w: 260px; }
+
+.spark { position: relative; display: inline-block; vertical-align: -0.2em; line-height: 0; width: var(--spark-w); height: 1.1em; margin: 0 .15em; border-radius: 4px; cursor: help; }
+.spark svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.spark:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: 2px; }
+/* a hit area of at least 24 px, whatever the line's height (40 px for a finger) */
+.spark::before { content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: max(24px, 100%); transform: translateY(-50%); }
+@media (pointer: coarse) { .spark::before { height: max(40px, 100%); } }
+.spark:hover::after, .spark:focus::after { content: attr(data-vals); position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; max-width: min(var(--spark-card-w), 70vw); width: max-content; padding: 6px 10px; border-radius: var(--pop-radius, var(--r-m)); background: var(--pop-bg, var(--surface)); color: var(--pop-ink, var(--ink)); border: 1px solid var(--pop-border, var(--line-2)); box-shadow: var(--pop-shadow, var(--shadow-md)); font: 500 var(--fs-xs)/1.4 var(--font-sans); white-space: normal; overflow-wrap: anywhere; }
+.spark[data-side="right"]:hover::after, .spark[data-side="right"]:focus::after { left: auto; right: 0; }

@@ -1,0 +1,33 @@
+/* sequence: who calls whom, in order. Its tokens read the base tokens, so light and dark follow; a host sets one to
+   restyle the part. */
+:root {
+  --sequence-head-bg: var(--surface-2); --sequence-life: var(--line-2); --sequence-block-bg: var(--acc-softer);
+  --sequence-block-tab: var(--acc-ink); --sequence-note-bg: var(--warn-soft); --sequence-act: var(--acc-soft);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --sequence-head-bg: var(--surface-2); --sequence-life: var(--line-2); --sequence-block-bg: var(--acc-softer); --sequence-block-tab: var(--acc-ink); --sequence-note-bg: var(--warn-soft); --sequence-act: var(--acc-soft); }
+}
+:root[data-theme="dark"] { --sequence-head-bg: var(--surface-2); --sequence-life: var(--line-2); --sequence-block-bg: var(--acc-softer); --sequence-block-tab: var(--acc-ink); --sequence-note-bg: var(--warn-soft); --sequence-act: var(--acc-soft); }
+
+.seq-scroll { overflow: auto; max-height: 78vh; }
+.seq-heads { position: sticky; top: 0; z-index: 2; background: var(--part-bg, var(--surface)); }
+.dh-seq .seq-head rect { fill: var(--sequence-head-bg); stroke: var(--line-2); }
+.seq-icon { fill: none; stroke: var(--ink-2); stroke-width: 1.3; }
+.seq-life { stroke: var(--sequence-life); stroke-width: 1; stroke-dasharray: 4 4; }
+.seq-line { stroke: var(--dg-edge, var(--ink-2)); stroke-width: var(--dg-edge-w, 1.5px); fill: none; }
+.seq-line.is-dash { stroke-dasharray: 5 4; }
+.seq-arrow-fill { fill: var(--dg-edge, var(--ink-2)); }
+.seq-arrow-open { fill: none; stroke: var(--dg-edge, var(--ink-2)); stroke-width: 1.5; }
+.seq-x { stroke: var(--bad); stroke-width: 2; fill: none; }
+.dh-svg text.seq-text { fill: var(--ink); }
+.seq-act { fill: var(--sequence-act); stroke: var(--dg-edge, var(--ink-2)); stroke-width: 1; }
+.seq-block rect { fill: var(--sequence-block-bg); stroke: var(--line-2); opacity: .75; }
+.dh-svg .seq-block text.seq-tab { fill: var(--sequence-block-tab); font-weight: 600; }
+.seq-else { stroke: var(--line-2); stroke-dasharray: 4 3; }
+.seq-note rect { fill: var(--sequence-note-bg); stroke: var(--warn); stroke-width: .8; }
+.seq-msg.is-old, .seq-note.is-old, .seq-block.is-old { opacity: .5; }
+.seq-msg.is-new .seq-line { stroke-dasharray: 1; stroke-dashoffset: 0; animation: sequence-draw var(--dur-slow, 640ms) var(--ease-out, ease-out) both; }
+.seq-msg.is-new .seq-line.is-dash { stroke-dasharray: 5 4; animation: dh-fade var(--dur-slow, 640ms) both; }
+@keyframes sequence-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.seq-hint { margin: 0; padding: 2px 14px 8px; font: 500 12px var(--font-sans); color: var(--muted); display: none; }
+@container (max-width: 600px) { .seq-hint { display: block; } }

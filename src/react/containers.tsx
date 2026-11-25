@@ -1,5 +1,5 @@
 // The prose containers: :::tabs, :::accordion and :::human. Their content is any blocks, drawn by the same renderer.
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Blocks } from "./document";
 import { useDh } from "./context";
 import type { TabsBlock, AccordionBlock, HumanBlock } from "../types";
@@ -16,12 +16,26 @@ export function TabsPart({ block }: { block: TabsBlock }) {
             onClick={() => setI(k)} onKeyDown={(e) => { if (e.key === "ArrowRight") { go(i + 1, true); e.preventDefault(); } if (e.key === "ArrowLeft") { go(i - 1, true); e.preventDefault(); } }}>{t.title}</button>
         ))}
       </div>
-      {tabs.map((t, k) => <div key={k} role="tabpanel" className="tab-panel" id={`${t.id}-p`} aria-labelledby={`${t.id}-t`} hidden={k !== i}><Blocks blocks={t.body} /></div>)}
+      {tabs.map((t, k) => <div key={k} role="tabpanel" className="tab-panel" id={`${t.id}-p`} aria-labelledby={`${t.id}-t`} data-title={t.title} hidden={k !== i}><Blocks blocks={t.body} /></div>)}
     </div>
   );
 }
+/** Print (SPEC 4.1): a sheet cannot be clicked, so every row prints open. base.css opens them for print where the
+ * browser has ::details-content; elsewhere the rows the reader left closed open on beforeprint and close again after. */
+function usePrintOpen(ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const el = ref.current; if (!el || typeof window === "undefined") return;
+    let opened: HTMLDetailsElement[] = [];
+    const before = () => { opened = [...el.querySelectorAll<HTMLDetailsElement>(":scope > details:not([open])")]; for (const d of opened) d.open = true; };
+    const after = () => { for (const d of opened) d.open = false; opened = []; };
+    window.addEventListener("beforeprint", before); window.addEventListener("afterprint", after);
+    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
+  }, [ref]);
+}
 export function AccordionPart({ block }: { block: AccordionBlock }) {
-  return <div className="accordion">{block.items.map((it, k) => <details key={k} className="acc-item" id={it.id}><summary>{it.title}</summary><div className="acc-body"><Blocks blocks={it.body} /></div></details>)}</div>;
+  const ref = useRef<HTMLDivElement>(null);
+  usePrintOpen(ref);
+  return <div className="accordion" ref={ref}>{block.items.map((it, k) => <details key={k} className="acc-item" id={it.id}><summary>{it.title}</summary><div className="acc-body"><Blocks blocks={it.body} /></div></details>)}</div>;
 }
 export function HumanPart({ block }: { block: HumanBlock }) {
   const { ui, llmPeek } = useDh();

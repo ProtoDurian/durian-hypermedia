@@ -1,13 +1,15 @@
 // Safety: the input is untrusted (an agent or a stranger may have written it).
 // Every link and image URL goes through a policy; every size has a cap, and going over a cap gives an error block, never a crash.
+import { PART_LIMITS, PART_UNTRUSTED_LIMITS, type PartLimits } from "./parts/generated/limits";
 
 /** What a URL is used for. */
 export type UrlKind = "link" | "image";
 /** The host's hook: return the URL to use (it may rewrite it), or null to drop it (the text stays, without a link). */
 export type UrlPolicy = (url: string, kind: UrlKind) => string | null;
 
-/** The caps. A host may lower or raise any of them with parse(text, { limits: { ... } }). */
-export interface Limits {
+/** The caps. A host may lower or raise any of them with parse(text, { limits: { ... } }). The folder parts add their own
+ *  (src/parts/<name>/limits.ts, each key starting with the part's name). */
+export interface Limits extends PartLimits {
   /** the whole input, in UTF-8 bytes */
   maxInputBytes: number;
   /** blocks in the document (Markdown blocks, parts and the blocks inside containers) */
@@ -26,11 +28,16 @@ export interface Limits {
   maxPageAnimWork: number;
   /** data points of one chart (all series together) */
   maxChartPoints: number;
+  /** annotations (events, ranges, thresholds, goals), steps (`steps:`) and heatmap cells of one chart */
+  maxChartAnnotations: number;
+  maxChartSteps: number;
+  maxChartHeatCells: number;
+  /** rows and inputs of a calculator-layout chart */
+  maxCalcRows: number;
+  maxCalcInputs: number;
   /** items of one tier list or alignment grid */
   maxItems: number;
-  /** characters of one mermaid diagram */
-  maxMermaidChars: number;
-  /** steps of any stepped part (terminal, file tree, editor, code walk, mermaid) */
+  /** steps of any stepped part (terminal, file tree, editor, code walk, animation) */
   maxSteps: number;
   /** work of one part's expressions (a chart's let, x and series, or one reader action on it): steps, value slots, characters of text */
   maxEvalSteps: number;
@@ -51,6 +58,14 @@ export interface Limits {
    *  some parsers the square of their number */
   maxYamlNodes: number;
   maxPageYamlNodes: number;
+  /** references (`[[type:name]]`, blocks and chips) one page may hold; past it the rest show as their labels */
+  maxReferences: number;
+  /** UTF-8 bytes of all the parts a page's references resolve to, together (each is read with the caps above) */
+  maxReferenceBytes: number;
+  /** UTF-8 bytes of one SVG a reference resolves to */
+  maxSvgBytes: number;
+  /** UTF-8 bytes of one interactive part a reference resolves to (its HTML, CSS and script together) */
+  maxInteractiveBytes: number;
 }
 export const LIMITS: Limits = {
   maxInputBytes: 1_000_000,
@@ -62,8 +77,12 @@ export const LIMITS: Limits = {
   maxAnimWork: 15_000_000,
   maxPageAnimWork: 64_000_000,
   maxChartPoints: 5_000,
+  maxChartAnnotations: 60,
+  maxChartSteps: 40,
+  maxChartHeatCells: 10_000,
+  maxCalcRows: 24,
+  maxCalcInputs: 12,
   maxItems: 500,
-  maxMermaidChars: 20_000,
   maxSteps: 200,
   maxEvalSteps: 100_000,
   maxEvalValues: 50_000,
@@ -76,10 +95,15 @@ export const LIMITS: Limits = {
   maxPageYamlChars: 200_000,
   maxYamlNodes: 3_000,
   maxPageYamlNodes: 24_000,
+  maxReferences: 500,
+  maxReferenceBytes: 1_000_000,
+  maxSvgBytes: 200_000,
+  maxInteractiveBytes: 200 * 1024,
+  ...PART_LIMITS,
 };
 /**
- * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML
- * and animation caps, so its slowest pages parse about three to five times quicker (SECURITY.md). Pass it as
+ * Caps for text nobody has reviewed (a chat reply, a streamed message, a page from a stranger): LIMITS with smaller YAML,
+ * animation and reference caps, so its slowest pages parse about three to five times quicker (SECURITY.md). Pass it as
  * parse(text, { limits: UNTRUSTED_LIMITS }); an authored page may need more and is refused here past them.
  */
 export const UNTRUSTED_LIMITS: Limits = {
@@ -90,6 +114,16 @@ export const UNTRUSTED_LIMITS: Limits = {
   maxPageYamlNodes: 4_000,
   maxAnimWork: 3_000_000,
   maxPageAnimWork: 6_000_000,
+  // the chart's version 11 words: about half of the authored caps, heat cells a quarter
+  maxChartAnnotations: 30,
+  maxChartSteps: 20,
+  maxChartHeatCells: 2_500,
+  maxCalcRows: 12,
+  maxCalcInputs: 6,
+  maxReferences: 100,
+  maxReferenceBytes: 400_000,
+  maxSvgBytes: 100_000,
+  ...PART_UNTRUSTED_LIMITS,
 };
 
 // HTML character references an attacker may use to hide a scheme ("&#106;avascript:", "javascript&colon;")

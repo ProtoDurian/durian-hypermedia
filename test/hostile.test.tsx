@@ -36,13 +36,6 @@ describe("hostile fixtures", () => {
     expect(out).not.toMatch(/<img /i);
   });
   test("hidden characters in a scheme", () => { expect(render("05-zero-width-scheme").out).not.toMatch(/<a [^>]*href=/i); });
-  test("mermaid: the init directive is dropped, the source is text", () => {
-    const { d, out } = render("06-mermaid-attacks");
-    const m = d.blocks.find((b) => b.type === "mermaid") as any;
-    expect(m.steps[0].src).not.toContain("%%{");
-    expect(d.problems.some((p) => p.message.includes("directives are dropped"))).toBe(true);
-    expect(out).toContain("&lt;img src=x onerror=alert(1)&gt;");
-  });
   test("HTML in every part's text is text", () => {
     const { d, out } = render("07-html-in-part-text");
     expect(d.blocks.filter((b) => b.type === "error")).toEqual([]);

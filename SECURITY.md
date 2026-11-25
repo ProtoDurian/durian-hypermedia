@@ -11,7 +11,6 @@ draws that data with React, so author text is always a text node or an escaped a
 | `javascript:` links in disguise (case, entities, tabs, percent, zero-width and soft-hyphen characters) | the scheme is read the way a browser reads it; the link is dropped, its text stays | `hostile/03`, `05` |
 | `data:`, `vbscript:`, `file:`, `blob:` links and images; `http:` images | dropped by the default policy; script-like schemes are dropped even if the host policy returns them | `hostile/04` |
 | HTML inside a part's text (terminal, file tree, chart, tier list, code walk note, animation label) | text | `hostile/07` |
-| mermaid `%%{init}%%` directives, `click` callbacks, HTML labels | directives dropped (with a problem); `securityLevel: "strict"`; no HTML labels; the SVG is cleaned with DOMPurify (no script, no foreignObject, no handlers) and attached as nodes | `hostile/06` |
 | nesting deeper than `maxDepth` | that Markdown run is shown as plain text | `hostile/08` |
 | Markdown written to make a parser search again and again (long runs of openers that never close) | read in time linear in its length (see [Work that is not an expression](#work-that-is-not-an-expression)) | `test/markdown-work.test.ts` |
 | YAML with very many keys or values (every node costs a parser time; one map's keys cost some parsers the square of their number) | front matter ignored with a problem, a chart an error block, before any parser runs | `test/yaml-size.test.ts` |
@@ -29,7 +28,7 @@ draws that data with React, so author text is always a text node or an escaped a
 
 `test/hostile.test.tsx` renders each fixture and checks that no `<script>`, `<iframe>`, `<object>`, `<embed>`,
 `<foreignObject>` or `<style>` element, no `on*` attribute and no script, data, vbscript or file URL is in the HTML.
-`bun run csp` opens every page in headless Chrome under a strict CSP and also checks the live DOM after mermaid, the
+`bun run csp` opens every page in headless Chrome under a strict CSP and also checks the live DOM after the
 charts and the 3D stage have drawn (0 violations, 0 errors, 0 dangerous nodes, 0 `alert()` calls).
 
 ## The evaluation budget
@@ -144,6 +143,15 @@ replies, against budgets), and the CI workflow that runs them.
   a unit is some tens of nanoseconds. Over a cap the animation is an error block naming it (past the page's cap, every
   later animation too) and the rest of the page draws. Each animation is compiled once per `parse()`; the renderer's
   phone and narrow layouts draw from a budget of twice `LIMITS.maxAnimWork`.
+- **Data explorer and log queries** (the jq and LogQL subsets and their regular expressions) are charged for every step
+  and for every character they read or make, before the work is done, from the part's budget (an author's `query=`) or
+  a reader's own budget. A log keeps at most `logLines` lines and a CSV table at most `exploreCsvRows` rows and
+  `exploreCsvCols` columns; past them `check()` names the cap.
+  A long chain of alternatives is charged for the work it does, and a text tool that cannot make its text is refused as
+  a query error.
+- **Gantt time zones.** A gantt in a named time zone charges its zone work to its part's budget before the work is
+  done. On the measuring machine a page of gantts in named zones, up to 730 KB, parsed in about 0.5 s with
+  `UNTRUSTED_LIMITS` (about 0.3 s in UTC); past that the page's work cap stops the rest.
 
 **Two sets of caps.** `LIMITS` (the default) is for authored pages: the largest real pages measured need about half of
 its YAML and animation caps. `UNTRUSTED_LIMITS` is for text nobody reviewed (a chat reply, a streamed message): the same
@@ -154,6 +162,9 @@ caps with these smaller:
 | `maxYamlNodes` / `maxYamlChars` (one text) | 3,000 / 32,000 | 1,000 / 32,000 |
 | `maxPageYamlNodes` / `maxPageYamlChars` | 24,000 / 200,000 | 4,000 / 64,000 |
 | `maxAnimWork` / `maxPageAnimWork` | 15,000,000 / 64,000,000 | 3,000,000 / 6,000,000 |
+| `maxReferences` / `maxReferenceBytes` / `maxSvgBytes` (format version 11) | 500 / 1,000,000 / 200,000 | 100 / 400,000 / 100,000 |
+
+The reference caps are smaller on purpose: a chat reply rarely needs more than a few references, and each one is a call to the host and a part to read. `test/limits-presets.test.ts` lists every cap that may differ between the two sets; every other cap must be equal.
 
 The slowest pages measured within each set, on the machine that made 0.6.2 while it was busy (the slowest first parse in a new
 process, and the slowest best warm parse):
@@ -163,6 +174,10 @@ process, and the slowest best warm parse):
 | YAML, with the yaml package 2.9.0 | 573 ms, 442 ms warm | 105 ms, 42 ms warm |
 | YAML, with a bounded reader | 309 ms, 167 ms warm | 96 ms, 27 ms warm |
 | animations (a page that spends the page cap) | 2.2 s, 1.8 s warm | 0.51 s, 0.48 s warm |
+| explore and log parts (a page that spends each part's cap), measured for 0.7.0 | 40 ms, 7 ms warm | 52 ms, 9 ms warm |
+
+A reader's query in the explore box or the log filter runs on its own budget (`exploreReaderSteps`, `logReaderSteps`);
+the slowest measured for 0.7.0 ended within 25 ms in either set.
 
 A host may lower any cap further: `parse(text, { limits: { ...UNTRUSTED_LIMITS, maxPageAnimWork: 2_000_000 } })`.
 
@@ -183,6 +198,29 @@ relative paths. A remote image is a request to someone else's server when the pa
 pages to people who should not be tracked returns `null` for remote images, or rewrites them to its own proxy. The
 renderer runs the policy again at render time.
 
+## Media
+
+Media addresses are checked by the host's `image` policy. Download cards use its `link` policy.
+Media response bytes are capped while reading; file and cue checks apply before drawing. The host may lower these caps:
+
+| Cap | `LIMITS` | `UNTRUSTED_LIMITS` |
+| --- | --- | --- |
+| `lottieBytes` | 1048576 | 262144 |
+| `pdfBytes` | 20971520 | 8388608 |
+| `audioPeaksBytes` | 1000000 | 500000 |
+| `audioDecodeBytes` | 20971520 | 10485760 |
+| `audioTranscriptBytes` | 1000000 | 256000 |
+| `videoVttBytes` | 1000000 | 256000 |
+| `videoThumbsBytes` | 1000000 | 256000 |
+| `videoTranscriptBytes` | 1000000 | 256000 |
+
+Measured doubling ratios for counted work: response copying 2.15, address policy checks 1.85.
+`test/media-fetch.test.ts` and `test/media-loads.test.tsx` check these costs and caps.
+Importing the package leaves the host's Lottie globals and timers alone; the Lottie player initializes when drawn
+(`test/media-imports.test.ts`). Browser-managed audio and video playback use the browser's streaming loader.
+A Lottie file is kept inside its part: what the check refuses is named, and the page outside the part is unchanged
+(`test/lottie-host.test.ts`, in a browser under strict Trusted Types).
+
 ## Content-Security-Policy
 
 Nothing in the browser uses `eval`, `new Function` or WebAssembly (checked on the bundles and at run time). The
@@ -193,28 +231,52 @@ the Document. A page works under:
 default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'none'
 ```
 
-`style-src 'unsafe-inline'` is needed in two cases (measured with `bun run csp -- --strict-style`):
+`style-src 'unsafe-inline'` is needed in one case (measured with `bun run csp -- --strict-style`):
 
 - **Server-rendered HTML.** React writes `style="..."` attributes (code colours, part sizes, positions) into the HTML:
   4 to 26 blocked per page without it.
-- **Mermaid, even when rendered only in the browser.** Its SVG carries a `<style>` element and style attributes
-  (76 blocked on the diagram page). Without `'unsafe-inline'` the diagram still draws, but unstyled.
 
-A page rendered only in the browser, without mermaid, works under `style-src 'self'`: React sets styles through the
+A page rendered only in the browser works under `style-src 'self'`: React sets styles through the
 DOM, which CSP allows (0 violations on every other part).
 
 ## Trusted Types
 
-No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements, and the mermaid
-part attaches its cleaned SVG as nodes. For a page under `require-trusted-types-for 'script'`:
+No module under `src/` sets an HTML string: Markdown, code walk notes and tabs are React elements. For a page under `require-trusted-types-for 'script'`:
 
-- `durian-hypermedia/react/strict` reaches neither mermaid nor DOMPurify; its whole import graph (dependencies
+- `durian-markdown/react/strict`: its whole import graph (dependencies
   included, React left out) has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
-  `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`).
+  `createContextualFragment`, `document.write` or `srcdoc` (`test/trusted-types.test.ts`), and never reaches
+  `durian-markdown/react/interactive`, the only module that sets a frame's page, under its own policy
+  `dh-interactive` (`test/refs-tt.test.ts`).
 - `bun run tt` renders every fixture (hostile ones included) in the browser only, through the strict entry, under the
   policy: 0 violations. A control page that puts a plain string into `innerHTML` must be refused, or the check fails.
-- Mermaid diagrams go to the host's `Mermaid` slot. The full entry's in-page mermaid uses `innerHTML` inside the
-  library and is refused under the policy (`bun scripts/csp-check.ts --trusted-types --full`).
+
+## References (format version 11)
+
+- **Nothing is fetched.** A reference `[[type:name "label"]]` names a part the host keeps; the host's
+  `resolveReference` answers it. A name is letters, digits, `.`, `-` and `_`, at most 128: a path, a scheme or a
+  URL is refused with the reason, so a name can never become an address.
+- **One pass.** The reader looks at each `[[` once and reads forward no further than the line, the next `[[` or a
+  fixed window (`test/refs.test.ts` counts the reader's work at n and 2n). Every reference charges one step to the
+  page budget's "reference reader"; `maxReferences` caps a page (500, or 100 in `UNTRUSTED_LIMITS`).
+- **The same caps as inline.** A ready part goes through the same part reader as an inline one, with the page's
+  budgets; all of a page's resolved parts together are capped by `maxReferenceBytes`. A reference inside a part that a
+  reference resolved to is refused, so a host's store cannot make a chain or a loop.
+- **svg** is drawn only through an `<img>` (a `data:` address): script and event handlers in it never run, and the
+  browser loads nothing it names. A DOCTYPE or ENTITY is refused.
+- **interactive** runs only when the host turns it on, in `<iframe sandbox="allow-scripts">` with no
+  `allow-same-origin` (an empty origin: no cookies, no storage, no access to the page), under
+  `default-src 'none'` (no fetch, XHR, WebSocket, images from elsewhere or fonts), with no forms, pop-ups or top
+  navigation. The page accepts only a height from it; it must answer within 5 s, it stops after 10 minutes, and it is
+  stopped if it loads a second page. **A frame may still navigate itself once** (a sandbox cannot forbid it, and the
+  frame's own `default-src 'none'` does not cover navigation): that one request leaves before the frame is stopped.
+  A host that turns the part on sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
+  navigation of it is refused before any request (`bun run ix` measures 1 request without it, 0 with it). The fallback is
+  Markdown of the page, under the page's URL policy, like every resolved part. The checks refuse code that names the network, storage, cookies, `top`,
+  `parent`, `location` or `RTCPeerConnection` before it runs. Not covered: a script that hides those names (the
+  checks read words, not meaning); the sandbox and the policy are the barrier. A browser's WebRTC is not governed by
+  `default-src`: a host that must rule it out serves the frame from an origin of its own with a
+  `Permissions-Policy`.
 
 ## Reporting
 

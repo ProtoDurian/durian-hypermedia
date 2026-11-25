@@ -1,0 +1,199 @@
+/* the composed stage (site/src/stage.tsx). Every value comes from these tokens; roles from --cN (theme.css). */
+:root {
+  --stg-bg: var(--surface); --stg-bar-bg: var(--surface-2); --stg-edge: var(--line); --stg-radius: 14px;
+  --stg-line-w: 1.6px; --stg-line-hot-w: 2.2px; --stg-dim: .38; --stg-off-line: .92; --stg-thick: 2.4px; --stg-hot-w: 3.2px; --stg-halo: rgba(15, 23, 42, .28);
+  --stg-dash: 6 4; --stg-fade: .25s; --stg-flow: 1.6s; --stg-gap: 10px; --stg-unknown: var(--muted);
+  --stg-struck-fade: 1; --stg-struck-line: var(--bad); --stg-struck-w: 1.6px; --stg-cross-w: 2.6px; --stg-cross-fade: .6; --stg-corner-w: 3.6px; /* a corner x: the original's big bold x */ /* a crossed card: a large X in the struck line's colour */ /* struck words: in their tone (not faded: the originals), a line in the bad tone across them */
+  --stg-note-line: var(--line); --stg-note-w: 1px; /* a step note strip's border: solid, one pixel, in the theme's line colour (a page may set its own) */
+  --stg-max: 1180px; --stg-btn-bg: var(--surface); --stg-btn-edge: var(--line-2); --stg-step-on: var(--acc); --stg-step-on-bg: var(--acc-softer, var(--acc-soft));
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --stg-off-line: .92; --stg-dim: .45; --stg-halo: rgba(0, 0, 0, .6); } }
+:root[data-theme="dark"] { --stg-off-line: .92; --stg-dim: .45; --stg-halo: rgba(0, 0, 0, .6); }
+/* the outline of a cell row's plain cells, at least 3:1 on the stage background (light 3.3, dark 3.7) */
+:root { --stg-cell-line: #848EA6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --stg-cell-line: #636F8E; } }
+:root[data-theme="dark"] { --stg-cell-line: #636F8E; }
+
+/* full width: the stage leaves the text column, up to --stg-max, centred on the page. The CSS does it before any script
+ runs (the page paints at its final width: no jump on load); site/src/stage.tsx then sets the two variables exactly
+ (100vw counts a classic scrollbar: then the figure is up to 15 px wider until the script runs, still 8 px inside the page;
+ with a side column the text column sits 15rem + 48px right) */
+figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px); max-width: none; width: var(--stg-fig-w, max(100%, var(--stg-want))); margin-left: var(--stg-fig-ml, min(0px, 50% - var(--stg-want) / 2)); position: relative; z-index: 2; }
+@media (min-width: 1240px) { .page.has-side figure.part-animation:has(.stg) { margin-left: var(--stg-fig-ml, min(0px, 50% - var(--stg-want) / 2 - (15rem + 48px) / 2)); } }
+@media print { figure.part-animation:has(.stg) { width: auto; margin-left: 0; } }
+.stg { background: var(--stg-bg); border: 1px solid var(--stg-edge); border-radius: var(--stg-radius); padding: var(--stg-gap) 0 calc(var(--stg-gap) + 2px); outline: none; }
+.stg:focus-visible { box-shadow: 0 0 0 3px var(--acc-soft); border-color: var(--acc); }
+.stg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 0 14px 6px; }
+.stg-title { margin-right: auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.stg-title b { font-weight: 600; font-size: 15px; color: var(--ink); }
+.stg-note { font: 12px var(--font-mono); color: var(--ink-2); background: none; padding: 0; border: 0; }
+.stg-ctl { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.stg-btn { min-width: 36px; min-height: 32px; border: 1px solid var(--stg-btn-edge); background: var(--stg-btn-bg); color: var(--ink); border-radius: 8px; padding: 2px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+/* Both labels occupy the same grid cell, so starting or stopping playback keeps the controls in place. */
+.stg-play { display: inline-grid; place-items: center; }
+.stg-play > span { grid-area: 1 / 1; }
+.stg-play > [aria-hidden="true"] { visibility: hidden; }
+.stg-btn:disabled { opacity: .45; cursor: default; }
+.stg-btn:focus-visible, .stg-stepbtn:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.stg-count { font: 12px var(--font-mono); color: var(--muted); min-width: 3.5em; text-align: right; }
+.stg-box-wrap { width: 100%; container: stgbox / inline-size; }
+.stg-plan { width: 100%; }
+.stg-svg { display: block; width: 100%; height: auto; overflow: visible; }
+/* The server selects the same screen plan that the client uses (SSR_W in stage.tsx). */
+.stg-plan-ssr { display: none; }
+/* the server's print plan (PRINT_W, stage.tsx) shows only on paper, and there it is the only one */
+@media not print { .stg-plan-ssr[data-print] { display: none !important; } }
+@media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }
+.stg-plan-ssr[data-w="286"] { display: block; }
+@container stgbox (min-width: 312px) { .stg-plan-ssr[data-w="286"] { display: none; } .stg-plan-ssr[data-w="312"] { display: block; } }
+@container stgbox (min-width: 326px) { .stg-plan-ssr[data-w="312"] { display: none; } .stg-plan-ssr[data-w="326"] { display: block; } }
+@container stgbox (min-width: 341px) { .stg-plan-ssr[data-w="326"] { display: none; } .stg-plan-ssr[data-w="341"] { display: block; } }
+@container stgbox (min-width: 356px) { .stg-plan-ssr[data-w="341"] { display: none; } .stg-plan-ssr[data-w="356"] { display: block; } }
+@container stgbox (min-width: 380px) { .stg-plan-ssr[data-w="356"] { display: none; } .stg-plan-ssr[data-w="380"] { display: block; } }
+@container stgbox (min-width: 415px) { .stg-plan-ssr[data-w="380"] { display: none; } .stg-plan-ssr[data-w="458"] { display: block; } }
+@container stgbox (min-width: 500px) { .stg-plan-ssr[data-w="458"] { display: none; } .stg-plan-ssr[data-w="551"] { display: block; } }
+@container stgbox (min-width: 602px) { .stg-plan-ssr[data-w="551"] { display: none; } .stg-plan-ssr[data-w="664"] { display: block; } }
+@container stgbox (min-width: 730px) { .stg-plan-ssr[data-w="664"] { display: none; } .stg-plan-ssr[data-w="730"] { display: block; } }
+@container stgbox (min-width: 800px) { .stg-plan-ssr[data-w="730"] { display: none; } .stg-plan-ssr[data-w="800"] { display: block; } }
+@container stgbox (min-width: 880px) { .stg-plan-ssr[data-w="800"] { display: none; } .stg-plan-ssr[data-w="880"] { display: block; } }
+@container stgbox (min-width: 968px) { .stg-plan-ssr[data-w="880"] { display: none; } .stg-plan-ssr[data-w="968"] { display: block; } }
+@container stgbox (min-width: 1063px) { .stg-plan-ssr[data-w="968"] { display: none; } .stg-plan-ssr[data-w="1178"] { display: block; } }
+@media (max-width: 720px) { .stg-stepname { display: none; } }
+.stg-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 8px 14px 0; padding: 0; }
+.stg-stepbtn { border: 1px solid var(--stg-btn-edge); background: var(--stg-btn-bg); color: var(--ink-2); border-radius: 999px; padding: 4px 11px; min-height: 30px; font: inherit; font-size: 12.5px; cursor: pointer; }
+/* a phone's step buttons are 32 px tall (the stage floor; WCAG 2.5.8 asks 24). After the base rule:
+ the old 40 px rule above it never applied (same weight, earlier), so the buttons measured 30 */
+@media (max-width: 720px) { .stg-stepbtn { min-height: 32px; justify-content: center; } }
+.stg-stepbtn[aria-current="step"] { border-color: var(--stg-step-on); background: var(--stg-step-on-bg); color: var(--ink); }
+.stg-num { color: var(--acc-ink); font-weight: 600; }
+.stg-cap { margin: 8px 14px 0; font-size: 15px; color: var(--ink-2); min-height: 1.5em; }
+.stg-capbox { display: grid; } .stg-capbox > .stg-cap { grid-area: 1 / 1; } .stg-cap-room { visibility: hidden; }   /* the tallest caption keeps its room: stepping never moves the page */
+/* p11 (rc.3 review, the layers story on a phone: a step's caption sat ~2,000 px under what it changed): on a phone the step
+   buttons and the caption stay at the foot of the screen while a tall stage scrolls under them (screen only; print and
+   static keep the page's order) */
+@media screen and (max-width: 560px) { .stg-foot { position: sticky; bottom: 0; z-index: 3; background: var(--stg-bg); box-shadow: 0 -1px 0 var(--stg-edge); } }  /* no padding or border: the stage is exactly as tall as before */
+/* a stage over its budget: its still form in words (site/src/stage.tsx StageOver) */
+.stg-over-msg { margin: 8px 14px 0; font-size: 14px; color: var(--ink-2); }
+.stg-still { margin: 8px 14px 0; padding-left: 1.4em; font-size: 15px; color: var(--ink-2); }
+.stg-still li + li { margin-top: 4px; }
+.stg .dh-static-steps { margin: 8px 14px 0; }
+
+/* the drawing */
+.stg-i { transition: opacity var(--stg-fade); }
+.stg-off { opacity: 0; visibility: hidden; }
+.stg-dim { opacity: var(--stg-dim); }
+.stg-glow { filter: drop-shadow(0 0 5px var(--acc)); }
+.stg-glow-s { filter: drop-shadow(0 0 1.5px var(--acc)); }
+.stg-box { stroke-width: 1.3px; }
+.stg-box.stg-thick { stroke-width: var(--stg-thick); }
+.stg-time-cell.stg-thick:not(.stg-hot) { stroke-width: 1.3px; }
+.stg-box.stg-note-strip { stroke-width: var(--stg-note-w); }
+.stg-t.stg-struck { opacity: var(--stg-struck-fade); }
+.stg-struck-line { stroke: var(--stg-struck-line); stroke-width: var(--stg-struck-w); stroke-linecap: round; fill: none; }
+.stg-corner-line { stroke: var(--stg-struck-line); stroke-width: var(--stg-corner-w); stroke-linecap: round; fill: none; }
+.stg-cross-line { stroke: var(--stg-struck-line); stroke-width: var(--stg-cross-w); stroke-linecap: round; opacity: var(--stg-cross-fade); fill: none; }
+.stg-box.stg-dash { stroke-dasharray: 4 4; }
+.stg-box.stg-hot { stroke-width: var(--stg-hot-w); filter: drop-shadow(0 1px 5px var(--stg-halo)); }
+/* theme tokens for the stage's type (a page may set them; tools/stage-core.ts FONT holds the same defaults,
+ which the layout measures with): family, the title weight, and one size per text role */
+.stg { --stg-font: var(--font-sans); --stg-title-weight: 500; --stg-fs-title: 13.5px; --stg-fs-body: 12.5px; --stg-fs-sub: 12px;
+  --stg-fs-lane: 12.5px; --stg-fs-chip: 11.5px; --stg-fs-big: 21px; --stg-fs-mono: 12px; --stg-fs-small-b: 11.5px; }
+.stg-t { font-family: var(--stg-font); }
+.stg-f-title { font-size: var(--stg-fs-title); font-weight: var(--stg-title-weight); }
+.stg-f-body { font-size: var(--stg-fs-body); }
+.stg-f-sub { font-size: var(--stg-fs-sub); }
+.stg-f-lane { font-size: var(--stg-fs-lane); font-weight: var(--stg-title-weight); }
+/* a heading a straight line passes behind ('lines: straight' on a phone): the line stops at its letters */
+.stg-t.stg-halo { paint-order: stroke; stroke: var(--stg-bg); stroke-width: 5px; stroke-linejoin: round; }
+.stg-f-chip { font-size: var(--stg-fs-chip); font-weight: 500; }
+.stg-f-big { font-size: var(--stg-fs-big); font-weight: 600; }
+.stg-f-mono { font: var(--stg-fs-mono) var(--font-mono); text-rendering: geometricPrecision; }
+.stg-f-small-b { font-size: var(--stg-fs-small-b); font-weight: 600; }
+/* stopgap: a plan laid out narrow is drawn in the phone sizes it was measured in (tools/stage-core.ts
+ PHONE_FONT; never under 11 px); each value a future theme token */
+.stg { --stg-phone-title: 12.5px; --stg-phone-body: 11.5px; --stg-phone-sub: 11px; --stg-phone-chip: 11px; }
+.stg-phone .stg-f-title { font-size: var(--stg-phone-title); }
+.stg-phone .stg-f-body { font-size: var(--stg-phone-body); }
+.stg-phone .stg-f-sub { font-size: var(--stg-phone-sub); }
+.stg-phone .stg-f-chip { font-size: var(--stg-phone-chip); }
+.stg-badge-t { fill: var(--surface); }
+.stg-strike { stroke-width: 1.2px; }
+.stg-line { fill: none; stroke-width: var(--stg-line-w); }
+.stg-conn .stg-line, .stg-conn .stg-head { opacity: var(--stg-off-line); }
+.stg-edge.stg-hot .stg-line { opacity: 1; stroke-width: var(--stg-line-hot-w); }
+.stg-edge.stg-hot .stg-head { opacity: 1; }
+.stg-edge.stg-dash .stg-line { stroke-dasharray: var(--stg-dash); }
+.stg-dot { opacity: 0; animation: stg-go var(--stg-flow) ease-in-out 2 both; }
+@keyframes stg-go { 0% { offset-distance: 0%; opacity: 0; } 15%, 85% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .stg-dot { display: none; } .stg-i { transition: none; } }
+.stg-static .stg-dot { display: none; }
+@media print { .stg-dot { display: none; } .stg-i { transition: none; } .stg { break-inside: avoid; max-width: var(--stg-max); margin-inline: auto; } .stg-box-wrap { break-inside: avoid; break-before: avoid; } .stg-bar { break-after: avoid; } }
+
+/* a tighter player on a phone (words stay at 12 px and up, touch targets at 26 px and up) */
+@media (max-width: 560px) {
+  .stg { padding: 6px 0 8px; }
+  .stg-bar { padding: 0 8px 4px; gap: 4px 8px; }
+  .stg-ctl { gap: 4px; }
+  .stg-btn { min-height: 32px; min-width: 34px; padding: 2px 8px; }   /* 32 px tall on a phone: the stage floor (WCAG 2.5.8 asks 24) */
+  .stg-pause-symbol { display: none; }
+  .stg-steps { gap: 4px; margin: 4px 8px 0; }
+  .stg-cap { margin: 6px 8px 0; font-size: 14px; line-height: 1.4; }
+  .stg .dh-static-steps { margin: 6px 8px 0; }
+  .stg .stg-bar .stg-title b { font-size: 14px; }
+  .stg .stg-bar code.stg-note { font-size: 12px; line-height: 1.35; }
+}
+
+/* A stage prints on ONE page whenever it fits on one. In print 100vh is the page's height (measured in Chrome during the print layout), so the stage is capped at a page less its own margins and the drawing box is the part that gives way: it shrinks and the drawing scales down inside it (viewBox), while the title and the step list keep their size. A stage taller than a page even so still splits between its blocks, never through the drawing (break-inside: avoid on the box). */
+@media print {
+  .stg { display: flex; flex-direction: column; max-height: max(calc(100vh - 130px), var(--stg-need, 0px)); }
+  .stg .dh-static-steps { margin-top: 2px; line-height: 1.2; font-size: 11.5px; }   /* 8.6 pt */
+  .stg-title b { font-size: 13px; }
+  .stg .dh-static-steps ol { margin-top: 2px; }
+  .stg-bar { padding-bottom: 0; }
+  .stg { padding-block: 4px 4px; }
+  .stg .sr-only { margin: 0; }
+  .stg .dh-static-steps details > summary { min-height: 0; }
+  .stg > * { flex: 0 0 auto; }
+  .stg > .stg-box-wrap { flex: 0 1 auto; min-height: var(--stg-boxmin, 0px); position: relative; }   /* never below PRINT_FLOOR (0.97, site/src/stage.tsx) of the drawing (an 11 px word stays at 8 pt or more)'s own size: its words stay at 8 pt; a stage that cannot fit a short sheet that way (--stg-need: the drawing at that size plus an allowance for title and steps) may split between its blocks */   /* its aspect-ratio (set from the plan) is the drawing's natural height; the box shrinks below it when the page is short */
+  .stg > .stg-box-wrap.stg-ratio > .stg-plan { position: absolute; inset: 0; }
+  .stg > .stg-box-wrap.stg-ratio .stg-svg { height: 100%; }
+  /* before hydration: the server's print plan sizes the box the same way (its shape in --stg-ar, stage.tsx) */
+  .stg > .stg-box-wrap.stg-ratio-print { aspect-ratio: var(--stg-ar); }
+  .stg > .stg-box-wrap.stg-ratio-print > .stg-plan-ssr[data-print] { position: absolute; inset: 0; }
+  .stg > .stg-box-wrap.stg-ratio-print > .stg-plan-ssr[data-print] .stg-svg { height: 100%; }
+}
+/* A landscape sheet (A3): the stage keeps its A4 layout (685 px wide) and is scaled up as a whole, drawing, title and steps together (CSS zoom, in force from the first print layout, so Chrome's page count stays true). The scale is the largest at which the stage's height (--stg-hint: drawing at 685 px, title and steps) still fits one sheet and its width fits the sheet; never below 1. The drawing box still gives way by a little when the estimate is short (the cap below, in the stage's own units). */
+@media print and (orientation: landscape) {
+  .stg { --stg-z: max(1, min(calc(100vw / 720px), calc((100vh - 120px) / var(--stg-hint, 700px)))); zoom: var(--stg-z); width: 685px; max-height: max(calc((100vh - 120px) / var(--stg-z)), var(--stg-need, 0px)); }
+}
+
+/* the page's role fills (front matter theme: fill-cN: "light dark"): a stage's cards, groups, lanes and panels of that role */
+.stg-svg[data-fills~="c0"] { --c0-soft: var(--stg-f0-l); --c0-plane: var(--stg-f0-l); }
+.stg-svg[data-fills~="c1"] { --c1-soft: var(--stg-f1-l); --c1-plane: var(--stg-f1-l); }
+.stg-svg[data-fills~="c2"] { --c2-soft: var(--stg-f2-l); --c2-plane: var(--stg-f2-l); }
+.stg-svg[data-fills~="c3"] { --c3-soft: var(--stg-f3-l); --c3-plane: var(--stg-f3-l); }
+.stg-svg[data-fills~="c4"] { --c4-soft: var(--stg-f4-l); --c4-plane: var(--stg-f4-l); }
+.stg-svg[data-fills~="c5"] { --c5-soft: var(--stg-f5-l); --c5-plane: var(--stg-f5-l); }
+.stg-svg[data-fills~="c6"] { --c6-soft: var(--stg-f6-l); --c6-plane: var(--stg-f6-l); }
+.stg-svg[data-fills~="c7"] { --c7-soft: var(--stg-f7-l); --c7-plane: var(--stg-f7-l); }
+.stg-svg[data-fills~="c8"] { --c8-soft: var(--stg-f8-l); --c8-plane: var(--stg-f8-l); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c0"] { --c0-soft: var(--stg-f0-d); --c0-plane: var(--stg-f0-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c1"] { --c1-soft: var(--stg-f1-d); --c1-plane: var(--stg-f1-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c2"] { --c2-soft: var(--stg-f2-d); --c2-plane: var(--stg-f2-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c3"] { --c3-soft: var(--stg-f3-d); --c3-plane: var(--stg-f3-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c4"] { --c4-soft: var(--stg-f4-d); --c4-plane: var(--stg-f4-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c5"] { --c5-soft: var(--stg-f5-d); --c5-plane: var(--stg-f5-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c6"] { --c6-soft: var(--stg-f6-d); --c6-plane: var(--stg-f6-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c7"] { --c7-soft: var(--stg-f7-d); --c7-plane: var(--stg-f7-d); }
+  :root:not([data-theme="light"]) .stg-svg[data-fills~="c8"] { --c8-soft: var(--stg-f8-d); --c8-plane: var(--stg-f8-d); }
+}
+:root[data-theme="dark"] .stg-svg[data-fills~="c0"] { --c0-soft: var(--stg-f0-d); --c0-plane: var(--stg-f0-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c1"] { --c1-soft: var(--stg-f1-d); --c1-plane: var(--stg-f1-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c2"] { --c2-soft: var(--stg-f2-d); --c2-plane: var(--stg-f2-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c3"] { --c3-soft: var(--stg-f3-d); --c3-plane: var(--stg-f3-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c4"] { --c4-soft: var(--stg-f4-d); --c4-plane: var(--stg-f4-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c5"] { --c5-soft: var(--stg-f5-d); --c5-plane: var(--stg-f5-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c6"] { --c6-soft: var(--stg-f6-d); --c6-plane: var(--stg-f6-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c7"] { --c7-soft: var(--stg-f7-d); --c7-plane: var(--stg-f7-d); }
+:root[data-theme="dark"] .stg-svg[data-fills~="c8"] { --c8-soft: var(--stg-f8-d); --c8-plane: var(--stg-f8-d); }

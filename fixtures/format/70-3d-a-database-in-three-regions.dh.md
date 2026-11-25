@@ -30,11 +30,12 @@ say db1: change 41
 @step The primary sends change 41 down to the other regions.
 send arrow "change 41" db1 -> db2 is=copy
 send arrow "change 41" db1 -> db3 is=copy
-@step Paris gets it first. Mumbai is further away and still has change 40.
+@step Paris gets it first.
 highlight db2 tone=good
+camera db2 db3 turn=right tilt=low
+@step Mumbai is further away and still has change 40.
 highlight db3 tone=warn
 say db3: still at 40
-camera db2 db3 turn=right tilt=low
 @step Look at ap-south alone: a read here now gets the cart without the new item. That gap is replication lag.
 focus ap
 send "read cart" u3 -> db3

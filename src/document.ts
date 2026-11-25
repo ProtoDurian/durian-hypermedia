@@ -1,4 +1,4 @@
-// parse(): Durian Hypermedia text to the typed, safe Document. Pure: no files, no network, no DOM.
+// parse(): DurianMarkdown text to the typed, safe Document. Pure: no files, no network, no DOM.
 // The format's own parser (core/dh-lib.ts, shared with the site and doccheck) reads the parts; this file adds the caps,
 // the URL policy, the safe Markdown tree, host blocks, and turns every part into plain typed data.
 import {
@@ -11,12 +11,19 @@ import { countHeading, mdBlocks, mdInline, type MdContext, type InlineDef } from
 import { LIMITS, utf8Bytes, type Limits, type UrlPolicy } from "./safety";
 import { registeredBlocks, type BlockDef, type BlockInput } from "./blocks";
 import { compileScene } from "./core/scene";
+import { compileStage } from "./core/stage";
+import { isStagePart, stageOf, stageTexts } from "./core/stage-part";
+import { BudgetError as StageBudgetError } from "./core/stage-budget";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
+import { diagramOf } from "./core/diagrams";
+import { folderBlock, withIdPrefix } from "./parts/runtime";
+import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
+import { RefSession, fencedSource, type ResolveReference } from "./refs";
 
-export const FORMAT_VERSION = 10;
+export const FORMAT_VERSION = 11;
 /** check() evaluates every chart at several control values: its budget is this many times the page's */
 const CHECK_FACTOR = 8;
 // check() reads a page's YAML texts again (about once more each): its YAML page totals are this many times the page's
@@ -28,7 +35,8 @@ const CHECK_YAML_FACTOR = 3;
  * function compiles the block's own source again, so it also works on a block read from older JSON that has no
  * `texts`. Tools use it instead of reaching into scene internals.
  */
-export function animationTexts(block: Pick<AnimationBlock, "anim">): string[] {
+export function animationTexts(block: Pick<AnimationBlock, "anim" | "stage">): string[] {
+  if (block.stage) { const s = block.stage.src; return stageTexts(compileStage(s.head, s.steps, s.base, s.info, block.stage.roles)); }
   const a = block.anim;
   return [...compileScene(a.head, a.steps, a.base, a.info).scene.texts];
 }
@@ -46,6 +54,9 @@ export interface ParseOptions {
   blocks?: BlockDef<any, any>[];
   /** host inline references in prose (@src/a.ts, &T-12 ...); pass the same array each time (it is cached by identity) */
   inlines?: InlineDef<any, any>[];
+  /** a host's word list for the glossary (a site-wide list of terms): `{ term, aliases?, def }`, marked in the text like a page's own terms. A term the page
+   *  defines itself (front matter or a `glossary` block) wins. Checked with the glossary's caps; listed once in the LLM view, after the front matter. */
+  glossary?: { term: string; aliases?: string[]; def: string }[];
   /** drop "> **Security finding:**" callouts from the LLM view (a public render) */
   publicView?: boolean;
   /** false: a leading "---" block is Markdown (a rule and text the reader sees), not front matter (default true) */
@@ -54,12 +65,17 @@ export interface ParseOptions {
   marks?: Record<string, { label?: string; colour: string; means?: string }>;
   /** prompts every page may use in a terminal, as the front matter `prefixes:` writes them: { ">>>": { label: "Python", colour: "c4" } } */
   prefixes?: Record<string, { label?: string; colour: string; means?: string }>;
+  /** answers for the page's references, [[type:name "label"]] (format version 11): pending, ready with the part's source,
+   *  or failed. A ready part is read here with the same caps and budgets as a part written inline. Without it a reference
+   *  stays unresolved (the renderer may ask later). It must not fetch: answer pending and parse again when it is there. */
+  resolveReference?: ResolveReference;
 }
 
 // what parse() keeps for llmView() and check() of the same Document in this process
 interface Kept { dh: DhDoc | null; refused: Set<PartNode>; hosts: Map<PartNode, { def: BlockDef<any, any>; data: unknown; input: BlockInput }>; opts: ParseOptions }
 const kept = new WeakMap<Document, Kept>();
 
+const LLM_MARK = "<!-- Made by dh llm from the source; nobody edits this file. -->\n\n";
 const YAML_ALIAS = /(^|[\s\[{,:-])[&*][A-Za-z0-9_-]+/gm;
 const tooManyAliases = (y: string) => (y.match(YAML_ALIAS)?.length ?? 0) > 16;
 
@@ -102,9 +118,12 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
   // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
   // layout budget that every animation draws from (core/work.ts)
-  return withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
+  return withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
+    // the page's references (refs.ts): counted, checked and, with the host's resolver, read in place
+    const refs = new RefSession({ lim, problems, resolve: opts.resolveReference, readPart: readReferenced, md: (t, l) => { ctx.line = l; return mdBlocks(t, ctx); },
+      tick: (l) => { if (stopped) return `the page has more than ${lim.maxBlocks} blocks`; if (++count > lim.maxBlocks) { stopped = true; const message = `the page has more than ${lim.maxBlocks} blocks; the rest is not shown`; problems.push({ line: l, level: "error", message }); return message; } return null; } });
     const fmOn = opts.frontMatter !== false;
     const fmText = fmOn ? clean.match(/^---\n([\s\S]*?)\n---\n/)?.[1] : undefined;
     if (fmText != null && tooManyAliases(fmText)) {
@@ -139,8 +158,10 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         return doc;
       }
       dh = d;
-      const blocks = walk(dh.body);
       const fm = (dh.fm && typeof dh.fm === "object" && !Array.isArray(dh.fm) ? dh.fm : {}) as Record<string, any>;
+      // the parts of a sentence (parts/inline.ts): each reads the page's facts once, then every plain text run of its Markdown
+      ctx.inlineParts = prepareInlines(fm, dh.body, lim, idPrefix, opts as Record<string, unknown>);
+      const blocks = walk(dh.body);
       // a heading id and a part id (or a tab or accordion item id) share one namespace on the page: name a clash
       const partIds = new Map<string, number>();
       const collect = (bs: any[]) => { for (const x of bs) { if (x.id) partIds.set(x.id, x.line); for (const it of x.items ?? []) { if (it.id) for (const k of x.type === "tabs" ? [it.id + "-t", it.id + "-p"] : [it.id]) partIds.set(k, x.line); collect(it.body ?? []); } collect(x.type === "human" ? x.body : []); } };
@@ -148,12 +169,17 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       for (const h of ctx.heads) if (partIds.has(h.id)) problems.push({ line: partIds.get(h.id)!, level: "warn", message: `the heading "${h.text}" and a part both have the id "${h.id}"; a link to #${h.id} reaches only one of them. Rename the part's #id` });
       // a table of contents lists the headings after the walk
       fillTocs(blocks, ctx.heads, problems);
-      for (const p of ctx.problems) problems.push({ line: p.line, level: "error", message: p.message });
+      for (const p of ctx.problems) problems.push({ line: p.line, level: p.level ?? "error", message: p.message });
+      for (const p of finishInlines(ctx.inlineParts)) problems.push({ line: p.line, level: p.level, message: p.message });
       const hasPart = blocks.some((x) => x.type !== "markdown" && x.type !== "toc");
       const path = opts.path ?? (hasPart ? "page.dh.md" : "page.md");
       dh.path = path;
+      dh.refs = refs.count;
       let llm = "";
       try { llm = dhLlmView(dh, path, !!opts.publicView); } catch (e) { problems.push({ line: 1, level: "error", message: `the LLM view could not be made: ${(e as Error).message}` }); }
+      // what the parts of a sentence want at the top of the LLM view (a host's glossary)
+      const head = inlineLlmHead(ctx.inlineParts);
+      if (head && llm.includes(LLM_MARK)) llm = llm.replace(LLM_MARK, () => `${LLM_MARK}${head}\n\n`);
       const doc: Document = { ast: 1, format: FORMAT_VERSION, source: clean, path, frontMatter: fm, title: typeof fm.title === "string" ? fm.title : null, blocks, headings: ctx.heads, problems, highlighted: false, llm } as Document;
       kept.set(doc, { dh, refused, hosts, opts });
       return doc;
@@ -186,12 +212,30 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           out.push({ type: "error", line: n.line, part: null, message });
           break;
         }
-        if (n.kind === "md") { ctx.line = n.line; out.push({ type: "markdown", line: n.line, md: mdBlocks(n.text, ctx) }); continue; }
+        if (n.kind === "md") { ctx.line = n.line; out.push(...refs.split(mdBlocks(n.text, ctx), n.text, n.line)); continue; }
         if (n.kind === "toc") { out.push({ type: "toc", line: n.line, depth: Math.min(4, Math.max(2, +(n.attrs.depth ?? 3) || 3)), scope: n.attrs.section ? "section" : "page", items: [] }); continue; }
         try { const b = part(n); if (Array.isArray(b)) out.push(...b); else out.push(b); }
         catch (e) { out.push(refuse(n, `could not be read (${(e as Error).message})`)); }
       }
       return out;
+    }
+
+    // a part a reference resolved to (refs.ts): read as if it were written on the reference's line, through the same
+    // part() as every part of the page (the same caps, the page's budgets, the block count)
+    function readReferenced(type: string, source: string, line: number): Block[] {
+      const err = (message: string): Block[] => { problems.push({ line, level: "error", message: `${type}: ${message}` }); return [{ type: "error", line, part: type, message }]; };
+      const text = fencedSource(type, source);
+      if (typeof text !== "string") return err(text.error);
+      let nodes: DhNode[];
+      try { nodes = parseDoc(dh.path, text, { frontMatter: false, site }).body; }
+      catch (e) { return err(`the host's answer could not be read (${(e as Error).message})`); }
+      const p = nodes[0];
+      // the fence word is the type (fencedSource checked it); a part may still come out under another name when the format
+      // gives that fence to it (a ```chart whose kind a part of its own draws)
+      if (nodes.length !== 1 || p.kind !== "part" || PARTS[p.name]?.form !== "fenced") return err(`the host's answer is not one ${type} part`);
+      p.line = p.endLine = p.bodyLine = line;
+      for (const st of p.steps) st.line = line;
+      return walk([p]);
     }
 
     function base(p: PartNode) {
@@ -214,6 +258,9 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       if (!def) return refuse(p, `"${p.name}" is not a part of this format`);
       if (def.steps && p.steps.length > lim.maxSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxSteps}`);
+      // a part in its own folder (src/parts/<name>/, format version 11): read, charged and checked there
+      const fp = folderBlock(p, () => base(p));
+      if (fp) return "refuse" in fp ? refuse(p, fp.refuse) : (fp.block as unknown as Block);
       if (def.form === "container") {
         if (p.name === "tabs" || p.name === "accordion") {
           const items = p.items.map((it, k) => (countHeading(it.heading, ctx), { title: it.title, id: `${p.attrs.id ? idPrefix + p.attrs.id : `${idPrefix}${p.name}-${p.line}`}-${k}`, body: walk(it.nodes) }));
@@ -227,6 +274,11 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       if (p.name === "animation") {
         if (p.body.length > lim.maxAnimChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxAnimChars.toLocaleString("en-US")}`);
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
+        // a composed stage (0.7.0) is compiled once (core/stage-part.ts stageOf); over the stage budget of the page it
+        // is refused here (core/stage-budget.ts), and its own caps (cards, rows, steps) are doccheck errors
+        if (isStagePart(p)) {
+          try { animTexts = stageTexts(stageOf(p)); } catch (e) { if (e instanceof StageBudgetError) return refuse(p, e.message); throw e; }
+        } else {
         const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
         // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
         let values = 0;
@@ -238,6 +290,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         animTexts = [...c.scene.texts];
         const most = Math.max(0, ...c.frames.map((f) => f.boxes.length));
         if (most > lim.maxAnimEntities) return refuse(p, `${most} things on the stage; the limit is ${lim.maxAnimEntities}`);
+        }
       }
       if (p.name === "chart" || p.name === "tierlist" || p.name === "alignment") {
         if (tooManyAliases(p.body)) return refuse(p, "too many YAML anchors and aliases");
@@ -245,11 +298,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       // the YAML is sized as it parses (host/yaml.ts): a text over its size caps, or anchors that stand for too much,
       // refuse the chart before anything reads it
       if (p.name === "chart") { const ye = chartYamlError(p); if (ye && /anchors and aliases|nests more than|holds itself|YAML is too long|YAML has too many keys/.test(ye)) return refuse(p, ye); }
-      if (p.name === "mermaid") {
-        if (p.body.length > lim.maxMermaidChars) return refuse(p, `${p.body.length.toLocaleString("en-US")} characters; the limit is ${lim.maxMermaidChars.toLocaleString("en-US")}`);
-      }
-      // steps that each carry a whole text (an editor's file before and after, a code walk's lines, a mermaid diagram so
-      // far) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
+      // steps that each carry a whole text (an editor's file before and after, a code walk's lines) carry the steps times the text: capped per part and per page, so a short page cannot make a huge one
       const carried = stepTextSize(dh, p);
       if (carried > MAX_STEP_TEXT || stepText + carried > MAX_PAGE_STEP_TEXT) return asSource(p, tooMuchText(carried));
       stepText += carried;
@@ -259,6 +308,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       const blk: Record<string, any> = { type: p.name, ...base(p), ...j };
       switch (p.name) {
         case "animation": blk.texts = animTexts; break;
+        case "state": case "class": case "er": blk.texts = diagramOf(p).texts; break;
         case "filetree": {
           // each row carries its whole path: deep rows under long folder names carry the square of the tree
           const n = (blk.trees ?? []).reduce((a: number, t: any) => a + t.rows.reduce((b: number, r: any) => b + r.path.length, 0), 0);
@@ -268,7 +318,10 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         }
         case "chart": {
           if (blk.initial?.limit) return refuse(p, blk.initial.error);
-          const pts = (blk.initial?.x?.length ?? 0) + (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
+          const cellsOf = (blk.initial?.series ?? []).reduce((a: number, s: any) => a + (Array.isArray(s.data) ? s.data.length : 0), 0);
+          // a heatmap's cells count against the heat cap only (its rows are drawn as series, which the point limit would count twice)
+          if (blk.initial?.ext?.heat !== undefined) { if (cellsOf > lim.maxChartHeatCells) return refuse(p, `${cellsOf.toLocaleString("en-US")} heatmap cells; the limit is ${lim.maxChartHeatCells.toLocaleString("en-US")}`); break; }
+          const pts = (blk.initial?.x?.length ?? 0) + cellsOf;
           if (pts > lim.maxChartPoints) return refuse(p, `${pts.toLocaleString("en-US")} data points; the limit is ${lim.maxChartPoints.toLocaleString("en-US")}`);
           break;
         }
@@ -279,19 +332,12 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
           if (nx * ny > MAX_ALIGN_CELLS) return asSource(p, `a grid of ${nx} × ${ny} cells; the limit is ${MAX_ALIGN_CELLS}, so its source is shown instead`);
           const n = (blk.align?.points?.length ?? 0) + (blk.align?.cells ?? []).reduce((a: number, c: any) => a + (c.items?.length ?? 0), 0); if (n > lim.maxItems) return refuse(p, `${n} items; the limit is ${lim.maxItems}`); break; }
         case "codewalk":
-          blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }) }));
+          blk.steps = (blk.steps ?? []).map((s: any, i: number) => ({ ...s, note: refs.inline(mdInline((p.steps[i]?.raw ?? "").trim(), { ...ctx, line: p.steps[i]?.line ?? p.line }), p.steps[i]?.raw ?? "", p.steps[i]?.line ?? p.line) }));
           break;
-        case "mermaid": {
-          // a %%{init: ...}%% directive may try to change mermaid's settings: it is dropped
-          let dropped = 0;
-          blk.steps = (blk.steps ?? []).map((s: any) => ({ ...s, src: String(s.src).split("\n").filter((l) => { const d = /^\s*%%\s*\{/.test(l); if (d) dropped++; return !d; }).join("\n") }));
-          if (dropped) problems.push({ line: p.line, level: "warn", message: "mermaid: %%{...}%% directives are dropped (they could change the diagram's security settings)" });
-          break;
-        }
       }
       return blk as Block;
     }
-  })));
+  }))));
 }
 
 // all the tables of contents of one page together list at most this many headings (each lists the page's headings
@@ -373,7 +419,7 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
   // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })));
+  withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }))));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

@@ -25,7 +25,7 @@ send both "2 orders" pass -> c2
 set c2 level=45
 @step The grill finishes what it had, and gets nothing new until it catches up.
 set c1 level=60
-@step Now each cook has about the same amount of work.
+@step The load is even: the three cooks now have about the same amount of work.
 set c1 level=50
 set c3 level=45
 highlight c1 c2 c3 tone=good

@@ -1,0 +1,25 @@
+/* fishbone: causes by category along a spine into an effect. Its tokens read the base tokens, so light and dark follow;
+   a host sets one to restyle the part. */
+:root {
+  --fishbone-spine: var(--ink-2); --fishbone-head-bg: var(--bad-soft); --fishbone-head-border: var(--bad); --fishbone-spine-w: 2.5px;
+  --fishbone-sub: var(--muted);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --fishbone-head-bg: var(--bad-soft); }
+}
+:root[data-theme="dark"] { --fishbone-head-bg: var(--bad-soft); }
+
+.fish-narrow { display: none; }
+@container (max-width: 600px) { .fish-wide { display: none; } .fish-narrow { display: block; } }
+.fish-spine { stroke: var(--fishbone-spine); stroke-width: var(--fishbone-spine-w); }
+.fish-head rect { fill: var(--fishbone-head-bg); stroke: var(--fishbone-head-border); }
+.fish-head text { font-weight: 600; }
+.fish-line { stroke: var(--fc, var(--ink-2)); stroke-width: 1.8; }
+.fish-bone.is-lit .fish-line { stroke-width: 3.6; }
+.fish-bone.is-lit .fish-cat rect { stroke-width: 2.5; }
+.fish-cat-text { font-weight: 600; font-size: 13px; }
+.fish-tick { stroke: var(--fc, var(--ink-2)); stroke-width: 1.2; }
+.dh-svg text.fish-sub { fill: var(--fishbone-sub); }
+.fish-sub, .fish-cause text { font-size: 13px; }
+/* Show new words immediately: opacity animations on nested SVG groups can leave their text unpainted. */
+.fish-bone.is-new, .fish-cause.is-new { animation: none; }

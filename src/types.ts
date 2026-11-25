@@ -4,12 +4,14 @@ import type { TierSpec } from "./core/tier";
 import type { AlignSpec } from "./core/align";
 import type { MdBlock, MdInline } from "./markdown";
 import type { Val } from "./core/expr";
+import type { PartBlock } from "./parts/types";
+import type { FolderPartData, FolderPartName } from "./parts/generated/registry";
 
 export type { MdBlock, MdInline, ChartControl, ChartSeries, TierSpec, AlignSpec, Val };
 
 /** How the LLM view shows a part: as written, its data, its captions, unwrapped, an author's :::llm text, nothing,
  *  one line per tier, or a host block's own text. */
-export type LlmKind = "as-is" | "data" | "steps" | "lines" | "unwrap" | "text" | "none" | "drop" | "replace" | "host";
+export type LlmKind = "as-is" | "data" | "steps" | "lines" | "unwrap" | "text" | "none" | "drop" | "replace" | "host" | "own";
 
 interface PartBase {
   /** the author's #id, prefixed (see ParseOptions.idPrefix), or null */
@@ -48,11 +50,14 @@ export interface CodeWalkStep {
 }
 export interface CodeWalkBlock extends PartBase { type: "codewalk"; steps: CodeWalkStep[]; walkFiles: Record<string, string | null>; /** packed whole files for still steps (highlight()) */ walkHl?: Record<string, unknown> }
 
-export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string } }
-export interface MermaidBlock extends PartBase { type: "mermaid"; steps: { title: string; src: string }[] }
+export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: "part" | "page"; /** the facts of a chart written with steps, a time axis, annotations, formats, a heatmap or the page-chart words (core/chart11.ts) */ ext?: any } }
 export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
+  /** a composed stage (0.7.0: lanes, cards, panels, a time block; every animation whose fence does not ask for the graph engine): its source and the page's roles (role name -> colour 0 to 8) */
+  stage?: { src: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> }; roles: Record<string, number> };
   /** what a reader sees as text in this animation, in story order: quoted labels, captions, say and note texts (animationTexts(block)) */
   texts: string[] }
+/** A state, class or ER diagram (core/diagrams.ts): its own small language, compiled to a scene the animation engine draws. `refused` holds what stops it being drawn; then `body` (its source) is shown plain. */
+export interface DiagramBlock extends PartBase { type: "state" | "class" | "er"; anim: AnimationBlock["anim"] & { part: "state" | "class" | "er"; title: string }; refused: { line: number; msg: string }[]; body: string; texts: string[] }
 export interface TierListBlock extends PartBase { type: "tierlist"; tier: TierSpec }
 export interface AlignmentBlock extends PartBase { type: "alignment"; align: AlignSpec }
 
@@ -62,12 +67,34 @@ export interface HumanBlock extends PartBase { type: "human"; body: Block[] }
 
 /** A part that went over a cap, failed to parse, or is not allowed: shown as a clear message instead of the part. */
 export interface ErrorBlock { type: "error"; line: number; part: string | null; message: string }
+/** A reference on a line of its own, `[[<type>:<name> "label"]]` (format version 11): the host keeps the part and
+ *  resolveReference answers for it. "unresolved": no resolver was given (the label shows as a chip); "ready": `blocks`
+ *  holds the part, read with the page's caps. The LLM view keeps the reference as written. */
+export interface ReferenceBlock extends PartBase {
+  type: "reference";
+  ref: { type: string; name: string; label: string | null; text: string };
+  state: "unresolved" | "pending" | "ready" | "failed";
+  /** why it failed (the host's words, or the package's) */
+  reason?: string;
+  /** the referenced part, when ready */
+  blocks?: Block[];
+}
+/** Raw SVG a reference stood for: drawn only through an <img> (no script in it can run). */
+export interface SvgBlock extends PartBase { type: "svg"; svg: string; title: string | null; alt: string }
+/** A component the host keeps (HTML, CSS, script) a reference stood for: run only in a sandboxed frame, and only when the
+ *  host turns it on (core/interactive.ts). */
+export interface InteractiveBlock extends PartBase { type: "interactive"; title: string | null; height: number; html: string; css: string; script: string; fallback: MdBlock[]; alt: string }
 /** A host's own block (registered with defineBlock / registerBlock). */
 export interface HostBlock<D = unknown> extends PartBase { type: "host"; name: string; body: string; data: D }
 
+/** A part in its own folder (src/parts/<name>/, format version 11): `data` is what its parse returned. */
+export type FolderBlock = { [K in FolderPartName]: PartBlock<FolderPartData[K]> & { type: K } }[FolderPartName];
+export type { FolderPartName, FolderPartData, PartBlock };
+
 export type Block =
-  | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock | MermaidBlock
-  | AnimationBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock;
+  | MarkdownBlock | TocBlock | TerminalBlock | FileTreeBlock | EditorBlock | CodeWalkBlock | ChartBlock
+  | AnimationBlock | DiagramBlock | TierListBlock | AlignmentBlock | TabsBlock | AccordionBlock | HumanBlock | ErrorBlock | HostBlock | FolderBlock
+  | ReferenceBlock | SvgBlock | InteractiveBlock;
 export type BlockType = Block["type"];
 
 export interface Problem { line: number; level: "error" | "warn"; message: string }

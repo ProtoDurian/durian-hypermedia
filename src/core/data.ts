@@ -4,7 +4,8 @@
 //   map cache "session cache" buckets=4: u7: Ana        the same, drawn as a hash table: each entry sits in bucket
 //                                                       hash(key) mod 4, where hash(key) is the sum of its letters' codes
 //   put cache u9: Cy                                     adds the entry, or gives an existing key its new value
-//   get cache u7                                         a lookup: the entry (and its bucket) is lit for this step
+//   get cache u7                                         a lookup: the entry is lit for this step, and in a hash table
+//                                                        its bucket is framed (a quiet outline): one focus per step
 //   get ids 3                                            in an array: the cell at index 3
 // A map is drawn with the parts the engine already has: a table with the columns key and value, or buckets that hold
 // one box per entry. So it lays out, zooms (closed=yes, zoom into) and draws in 2D and 3D like any container.
@@ -100,7 +101,8 @@ export function getTarget(s: State, m: string, key: string, refuse: (m: string) 
 }
 export function applyGet(s: State, op: Extract<Op, { op: "get" }>, f: Fx, refuse: (m: string) => Error) {
   const { entry, bucket } = getTarget(s, op.m, op.key, refuse);
-  if (bucket) { f.highlights.push({ key: bucket.key, tone: "acc" }); f.touched.push(bucket.id); }
+  // (0.7.0-rc.3) one focus per step: the entry is the one lit thing; its bucket is only framed, and kept in view
+  if (bucket) { (f.framed ??= []).push(bucket.key); f.touched.push(bucket.id); }
   f.highlights.push({ key: entry.key, tone: "acc" });
   f.touched.push(entry.id);
 }

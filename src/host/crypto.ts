@@ -23,7 +23,7 @@ export function sha256Hex(text: string): string {
   return [...H].map((x) => x.toString(16).padStart(8, "0")).join("");
 }
 export function createHash(alg: string) {
-  if (alg !== "sha256") throw new Error(`durian-hypermedia: only sha256 is available, not ${alg}`);
+  if (alg !== "sha256") throw new Error(`durian-markdown: only sha256 is available, not ${alg}`);
   let acc = "";
   const h = { update(s: string) { acc += s; return h; }, digest(_enc: "hex") { return sha256Hex(acc); } };
   return h;

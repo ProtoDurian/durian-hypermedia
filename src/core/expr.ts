@@ -1,5 +1,5 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
-// expr: the small, safe expression language of Durian Hypermedia.
+// expr: the small, safe expression language of DurianMarkdown.
 // Used by chart `let` entries and series `data`, and by `{...}` holes in texts (fillHoles).
 // No property access, no assignment, no loops, no host functions: a parse tree evaluated by a tiny interpreter.
 // Arithmetic and comparisons work element by element on lists ("broadcasting"), so `calls - 1` subtracts 1 from each.

@@ -56,7 +56,7 @@ send "GET /" b2 -> b1
 @step Look at one layer: TCP on both machines talks only to TCP. The layers above and below are its tools.
 focus tcp
 highlight a3 b3
-@step The reply goes back the same way, one layer per hop.
+@step The web server's reply goes back to the browser the same way, one layer per hop.
 focus all
 stack layers
 highlight b1 a1 tone=good

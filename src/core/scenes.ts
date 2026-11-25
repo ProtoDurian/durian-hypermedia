@@ -184,6 +184,7 @@ function offsetKeys(c: Compiled, off: number) {
   };
   const fxOf = (x: Fx) => {
     x.highlights = x.highlights.map((h) => ({ ...h, key: k(h.key) }));
+    if (x.framed) x.framed = x.framed.map(k);
     x.says = x.says.map((s) => ({ ...s, key: k(s.key) }));
     x.sends = x.sends.map((s) => ({ ...s, path: s.path.map(k) }));
     x.spawn = rec(x.spawn); x.merge = rec(x.merge);

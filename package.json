@@ -1,10 +1,11 @@
 {
-  "name": "durian-hypermedia",
-  "version": "0.6.2",
-  "description": "Durian Hypermedia: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
+  "name": "durian-markdown",
+  "version": "0.7.0",
+  "description": "DurianMarkdown: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
   "type": "module",
   "sideEffects": [
-    "*.css"
+    "*.css",
+    "./src/core/stage*.ts"
   ],
   "license": "MIT",
   "files": [
@@ -28,6 +29,11 @@
       "types": "./src/server.ts",
       "bun": "./src/server.ts",
       "import": "./dist/server.js"
+    },
+    "./node": {
+      "types": "./src/node/files.ts",
+      "bun": "./src/node/files.ts",
+      "import": "./dist/node/files.js"
     },
     "./react": {
       "types": "./src/react/index.tsx",
@@ -74,16 +80,6 @@
       "bun": "./src/react/chart.tsx",
       "import": "./dist/react/chart.js"
     },
-    "./react/mermaid": {
-      "types": "./src/react/mermaid.tsx",
-      "bun": "./src/react/mermaid.tsx",
-      "import": "./dist/react/mermaid.js"
-    },
-    "./react/mermaid-host": {
-      "types": "./src/react/mermaid-host.tsx",
-      "bun": "./src/react/mermaid-host.tsx",
-      "import": "./dist/react/mermaid-host.js"
-    },
     "./react/animation": {
       "types": "./src/react/animation.tsx",
       "bun": "./src/react/animation.tsx",
@@ -104,19 +100,40 @@
       "bun": "./src/react/containers.tsx",
       "import": "./dist/react/containers.js"
     },
+    "./react/reference": {
+      "types": "./src/react/reference.tsx",
+      "bun": "./src/react/reference.tsx",
+      "import": "./dist/react/reference.js"
+    },
+    "./react/interactive": {
+      "types": "./src/react/interactive.tsx",
+      "bun": "./src/react/interactive.tsx",
+      "import": "./dist/react/interactive.js"
+    },
     "./react/hydrate": {
       "types": "./src/react/hydrate.tsx",
       "bun": "./src/react/hydrate.tsx",
       "import": "./dist/react/hydrate.js"
     },
+    "./react/parts": {
+      "types": "./src/parts/generated/react.tsx",
+      "bun": "./src/parts/generated/react.tsx",
+      "import": "./dist/parts/generated/react.js"
+    },
     "./styles.css": "./dist/styles.css",
     "./fixtures/*": "./fixtures/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./react/map-providers": {
+      "types": "./src/react/map-providers.ts",
+      "bun": "./src/react/map-providers.ts",
+      "import": "./dist/react/map-providers.js"
+    }
   },
   "scripts": {
     "sync": "bun scripts/sync.ts",
     "build": "bun scripts/build.ts",
-    "test": "bun test ./test/",
+    "test": "bun test ./test/ ./src/parts/ ./src/node/",
+    "parts": "bun scripts/parts.ts",
     "typecheck": "tsc -p .",
     "hygiene": "bun scripts/hygiene.ts",
     "sizes": "bun scripts/sizes.ts --md",
@@ -125,26 +142,31 @@
     "csp": "bun example/build.tsx && bun scripts/csp-check.ts",
     "prepare": "bun scripts/build.ts",
     "tt": "bun example/build.tsx && bun scripts/csp-check.ts --trusted-types",
+    "names3d": "bun example/build.tsx && bun scripts/names3d-check.ts",
+    "ix": "bun scripts/interactive-check.ts",
     "bench": "bun scripts/bench.ts"
   },
   "peerDependencies": {
     "react": ">=18 <20",
     "react-dom": ">=18 <20",
-    "mermaid": "^11.0.0"
-  },
-  "peerDependenciesMeta": {
-    "mermaid": {
-      "optional": true
-    }
+    "leaflet": "1.9.4",
+    "maplibre-gl": "6.19.0",
+    "@googlemaps/js-api-loader": "2.1.3"
   },
   "dependencies": {
     "chart.js": "4.5.1",
+    "chartjs-chart-matrix": "3.1.0",
     "codehike": "1.1.0",
-    "dompurify": "3.4.18",
+    "cytoscape": "3.34.4",
+    "d3-sankey": "0.12.3",
+    "diff": "9.0.0",
     "entities": "8.1.0",
     "github-slugger": "2.0.0",
+    "katex": "0.19.1",
     "linkify-it": "6.1.0",
+    "lottie-web": "5.13.0",
     "mdurl": "2.1.0",
+    "pdfjs-dist": "6.5.438",
     "punycode.js": "2.3.1",
     "three": "0.180.0",
     "uc.micro": "3.0.0"
@@ -154,10 +176,13 @@
     "@types/react": "18.3.27",
     "@types/react-dom": "18.3.7",
     "@types/three": "0.180.0",
-    "mermaid": "11.17.2",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "leaflet": "1.9.4",
+    "maplibre-gl": "6.19.0",
+    "@googlemaps/js-api-loader": "2.1.3",
+    "@types/leaflet": "1.9.21"
   },
   "keywords": [
     "markdown",
@@ -167,5 +192,16 @@
     "diagrams",
     "charts",
     "animation"
-  ]
+  ],
+  "peerDependenciesMeta": {
+    "leaflet": {
+      "optional": true
+    },
+    "maplibre-gl": {
+      "optional": true
+    },
+    "@googlemaps/js-api-loader": {
+      "optional": true
+    }
+  }
 }

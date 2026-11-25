@@ -1,4 +1,39 @@
 /* The example site's own page (not part of the package): a header and a column. Colours come from the package's tokens. */
+/* The faces the package measures its words with (the composed stage's widths are Poppins's), self-hosted from
+   assets/fonts (SIL OFL 1.1, licences there). The package itself loads no font (ADOPT.md): a host maps --font-sans.
+   The regular faces are preloaded, and the page column is held hidden until they load, 1 s at most (example/font-hold.ts
+   ends the hold early), so text does not move when its face swaps in. */
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 300; font-display: swap; src: url("fonts/poppins-300-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/poppins-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/poppins-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "Poppins"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/poppins-600-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibmplexmono-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/ibmplexmono-500-latin.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/ibmplexmono-600-latin.woff2") format("woff2"); }
+/* KaTeX's local faces for native MathML; OFL-KaTeX.txt is beside the unmodified WOFF2 files. */
+@font-face { font-family: "KaTeX_AMS"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_AMS-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Caligraphic"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_Caligraphic-Bold.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Caligraphic"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Caligraphic-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Fraktur"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_Fraktur-Bold.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Fraktur"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Fraktur-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Main"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_Main-Bold.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Main"; font-style: italic; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_Main-BoldItalic.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Main"; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Main-Italic.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Main"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Main-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Math"; font-style: italic; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_Math-BoldItalic.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Math"; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Math-Italic.woff2") format("woff2"); }
+@font-face { font-family: ""KaTeX_SansSerif""; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/KaTeX_SansSerif-Bold.woff2") format("woff2"); }
+@font-face { font-family: ""KaTeX_SansSerif""; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_SansSerif-Italic.woff2") format("woff2"); }
+@font-face { font-family: ""KaTeX_SansSerif""; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_SansSerif-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Script"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Script-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Size1"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Size1-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Size2"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Size2-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Size3"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Size3-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Size4"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Size4-Regular.woff2") format("woff2"); }
+@font-face { font-family: "KaTeX_Typewriter"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/KaTeX_Typewriter-Regular.woff2") format("woff2"); }
+@keyframes ex-font-hold { from, to { visibility: hidden; } }
+html:not(.fonts-ready) .ex-main { animation: ex-font-hold 1s step-end; }
+@media print { html .ex-main { animation: none; } }
 html, body { margin: 0; }
 body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif; }
 :root[data-theme="dark"] body { background: #0B1020; color: #D3D9E6; }
@@ -16,6 +51,12 @@ body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif
 .ex-list li { margin: 4px 0; overflow-wrap: anywhere; }
 .ex-list code, .ex-crumb code { font-size: 12px; opacity: .75; }
 .ex-problems { margin: 8px 0 16px; font-size: 14px; }
+/* a fixture's source and LLM view (build.tsx), closed until asked for; a long line scrolls inside its box */
+.ex-views { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 8px 0 16px; }
+.ex-view { min-width: 0; border: 1px solid rgba(127,127,127,.35); border-radius: 8px; }
+.ex-view > summary { cursor: pointer; padding: 8px 12px; font-size: 14px; font-weight: 600; }
+.ex-view-pre { margin: 0; padding: 12px; border-top: 1px solid rgba(127,127,127,.35); overflow-x: auto; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
+.ex-view-none { margin: 0; padding: 10px 12px; border-top: 1px solid rgba(127,127,127,.35); font-size: 14px; }
 /* the example host block */
 .fy-task { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--acc); border-radius: var(--r-s); background: var(--surface); color: var(--ink); }
 .fy-task-id { font: 600 13px/1 var(--font-mono); color: var(--acc-ink); }
@@ -25,3 +66,10 @@ body { background: #E6E8F2; color: #273143; font: 16px/1.5 system-ui, sans-serif
 .fy-task[data-state="doing"] { border-left-color: var(--warn); }
 .fy-ref { font: 500 .92em/1 var(--font-mono); padding: 1px 6px; border-radius: 6px; background: var(--acc-softer); color: var(--acc-ink); text-decoration: none; }
 .fy-ref-task { border: 1px solid var(--acc-soft); }
+
+/* Source and LLM panels keep long lines inside the example's column. */
+.ex-views .ex-view-pre { min-width: 0; max-width: 100%; box-sizing: border-box; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ex-views .ex-view-pre code { white-space: inherit; overflow-wrap: inherit; }
+
+/* The example's navigation and inspection controls are for the screen, not the printed document. */
+@media print { .ex-head, .ex-views, .ex-crumb, .ex-problems { display: none !important; } }

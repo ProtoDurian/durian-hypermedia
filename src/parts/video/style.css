@@ -1,0 +1,58 @@
+/* video: our controls over the browser's video element. Its tokens read the base tokens, so light and dark follow; a host
+   sets one to restyle the part. The picture and the bar are dark in both themes (a video is a dark surface). */
+:root {
+  --video-bg: var(--surface);
+  --video-played: var(--acc);
+  --video-played-2: var(--c4);
+  --video-chapter-gap: 3px;
+  --video-radius: var(--r-l);
+  --video-cue-bg: rgba(0, 0, 0, .75);
+  --video-cue-ink: white;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --video-cue-bg: rgba(0, 0, 0, .8); }
+}
+:root[data-theme="dark"] { --video-cue-bg: rgba(0, 0, 0, .8); }
+
+.vm { position: relative; border-radius: var(--video-radius); overflow: hidden; background: rgb(5 7 15); border: 1px solid var(--part-border, var(--line)); box-shadow: var(--part-shadow, var(--shadow-sm)); }
+.vm[data-h="s"] { max-width: 560px; margin-inline: auto; }
+.vm-stage { position: relative; aspect-ratio: 16 / 9; background: black; outline-offset: -3px; touch-action: pan-y; -webkit-tap-highlight-color: transparent; }
+.vm-stage video { display: block; width: 100%; height: 100%; object-fit: contain; background: black; }
+.vm-bigplay { position: absolute; left: 50%; top: 50%; width: 88px; height: 88px; transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.45); border-radius: 50%; display: grid; place-items: center; color: white; cursor: pointer; background: rgba(20, 24, 44, .42); -webkit-backdrop-filter: blur(10px) saturate(1.4); backdrop-filter: blur(10px) saturate(1.4); box-shadow: 0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.4); transition: transform var(--dur) var(--ease), background var(--dur-fast); }
+.vm-bigplay svg { margin-left: 4px; } .vm-bigplay:hover { transform: translate(-50%, -50%) scale(1.08); background: color-mix(in oklab, var(--acc) 55%, rgba(20,24,44,.4)); }
+.vm-bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 36px 12px 6px; background: linear-gradient(to top, rgba(2,4,14,.82), rgba(2,4,14,.5) 55%, transparent); color: white; transition: opacity var(--dur) var(--ease); }
+.vm.no-ctl .vm-bar { opacity: 0; pointer-events: none; } .vm.no-ctl .vm-stage { cursor: none; }
+.vm-bar .m-ctl { background: transparent; color: white; } .vm-bar .m-ctl:hover:not(:disabled) { background: rgba(255,255,255,.18); } .vm-bar .m-ctl[aria-expanded="true"], .vm-bar .m-ctl[aria-pressed="true"] { background: rgba(255,255,255,.22); color: white; }
+.vm-bar .m-row { gap: 2px; }
+.vm-seek { position: relative; height: 28px; display: flex; align-items: center; cursor: pointer; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.vm-track { position: relative; flex: 1; display: flex; gap: var(--video-chapter-gap); height: 5px; transition: height var(--dur-fast); }
+.vm-seek:hover .vm-track, .vm-seek:focus-visible .vm-track { height: 8px; }
+.vm-seg { position: relative; min-width: 2px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.28); }
+.vm-seg i { position: absolute; left: 0; top: 0; bottom: 0; display: block; }
+.vm-buf { background: rgba(255,255,255,.34); }
+.vm-played { background: linear-gradient(90deg, var(--video-played), var(--video-played-2)); }
+.vm-knob { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: white; box-shadow: 0 1px 6px rgba(0,0,0,.5); transform: scale(0); transition: transform var(--dur-fast); pointer-events: none; }
+.vm-seek:hover .vm-knob, .vm-seek:focus-visible .vm-knob, .vm.is-playing .vm-knob { transform: scale(1); }
+.vm-tip { position: absolute; bottom: 30px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 9px; border-radius: var(--r-s); background: rgba(8,10,24,.92); color: white; font-size: 12.5px; pointer-events: none; white-space: nowrap; max-width: 220px; }
+.vm-tip b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.vm-thumb { display: block; border-radius: 4px; background-repeat: no-repeat; }
+.vm-time { font-family: var(--font-mono); font-size: 13px; padding: 0 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vm-cc { position: absolute; left: 6%; right: 6%; bottom: 70px; text-align: center; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: bottom var(--dur) var(--ease); }
+.vm.no-ctl .vm-cc { bottom: 22px; }
+.vm-cc span { display: inline-block; padding: 2px 12px; border-radius: 6px; background: var(--video-cue-bg); color: var(--video-cue-ink); font-size: clamp(14px, 2.3vw, 22px); line-height: 1.4; font-weight: 500; }
+.vm-flash { position: absolute; top: 50%; width: 22%; aspect-ratio: 1; margin-top: -11%; border-radius: 50%; background: rgba(255,255,255,.22); color: white; display: grid; place-items: center; font-weight: 700; font-size: 18px; pointer-events: none; animation: vm-flash .7s var(--ease) both; }
+.vm-flash-l { left: 6%; } .vm-flash-r { right: 6%; }
+@keyframes vm-flash { 0% { opacity: 0; transform: scale(.7); } 25% { opacity: 1; } 100% { opacity: 0; transform: scale(1.1); } }
+.vm .m-err { position: absolute; left: 12px; right: 12px; top: 12px; margin: 0; }
+.vm > .am-transcript { padding: var(--s-3) var(--s-4) var(--s-4); background: var(--video-bg); color: var(--ink); }
+.vm:fullscreen, .vm.is-full { border-radius: 0; border: 0; } .vm:fullscreen .vm-stage { aspect-ratio: auto; height: 100vh; }
+.vm-clip .vm-clipbtn { position: absolute; right: 10px; bottom: 10px; background: rgba(8,10,24,.6); color: white; min-width: 36px; height: 36px; }
+.vm-cliphint { position: absolute; left: 10px; bottom: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(8,10,24,.6); color: white; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .vm-bigplay { width: 60px; height: 60px; top: 34%; z-index: 4; }
+  /* one row of controls on a phone: the volume is the phone's own, and a double tap on a side jumps 10 s, so those two buttons go, and the whole bar fits in one row */
+  .vm-skip, .vm-vol, .vm [data-dh-slot="pip"] { display: none; } /* picture in picture is for a desktop window */
+  .vm-time { padding: 0 4px; font-size: 12px; }
+  .vm-bar { padding: 28px 6px 4px; } .vm-bar .m-ctl { padding: 0 4px; min-width: 36px; } .vm .mu-btn.has-text > svg { display: none; } .vm .m-row { flex-wrap: nowrap; gap: 2px; }
+}

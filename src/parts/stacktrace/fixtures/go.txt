@@ -1,0 +1,11 @@
+panic: runtime error: index out of range [3] with length 3
+
+goroutine 18 [running]:
+example.com/shop/cart.(*Cart).Item(...)
+	/src/shop/cart/cart.go:42
+example.com/shop/api.(*Server).getItem(0xc0001a2000, {0x7f1c, 0xc000124000}, 0xc000188000)
+	/src/shop/api/items.go:88 +0x1d4
+net/http.HandlerFunc.ServeHTTP(0xc000010040, {0x7f1c, 0xc000124000}, 0xc000188000)
+	/usr/local/go/src/net/http/server.go:2136 +0x29
+created by main.start in goroutine 1
+	/src/shop/main.go:20 +0x5a

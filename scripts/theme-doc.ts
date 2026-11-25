@@ -97,7 +97,7 @@ by a variant (below). This file is made from the stylesheets by \`bun scripts/th
 - **Map a host theme:** set the tokens on \`.dh-doc\` in the host's CSS, after \`styles.css\`:
   \`.dh-doc { --acc: var(--host-accent); --surface: var(--host-card); }\` and the same under the host's dark selector.
 - **Fonts:** the package loads no font. \`--font-sans\`, \`--font-mono\` and \`--font-display\` name the host's fonts (the default lists
-  fall back to the system fonts).
+  fall back to the system fonts). The composed stage measures its words with Poppins metrics: map \`--font-sans\` (or \`--stg-font\`) to Poppins, or a font of the same widths, else lines can run past their boxes. The package ships no font; its example self-hosts Poppins and IBM Plex Mono (SIL OFL 1.1).
 - The 3D stage and the charts read the tokens from their own element when they draw and again when \`data-theme\` changes on
   \`<html>\`; after changing tokens any other way, toggle \`data-theme\` or re-mount.
 
@@ -123,14 +123,14 @@ Not theme tokens: ${[...INTERNAL].filter((t) => used.has(t)).map((t) => `\`${t}\
 | \`.dh-doc[data-dh-motion="off"]\` | motion off: every transition, morph, typing effect and chart animation is still |
 | \`.dh-doc[data-theme="dark"]\` | this document in dark |
 | \`figure.part.part-<type>\`, \`[data-dh-part="<type>"]\` | the frame around each part (\`terminal\`, \`chart\`, \`animation\`, a host block's name ...) |
-| \`.term\`, \`.fx\`, \`.ide\`, \`.cw\`, \`.chart\`, \`.dg\`, \`.scn\`, \`.tl\`, \`.al\` | the terminal, file tree, editor, code walk, chart, diagram, animation stage, tier list, alignment grid |
+| \`.term\`, \`.fx\`, \`.ide\`, \`.cw\`, \`.chart\`, \`.scn\`, \`.tl\`, \`.al\` | the terminal, file tree, editor, code walk, chart, animation stage, tier list, alignment grid |
 | \`.tabs\`, \`.tab-bar\`, \`.tab-panel\`, \`.accordion\`, \`.acc-item\`, \`.human\` | the containers |
 | \`.ctl\`, \`.btn\`, \`.btn-go\`, \`.ctl-range\` | the step controls (Back, Play, the slider, Next) |
 | \`.callout.callout-<kind>\` | callouts (\`note\`, \`tip\`, \`important\`, \`warn\`, \`security\`); a note about the whole page is a callout under the title |
 | \`.dh-turn\` | a block with no height at the top of a part: where the hydration queue finds the part on the page |
 | \`.code-block\`, \`.ch-pre\`, \`.ch-focus\`, \`.ch-mark\`, \`.ch-add\`, \`.ch-del\` | code, and its focused, marked, added and removed lines |
 | \`.dh-error\` | a part parse() refused (over a cap, unsafe, unreadable) |
-| \`.dh-spinner\`, \`.dh-spin\` | the loading spinner (mermaid) |
+| \`.dh-spinner\`, \`.dh-spin\` | the loading spinner (the 3D stage) |
 | \`.dh-fallback\` | a part shown as text because no component was given for it |
 | \`.dh-raw\` | raw HTML from the source, shown as text |
 | \`.dh-keys kbd\`, \`.dh-mouse\` | keyboard keys and mouse actions in text |
@@ -150,7 +150,7 @@ A host style writes its own the same way: override the shape and motion tokens u
 \`\`\`
 
 For changes CSS cannot make, \`slots\` swap the chrome components: \`Frame\` (the box around each part), \`Callout\`,
-\`Error\` and \`Spinner\`; they also draw Markdown elements your own way (\`Code\`, \`InlineCode\`, \`Link\`, \`Table\`, \`Heading\`) and mermaid diagrams (\`Mermaid\`): see ADOPT.md.
+\`Error\` and \`Spinner\`; they also draw Markdown elements your own way (\`Code\`, \`InlineCode\`, \`Link\`, \`Table\`, \`Heading\`): see ADOPT.md.
 
 ## Motion
 

@@ -1,6 +1,10 @@
-# durian-hypermedia
+# durian-markdown
 
 **Markdown with rich parts, for two readers: a person sees the rich page; an LLM reads the same content without the wrappers.**
+
+<!-- rename:readme:begin -->
+Coming from `durian-hypermedia`? See [Moving from durian-hypermedia](ADOPT.md#moving-from-durian-hypermedia).
+<!-- rename:readme:end -->
 
 Plain Markdown is used wherever it already says the thing. A part with data is a code fence named for the part
 (```` ```terminal ````, ```` ```chart ````, ```` ```animation ````); a part that holds prose is a `:::` container
@@ -11,12 +15,12 @@ This package holds:
 | Piece | Import | What it does |
 | --- | --- | --- |
 | the format | [SPEC.md](SPEC.md) | every part, its syntax and its LLM view |
-| the parser | `durian-hypermedia` | `parse(text)` to a typed, safe tree; pure (no DOM, no files, no network) |
-| the LLM view | `durian-hypermedia` | `llmView(doc)`: what an LLM reads |
-| the checks | `durian-hypermedia` | `check(doc)`: the doccheck rules, as a list |
-| colours for code | `durian-hypermedia/server` | `highlight(doc)`, once, on the server |
-| the renderer | `durian-hypermedia/react` | React 18 or 19 components; one entry per part |
-| the styles | `durian-hypermedia/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
+| the parser | `durian-markdown` | `parse(text)` to a typed, safe tree; pure (no DOM, no files, no network) |
+| the LLM view | `durian-markdown` | `llmView(doc)`: what an LLM reads |
+| the checks | `durian-markdown` | `check(doc)`: the doccheck rules, as a list |
+| colours for code | `durian-markdown/server` | `highlight(doc)`, once, on the server |
+| the renderer | `durian-markdown/react` | React 18 or 19 components; one entry per part |
+| the styles | `durian-markdown/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
 | fixtures | `fixtures/` | one page per part and option, plus a hostile set |
 
 Licence: to be decided (see [Licence](#licence)).
@@ -24,16 +28,16 @@ Licence: to be decided (see [Licence](#licence)).
 ## Quick start
 
 ```sh
-bun add durian-hypermedia react react-dom
+bun add durian-markdown react react-dom
 ```
 
 On the server (Bun or Node):
 
 ```ts
-import { parse, llmView } from "durian-hypermedia";
-import { highlight } from "durian-hypermedia/server";
+import { parse, llmView } from "durian-markdown";
+import { highlight } from "durian-markdown/server";
 import { renderToString } from "react-dom/server";
-import { DhDocument } from "durian-hypermedia/react";
+import { DhDocument } from "durian-markdown/react";
 
 const doc = await highlight(parse(text));        // untrusted text is fine: see SECURITY.md
 const html = renderToString(<DhDocument doc={doc} />);
@@ -44,8 +48,8 @@ const forLlm = llmView(doc);
 In the browser:
 
 ```ts
-import "durian-hypermedia/styles.css";
-import { hydrateDocument, readDocument } from "durian-hypermedia/react/hydrate";
+import "durian-markdown/styles.css";
+import { hydrateDocument, readDocument } from "durian-markdown/react/hydrate";
 
 hydrateDocument(document.getElementById("dh-root")!, readDocument("dh-doc")!);
 ```
@@ -59,9 +63,9 @@ Or render in the browser only: `renderDocument(el, parse(text))` (code then show
 A smaller bundle: draw only the parts you use.
 
 ```tsx
-import { DocumentView } from "durian-hypermedia/react/document";
-import { TerminalPart } from "durian-hypermedia/react/terminal";
-import { ChartPart } from "durian-hypermedia/react/chart";
+import { DocumentView } from "durian-markdown/react/document";
+import { TerminalPart } from "durian-markdown/react/terminal";
+import { ChartPart } from "durian-markdown/react/chart";
 
 <DocumentView doc={doc} components={{ terminal: TerminalPart, chart: ChartPart }} />
 // a part with no component shows its LLM text, so nothing is lost
@@ -86,6 +90,7 @@ story order (also `animationTexts(block)`; SPEC.md section 6.11), for tools that
 | `frontMatter` | `true` | `false`: a leading `---` block is Markdown (a rule and text the reader sees), not front matter |
 | `marks` | none | own file tree marks for every page, as the front matter `marks:` writes them (ADOPT.md); a page's own entry wins |
 | `prefixes` | none | own terminal prompts for every page, as the front matter `prefixes:` writes them |
+| `resolveReference({ type, name })` | none | answers for the page's references, `[[chart:sales "Sales"]]` (format version 11): `{ state: "pending" }`, `{ state: "ready", part }` (the part's source, read with the same caps as an inline part) or `{ state: "failed", reason }`; it never fetches. Without it a reference shows its label as a chip (SPEC.md section 8a, ADOPT.md) |
 
 **Time and memory grow linearly with the input**, for plain Markdown and for every part: twice the text takes about
 twice as long, whatever it holds. A typical 10 KB reply parses in about 2 ms and a 100 KB one in about 20 ms on a server
@@ -104,19 +109,40 @@ budget (SECURITY.md).
 | `Link` | `{ href, title, external, children }` | every link the URL policy let through; nothing sets `target` when you draw it |
 | `Table` | `{ align, head, rows, headText }` | tables; cells arrive as React children, never HTML |
 | `Heading` | `{ depth, level, id, text, children }` | headings; `demoteHeadings={2}` turns `#` into `<h3>` with or without the slot |
-| `Mermaid` | `{ src, title, step, active }` | each step of a mermaid diagram, drawn your way (mermaid is then never loaded) |
 
 ```tsx
 <DhDocument doc={doc} demoteHeadings={2}
-  slots={{ Code: MyCode, InlineCode: MyInlineCode, Link: MyLink, Table: MyTable, Mermaid: MyDiagram }} />
+  slots={{ Code: MyCode, InlineCode: MyInlineCode, Link: MyLink, Table: MyTable }} />
 ```
 
 ## Trusted Types
 
-`durian-hypermedia/react/strict` is every part for a page under `require-trusted-types-for 'script'`: it imports
-neither mermaid nor DOMPurify (diagrams go to your `Mermaid` slot, or show their source), and no module it reaches sets
-an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
+`durian-markdown/react/strict` is every part for a page under `require-trusted-types-for 'script'`: no module it
+reaches sets an HTML string. `test/trusted-types.test.ts` checks the import graph; `bun run tt` renders every fixture under the
 policy in headless Chrome (0 violations).
+
+## Maps and calendars
+
+The `map` fence draws places, written routes, areas, country/state values, flows and an optional globe. Without a
+provider it uses its own drawing and makes no network request. The `calendar` fence expands bounded repeats under
+the page budget and offers day, week, month and list views; narrow parts start with three days. Both have a static form.
+
+Host code can opt in to a base map (install the chosen optional peer dependency and its CSS):
+
+```tsx
+import { mapProvider } from "durian-markdown/react/map-providers";
+import "leaflet/dist/leaflet.css";
+const map = mapProvider({ provider: "leaflet", tiles: "https://tiles.example.org/{z}/{x}/{y}.png", attribution: "Map data credit" });
+<DhDocument doc={doc} map={map} now={Date.now()} />
+```
+
+Keep the adapter stable across renders. MapLibre uses its own CSS and a host-served worker; Google needs the host's key.
+No source text can pick a provider, router or key. Leaflet, MapLibre and Google are outside the default/strict import
+graphs and have their own CSP requirements. A host may supply its own `MapHost` capabilities instead. Road routing
+uses only the host's OSRM endpoint or Google service; a missing/failed router leaves an explicitly dashed straight line.
+Static maps call neither providers nor routers, and a static globe becomes a flat map. Static calendars keep every event
+in a complete dated list. Boundary data is Natural Earth 1:50m (public domain), simplified to about 5 km; it describes
+de facto boundaries, omits Antarctica and three disputed areas without ISO codes, and makes no claim about sovereignty.
 
 ## Theming
 

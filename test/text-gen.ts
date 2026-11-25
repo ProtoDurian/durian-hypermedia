@@ -55,7 +55,6 @@ export const part: Record<string, (bytes: number) => string> = {
   editor: (b) => `${F}editor\n@file src/big.ts (open)\n` + rows(b, 36, (i) => `export const value${i} = ${i} * 2;\n`) + `@step Change the first line\n@@ src/big.ts\n-export const value0 = 0 * 2;\n+export const value0 = 1;\n${F}\n`,
   codewalk: (b) => `${F}codewalk\n@file src/walk.ts\n` + rows(b, 36, (i) => `export const value${i} = ${i} * 2;\n`) + `@step src/walk.ts focus=1\nThe first line.\n@step src/walk.ts focus=2\nThe second line.\n${F}\n`,
   chart: (b) => { const n = Math.max(2, Math.floor(b / 12)); return `${F}chart\nkind: line\ntitle: Runs\nx: { label: run, values: [${Array.from({ length: n }, (_, i) => i).join(", ")}] }\nseries:\n  - name: time\n    data: [${Array.from({ length: n }, (_, i) => (i * 7) % 101).join(", ")}]\n${F}\n`; },
-  mermaid: (b) => `${F}mermaid\nflowchart LR\n` + rows(b, 30, (i) => `  n${i}["step ${i}"] --> n${i + 1}\n`) + `${F}\n`,
   tierList: (b) => `${F}tierlist title="Tools"\n` + rows(b, 60, (i) => `${"SABCD"[i % 5]}: tool ${i} (fast), other ${i}, third ${i}\n`) + `${F}\n`,
   alignment: (b) => `${F}alignment title="Kinds"\nx: lawful .. neutral .. chaotic\ny: good .. neutral .. evil\n` + rows(b, 48, (i) => `${["lawful", "neutral", "chaotic"][i % 3]} / ${["good", "neutral", "evil"][(i >> 1) % 3]}: Hero ${i} (note)\n`) + `${F}\n`,
   animationSteps: (b) => `${F}animation\nbox api "API"\nqueue q "jobs"\napi -> q\n` + rows(b, 40, (i) => `@step Step ${i} sends a note.\nsay api: note ${i}\n`) + `${F}\n`,

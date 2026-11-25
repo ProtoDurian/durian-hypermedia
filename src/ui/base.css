@@ -1,4 +1,4 @@
-/* Durian Hypermedia renderer. Reads only the theme tokens (theme.css) plus the animation tones below. */
+/* DurianMarkdown renderer. Reads only the theme tokens (theme.css) plus the animation tones below. */
 
 /* ---- animation tones: one colour per role, the same on every page ---- */
 :root {
@@ -125,7 +125,11 @@ tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
 /* format version 10: code in a table cell keeps its words whole (the global "anywhere" let a column shrink until
    "(changed)" broke after "chang"); a table wider than a phone scrolls inside its box and says so */
 td code, th code { overflow-wrap: break-word; }
-.table-more { margin: -12px 0 20px; font: 500 12px var(--font-sans); color: var(--muted); }
+.table-more { position: absolute; margin: 0; white-space: nowrap; font: 500 12px/18px var(--font-sans); color: var(--muted); } /* out of the flow: src/react/table-more.ts places it under its table (no load shift) */
+/* a table wider than its box: the side with more of it fades out, and follows the scroll (0.7.0-rc.3) */
+.table-wrap[data-more="r"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
+.table-wrap[data-more="l"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
+.table-wrap[data-more="lr"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
 
 /* callouts */
 .callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-m); margin: 0 0 20px; border: 1px solid var(--line); background: var(--surface); }
@@ -210,13 +214,6 @@ figure.part { margin-inline: 0; }
 .st-panel.is-fresh .t-new { animation: type .55s steps(28, end) both; animation-delay: calc(var(--i) * .35s); }
 @keyframes type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 
-/* diagram */
-.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; overflow-x: auto; }
-.diagram .mermaid-svg svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
-.diagram.is-drawn .mermaid-src { display: none; }
-.mermaid-src { margin: 0; font: 12px var(--font-mono); white-space: pre-wrap; color: var(--muted); }
-.mermaid-src code { background: none; border: 0; }
-
 /* chart */
 .chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; }
 .chart-title { font-weight: 600; color: var(--ink); margin-bottom: 8px; font-size: var(--fs-s); }
@@ -262,6 +259,15 @@ figure.part { margin-inline: 0; }
 .tab-bar [aria-selected="true"] { color: var(--acc-ink); border-bottom-color: var(--acc); }
 .tab-panel > .part:first-child { margin-top: 0; }
 .acc-item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-m); margin-bottom: 8px; }
+/* print (SPEC 4.1): a sheet cannot be clicked: every tab panel prints, each under its own title, and no tab bar; every
+   accordion row prints open (here by ::details-content; containers.tsx opens the rows on beforeprint where that is missing) */
+@media print {
+  .tab-bar { display: none; }
+  .tab-panel[hidden] { display: block !important; }
+  .tab-panel::before { content: attr(data-title); display: block; margin: 0 0 8px; font: 600 var(--fs-m) var(--font-sans); color: var(--ink); }
+  .tab-panel + .tab-panel { margin-top: 18px; }
+  .acc-item::details-content { content-visibility: visible; }
+}
 .acc-item summary { cursor: pointer; padding: 12px 16px; font-weight: 500; color: var(--ink); }
 .acc-body { padding: 0 16px 6px; }
 
@@ -323,3 +329,5 @@ a.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); color:
 @media (max-width: 640px) {
   .site-nav a { padding: 6px 8px; }
 }
+/* print: a page does not scroll, so no faded side and no swipe line (0.7.0-rc.3) */
+@media print { .table-wrap[data-more] { -webkit-mask-image: none; mask-image: none; } .table-more { display: none; } }

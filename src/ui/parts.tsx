@@ -5,6 +5,8 @@ import { Pre, type HighlightedCode } from "codehike/code";
 import { HANDLERS_BASE, annotate, lineNumbers, mark, focus, type Ann } from "./ch";
 import { STILL_BASE, stillRows, rowsCode, stillAnns, stillLines, walkRuns, type Packed } from "./codewalk";
 import type { Ui } from "./ui";
+import { useStatic, type StaticProp } from "../parts/kit/static"; // static (SPEC 4.1)
+
 
 // still when the reader asks for less motion, or when a host style turns motion off (data-dh-motion="off" on any element)
 export const reducedMotion = () => typeof window !== "undefined" && (!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || !!document.querySelector('[data-dh-motion="off"]'));
@@ -47,8 +49,9 @@ export function WalkNote({ k, active, note }: WalkNoteProps) {
 // Two modes (format version 7). Animated: only for the same code changing, the morph of Code Hike. Still: the whole file, the
 // step's lines open and marked, the rest folded; a move switches marks and folds at once. Steps joined by animated moves form
 // a run; a run of one step is still.
-export function CodeWalk({ steps, files, ui, rows, Note = WalkNote }: { steps: WalkStep[]; files?: Record<string, Packed>; ui: Ui; rows: number; Note?: React.ComponentType<WalkNoteProps> }) {
-  const [i, setI] = useState(0);
+export function CodeWalk({ steps, files, ui, rows, Note = WalkNote, static: stp }: { steps: WalkStep[]; files?: Record<string, Packed>; ui: Ui; rows: number; Note?: React.ComponentType<WalkNoteProps>; static?: StaticProp }) {
+  const [iLive, setI] = useState(0);
+  const sx = useStatic(stp, steps.length), i = sx.on ? sx.i : iLive;   // static: one step whole, its note and every note stay listed
   const [opened, setOpened] = useState<{ i: number; keys: string[] }>({ i: 0, keys: [] });
   const go = (k: number) => setI(Math.max(0, Math.min(steps.length - 1, k)));
   const s = steps[i];
@@ -70,7 +73,7 @@ export function CodeWalk({ steps, files, ui, rows, Note = WalkNote }: { steps: W
   const open = (k: string) => setOpened({ i, keys: [...keys, k] });
   const foldLabel = (n: number) => ui.foldLines.replace("{n}", String(n));
   return (
-    <div className="cw" tabIndex={0} onKeyDown={(e) => onArrows(e, (d) => go(i + d))} aria-roledescription="code walk">
+    <div className="cw" data-dh-static={sx.on || undefined} tabIndex={0} onKeyDown={(e) => onArrows(e, (d) => go(i + d))} aria-roledescription="code walk">
       <div className="cw-file">
         <span className="cw-path">{s.repo ? <span className="cw-repo">{s.repo}/</span> : null}{s.file}</span>
         <span className="cw-meta">{s.lines ? `${ui.lines} ${s.lines[0]}–${s.lines[1]}` : ""}{s.commit ? ` · ${ui.pinned} ${s.commit.slice(0, 7)}` : ""}</span>
@@ -84,7 +87,7 @@ export function CodeWalk({ steps, files, ui, rows, Note = WalkNote }: { steps: W
       <div className="cw-notes">
         {steps.map((st, k) => <Note key={k} k={k} active={k === i} note={st.note} />)}
       </div>
-      <Controls ui={ui} i={i} n={steps.length} onGo={go} label={ui.step} />
+      {!sx.on && <Controls ui={ui} i={i} n={steps.length} onGo={go} label={ui.step} />}
     </div>
   );
 }
@@ -118,10 +121,12 @@ export function FileIcon({ name, folder, open }: { name: string; folder?: boolea
   if (folder) return <span className={cx("fi fi-dir", open && "is-open")} aria-hidden="true" />;
   return <span className="fi fi-file" data-ext={extOf(name)} aria-hidden="true">{extOf(name).slice(0, 2) || "·"}</span>;
 }
-export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdStep[]; ui: Ui; rows: number }) {
+export function Editor({ files, steps, ui, rows, static: stp }: { files: EdFile[]; steps: EdStep[]; ui: Ui; rows: number; static?: StaticProp }) {
   const first = Math.max(0, files.findIndex((f) => f.open));
   const [cur, setCur] = useState(first);   // the file in the pane
-  const [k, setK] = useState(0);           // 0: the files as they are; k: after edit k
+  const [kLive, setK] = useState(0);       // 0: the files as they are; k: after edit k
+  // static: after the last edit, or after edit n (static=n counts the edits, the @step lines, from 1)
+  const sx = useStatic(stp, steps.length + 1), k = sx.on ? (typeof stp === "string" && /^\d+$/.test(stp) ? Math.min(steps.length, +stp) : steps.length) : kLive;
   const [before, setBefore] = useState(false);
   const [closed, setClosed] = useState<Record<string, boolean>>({});
   const tree = useMemo(() => buildTree(files.map((f) => f.path)), []);
@@ -168,7 +173,7 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
   });
   const step = k > 0 ? steps[k - 1] : null;
   return (
-    <div className="ide" onKeyDown={(e) => steps.length > 0 && onArrows(e, (d) => goStep(k + d))}>
+    <div className="ide" data-dh-static={sx.on || undefined} onKeyDown={(e) => steps.length > 0 && onArrows(e, (d) => goStep(k + d))}>
       <div className="ide-body" style={{ ["--rows" as any]: rows }}>
         <nav className={cx("ide-side", !drawer && "is-shut")} id="ide-tree" aria-label={ui.files}>
           <div className="ide-side-head">{ui.explorer}</div>
@@ -190,7 +195,7 @@ export function Editor({ files, steps, ui, rows }: { files: EdFile[]; steps: EdS
               </span>
             )}
           </div>
-          <Controls ui={ui} i={k} n={steps.length + 1} onGo={goStep} />
+          {!sx.on && <Controls ui={ui} i={k} n={steps.length + 1} onGo={goStep} />}
         </div>
       )}
     </div>
@@ -202,8 +207,9 @@ export type TreeRow = { depth: number; name: string; folder: boolean; badges: st
 export type Tree = { title: string | null; rows: TreeRow[] };
 // a mark is shown as its own word (the source writes "(new)", the page shows "new"): no letters to learn
 export type OwnMark = { label: string; colour: string; means: string };
-export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: Record<string, OwnMark> }) {
-  const [k, setK] = useState(0);
+export function FileTree({ trees, ui, marks, static: stp }: { trees: Tree[]; ui: Ui; marks?: Record<string, OwnMark>; static?: StaticProp }) {
+  const [kLive, setK] = useState(0);
+  const sx = useStatic(stp, trees.length), k = sx.on ? sx.i : kLive;
   const [closed, setClosed] = useState<Record<string, boolean>>(() => Object.fromEntries(trees.flatMap((t) => t.rows.filter((r) => r.folder && r.closed).map((r) => [r.path, true]))));
   const t = trees[k];
   const prev = k > 0 ? new Set(trees[k - 1].rows.map((r) => r.path)) : null;
@@ -221,7 +227,7 @@ export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: 
   const shownMarks = new Set(t.rows.flatMap((r) => r.badges));
   const keyed = Object.entries(marks ?? {}).filter(([k, m]) => m.means && shownMarks.has(k));
   return (
-    <div className="fx" onKeyDown={(e) => trees.length > 1 && onArrows(e, (d) => setK((x) => Math.max(0, Math.min(trees.length - 1, x + d))))}>
+    <div className="fx" data-dh-static={sx.on || undefined} onKeyDown={(e) => trees.length > 1 && onArrows(e, (d) => setK((x) => Math.max(0, Math.min(trees.length - 1, x + d))))}>
       <div className="fx-head"><span className="fx-title">{ui.explorer}</span>{t.title && <span className="fx-step">{t.title}</span>}</div>
       <ul className="fx-list" role="tree" style={{ ["--rows" as any]: trees.length > 1 ? maxRows : t.rows.length }}>
         {visible.map((r) => {
@@ -248,7 +254,7 @@ export function FileTree({ trees, ui, marks }: { trees: Tree[]; ui: Ui; marks?: 
         })}
       </ul>
       {keyed.length > 0 && <ul className="fx-key" aria-label={ui.marksKey ?? "Marks"}>{keyed.map(([k, m]) => <li key={k}>{chip(k)} <span>{m.means}</span></li>)}</ul>}
-      {trees.length > 1 && <Controls ui={ui} i={k} n={trees.length} onGo={(x) => setK(Math.max(0, Math.min(trees.length - 1, x)))} />}
+      {trees.length > 1 && !sx.on && <Controls ui={ui} i={k} n={trees.length} onGo={(x) => setK(Math.max(0, Math.min(trees.length - 1, x)))} />}
     </div>
   );
 }
@@ -265,9 +271,11 @@ function typedToks(l: TermLine, n: number): React.ReactNode[] {
   toks.forEach(([s, c], i) => { if (left <= 0) return; const part = s.slice(0, left); left -= s.length; out.push(c ? <span key={i} style={{ color: c }}>{part}</span> : part); });
   return out;
 }
-export function Terminal({ steps, ui, title, prefixes }: { steps: { title: string; lines: TermLine[] }[]; ui: Ui; title: string | null; prefixes?: Record<string, OwnMark> }) {
-  const [k, setK] = useState(0);
-  const [typed, setTyped] = useState<number>(Infinity); // characters of the current step shown so far; Infinity = all
+export function Terminal({ steps, ui, title, prefixes, static: stp }: { steps: { title: string; lines: TermLine[] }[]; ui: Ui; title: string | null; prefixes?: Record<string, OwnMark>; static?: StaticProp }) {
+  const [kLive, setK] = useState(0);
+  const [typedLive, setTyped] = useState<number>(Infinity); // characters of the current step shown so far; Infinity = all
+  // static: every step up to the chosen one typed whole, no typing, no cursor blink, no controls
+  const sx = useStatic(stp, steps.length), k = sx.on ? sx.i : kLive, typed = sx.on ? Infinity : typedLive;
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
   const instant = useRef(false); // Play was just pressed: the next character is typed now, not after the pause
@@ -326,34 +334,13 @@ export function Terminal({ steps, ui, title, prefixes }: { steps: { title: strin
   if (!cursorShown) out.push(<div key="idle" className="t-line"><span className="t-pr">{lastPrompt}</span><span className="t-cur" aria-hidden="true" /></div>);
   const rows = Math.min(16, steps.reduce((a, s) => a + s.lines.length + (s.title ? 1 : 0), 0) + 1);
   return (
-    <div className="term" ref={box}>
+    <div className="term" ref={box} data-dh-static={sx.on || undefined}>
       <div className="term-chrome"><span className="win-dots" aria-hidden="true"><i /><i /><i /></span><span className="term-title">{title ?? ui.terminal}</span></div>
       <div className="term-body" ref={body} style={{ ["--rows" as any]: rows }} role="log" aria-label={ui.terminal}>{out}</div>
       {prefixes && Object.keys(prefixes).length > 0 && <ul className="t-key" aria-label={ui.marksKey ?? "Prompts"}>{Object.entries(prefixes).map(([k, m]) => <li key={k}><span className={`t-pr t-own tone-${m.colour}`}>{k}</span> <b>{m.label}</b>{m.means ? <span> {m.means}</span> : null}</li>)}</ul>}
-      {steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} onPlay={() => { if (!playing) { instant.current = true; const done = typed === Infinity || typed >= total(k); if (k === steps.length - 1 && done) go(0); else if (done) { setK(k + 1); setTyped(0); setStarted(true); } else setStarted(true); } setPlaying(!playing); }} />
+      {sx.on ? null : steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} onPlay={() => { if (!playing) { instant.current = true; const done = typed === Infinity || typed >= total(k); if (k === steps.length - 1 && done) go(0); else if (done) { setK(k + 1); setTyped(0); setStarted(true); } else setStarted(true); } setPlaying(!playing); }} />
         : <div className="ctl ctl-one"><button type="button" className="btn" onClick={() => go(0)}>{ui.replay}</button></div>}
     </div>
   );
 }
 
-// ---------------------------------------------------------------- diagram: a mermaid block; with steps it builds up one step at a time
-// Every step is drawn at once into one grid cell, so the stage is as tall as the biggest step and never jumps.
-// Draw: a host's own renderer for each step (it gets the mermaid source); without it the page's script draws [data-mermaid] boxes.
-export type DiagramDrawProps = { src: string; title: string; step: number; active: boolean };
-export function Diagram({ steps, ui, Draw }: { steps: { title: string; src: string }[]; ui: Ui; Draw?: React.ComponentType<DiagramDrawProps> }) {
-  const [i, setI] = useState(0);
-  const go = (k: number) => setI(Math.max(0, Math.min(steps.length - 1, k)));
-  return (
-    <div className="dg" tabIndex={steps.length > 1 ? 0 : undefined} onKeyDown={(e) => steps.length > 1 && onArrows(e, (d) => go(i + d))}>
-      <div className="dg-stack">
-        {steps.map((s, k) => Draw
-          ? <div key={k} className={cx("diagram", "is-drawn", k === i && "is-active")} data-dh-host-diagram aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre><div className="mermaid-svg"><Draw src={s.src} title={s.title} step={k} active={k === i} /></div></div>
-          : <div key={k} className={cx("diagram", k === i && "is-active")} data-mermaid aria-hidden={k !== i}><pre className="mermaid-src"><code>{s.src}</code></pre></div>)}
-      </div>
-      {steps.length > 1 && <>
-        <div className="anim-cap" aria-live="polite"><span className="cw-num">{i + 1}</span><span>{steps[i].title}</span></div>
-        <Controls ui={ui} i={i} n={steps.length} onGo={go} />
-      </>}
-    </div>
-  );
-}

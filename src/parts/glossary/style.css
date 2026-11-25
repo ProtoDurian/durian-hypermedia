@@ -1,0 +1,31 @@
+/* The glossary: the list a block draws, and the term marks in the text with their card. Tokens only. */
+:root { --glossary-underline: var(--acc); --glossary-ink: inherit; --glossary-hover-bg: var(--acc-softer); --glossary-item-bg: var(--surface-2); --glossary-card-w: 320px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --glossary-underline: var(--acc); --glossary-ink: inherit; --glossary-hover-bg: var(--acc-softer); --glossary-item-bg: var(--surface-2); --glossary-card-w: 320px; }
+}
+:root[data-theme="dark"] { --glossary-underline: var(--acc); --glossary-ink: inherit; --glossary-hover-bg: var(--acc-softer); --glossary-item-bg: var(--surface-2); --glossary-card-w: 320px; }
+
+/* the list */
+.glossary-title { font: 600 var(--fs-m) var(--font-display); margin: 0 0 var(--s-3); display: flex; align-items: center; gap: 10px; }
+.glossary-count { font: 500 var(--fs-xs) var(--font-sans); color: var(--muted); background: var(--surface-3); border-radius: var(--r-pill); padding: 1px 9px; }
+.glossary-list { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--s-3); }
+.glossary-item { background: var(--glossary-item-bg); border: 1px solid var(--line); border-radius: var(--r-m); padding: 12px 14px; scroll-margin-top: 80px; }
+.glossary-item:target { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+.glossary-item dt { font: 600 var(--fs-s) var(--font-display); color: var(--ink); }
+.glossary-also { font-weight: 400; color: var(--muted); font-size: var(--fs-xs); }
+.glossary-item dd { margin: 4px 0 0; color: var(--ink-2); font-size: var(--fs-s); line-height: 1.5; }
+.glossary-item dd a, .glossary-def a { color: var(--acc-ink); }
+.glossary-empty { color: var(--muted); font-size: var(--fs-s); margin: 0; }
+
+/* a term in the text: as tall as its line; its hit area is at least 24 px (40 px for a finger) */
+.glossary-term { all: unset; position: relative; cursor: help; box-sizing: border-box; color: var(--glossary-ink); border-bottom: 1.5px dotted var(--glossary-underline); padding: 0 1px; border-radius: 3px; display: inline; }
+.glossary-term:hover, .glossary-term[aria-expanded="true"] { background: var(--glossary-hover-bg); }
+.glossary-term:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 2px); }
+.glossary-term::after { content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: max(24px, 100%); transform: translateY(-50%); }
+@media (pointer: coarse) { .glossary-term::after { height: max(40px, 100%); } }
+
+/* the card (the kit's popover look): it is drawn at the reader's screen, a sheet at the bottom of a phone */
+.glossary-card { box-sizing: border-box; }
+.glossary-card:not(.dh-pop-sheet) { width: min(var(--glossary-card-w), calc(100vw - 16px)); }
+.glossary-card .glossary-def { margin: 6px 0 0; }
+.glossary-card .dh-pop-act { min-height: 32px; }

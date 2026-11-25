@@ -15,7 +15,7 @@ describe("render", () => {
       expect(a).toContain('class="dh-doc"');
       const h = html(await highlight(d));
       expect(h).toContain('class="dh-doc"');
-    });
+    }, 15_000); // it checks the render, not speed: a page of stages draws ten screen plans each (about 5 s on a loaded machine)
   }
 });
 
@@ -24,7 +24,7 @@ describe("every block kind is covered by a fixture", () => {
     const seen = new Set<string>();
     const walk = (bs: any[]) => bs.forEach((b) => { seen.add(b.type === "host" ? "host" : b.type); if (b.type === "tabs" || b.type === "accordion") b.items.forEach((it: any) => walk(it.body)); if (b.body && Array.isArray(b.body)) walk(b.body); });
     for (const f of allFixtures()) walk(parse(f.text, { blocks: [taskBlock] }).blocks);
-    for (const k of ["markdown", "toc", "terminal", "filetree", "editor", "codewalk", "chart", "mermaid", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "error", "host"]) expect(seen.has(k)).toBe(true);
+    for (const k of ["markdown", "toc", "terminal", "filetree", "editor", "codewalk", "chart", "animation", "tierlist", "alignment", "tabs", "accordion", "human", "error", "host"]) expect(seen.has(k)).toBe(true);
   });
   test("chart kinds", () => {
     const kinds = new Set<string>();

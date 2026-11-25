@@ -4,33 +4,40 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
-## 0.7.0-rc.3
+## 0.7.0-rc.4
 
-The third release candidate of 0.7.0. The format number stays 10.
+The fourth release candidate of 0.7.0. The format number stays 10.
 
-### Fixed: the trace waterfall fits its box, no sideways scroll (SPEC.md, trace)
+### Fixed: the story camera on a phone (SPEC.md 6.14)
 
-- The waterfall was drawn for a width guessed from the stage and, on a phone, never narrower than 570 px, so inside a narrow box it was a sideways scroller and the bars started off to the right until swiped. It is now as wide as its measured box at every width; on a phone the name sits on a line above each bar and the bars use the whole width.
-- New `bun scripts/fit-check.ts --part <name> [--widths 1280,390,360] [--column N] [<page>]`: draws a part's page in a browser and fails when anything inside the part scrolls sideways or a drawing is wider than the part.
+- **A row of containers stacks on a phone** (SPEC.md 6.14; the rc.3 review: pods, nodes and a service at 390, node 3
+  cut at every step): the narrow layout turned the scene's own row into a column but kept every row inside it, so a
+  cluster's three nodes side by side were wider than a phone at the least word size. A row whose children are all
+  containers (not linked to each other, and not a stage the story runs into and on out of) now stacks into a column
+  there, and so do those containers' own rows of things; what links into the
+  column from outside (the service) stands beside it, so its lines reach each node from the side and none runs down
+  through the nodes above. A 3D scene keeps its rows. On a phone only the two fixtures with that cluster change; on a
+  laptop nothing changes at 1280, and between 448 and 640 px layout widths the same two take the stacked layout where
+  the wide one was cut.
 
-### Fixed: sankey colours and sample words (SPEC.md, sankey)
+- **A container's heading rides with the view** (SPEC.md 6.14; the rc.3 review: on a phone a close view inside the
+  hash table, eight colours' region, the orders service cut their headings at the top): the heading is drawn just
+  inside the view's edge, inside its container, off every word and thing. In a browser, the fixtures with steps on a
+  390 px phone: steps whose view cuts a thing, a heading or a container that would fit 25 to 21, steps with a cut
+  heading 15 to 6 (360 px: 23 to 19, 17 to 11); the hash table and eight colours have none. Left: the cluster of
+  three nodes (a row of containers stacks on a phone), and in the array, map and tree two whole-view steps at 390 px
+  (the price index at the right edge); its close-ups crop only their neighbours, by design.
 
-- A node with no colour word now skips the family colours that other nodes of the same sankey were given by word: on the parts page `auth` and `Redis` both drew in `c2` (and `handler` and `Postgres` in `c3`). Nothing changes when no node is given a colour word.
-- The sample's first step said "the big three" over four targets; it now reads "The money in and where it goes". A test checks that a step caption that counts (two to six) counts the targets its flows add.
+- **The camera leaves a box out whole rather than cut it** (SPEC.md 6.14; the rc.3 review: the array, map and tree at
+  390 px, its whole view cut the price index at the right edge): where a container sits just inside the stage's edge
+  with its far side past it, and the scene's margin held the view back from leaving it out, the view may now slide up
+  to 12 px past that margin, only when that cuts fewer. On a phone a few views move by a few pixels (and two phone
+  stages are a little shorter, where that slide now does what a taller stage did); at 1280 no view changes.
 
-### Fixed: trace length words stay clear of event diamonds and inside the plot (SPEC.md, trace)
+### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
 
-- On the parts page the event diamond of `UPDATE stock` sat on top of its `109 ms`, and `20 ms` after the last bar ran past the plot's edge and was cut. A span's length word now takes the first of four places (inside left, inside right, after the bar, before the bar) that is inside the plot and clear of every diamond of its row.
-- `bun scripts/label-check.ts` now counts a trace's event diamonds as things a word must not cover.
-
-### Fixed: calendar week titles stay whole
-
-- Short and overlapping appointments wrap their complete titles at readable sizes; all-day titles wrap too. Label height participates in overlap placement. An appointment crossing the opening hour, including one converted from another time zone, opens whole instead of as a clipped sliver.
-
-### Fixed: chart labels never overlap, at any width (SPEC.md, chart-kinds)
-
-- A waterfall at 390 px drew the values over its bars on top of each other (`−€9.1K` over `−€2.3K`, `€85.1K` over `+€4.8K`), and tilted names under the bars could touch. The words are now measured: names stay level when they all fit, else upright and thinned; a value over a bar is drawn only where it has room (totals first); a histogram keeps only the number ticks that clear each other. Every name and value stays in the card and the LLM view.
-- New `bun scripts/label-check.ts [--widths 390,360] <page>...`: draws pages in a browser and fails when any two words of a chart (svg text, calendar months, Chart.js canvas text) overlap.
+- A worded `[bad]` cell draws its corner cross only beside its words (30 px or more of room) or in a cell without
+  words; on a phone's narrow cell it is its thick border alone, as on the wide stage.
 
 ### Fixed: a line between side-by-side cards never runs through the card between them (SPEC.md)
 
@@ -45,10 +52,33 @@ The third release candidate of 0.7.0. The format number stays 10.
   and the font's own widths). A card line whose drawn width would reach its border breaks again; other lines, sizes
   and layout choices keep their place. Hosts must map the stage font to Poppins.
 
-### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
+### Fixed: sankey colours and sample words (SPEC.md, sankey)
 
-- A worded `[bad]` cell draws its corner cross only beside its words (30 px or more of room) or in a cell without
-  words; on a phone's narrow cell it is its thick border alone, as on the wide stage.
+- A node with no colour word now skips the family colours that other nodes of the same sankey were given by word: on the parts page `auth` and `Redis` both drew in `c2` (and `handler` and `Postgres` in `c3`). Nothing changes when no node is given a colour word.
+- The sample's first step said "the big three" over four targets; it now reads "The money in and where it goes". A test checks that a step caption that counts (two to six) counts the targets its flows add.
+
+### Fixed: trace length words stay clear of event diamonds and inside the plot (SPEC.md, trace)
+
+- On the parts page the event diamond of `UPDATE stock` sat on top of its `109 ms`, and `20 ms` after the last bar ran past the plot's edge and was cut. A span's length word now takes the first of four places (inside left, inside right, after the bar, before the bar) that is inside the plot and clear of every diamond of its row.
+- `bun scripts/label-check.ts` now counts a trace's event diamonds as things a word must not cover.
+
+### Fixed: the trace waterfall fits its box, no sideways scroll (SPEC.md, trace)
+
+- The waterfall was drawn for a width guessed from the stage and, on a phone, never narrower than 570 px, so inside a narrow box it was a sideways scroller and the bars started off to the right until swiped. It is now as wide as its measured box at every width; on a phone the name sits on a line above each bar and the bars use the whole width.
+- New `bun scripts/fit-check.ts --part <name> [--widths 1280,390,360] [--column N] [<page>]`: draws a part's page in a browser and fails when anything inside the part scrolls sideways or a drawing is wider than the part.
+
+### Fixed: calendar week titles stay whole
+
+- Short and overlapping appointments wrap their complete titles at readable sizes; all-day titles wrap too. Label height participates in overlap placement. An appointment crossing the opening hour, including one converted from another time zone, opens whole instead of as a clipped sliver.
+
+## 0.7.0-rc.3
+
+The third release candidate of 0.7.0. The format number stays 10.
+
+### Fixed: chart labels never overlap, at any width (SPEC.md, chart-kinds)
+
+- A waterfall at 390 px drew the values over its bars on top of each other (`−€9.1K` over `−€2.3K`, `€85.1K` over `+€4.8K`), and tilted names under the bars could touch. The words are now measured: names stay level when they all fit, else upright and thinned; a value over a bar is drawn only where it has room (totals first); a histogram keeps only the number ticks that clear each other. Every name and value stays in the card and the LLM view.
+- New `bun scripts/label-check.ts [--widths 390,360] <page>...`: draws pages in a browser and fails when any two words of a chart (svg text, calendar months, Chart.js canvas text) overlap.
 
 ### Added: layer 1 as a signal; no cut words in stage cards (SPEC.md)
 
@@ -200,15 +230,6 @@ The third release candidate of 0.7.0. The format number stays 10.
   middle, else the edge's left end, else its right end, off every word the drawing has (its names, the numbers of
   cells and buckets, arrow labels, chips and speech); where each spot would cover one, only the shaded edge and its
   arrow say so. Over the fixtures with steps it lay on a word on 4 steps at 390 and 4 at 360; now on none.
-- **A row of containers stacks on a phone** (SPEC.md 6.14; the rc.3 review: pods, nodes and a service at 390, node 3
-  cut at every step): the narrow layout turned the scene's own row into a column but kept every row inside it, so a
-  cluster's three nodes side by side were wider than a phone at the least word size. A row whose children are all
-  containers (not linked to each other, and not a stage the story runs into and on out of) now stacks into a column
-  there, and so do those containers' own rows of things; what links into the
-  column from outside (the service) stands beside it, so its lines reach each node from the side and none runs down
-  through the nodes above. A 3D scene keeps its rows. On a phone only the two fixtures with that cluster change; on a
-  laptop nothing changes at 1280, and between 448 and 640 px layout widths the same two take the stacked layout where
-  the wide one was cut.
 - **The story camera cuts less of what it shows** (SPEC.md 6.14; the rc.3 review: the service mesh at 390, from step 7
   node 1's heading cut at the top). One held view for several steps now gives way where it would cut a thing or a
   container's heading that a step's own view shows whole; a phone stage grows a little where that lets every step show
@@ -217,24 +238,12 @@ The third release candidate of 0.7.0. The format number stays 10.
   24 (360 px: cut headings 48 to 26; laptop none before or after); the service mesh has none. Left: a row of three
   nodes wider than a phone at the least word size (two fixtures, 10 steps), and 14 steps of three others (the
   hash table, eight colours, the array, map and tree) whose view cuts a heading or a container larger than it.
-- **A container's heading rides with the view** (SPEC.md 6.14; the rc.3 review: on a phone a close view inside the
-  hash table, eight colours' region, the orders service cut their headings at the top): the heading is drawn just
-  inside the view's edge, inside its container, off every word and thing. In a browser, the fixtures with steps on a
-  390 px phone: steps whose view cuts a thing, a heading or a container that would fit 25 to 21, steps with a cut
-  heading 15 to 6 (360 px: 23 to 19, 17 to 11); the hash table and eight colours have none. Left: the cluster of
-  three nodes (a row of containers stacks on a phone), and in the array, map and tree two whole-view steps at 390 px
-  (the price index at the right edge); its close-ups crop only their neighbours, by design.
 - **Speech stands by the thing that says it** (SPEC.md 6.14; the rc.3 review: the service mesh at 1280). A bubble could
   take a free spot nearer another thing than its speaker, and read as that thing's words ("retries twice on failure"
   36 px from the other proxy, 72 px from its own). Such a spot now costs more than resting on a line, so it is taken
   only when every spot by the speaker covers a word or a thing. Over the fixtures (laptop, phone and narrow layouts, every
   step): bubbles nearer another thing than their speaker 8 to 0; none of the 8 moved bubbles covers a word, a thing
   or a line.
-- **The camera leaves a box out whole rather than cut it** (SPEC.md 6.14; the rc.3 review: the array, map and tree at
-  390 px, its whole view cut the price index at the right edge): where a container sits just inside the stage's edge
-  with its far side past it, and the scene's margin held the view back from leaving it out, the view may now slide up
-  to 12 px past that margin, only when that cuts fewer. On a phone a few views move by a few pixels (and two phone
-  stages are a little shorter, where that slide now does what a taller stage did); at 1280 no view changes.
 - **A card line of addresses stays inside its card** (SPEC.md 6.13; the rc.3 review: the layers example's routing table T3 at
   1280). Off a phone, a card line whose drawn width would cross the border (digits draw wider than the measure said) breaks
   again by its drawn width; lines that fit keep their places.

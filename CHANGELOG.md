@@ -20,6 +20,12 @@ The third release candidate of 0.7.0. The format number stays 10.
 - One line "a, b -> c: words" shares one label; where the first card's line hops over the row, the label sits on
   that hop, the line it names.
 
+### Fixed: a card line is measured as Poppins draws it and never runs past its card's border (SPEC.md)
+
+- The stage now has the browser widths of its font (per character, weight and stage size, the larger of the hinted
+  and the font's own widths). A card line whose drawn width would reach its border breaks again; other lines, sizes
+  and layout choices keep their place. Hosts must map the stage font to Poppins.
+
 ### Fixed: a [bad] time cell never draws an X over or above its words (SPEC.md)
 
 - A worded `[bad]` cell draws its corner cross only beside its words (30 px or more of room) or in a cell without

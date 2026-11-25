@@ -1206,6 +1206,7 @@ Keys: `size=s|m|l` (its size; a container's size also sizes what it holds, secti
 ### 6.4 Layouts
 
 Positions come from layouts, not numbers. `row` and `column` line children up; `grid` fills `cols=` columns; `tree` puts each node centred over its children (a binary tree keeps an empty side's room); `graph` puts things in layers along the connectors (left to right, or top to bottom with `dir=down`) and orders each layer to cut crossings; `free` uses `pos=`. A connector between two things inside two containers counts for the containers' layout. A graph keeps its layers for the whole story: they come from every connector the story ever has, so adding or removing one does not shuffle the stage.
+- **Text widths.** The stage measures its font (Poppins) as a browser draws it, per character and size. A card line whose drawn width would reach its card's border breaks again (it takes the lines it needs); lines that stay inside keep their place. Hosts must map the stage font to Poppins.
 
 ### 6.5 Changes in a step
 

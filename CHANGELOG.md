@@ -40,6 +40,10 @@ The fifth release candidate of 0.7.0. The format number stays 10.
   opens as four named group pills (with a count each) and its two libraries, at 12 px or more, and the reader
   opens the groups; on a laptop it opens whole.
 
+### Fixed: kube-proxy lights conntrack when it writes the rewrite down (fixture 66)
+
+- The step that said "conntrack writes the rewrite down" lit only the rules box; conntrack was lit only on the way back. The rule's rewrite and conntrack's note are now two steps, each lighting the thing it names (23 steps).
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

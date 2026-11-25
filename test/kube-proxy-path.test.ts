@@ -18,11 +18,22 @@ const scene = (info: Record<string, string> = {}) => {
 };
 
 describe("kube-proxy: through node 1's card, the VPC and node 2's card", () => {
-  test("the fixture is the flat scene (layout=row, no 3d), 22 steps, no errors wide or on a phone", () => {
+  // (0.7.0-rc.5, review SHOULD 13) a step whose words say conntrack writes or undoes the rewrite lights conntrack, and
+  // only it; the rule's rewrite lights the rules box in a step of its own (step 7 said conntrack but lit the rules)
+  test("what a step says conntrack does, it lights conntrack (ct1) for", () => {
+    const { steps } = scene();
+    const lit = (raw: string) => raw.split("\n").filter((l) => l.startsWith("highlight ")).map((l) => l.slice(10).trim());
+    const says = steps.filter((s) => /conntrack (writes|undoes)/.test(s.title));
+    expect(says.length).toBe(2);
+    for (const s of says) expect([s.title, lit(s.raw)]).toEqual([s.title, ["ct1"]]);
+    const rw = steps.find((s) => /rewrites the destination/.test(s.title))!;
+    expect([rw.title.includes("conntrack"), lit(rw.raw)]).toEqual([false, ["r1"]]);
+  });
+  test("the fixture is the flat scene (layout=row, no 3d), 23 steps, no errors wide or on a phone", () => {
     expect(fence(read(KP))[1].trim()).toBe("layout=row");
     expect(readdirSync(FIX).some((f) => f.includes("3d-only-a-packet-through-kube-proxy"))).toBe(false);
     const { steps, c } = scene();
-    expect(steps.length).toBe(22); expect(c.errors).toEqual([]); expect(c.frames.length).toBe(22);
+    expect(steps.length).toBe(23); expect(c.errors).toEqual([]); expect(c.frames.length).toBe(23);
     expect(scene({ phone: "1", narrow: "1" }).c.errors).toEqual([]);
   });
   test("the path in order, there and back: no hop from node 1's rules straight into a pod", () => {

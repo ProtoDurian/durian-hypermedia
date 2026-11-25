@@ -42,9 +42,12 @@ highlight fe
 send fe -> v1
 @step In node 1's kernel it meets the rules kube-proxy wrote. kube-proxy itself never touches the packet.
 send "to 192.0.2.10" v1 -> r1
-@step A rule picks one of the service's pods at random, web-2, and rewrites the destination to its IP. conntrack writes the rewrite down.
+@step A rule picks one of the service's pods at random, web-2, and rewrites the destination to its IP.
 say r1 above: → 198.51.100.7
 highlight r1
+@step conntrack writes the rewrite down, so the reply can be undone later.
+say ct1 above: 192.0.2.10 → 198.51.100.7
+highlight ct1
 @step 198.51.100.7 is not on node 1, so node 1's kernel routes the packet out of its own network card.
 send r1 -> e1
 @step The packet enters the VPC. Its route table knows 198.51.100.7: on AWS's VPC CNI, it is an address of node 2's network card.
@@ -79,10 +82,10 @@ send v1 -> fe
 ```
 
 :::llm
-Animation, 22 steps, flat. Node 1 (frontend pod 198.51.100.4, kube-proxy; kernel with the frontend's veth, the iptables rules, conntrack; network card), the VPC, node 2 (web-2 198.51.100.7, kube-proxy; kernel with web-2's veth and routes; network card). kube-proxy only writes the rules.
+Animation, 23 steps, flat. Node 1 (frontend pod 198.51.100.4, kube-proxy; kernel with the frontend's veth, the iptables rules, conntrack; network card), the VPC, node 2 (web-2 198.51.100.7, kube-proxy; kernel with web-2's veth and routes; network card). kube-proxy only writes the rules.
 
 1. to 4. The nodes and the VPC; kube-proxy writes rules on every node; the frontend calls the service at 192.0.2.10, a virtual IP.
-5. to 8. Veth, node 1's kernel: a rule rewrites the destination to 198.51.100.7, conntrack notes it, node 1 routes it out of its card.
-9. to 13. The VPC (AWS VPC CNI: the IP belongs to node 2's card) delivers it; node 2's kernel routes it through the veth into web-2. No second rewrite.
-14. to 22. The reply comes back the same hops; node 1's conntrack restores the source 192.0.2.10. A routed CNI or an overlay would do the middle hop instead.
+5. to 9. Veth, node 1's kernel: a rule rewrites the destination to 198.51.100.7, conntrack writes the rewrite down, node 1 routes it out of its card.
+10. to 14. The VPC (AWS VPC CNI: the IP belongs to node 2's card) delivers it; node 2's kernel routes it through the veth into web-2. No second rewrite.
+15. to 23. The reply comes back the same hops; node 1's conntrack restores the source 192.0.2.10. A routed CNI or an overlay would do the middle hop instead.
 :::

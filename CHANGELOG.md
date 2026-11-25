@@ -4,6 +4,30 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## 0.7.0
+
+0.7.0 is the five release candidates listed below made final; they hold every detail. Two things come with 0.7.0
+itself:
+
+- **The format number is now 11** (`FORMAT_VERSION`, `doc.format`, SPEC.md): the additions marked "format version 11"
+  in the release candidates and in SPEC.md are the format 11 additions.
+- **The package is now `durian-markdown`** (display name DurianMarkdown).
+
+In short, the release candidates bring:
+
+- **Added:** one folder per part, each with its own sample and browser check, and new parts in that shape: the
+  composed stage, the graph, state, class and ER diagrams, maps and calendars, stat tiles, HTTP, diff, weather, maths
+  and citations; references to parts the host keeps; an inline sparkline and a glossary; a Node-only entry that checks
+  the local files media parts name.
+- **Changed:** the graph engine's animation is calm (one focus per step, one held view between zooms, nothing moves
+  that takes no part in a step); the eight role colours are measured for contrast in light and dark; new pinned
+  dependencies: lottie-web, pdfjs-dist, chartjs-chart-matrix, cytoscape, KaTeX and jsdiff.
+- **Removed (breaking):** the `mermaid` part. A mermaid block is a plain code block, and `check()` names the part to
+  use instead.
+- **Fixed:** words stay whole and readable on phones and tablets (stage text at least 11 px, chart labels that never
+  overlap, rows and tables that fit or say to swipe); parts keep their room while a page loads, and print draws every
+  part; budgets and caps cover parts, references and media reads.
+
 ## 0.7.0-rc.5
 
 The fifth release candidate of 0.7.0. The format number stays 10.

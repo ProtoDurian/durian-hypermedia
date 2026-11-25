@@ -7,12 +7,13 @@ import { MONTHS, MONTHS_LONG, WEEKDAYS, dateWords, dayIso, dayNum, hm, wall, wee
 import { repeatWords, type CalSpec } from "./model";
 import { usePop } from "../kit/places-pop";
 import {useStatic} from "../kit/static";
+import { wrap } from "../kit/text";
 import type { Ui } from "../../ui/ui";
 
 type View = "day" | "3day" | "week" | "month" | "list";
-type Seg = { key: string; e: number; date: string; a: number; b: number; col: number; cols: number; from: number; to: number };
+type Seg = { key: string; e: number; date: string; a: number; b: number; col: number; cols: number; h: number; from: number; to: number };
 type Item = { key: string; e: number; allDay: boolean; d0: string; d1: string; m0: number; m1: number; s: number; f: number };
-const HOUR_DEFAULT = 48, MIN_H = 24;
+const HOUR_DEFAULT = 48, MIN_H = 34;
 const VIEW_LABEL: Record<View, string> = { day: "Day", "3day": "3 days", week: "Week", month: "Month", list: "List" };
 
 const addDays = (iso: string, n: number) => dayIso(dayNum(iso) + n);
@@ -93,18 +94,29 @@ function CalendarRenderer({ spec, ui, now, width }: { spec: CalSpec; ui: Ui; now
   // timed segments of a day, laid out side by side when they overlap
   const segsOf = (date: string): Seg[] => {
     const raw = shown.filter((it) => !it.allDay && dayNum(it.d0) <= dayNum(date) && dayNum(date) <= dayNum(it.d1))
-      .map((it) => ({ key: `${it.key}-${date}`, e: it.e, date, a: it.d0 === date ? it.m0 : 0, b: it.d1 === date ? it.m1 : 1440, col: 0, cols: 1, from: 0, to: 0 }));
+      .map((it) => ({ key: `${it.key}-${date}`, e: it.e, date, a: it.d0 === date ? it.m0 : 0, b: it.d1 === date ? it.m1 : 1440, col: 0, cols: 1, h: MIN_H, from: 0, to: 0 }));
     raw.sort((x, y) => x.a - y.a || y.b - x.b);
-    const vis = (s: Seg) => Math.max(s.b, s.a + (MIN_H / hourH) * 60);
-    let cluster: Seg[] = [], end = -1;
-    const flush = () => { const cols = Math.max(1, ...cluster.map((s) => s.col + 1)); cluster.forEach((s) => { s.cols = cols; }); cluster = []; };
-    const lastEnd: number[] = [];
-    for (const s of raw) {
-      if (cluster.length && s.a >= end) { flush(); lastEnd.length = 0; end = -1; }
-      let c = lastEnd.findIndex((x) => x <= s.a); if (c < 0) c = lastEnd.length;
-      s.col = c; lastEnd[c] = vis(s); cluster.push(s); end = Math.max(end, vis(s));
+    const vis = (s: Seg) => Math.max(s.b, s.a + ((s.h + 2) / hourH) * 60);
+    // Titles wrap before they shorten. Growing a short label also reserves its painted
+    // height when assigning overlap columns; widths and heights settle together.
+    for (let pass = 0; pass <= raw.length; pass++) {
+      let cluster: Seg[] = [], end = -1;
+      const flush = () => { const cols = Math.max(1, ...cluster.map((s) => s.col + 1)); cluster.forEach((s) => { s.cols = cols; }); cluster = []; };
+      const lastEnd: number[] = [];
+      for (const s of raw) {
+        if (cluster.length && s.a >= end) { flush(); lastEnd.length = 0; end = -1; }
+        let c = lastEnd.findIndex((x) => x <= s.a); if (c < 0) c = lastEnd.length;
+        s.col = c; lastEnd[c] = vis(s); cluster.push(s); end = Math.max(end, vis(s));
+      }
+      flush();
+      let grew = false;
+      for (const s of raw) {
+        const textW = Math.max(8, ((host.w - 50) / days.length / s.cols - 10) * 0.85);
+        const need = Math.max(MIN_H, wrap(spec.events[s.e].title, textW, 12, Infinity).length * 15 + (s.cols > 1 ? 0 : 14) + 4);
+        if (need > s.h) { s.h = need; grew = true; }
+      }
+      if (!grew) break;
     }
-    flush();
     return raw;
   };
   const allDayOf = (date: string) => shown.filter((it) => it.allDay && dayNum(it.d0) <= dayNum(date) && dayNum(date) <= dayNum(it.d1));
@@ -149,8 +161,14 @@ function CalendarRenderer({ spec, ui, now, width }: { spec: CalSpec; ui: Ui; now
     const t = e.changedTouches[0], dx = t.clientX - s.x, dy = t.clientY - s.y;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { pop.close(); go(dx < 0 ? 1 : -1); }
   };
-  // the grid opens at the first hour the author asked for
-  useEffect(() => { if (scroller.current) scroller.current.scrollTop = Math.max(0, spec.hours[0] * hourH - 10); }, [view, spec.hours]);
+  // Keep an event crossing the opening hour whole (including events converted from another zone).
+  useEffect(() => {
+    const opening = spec.hours[0] * 60;
+    const starts = days.flatMap(d => shown.filter(it => !it.allDay && it.d0 <= d && d <= it.d1)
+      .map(it => ({ a: it.d0 === d ? it.m0 : 0, b: it.d1 === d ? it.m1 : 1440 }))
+      .filter(it => it.a < opening && it.b >= opening).map(it => it.a));
+    if (scroller.current) scroller.current.scrollTop = Math.max(0, Math.min(opening, ...starts) / 60 * hourH - 10);
+  }, [view, cursor, tz, spec.hours, hourH]);
 
   const dayHead = (d: string, k?: number) => (
     <div key={d} className={`cal-dh ${d === todayIso ? "is-today" : ""} ${weekdayOf(d) > 4 ? "is-weekend" : ""}`} data-dh-slot="day-head">
@@ -214,8 +232,8 @@ function CalendarRenderer({ spec, ui, now, width }: { spec: CalSpec; ui: Ui; now
               <div key={d} className={`cal-col ${weekdayOf(d) > 4 ? "is-weekend" : ""} ${d === todayIso ? "is-today" : ""}`}>
                 {segsOf(d).map((s) => {
                   const it = shown.find((x) => `${x.key}-${d}` === s.key)!;
-                  const top = (s.a / 60) * hourH, h = Math.max(((s.b - s.a) / 60) * hourH - 2, MIN_H);
-                  return evButton({ ...it, key: s.key }, `cal-ev${h < 34 ? " is-short" : ""}${s.cols > 1 ? " is-narrow" : ""}`, { top, height: h, left: `calc(${(s.col / s.cols) * 100}% + 1px)`, width: `calc(${100 / s.cols}% - 3px)` });
+                  const top = (s.a / 60) * hourH, h = Math.max(((s.b - s.a) / 60) * hourH - 2, s.h);
+                  return evButton({ ...it, key: s.key }, `cal-ev${h < 34 ? " is-short" : ""}${s.cols > 1 ? " is-narrow" : ""}`, { top, height: h, left: s.cols > 1 ? `${(s.col / s.cols) * 100}%` : "1px", width: s.cols > 1 ? `${100 / s.cols}%` : "calc(100% - 3px)" });
                 })}
                 {now && wall(now, tz).date === d ? <i className="cal-now" style={{ top: (wall(now, tz).min / 60) * hourH }} /> : null}
               </div>

@@ -6,7 +6,7 @@
 // drag to pan, pinch or Ctrl + wheel to zoom, click an entity for its note, "Back to the story" to follow the steps again.
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { baseY as geoBase, floorY, SLAB } from "./geo3d";
-import { MARGIN, SEND_HALO, sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
+import { wordRects, MARGIN, SEND_HALO, sceneLlm, useNarrow, phoneLeast, tokens, NARROW, minFont, MIN_PX, METER_H, union, pad, center, edgePoint, fitAspect, storyView, connGeom, ridesOn, bezAt, bezTan, bezOff, bezPath, labelBox, personIcon, cylRy, DESIGN, CHIP, type Box, type Edge, type Frame, type Rect, type Geom, type Mark, type SendGeom, type SizeTok } from "../core/scene";
 import { stageScene, phoneScene, leastScale } from "../core/readable";
 // format version 11: a still scene and a static one show whole (core/whole.ts); a calm story (core/calm.ts): only
 // items that pass each other arc, one held view from a camera word to the next, one token's words at a time
@@ -15,7 +15,7 @@ import { cssVars } from "./css-vars";
 import { calmHeight, heldViews, tokenSubject, passing, stepT, PHONE_WIN } from "../core/calm";
 import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
-import { cueAt, moreSides } from "../core/edge10";
+import { cueAt, moreSides, rideHeads } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
@@ -495,6 +495,14 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const conts = shown.filter((s) => s.box.container).sort((a, b) => a.box.depth - b.box.depth);
   const leaves = shown.filter((s) => !s.box.container && !["token", "pointer"].includes(s.box.kind));
   const overlays = shown.filter((s) => ["token", "pointer"].includes(s.box.kind));
+  // (rc.4) a container's heading the view cuts rides just inside the view's edge, off every word and thing (core/edge10.ts)
+  const rides = mode === "2d" && px > 0 && cam.w > 0
+    ? rideHeads(
+        conts.filter((s) => s.box.lbl && s.box.head && wordsO(s.g) > 0.02).map((s) => { const b = s.box, l = b.lbl!; return { key: b.key, depth: b.depth, r: s.r, head: { x: s.r.x + l.x - b.x, y: s.r.y + l.y - b.y, w: l.w, h: l.h } }; }),
+        [...wordRects(B), ...B.boxes.filter((b) => b.key > 0 && !b.hidden && !b.container).map((b) => ({ key: b.key, r: b as Rect })), ...B.boxes.filter((b) => b.index != null).map((b) => ({ key: null, r: { x: b.x + b.w / 2 - 10, y: b.y + b.h + 4, w: 20, h: 14 } }))],
+        cam, px / cam.w)
+    : new Map<number, { dx: number; dy: number }>();
+  const rideRects = [...rides].map(([k, d]) => { const s = conts.find((x) => x.box.key === k)!, b = s.box, l = b.lbl!; return { x: s.r.x + l.x - b.x + d.dx, y: s.r.y + l.y - b.y + d.dy, w: l.w, h: l.h }; });
   const fxO = Math.max(0, Math.min(1, (t - 0.55) / 0.45));
   const selBox = sel != null ? cur.get(sel) : null;
   const zoomIn = () => (mode === "3d" ? s3.current?.zoom(0.8) : zoomBy(0.8));
@@ -599,7 +607,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const U = ui as any;
   // that line never sits on a word: the middle of its edge, else an end, else only the shaded edge's arrow (core/edge10.ts)
   const moreSay = downMore ? `${({ b: "↓", t: "↑", r: "→", l: "←" } as const)[downMore]} ${U.moreBeyond ?? "more beyond the edge"}` : "";
-  const moreAt = downMore && px > 0 ? cueAt(B, cam, px, px / ar, downMore === "t" ? "t" : "b", moreSay) : downMore ? "c" : null;
+  const moreAt = downMore && px > 0 ? cueAt(B, cam, px, px / ar, downMore === "t" ? "t" : "b", moreSay, rideRects) : downMore ? "c" : null;
   const touchHint = mode === "3d"
     ? (active ? U.hintTouchOn3d ?? "One finger: turn · two fingers: move and zoom · tap outside the stage to scroll the page" : U.hintTouch3d ?? "Drag sideways to turn · tap the stage, then one finger turns and two fingers move and zoom")
     : (active ? U.hintTouchOn ?? "One finger: move · two fingers: zoom · tap outside the stage to scroll the page" : U.hintTouch ?? "Tap the stage, then drag with one finger to move · pinch to zoom") + (more.length ? ` · ${U.hintMore ?? "a shaded edge has more that way"}` : "");
@@ -640,7 +648,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
             {families.map((_, k) => <marker key={k} id={`${mk}-c${k + 1}`} className={`scn-mk cc cc-${k + 1}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" /></marker>)}
             <filter id={`${mk}-sh`} x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="1" stdDeviation="1.4" floodOpacity="0.12" /></filter>
           </defs>
-          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} framed={framed.has(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
+          {conts.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} framed={framed.has(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} ride={rides.get(s.box.key)} />)}
           {edgesNow.map(({ e, o }) => { const a = at.get(e.from), b = at.get(e.to); return a && b ? <Connector sl={lineSlots(src.part)} key={e.key} e={e} a={endRect(a)} b={endRect(b)} ak={a.box.kind} bk={b.box.kind} o={o * Math.min(a.o, b.o)} mk={mk} /> : null; })}
           {leaves.map((s) => <Shape key={s.box.key} s={s} mute={tokMute(s)} slot={slotOf(src.part, s.box)} hl={hl.get(s.box.key)} framed={framed.has(s.box.key)} sel={sel === s.box.key} sh={mk} Z={Z} />)}
           {(mv ? [] : B.sends).map((g, k) => <Send key={sendKey(g, k)} g={g} at={at} fin={cur} marks={B.marks} p={sendPOf(g, k)} still={st.on} />)}
@@ -679,7 +687,7 @@ function Words({ lines, x, y, z, cls = "scn-label", font }: { lines: string[]; x
   const y0 = y - ((lines.length - 1) * lh) / 2;
   return <text x={x} y={y0} className={cls} dominantBaseline="central" textAnchor="middle" style={{ fontSize: font ?? z.font }}>{lines.map((l, k) => <tspan key={k} x={x} y={y0 + k * lh}>{l}</tspan>)}</text>;
 }
-function Shape({ s, hl, framed, sel, sh, Z = DESIGN, mute, slot }: { slot?: string; s: Shown; hl?: string; framed?: boolean; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean }) {
+function Shape({ s, hl, framed, sel, sh, Z = DESIGN, mute, slot, ride }: { slot?: string; s: Shown; hl?: string; framed?: boolean; sel: boolean; sh: string; Z?: Record<string, SizeTok>; mute?: boolean; ride?: { dx: number; dy: number } }) {
   const { box: b, r } = s;
   const o = s.o * (s.g ?? 1), wo = wordsO(s.g);
   const e = b.ent;
@@ -701,7 +709,7 @@ function Shape({ s, hl, framed, sel, sh, Z = DESIGN, mute, slot }: { slot?: stri
   let body: React.ReactNode;
   if (b.kind === "layer") body = <><rect className="scn-band" x={r.x} y={r.y} width={r.w} height={r.h} rx={z.r + 6} /><text x={r.x + 12} y={ty} className="scn-band-t" dominantBaseline="central" style={{ fontSize: z.head }}>{b.label}</text></>;
   else if (b.container) {
-    const head = b.head && wo > 0.02 ? <text x={r.x + (b.lbl ? b.lbl.x - b.x : z.pad)} y={r.y + b.head / 2 + 2} className="scn-head" dominantBaseline="central" style={{ fontSize: z.head, ...(wo < 1 ? { opacity: wo } : {}) }}>{b.label}</text> : null;
+    const head = b.head && wo > 0.02 ? <text x={r.x + (b.lbl ? b.lbl.x - b.x : z.pad) + (ride?.dx ?? 0)} y={r.y + b.head / 2 + 2 + (ride?.dy ?? 0)} className={ride ? "scn-head is-ride" : "scn-head"} dominantBaseline="central" style={{ fontSize: z.head, ...(wo < 1 ? { opacity: wo } : {}) }}>{b.label}</text> : null;
     if (b.kind === "record") body = <RecordBox b={b} r={r} o={wo} />;
     else if (b.kind === "array" || b.kind === "list") body = head;
     else if (b.kind === "stack") body = <>{head}<path className="scn-frame scn-open" d={`M${r.x} ${r.y + b.head}V${r.y + r.h}H${r.x + r.w}V${r.y + b.head}`} /></>;

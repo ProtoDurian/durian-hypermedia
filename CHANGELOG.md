@@ -217,6 +217,13 @@ The third release candidate of 0.7.0. The format number stays 10.
   24 (360 px: cut headings 48 to 26; laptop none before or after); the service mesh has none. Left: a row of three
   nodes wider than a phone at the least word size (two fixtures, 10 steps), and 14 steps of three others (the
   hash table, eight colours, the array, map and tree) whose view cuts a heading or a container larger than it.
+- **A container's heading rides with the view** (SPEC.md 6.14; the rc.3 review: on a phone a close view inside the
+  hash table, eight colours' region, the orders service cut their headings at the top): the heading is drawn just
+  inside the view's edge, inside its container, off every word and thing. In a browser, the fixtures with steps on a
+  390 px phone: steps whose view cuts a thing, a heading or a container that would fit 25 to 21, steps with a cut
+  heading 15 to 6 (360 px: 23 to 19, 17 to 11); the hash table and eight colours have none. Left: the cluster of
+  three nodes (a row of containers stacks on a phone), and in the array, map and tree two whole-view steps at 390 px
+  (the price index at the right edge); its close-ups crop only their neighbours, by design.
 - **Speech stands by the thing that says it** (SPEC.md 6.14; the rc.3 review: the service mesh at 1280). A bubble could
   take a free spot nearer another thing than its speaker, and read as that thing's words ("retries twice on failure"
   36 px from the other proxy, 72 px from its own). Such a spot now costs more than resting on a line, so it is taken

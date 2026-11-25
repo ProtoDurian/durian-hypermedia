@@ -67,7 +67,7 @@ export function moreSides(f: Frame, cam: Rect): ("l" | "r" | "t" | "b")[] {
 export const CUE = { h: 22, gap: 6, side: 30, clear: 3 } as const;
 export const cueWidth = (text: string): number => Math.ceil(text.length * 7) + 20;
 export type CueAt = "c" | "l" | "r";
-export function cueAt(f: Frame, cam: Rect, w: number, h: number, side: "t" | "b", text: string): CueAt | null {
+export function cueAt(f: Frame, cam: Rect, w: number, h: number, side: "t" | "b", text: string, also: Rect[] = []): CueAt | null {
   if (!(w > 0 && h > 0 && cam.w > 0 && cam.h > 0)) return "c";
   // the drawing's words on the stage, in pixels (the stage shows the view whole: xMidYMid meet)
   const s = Math.min(w / cam.w, h / cam.h), ox = (w - cam.w * s) / 2, oy = (h - cam.h * s) / 2, m = CUE.clear;
@@ -75,9 +75,42 @@ export function cueAt(f: Frame, cam: Rect, w: number, h: number, side: "t" | "b"
   // a cell's index under it)
   const inner = f.boxes.filter((b) => (!b.container || b.kind === "bucket") && !b.lbl && `${b.label ?? ""}`.trim()).map((b) => ({ r: { x: b.x, y: b.y, w: b.kind === "bucket" ? 30 : b.w, h: b.h } }));
   const idx = f.boxes.filter((b) => b.index != null).map((b) => ({ r: { x: b.x + b.w / 2 - 10, y: b.y + b.h + 4, w: 20, h: 14 } }));
-  const words = [...wordRects(f), ...inner, ...idx].map(({ r }) => ({ x: ox + (r.x - cam.x) * s - m, y: oy + (r.y - cam.y) * s - m, w: r.w * s + 2 * m, h: r.h * s + 2 * m }));
+  // (and a heading riding with the view, where it rides: also)
+  const words = [...wordRects(f), ...inner, ...idx, ...also.map((r) => ({ r }))].map(({ r }) => ({ x: ox + (r.x - cam.x) * s - m, y: oy + (r.y - cam.y) * s - m, w: r.w * s + 2 * m, h: r.h * s + 2 * m }));
   const pw = Math.min(cueWidth(text), w - 64), y = side === "t" ? CUE.gap : h - CUE.gap - CUE.h;
   const spots: [CueAt, number][] = [["c", (w - pw) / 2], ["l", CUE.side], ["r", w - CUE.side - pw]];
   for (const [at, x] of spots) if (!words.some((r) => r.x < x + pw && x < r.x + r.w && r.y < y + CUE.h && y < r.y + r.h)) return at;
   return null;
+}
+
+// A container's heading rides with the view (rc.4): where the story camera shows part of a container but cuts its
+// heading at the stage's edge (a close view inside a big container, a held view lower down), the heading is drawn just
+// inside the view's edge instead, still inside its container: at the near corner of that edge, else the far one, else
+// a line lower; never over a word, a thing or another riding heading, and only where the visible part of the container
+// has room for it. Outer containers ride first. Returns, per container key, how far its heading moves (world units).
+export const RIDE = { gap: 8, clear: 2 } as const;
+export interface RideItem { key: number; depth: number; r: Rect; head: Rect }
+export function rideHeads(items: RideItem[], avoid: { key: number | null; r: Rect }[], cam: Rect, s: number): Map<number, { dx: number; dy: number }> {
+  const out = new Map<number, { dx: number; dy: number }>();
+  if (!(s > 0 && cam.w > 0 && cam.h > 0)) return out;
+  const m = RIDE.gap / s, c = RIDE.clear / s, placed: Rect[] = [];
+  const meets = (a: Rect, b: Rect) => a.x < b.x + b.w + c && b.x < a.x + a.w + c && a.y < b.y + b.h + c && b.y < a.y + a.h + c;
+  for (const it of [...items].sort((p, q) => p.depth - q.depth)) {
+    const H = it.head;
+    if (inside(H, cam)) continue;
+    // the part of the container on the stage, less the gap at the view's edge
+    const x0 = Math.max(it.r.x, cam.x + m), y0 = Math.max(it.r.y, cam.y + m), x1 = Math.min(it.r.x + it.r.w, cam.x + cam.w - m), y1 = Math.min(it.r.y + it.r.h, cam.y + cam.h - m);
+    if (x1 - x0 < H.w + c || y1 - y0 < H.h + c) continue;
+    const near = Math.min(Math.max(H.x, x0), x1 - H.w), far = x1 - H.w, top = Math.min(Math.max(H.y, y0), y1 - H.h);
+    const spots: [number, number][] = [];
+    for (let row = 0; row < 3; row++) { const y = top + row * (H.h + c); if (y + H.h <= y1) spots.push([near, y], [far, y]); }
+    for (const [x, y] of spots) {
+      const R = { x, y, w: H.w, h: H.h };
+      if (placed.some((p) => meets(p, R)) || avoid.some((a) => a.key !== it.key && meets(a.r, R))) continue;
+      out.set(it.key, { dx: x - H.x, dy: y - H.y });
+      placed.push(R);
+      break;
+    }
+  }
+  return out;
 }

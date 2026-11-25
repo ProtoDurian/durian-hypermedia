@@ -253,6 +253,9 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn-frame.d-1 { fill: var(--surface-2); }
 .scn-open { fill: none; stroke-width: 2; }
 .scn-head { fill: var(--ink); font-size: 12px; font-weight: 600; letter-spacing: .01em; pointer-events: none; }
+/* (rc.4) a heading riding with the view, just inside its edge: a halo of its container's own colour (core/edge10.ts rideHeads) */
+.scn-head.is-ride { paint-order: stroke; stroke: color-mix(in srgb, var(--surface) 82%, var(--surface-2)); stroke-width: 4px; stroke-linejoin: round; }
+.scn-frame.d-1 ~ .scn-head.is-ride { stroke: var(--surface-2); }
 .scn-th { fill: var(--muted); font-size: 12px; font-weight: 600; }
 .scn-row { stroke-width: 1; }
 .scn-bucket { fill: var(--surface); }

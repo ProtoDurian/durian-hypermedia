@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { fmtLen, lenOf, searchSpans, traceToFlame, type Span, type TraceSpec } from "./part";
 import { fmtNum, pct } from "../flame/part";
+import { lengthSpot } from "./layout";
 import { Budget, BudgetError, partLimitsOf } from "../../core/budget";
 import type { PartViewProps, PartStage } from "../types";
 import { colBase, colSoft, colInk, useSteps } from "../kit/view";
@@ -307,7 +308,8 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
                 const barW = Math.max(2, x1 - x0), inRange = s.end >= lo && s.start <= hi, has = spec.children[id].length > 0, fo = isFolded(id);
                 const chev = 6 + s.depth * 8, chipX = chev + (phone ? 40 : 24), chipTxt = fit(svcLabel[s.service], phone ? 5 : 9), chipW = Math.max(14, chipTxt.length * CH + 12);
                 const nameX = chipX + chipW + 6, room = Math.floor((labelW - 8 - (s.error !== null ? 14 : 0) - (fo ? 36 : 0) - nameX) / CH);
-                const lenTxt = fmtLen(lenOf(s), spec.unit), inside = barW > lenTxt.length * CH + 10;
+                const lenTxt = fmtLen(lenOf(s), spec.unit), marks = s.logs.map((li) => X(spec.logs[li].time));
+                const lenAt = lengthSpot(x0, x0 + barW, lenTxt.length * CH, marks, labelW, labelW + plotW);
                 const onPath = crit && s.critical;
                 const b = pop.bind(`s${id}`, card(s));
                 return (
@@ -333,7 +335,7 @@ export function TraceView({ spec, error, ui, stage, static: stp }: { spec: Trace
                       {inRange && <>
                         {onPath && <rect className="tr-crit" x={x0 - 2.5} y={by - 2.5} width={barW + 5} height={barH + 5} rx={5} />}
                         <rect data-dh-slot="span-bar" className="tr-bar" x={x0} y={by} width={barW} height={barH} rx={4} fill={colourVar(col, "soft")} stroke={s.error !== null ? "var(--trace-error)" : colourVar(col)} strokeWidth={s.error !== null ? 2 : 1} />
-                        <text x={inside ? x0 + 6 : x0 + barW + 6} y={y + pitch / 2} dominantBaseline="central" className="tr-len" textAnchor="start">{lenTxt}</text>
+                        <text x={lenAt.x} y={y + pitch / 2} dominantBaseline="central" className="tr-len" textAnchor={lenAt.anchor}>{lenTxt}</text>
                         {s.logs.map((li) => { const g = spec.logs[li], cx = X(g.time); return <path key={li} className="tr-log" d={`M ${cx} ${by + barH / 2 - 5} l 5 5 l -5 5 l -5 -5 z`} fill={LEVEL_VAR[g.level]} />; })}
                       </>}
                     </g>

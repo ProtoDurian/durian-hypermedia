@@ -1,3 +1,4 @@
+import { lengthSpot } from "./layout";
 import { describe, expect, test, beforeEach } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -225,6 +226,36 @@ describe("trace: linear time (the work doubles when the input doubles)", () => {
   test("a search at 2n spans costs at most 2.3 times the search at n", () => {
     const cost = (n: number) => { const s = parseTrace(src(wide(n))); const b = newBudget(1e9, 1e9); searchSpans(s, "k=1", b); return 1e9 - b.left().work; };
     expect(cost(800)).toBeLessThanOrEqual(cost(400) * 2.3);
+  });
+});
+
+describe("trace: a span's length word keeps clear of the event diamonds", () => {
+  const W = 40, MIN = 100, MAX = 700;
+  const overlaps = (s: { x: number; anchor: string }, marks: number[]) => { const l = s.anchor === "start" ? s.x : s.x - W; return marks.some((m) => m + 7 > l && m - 7 < l + W); };
+  test("the 109 ms word of the checkout sample sits clear of its diamond (the diamond sat over it)", () => {
+    // a 109 ms bar 160 px wide, the word at the left inside, the event 25 px along: the old rule put the word under the diamond
+    const x0 = 200, x1 = 360, marks = [225];
+    const s = lengthSpot(x0, x1, W, marks, MIN, MAX);
+    expect(overlaps(s, marks)).toBe(false);
+    expect(s).toEqual({ x: x1 - 6, anchor: "end" } as typeof s);   // the right of the bar, inside, is the next free spot
+  });
+  test("with no diamond the word stays where it was: inside at the left when it fits, else after the bar", () => {
+    expect(lengthSpot(200, 360, W, [], MIN, MAX)).toEqual({ x: 206, anchor: "start" });
+    expect(lengthSpot(200, 220, W, [], MIN, MAX)).toEqual({ x: 226, anchor: "start" });
+  });
+  test("a word that would run past the plot's right edge goes before the bar (it was clipped)", () => {
+    const s = lengthSpot(660, 670, W, [], MIN, MAX);
+    expect(s.anchor).toBe("end");
+    expect(s.x).toBe(660 - 6);
+  });
+  test("for any bar, event and plot edge: the word is inside the plot and clear of every diamond when a spot allows", () => {
+    for (let x0 = 100; x0 <= 690; x0 += 23) for (const len of [4, 12, 40, 120, 300]) for (const at of [0, 0.3, 0.5, 0.9, 1]) {
+      const x1 = Math.min(MAX, x0 + len), marks = [x0 + (x1 - x0) * at];
+      const s = lengthSpot(x0, x1, W, marks, MIN, MAX), l = s.anchor === "start" ? s.x : s.x - W;
+      if (x0 + 6 + W <= MAX || x0 - 6 - W >= MIN) { expect(l).toBeGreaterThanOrEqual(MIN - 1e-9); expect(l + W).toBeLessThanOrEqual(MAX + 1e-9); }
+      const free = [x0 + 6, x1 - 6 - W, x1 + 6, x0 - 6 - W].some((a, i) => (i > 1 || x1 - x0 >= W + 12) && a >= MIN && a + W <= MAX && marks.every((m) => m + 7 <= a || m - 7 >= a + W));
+      if (free) expect(overlaps(s, marks)).toBe(false);
+    }
   });
 });
 

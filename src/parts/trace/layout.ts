@@ -72,3 +72,16 @@ export function flameRows(spec: TraceSpec, budget: Budget): number[] {
  for(const id of spec.order){budget.charge(1);const p=spans[id].parent;abs[id]=p<0?0:abs[p]+row[id];}
  return abs;
 }
+
+/** Where a span's length word ("109 ms") is written: the first spot of four where it lies inside the plot and clear of every event
+ *  diamond of its row: inside the bar at the left, inside at the right, after the bar, before the bar. `w` is the word's width,
+ *  `marks` the x of each diamond (each takes `reach` to either side). When no spot is clear the first one inside the plot is used. */
+export function lengthSpot(x0: number, x1: number, w: number, marks: readonly number[], min: number, max: number, reach = 7, gap = 6): { x: number; anchor: "start" | "end" } {
+  const spots: { l: number; anchor: "start" | "end" }[] = [];
+  if (x1 - x0 >= w + 2 * gap) spots.push({ l: x0 + gap, anchor: "start" }, { l: x1 - gap - w, anchor: "end" });
+  spots.push({ l: x1 + gap, anchor: "start" }, { l: x0 - gap - w, anchor: "end" });
+  const inside = spots.filter((s) => s.l >= min && s.l + w <= max);
+  const clear = (s: { l: number }) => marks.every((m) => m + reach <= s.l || m - reach >= s.l + w);
+  const pick = inside.find(clear) ?? inside[0] ?? spots[0];
+  return { x: pick.anchor === "start" ? pick.l : pick.l + w, anchor: pick.anchor };
+}

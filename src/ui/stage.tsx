@@ -7,13 +7,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
 import { compileStage, layoutStage, STAGE_WORK, STAGE_MEMORY, type Plan } from "../core/stage";
-/** Phone plans are shown at their own size or larger so 11 px words stay at least 11 px.
- * At larger sizes keep the existing thresholds. CSS uses the same choices before hydration. */
-export const SSR_W = [286, 312, 326, 341, 356, 380, 458, 551, 664, 800, 971, 1178] as const;
+/** Phone and tablet plans are shown at their own size or larger so 11 px words stay at least 11 px.
+ * CSS uses the same choices before hydration. */
+export const SSR_W = [286, 312, 326, 341, 356, 380, 458, 551, 664, 730, 800, 880, 968, 1178] as const;
 export function screenPlanWidth(width: number): number {
   for (let i = SSR_W.length - 1; i > 0; i--) {
     const narrow = SSR_W[i - 1], wide = SSR_W[i];
-    const threshold = wide <= 380 ? wide : Math.round(2 * narrow * wide / (narrow + wide));
+    const threshold = (wide <= 380 || (wide >= 730 && wide <= 968)) ? wide : Math.round(2 * narrow * wide / (narrow + wide));
     if (width >= threshold) return wide;
   }
   return SSR_W[0];
@@ -247,7 +247,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
       const page = document.documentElement.clientWidth, cs = getComputedStyle(fig), max = parseFloat(cs.getPropertyValue("--stg-max")) || 1180;
       const gut = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gutter")) || 16, col = fig.getBoundingClientRect();
       const want = Math.min(max, page - 2 * Math.min(gut, 24));
-      if (want <= col.width + 1) return;
+      if (want <= col.width) return;
       fig.style.setProperty("--stg-fig-w", `${want}px`); fig.style.setProperty("--stg-fig-ml", `${(page - want) / 2 - col.left}px`);
     };
     place();

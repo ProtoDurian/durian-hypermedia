@@ -20,7 +20,7 @@ test("the phone reference sizes, the 800 px drawing box and the desktop keep the
   expect(widths.map(screenPlanWidth)).toEqual(widths);
 });
 
-const switchWidth = (narrow: number, wide: number) => wide <= 380 ? wide : Math.round(2 * narrow * wide / (narrow + wide));
+const switchWidth = (narrow: number, wide: number) => (wide <= 380 || (wide >= 730 && wide <= 968)) ? wide : Math.round(2 * narrow * wide / (narrow + wide));
 
 test("a phone between 320 and 430 px never shrinks its drawing", () => {
   // The drawing box has 32 px of gutters and a 2 px border.
@@ -156,4 +156,11 @@ test("print before hydration: the server's PRINT_W plan, shown only on paper, se
   expect(css).toContain("@media not print { .stg-plan-ssr[data-print] { display: none !important; } }");
   expect(css).toContain("@media print { .stg-plan-ssr:not([data-print]) { display: none !important; } .stg-plan-ssr[data-print] { display: block !important; } }");
   expect(css).toContain(".stg > .stg-box-wrap.stg-ratio-print { aspect-ratio: var(--stg-ar); }");
+});
+
+test("a tablet between 768 and 1024 px never shrinks its stage drawing", () => {
+  for (let viewport = 768; viewport <= 1024; viewport++) {
+    const boxWidth = viewport - 34;
+    expect(screenPlanWidth(boxWidth)).toBeLessThanOrEqual(boxWidth);
+  }
 });

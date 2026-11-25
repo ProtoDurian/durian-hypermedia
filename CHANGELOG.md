@@ -73,6 +73,10 @@ The fifth release candidate of 0.7.0. The format number stays 10.
 - Routing tables T3 and T4 are step tables (prefix | learned from | next hop | out) with the chosen row lit, as in
   sections 5 and 8, not card lines of prose; routers A and B no longer hold room for them from step 1.
 
+### Fixed: stage text on tablets (SPEC.md, stage)
+
+- Stage text stays at least 11 px at tablet viewports from 768 to 1024 px.
+
 ## 0.7.0-rc.4
 
 The fourth release candidate of 0.7.0. The format number stays 10.

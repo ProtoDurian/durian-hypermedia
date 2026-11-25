@@ -200,7 +200,7 @@ describe("sprint: print lays the stage out again", () => {
     const b = fakeBrowser();
     try {
       b.fire("beforeprint");
-      b.el.clientWidth = 786;
+      b.el.clientWidth = 850; // Between the 800 px and 880 px screen plans.
       b.fire("afterprint"); b.media(false);
       expect(b.calls).toEqual([PRINT_W, 800]);
     } finally { b.done(); }

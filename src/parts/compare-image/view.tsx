@@ -4,23 +4,24 @@
 // are buttons that show a whole picture. The bar is a slider with words in aria-valuetext. Every address goes through the
 // host's URL policy again before it is an <img>. Every element is a React element: no HTML string reaches the page.
 import React, { useRef, useState } from "react";
-import { useDh } from "../../react/context";
-import { applyUrlPolicy } from "../../safety";
+import { refusedText, useMediaSrcs, useSeen } from "../../react/media-loader";
 import type { PartViewProps } from "../types";
 import type { CompareImageData } from "./part";
 
 /** the part's own words (the renderer's shared words come from `ui`) */
-const W = { slider: "Comparison position", helpH: "Drag sideways, or tap to flip", helpV: "Drag up and down, or tap to flip", blocked: "This image address is not allowed here", cannot: "This comparison cannot be drawn:" };
+const W = { slider: "Comparison position", helpH: "Drag sideways, or tap to flip", helpV: "Drag up and down, or tap to flip", blocked: "This image address is not allowed here", cannot: "This comparison cannot be drawn:", loading: "Loading" };
 
-export default function CompareImageView({ data, ui: _ui }: PartViewProps<CompareImageData>) {
+export default function CompareImageView({ data, ui: _ui, static: stp }: PartViewProps<CompareImageData>) {
   const ci = data.ci;
-  const { urlPolicy } = useDh();
+  const wait = useRef<HTMLDivElement>(null), seen = useSeen(wait, 300, stp !== undefined && stp !== false);   // with a loader the two images are asked for once the part is near the viewport
+  const [bs, af] = useMediaSrcs("compare-image", [{ url: ci?.before.src, kind: "image", role: "before" }, { url: ci?.after.src, kind: "image", role: "after" }], seen);
   const stage = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(ci?.start ?? 50);
   const drag = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   if (!ci || data.errors.length) return <div className="cmpi"><div className="cw-error">{W.cannot} {data.errors[0]?.msg ?? "it has no images"}</div></div>;
-  const before = applyUrlPolicy(ci.before.src, "image", urlPolicy), after = applyUrlPolicy(ci.after.src, "image", urlPolicy);
-  if (before == null || after == null) return <div className="cmpi"><div className="cw-error">{W.blocked}: {before == null ? ci.before.src : ci.after.src}</div></div>;
+  if (bs.status === "loading" || af.status === "loading" || bs.status === "idle" || af.status === "idle") return <div className="cmpi"><div ref={wait} className="cw-error" role="status">{W.loading}</div></div>;
+  const before = bs.status === "ready" ? bs.src : null, after = af.status === "ready" ? af.src : null;
+  if (before == null || after == null) return <div className="cmpi"><div className="cw-error">{refusedText(W.blocked, before == null ? bs : af)}: {before == null ? ci.before.src : ci.after.src}</div></div>;
   const start = ci.start;
   const clamp = (v: number) => Math.max(0, Math.min(100, v));
   const fromEvent = (e: React.PointerEvent) => {

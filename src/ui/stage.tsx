@@ -54,6 +54,8 @@ const TONES = ["good", "bad", "warn", "acc", "hot"];
 export function paint(p: Paint | undefined, roles: Record<string, number>): string {
   if (!p || p === "none") return "none";
   const [a, b] = p.split(":"); let c = p.split(":")[2];
+  const word = (s: string | undefined) => s !== undefined && /^[a-z][a-z0-9-]{0,30}$/.test(s);   // a name goes into var(--...): a plain word only
+  if (c !== undefined && !word(c)) c = "line";
   // "dot" and "dot-new" (a column's plain and lit dots): light falls back to the soft fill and the border; the dark blocks
   // set --cN-dot and --cN-dot-new brighter (not the dark fill)
   if (a === "role" && (c === "dot" || c === "dot-new")) { const n = roles[b]; if (n === undefined) return "var(--stg-unknown)"; return c === "dot" ? `var(--c${n}-dot, var(--c${n}-soft))` : `var(--c${n}-dot-new, var(--c${n}))`; }
@@ -61,8 +63,8 @@ export function paint(p: Paint | undefined, roles: Record<string, number>): stri
   if (a === "role") { const n = roles[b]; if (n === undefined) return "var(--stg-unknown)"; if (n === 0 && c === "wire") return "var(--ink-2)"; // a neutral card's connectors are drawn in ink, not the pale line
     if (c === "wire") c = "line";
     if (n === 0) return `var(--c0${c === "line" || !c ? "" : "-" + c}, var(--${c === "soft" || c === "plane" ? "surface-2" : c === "ink" ? "ink-2" : "line-2"}))`; return c === "line" || !c ? `var(--c${n})` : c === "plane" ? `var(--c${n}-plane, var(--c${n}-soft))` : `var(--c${n}-${c})`; }
-  if (TONES.includes(a)) return b === "line" || !b ? `var(--${a})` : `var(--${a}-${b})`;
-  return `var(--${a})`;
+  if (TONES.includes(a)) return b === "line" || !word(b) ? `var(--${a})` : `var(--${a}-${b})`;
+  return word(a) ? `var(--${a})` : "var(--stg-unknown)";
 }
 const shown = (it: Item, k: number) => (it.on ? it.on.includes(k) : k >= (it.from ?? 1) && (!it.to || k <= it.to));
 /** an SVG path through the points: "h" leaves and enters sideways, "v" up or down, "round" a polyline with round corners */

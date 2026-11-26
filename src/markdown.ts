@@ -10,6 +10,7 @@ import GithubSlugger, { slug as githubSlug } from "github-slugger";
 import MarkdownIt, { type MarkdownIt as Reader, type Token as Tok } from "./vendor/markdown-it";
 import { KEY_GLYPHS, MOUSE_PRESS } from "./core/dh-lib";
 import { applyUrlPolicy, decodeRefs, LIMITS, type UrlPolicy } from "./safety";
+import { claimedRefusal, claimedWhileParsing } from "./media-loader";
 import { inlineSection, matchRaw, prepareInlines, rawParts, scanRun, type InlineRun } from "./parts/inline-runtime";
 import { referenceRule } from "./core/refs";
 
@@ -833,7 +834,9 @@ function inlines(toks: Tok[], from: number, to: number, ctx: MdContext, depth: n
       case "image": {
         flush();
         const title = attr(t, "title");
-        out.push({ t: "img", src: applyUrlPolicy(decodeRefs(String(t.attrGet("src") ?? "")), "image", ctx.policy), alt: t.content, ...(title ? { title } : {}) });
+        const rawSrc = decodeRefs(String(t.attrGet("src") ?? ""));
+        // an address the host claimed (ParseOptions.mediaPrefixes) goes to its loader, not to the urlPolicy: kept as written
+        out.push({ t: "img", src: claimedWhileParsing(rawSrc) && !claimedRefusal(rawSrc) ? rawSrc.trim() : applyUrlPolicy(rawSrc, "image", ctx.policy), alt: t.content, ...(title ? { title } : {}) });
         break;
       }
       case "kbd": {

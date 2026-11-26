@@ -9,6 +9,7 @@
 export { parse, llmView, check, animationTexts, FORMAT_VERSION, type ParseOptions } from "./document";
 export { defineBlock, registerBlock, unregisterBlock, type BlockDef, type BlockInput } from "./blocks";
 export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";
+export type { LoadMedia, MediaKind, MediaRequest, MediaResult } from "./media-loader";
 export { setYamlParser } from "./host/yaml";
 export { CALLOUT_WORDS, inlineText, slug, type InlineDef } from "./markdown";
 export { REFERENCE_ONLY, REF_NAME_MAX, isReferenceType, nameProblem as referenceNameProblem, refText as referenceText } from "./core/refs";

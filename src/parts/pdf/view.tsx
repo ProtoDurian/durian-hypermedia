@@ -14,6 +14,7 @@ import { Budget, partLimitsOf } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, STR, clamp, useMediaUrl } from "../downloads/media-ui";
 import { mediaBytes } from "../downloads/media-fetch";
+import { useClaims, useMediaVia } from "../../react/media-loader";
 import type { PdfSpec } from "./part";
 import { useStatic } from "../kit/static";
 
@@ -94,6 +95,7 @@ export default function PdfView({ data: spec, static: stp }: PartViewProps<PdfSp
   // outline or swipe; the file's address stays a plain link under it
   const sx = useStatic(stp, 0);
   const url = useMediaUrl();
+  const via = useMediaVia("pdf"), claims = useClaims();
   const src = url(spec.src, "image") ?? "", caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null), pages = useRef<HTMLDivElement>(null), qin = useRef<HTMLInputElement>(null);
   const [pdfjs, setPdfjs] = useState<any>(null), [doc, setDoc] = useState<any>(null), [n, setN] = useState(0), [page, setPage] = useState(spec.page), [err, setErr] = useState(""), [note, setNote] = useState("");
@@ -109,7 +111,7 @@ export default function PdfView({ data: spec, static: stp }: PartViewProps<PdfSp
     (async () => {
       try {
         if (!src) throw new Error(STR.addressRefused);
-        const buf = await mediaBytes(src, caps.bytes, controller.signal);
+        const buf = await mediaBytes(src, caps.bytes, controller.signal, via(spec.src, "pdf"));
         if (dead) return;
         const lj = await lib(); if (dead) return;
         task = lj.getDocument({ data: buf, isEvalSupported: false, enableScripting: false, useWorkerFetch: false, verbosity: 0 });
@@ -199,7 +201,7 @@ export default function PdfView({ data: spec, static: stp }: PartViewProps<PdfSp
         <button type="button" className="m-ctl" onClick={() => setMode("fitw")} disabled={!ready} aria-pressed={mode === "fitw"} aria-label={STR.fitWidth} title={STR.fitWidth}><Icon n="fitw" /></button>
         <button type="button" className="m-ctl" onClick={() => setMode("fitp")} disabled={!ready} aria-pressed={mode === "fitp"} aria-label={STR.fitPage} title={STR.fitPage}><Icon n="fitp" /></button>
         <button type="button" className="m-ctl" onClick={() => { setSearching((s) => !s); window.setTimeout(() => qin.current?.focus(), 0); }} disabled={!ready} aria-expanded={searching} aria-label={STR.findInPdf} title={STR.findInPdf}><Icon n="search" /></button>
-        {src ? <a className="m-ctl" href={src} download aria-label={STR.download} title={STR.download}><Icon n="dl" /></a> : null}
+        {src && !claims(spec.src) ? <a className="m-ctl" href={src} download aria-label={STR.download} title={STR.download}><Icon n="dl" /></a> : null}
       </div> : null}
       {searching && !sx.on ? (
         <div className="pv-find" data-dh-slot="search" role="search">

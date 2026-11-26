@@ -8,6 +8,8 @@ import type { PartViewProps } from "../types";
 import { extOf, fmtTime } from "../downloads/media";
 import { Icon, Menu, STR, clamp, onButton, pct, typing, useDrag, useMediaUrl, useNear, useReducedMotion } from "../downloads/media-ui";
 import { mediaText } from "../downloads/media-fetch";
+import { refusedText, useHasLoader, useMediaSrcs, useMediaVia, useSeen } from "../../react/media-loader";
+import { cssUrl, spriteOk } from "../../media-loader";
 import { Transcript } from "../audio/transcript";
 import { parseVtt, speakerOf, type VttCue } from "../audio/timed";
 import type { VideoSpec } from "./part";
@@ -30,14 +32,25 @@ const scratch = () => new Budget(partLimitsOf(), null, null, "the video part");
 
 export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   const url = useMediaUrl();
-  const src = url(spec.src, "image") ?? "";
+  const via = useMediaVia("video"), hasLoader = useHasLoader();
   const caps = spec.caps;
-  const posterUrl = spec.poster ? url(spec.poster, "image") : null;
-  const sourceUrls = [spec.src, ...spec.sources].map((s) => ({ s, u: url(s, "image") })).filter((x): x is { s: string; u: string } => !!x.u);
-  const root = useRef<HTMLDivElement>(null), vid = useRef<HTMLVideoElement>(null), bar = useRef<HTMLDivElement>(null), stage = useRef<HTMLDivElement>(null);
+  const root = useRef<HTMLDivElement>(null);
+  // with a loader: the poster and the small files are asked for once the part is near the viewport; the video itself (a clip: once near) when the reader presses Play
+  const seen = useSeen(root), [want, setWant] = useState(false), [ready, setReady] = useState(false), pend = useRef(false);
+  const all = [spec.src, ...spec.sources];
+  const [posterState] = useMediaSrcs("video", [{ url: spec.poster || null, kind: "image", role: "poster" }], seen);
+  const sourceStates = useMediaSrcs("video", all.map((s, k) => ({ url: s, kind: "video" as const, role: k ? "source" : undefined })), seen && (spec.clip || want));
+  const pending = sourceStates.some((x) => x.status === "idle" || x.status === "loading");
+  const posterUrl = spec.poster && posterState.status === "ready" ? posterState.src : null;
+  const sourceUrls = all.map((s, k) => ({ s, st: sourceStates[k] })).filter((x): x is { s: string; st: { status: "ready"; src: string } } => x.st.status === "ready").map(({ s, st }) => ({ s, u: st.src }));
+  const src = sourceStates[0].status === "ready" ? sourceStates[0].src : "";
+  const vid = useRef<HTMLVideoElement>(null), bar = useRef<HTMLDivElement>(null), stage = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(spec.start), [dur, setDur] = useState(spec.duration ?? 0), [playing, setPlaying] = useState(false), [started, setStarted] = useState(false), [buffered, setBuffered] = useState(0);
   const [rate, setRate] = useState(1), [muted, setMuted] = useState(spec.clip), [vol, setVol] = useState(1), [cc, setCc] = useState(-1), [tracks, setTracks] = useState<Record<number, VttCue[]>>({});
   const [thumbs, setThumbs] = useState<{ start: number; end: number; text: string }[]>([]), [hover, setHover] = useState<{ x: number; t: number } | null>(null), [idle, setIdle] = useState(false);
+  // the sprite files of the thumbnail track: with a loader each is asked for (at most 8 distinct); without one the urlPolicy answers when a thumbnail is shown
+  const thumbFiles = useMemo(() => { const out: string[] = []; for (const c of thumbs) { const f = splitXywh(c.text)[0]; if (f && !out.includes(f)) { out.push(f); if (out.length >= 8) break; } } return out; }, [thumbs]);
+  const thumbStates = useMediaSrcs("video", thumbFiles.map((f) => ({ url: f, kind: "image" as const, role: "thumbs" })), seen);
   const [full, setFull] = useState(false), [err, setErr] = useState(""), [flash, setFlash] = useState<{ side: "l" | "r"; n: number } | null>(null), [open, setOpen] = useState(spec.transcript === "open");
   const [cues, setCues] = useState(spec.cues), [pipOk, setPipOk] = useState(false);
   const reduced = useReducedMotion(), near = useNear(root, 120);
@@ -46,14 +59,22 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   const needsHls = extOf(spec.src) === "m3u8";
 
   const seek = useCallback((to: number) => { const v = vid.current, d = (v && Number.isFinite(v.duration) && v.duration) || D; const x = clamp(to, 0, d || to); tref.current = x; if (v) v.currentTime = x; setT(x); }, [D]);
-  const toggle = useCallback(() => { const v = vid.current; if (!v) return; if (v.paused) { setStarted(true); void v.play().catch(() => setErr(`${STR.loadFail}: ${spec.src}`)); } else v.pause(); }, [spec.src]);
+  // a browser that wants play() inside the click itself (not after the loader's answer) refuses it: the reader presses Play again, now with the file at hand
+  const playFailed = useCallback((e: any) => { if (e?.name === "NotAllowedError") { setStarted(false); setReady(true); } else setErr(`${STR.loadFail}: ${spec.src}`); }, [spec.src]);
+  const toggle = useCallback(() => {
+    const v = vid.current; if (!v) return;
+    // the loader has not given the file yet: ask for it now, and play when it arrives
+    if (hasLoader && !sourceUrls.length && pending) { pend.current = true; setWant(true); setStarted(true); return; }
+    if (v.paused) { setStarted(true); void v.play().catch(playFailed); } else v.pause();
+  }, [spec.src, hasLoader, pending, sourceUrls.length, playFailed]);
+  useEffect(() => { if (!pend.current || !sourceUrls.length) return; pend.current = false; const v = vid.current; if (!v) return; v.load(); void v.play().catch(playFailed); }, [sourceUrls.length, spec.src, playFailed]);
 
   useEffect(() => {
     const v = vid.current; if (!v) return;
     const meta = () => { if (Number.isFinite(v.duration)) setDur(v.duration); if (spec.start && v.currentTime < 0.01) v.currentTime = spec.start; };
     const time = () => { if (!dragging.current) { tref.current = v.currentTime; setT(v.currentTime); } };
     const prog = () => { try { setBuffered(v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0); } catch {} };
-    const pl = () => { setPlaying(true); setStarted(true); }, pa = () => setPlaying(false), er = () => setErr(`${STR.loadFail}: ${spec.src}`);
+    const pl = () => { setPlaying(true); setStarted(true); setReady(false); }, pa = () => setPlaying(false), er = () => setErr(`${STR.loadFail}: ${spec.src}`);
     const evs: [string, any][] = [["loadedmetadata", meta], ["durationchange", meta], ["timeupdate", time], ["progress", prog], ["play", pl], ["pause", pa], ["ended", pa], ["error", er]];
     for (const [n, f] of evs) v.addEventListener(n, f);
     if (v.readyState >= 1) meta();
@@ -63,33 +84,33 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   useEffect(() => { const v = vid.current; if (v) { v.playbackRate = rate; v.muted = muted; v.volume = vol; } }, [rate, muted, vol]);
   useEffect(() => { const f = () => setFull(document.fullscreenElement === root.current); document.addEventListener("fullscreenchange", f); return () => document.removeEventListener("fullscreenchange", f); }, []);
   // a clip plays while it is in view, and stops off screen or with reduced motion
-  useEffect(() => { const v = vid.current; if (!v || !spec.clip) return; if (near && !reduced) void v.play().catch(() => {}); else v.pause(); }, [near, reduced, spec.clip]);
+  useEffect(() => { const v = vid.current; if (!v || !spec.clip) return; if (near && !reduced) void v.play().catch(() => {}); else v.pause(); }, [near, reduced, spec.clip, sourceUrls.length]);
   // a transcript file
   useEffect(() => {
-    if (!spec.transcriptFile || spec.cues.length) return; let dead = false;
+    if (!spec.transcriptFile || spec.cues.length || !seen) return; let dead = false;
     const tu = url(spec.transcriptFile, "image"); if (!tu) return;
     const controller = new AbortController();
-    mediaText(tu, caps.transcriptBytes, controller.signal).then((txt) => { if (dead) return; const l = parseVtt(txt, scratch(), caps.vttCues).map((c) => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; }); setCues(l.slice(0, caps.transcriptLines)); }).catch(() => {});
+    mediaText(tu, caps.transcriptBytes, controller.signal, via(spec.transcriptFile, "text", "transcript")).then((txt) => { if (dead) return; const l = parseVtt(txt, scratch(), caps.vttCues).map((c) => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; }); setCues(l.slice(0, caps.transcriptLines)); }).catch(() => {});
     return () => { dead = true; controller.abort(); };
-  }, [spec.transcriptFile, spec.cues.length, url, caps]);
+  }, [spec.transcriptFile, spec.cues.length, url, caps, seen]);
   // captions: the chosen track is fetched once, and drawn by us
   useEffect(() => {
     if (cc < 0 || tracks[cc]) return; let dead = false;
     const cu = url(spec.captions[cc].src, "image");
     if (!cu) { setTracks((x) => ({ ...x, [cc]: [] })); return; }
     const controller = new AbortController();
-    mediaText(cu, caps.vttBytes, controller.signal).then((txt) => { if (!dead) setTracks((x) => ({ ...x, [cc]: parseVtt(txt, scratch(), caps.vttCues) })); }).catch(() => { if (!dead) setTracks((x) => ({ ...x, [cc]: [] })); });
+    mediaText(cu, caps.vttBytes, controller.signal, via(spec.captions[cc].src, "text", "captions")).then((txt) => { if (!dead) setTracks((x) => ({ ...x, [cc]: parseVtt(txt, scratch(), caps.vttCues) })); }).catch(() => { if (!dead) setTracks((x) => ({ ...x, [cc]: [] })); });
     return () => { dead = true; controller.abort(); };
   }, [cc, spec.captions, url, caps, tracks]);
   useEffect(() => { const d = spec.captions.findIndex((c) => c.default); if (d >= 0) setCc(d); }, [spec.captions]);
   // thumbnails
   useEffect(() => {
-    if (!spec.thumbs) return; let dead = false;
+    if (!spec.thumbs || !seen) return; let dead = false;
     const th = url(spec.thumbs, "image"); if (!th) return;
     const controller = new AbortController();
-    mediaText(th, caps.thumbsBytes, controller.signal).then((txt) => { if (!dead) setThumbs(parseVtt(txt, scratch(), caps.vttCues).map((c) => ({ start: c.start, end: c.end, text: c.text.trim() }))); }).catch(() => {});
+    mediaText(th, caps.thumbsBytes, controller.signal, via(spec.thumbs, "text", "thumbs")).then((txt) => { if (!dead) setThumbs(parseVtt(txt, scratch(), caps.vttCues).map((c) => ({ start: c.start, end: c.end, text: c.text.trim() }))); }).catch(() => {});
     return () => { dead = true; controller.abort(); };
-  }, [spec.thumbs, url, caps]);
+  }, [spec.thumbs, url, caps, seen]);
 
   // controls hide after a while of a playing video with no pointer movement
   const wake = useCallback(() => { setIdle(false); clearTimeout(idleT.current); idleT.current = setTimeout(() => { if (!root.current?.contains(document.activeElement) || document.activeElement === stage.current) setIdle(true); }, 2600); }, []);
@@ -106,7 +127,10 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
   const thumbAt = (tm: number): Thumb => {
     const c = thumbs.find((x) => tm >= x.start && tm < x.end) ?? null; if (!c) return null;
     const [file, xywh] = splitXywh(c.text);
-    const u = url(file, "image"); if (!u) return null;
+    const ts = thumbStates[thumbFiles.indexOf(file)];
+    const u = hasLoader ? (ts && ts.status === "ready" ? ts.src : null) : url(file, "image"); if (!u) return null;
+    // the name is the author's text and the policy saw one string: nothing in it may end the CSS string or start another url() (SECURITY.md)
+    if (!spriteOk(u)) return null;
     return { src: u, x: xywh[0], y: xywh[1], w: xywh[2], h: xywh[3] };
   };
 
@@ -178,7 +202,7 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
             </div>
             {hover && D ? (
               <div className="vm-tip" data-dh-slot="thumb" style={{ left: `clamp(60px, ${pct(hover.x)}, calc(100% - 60px))` }}>
-                {hoverThumb ? <span className="vm-thumb" style={{ width: hoverThumb.w, height: hoverThumb.h, backgroundImage: `url("${hoverThumb.src}")`, backgroundPosition: `-${hoverThumb.x}px -${hoverThumb.y}px` }} /> : null}
+                {hoverThumb ? <span className="vm-thumb" style={{ width: hoverThumb.w, height: hoverThumb.h, backgroundImage: cssUrl(hoverThumb.src), backgroundPosition: `-${hoverThumb.x}px -${hoverThumb.y}px` }} /> : null}
                 {hoverSeg?.title ? <b>{hoverSeg.title}</b> : null}<span>{fmtTime(hover.t)}</span>
               </div>
             ) : null}
@@ -202,7 +226,7 @@ export default function VideoView({ data: spec }: PartViewProps<VideoSpec>) {
         </div>
       </div>
       {open && cues.length ? <Transcript cues={cues} t={t} onSeek={seek} reduced={reduced} /> : null}
-      {!sourceUrls.length ? <p className="m-err" role="note">{STR.addressRefused}</p> : err ? <p className="m-err" role="alert">{err}</p> : null}
+      {ready && !playing ? <p className="m-note" role="status">{STR.ready}</p> : sourceStates.every((x) => x.status === "loading") ? <p className="m-note" role="status">{STR.loading}</p> : sourceStates.every((x) => x.status === "idle") ? null : !sourceUrls.length ? <p className="m-err" role="note">{refusedText(STR.addressRefused, sourceStates[0])}</p> : err ? <p className="m-err" role="alert">{err}</p> : null}
     </div>
   );
 }

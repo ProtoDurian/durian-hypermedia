@@ -5,7 +5,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { PartViewProps } from "../types";
-import { Icon, STR, clamp, useMediaUrl } from "../downloads/media-ui";
+import { Icon, STR, clamp } from "../downloads/media-ui";
+import { refusedText, useMediaSrcs, useSeen } from "../../react/media-loader";
 import type { GallerySpec } from "./part";
 import { useStatic } from "../kit/static";
 
@@ -115,12 +116,11 @@ function Portal({ root, children }: { root: React.RefObject<HTMLElement | null>;
 }
 // a caption that only repeats the alt text is not shown twice
 const extra = (im: { alt: string; caption?: string }) => !!im.caption && im.caption.trim().toLowerCase() !== im.alt.trim().toLowerCase();
-export default function GalleryView({ data: spec, stage, static: stp }: PartViewProps<GallerySpec>) {
+function GalleryLoaded({ data: spec, stage, static: stp, hrefs, why }: PartViewProps<GallerySpec> & { hrefs: (string | null)[]; why: string }) {
   // static (SPEC 4.1: the fence, the page, the host, print or reduce motion): every image at once, as a grid, with no arrows,
   // dots, swipe or lightbox; a printed carousel shows all its images, not the first one
   const sx = useStatic(stp, 0);
-  const url = useMediaUrl();
-  const all = spec.images.map((im) => ({ ...im, href: url(im.src, "image") }));
+  const all = spec.images.map((im, k) => ({ ...im, href: hrefs[k] ?? null }));
   const imgs: Im[] = all.filter((im): im is Im => im.href !== null);
   const refused = all.length - imgs.length;
   const rootRef = useRef<HTMLDivElement>(null);
@@ -181,8 +181,18 @@ export default function GalleryView({ data: spec, stage, static: stp }: PartView
     <div ref={rootRef} className={`gl dh-media gl-v-${sx.on && n > 1 ? "grid" : spec.view}`} data-dh-static={sx.on || undefined}>
       {spec.title ? <p className="gl-title">{spec.title}</p> : null}
       {box}
-      {refused ? <p className="m-err" role="note">{STR.addressRefused}{refused === all.length ? "" : ` (${refused})`}</p> : null}
+      {refused ? <p className="m-err" role="note">{why}{refused === all.length ? "" : ` (${refused})`}</p> : null}
       {lb !== null && !sx.on ? <Portal root={rootRef}><Lightbox images={imgs} index={lb} onIndex={(k) => { setLb(k); setI(k); }} onClose={() => { setLb(null); window.setTimeout(() => openerRef.current?.focus?.(), 0); }} /></Portal> : null}
     </div>
   );
+}
+
+/** Asks the host's loader (when there is one) for every image first; the gallery is drawn once all have answered. Without a loader this is the urlPolicy, on the render, as in 0.7.0. */
+export default function GalleryView(p: PartViewProps<GallerySpec>) {
+  // with a loader the images are asked for once the gallery is near the viewport
+  const wait = useRef<HTMLDivElement>(null), seen = useSeen(wait, 300, p.static !== undefined && p.static !== false);
+  const states = useMediaSrcs("gallery", p.data.images.map((im) => ({ url: im.src, kind: "image" as const })), seen);
+  if (states.some((s) => s.status === "loading" || s.status === "idle")) return <div ref={wait} className={`gl dh-media gl-v-${p.data.view}`}>{p.data.title ? <p className="gl-title">{p.data.title}</p> : null}<p className="m-note" role="status">{STR.loading}</p></div>;
+  const firstRefused = states.find((s) => s.status === "refused");
+  return <GalleryLoaded {...p} hrefs={states.map((s) => (s.status === "ready" ? s.src : null))} why={refusedText(STR.addressRefused, firstRefused)} />;
 }

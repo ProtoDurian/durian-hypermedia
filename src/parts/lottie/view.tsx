@@ -8,6 +8,7 @@ import { Budget } from "../../core/budget";
 import type { PartViewProps } from "../types";
 import { Icon, Menu, STR, cssVar, toneVar, useMediaUrl, useNear, useReducedMotion, useThemeTick } from "../downloads/media-ui";
 import { mediaText } from "../downloads/media-fetch";
+import { useMediaVia } from "../../react/media-loader";
 import { checkLottieData, lottieForDrawing, recolourLottie } from "./check";
 import type { LottieSpec } from "./part";
 import { useStatic } from "../kit/static";
@@ -26,6 +27,7 @@ export default function LottieView({ data: spec, static: stp }: PartViewProps<Lo
   // static (SPEC 4.1): the still frame the part shows with reduce motion, and no control row (no play, slider or speed)
   const sx = useStatic(stp, 0);
   const url = useMediaUrl();
+  const via = useMediaVia("lottie");
   const srcUrl = url(spec.src, "image"), caps = spec.caps;
   const root = useRef<HTMLDivElement>(null), holder = useRef<HTMLDivElement>(null), slider = useRef<HTMLInputElement>(null), label = useRef<HTMLSpanElement>(null);
   const anim = useRef<any>(null), raw = useRef<string>(""), total = useRef(0), want = useRef(false);
@@ -63,7 +65,7 @@ export default function LottieView({ data: spec, static: stp }: PartViewProps<Lo
     (async () => {
       try {
         if (!srcUrl) throw new Error(STR.addressRefused);
-        const text = await mediaText(srcUrl, caps.bytes, controller.signal);
+        const text = await mediaText(srcUrl, caps.bytes, controller.signal, via(spec.src, "lottie"));
         if (dead) return;
         const json = JSON.parse(text);
         const why = checkLottieData(json, new Blob([text]).size, scratch(caps.nodes), caps);

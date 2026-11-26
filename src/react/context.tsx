@@ -73,6 +73,12 @@ export type Components = Partial<Record<BlockType, PartComponent>>;
 export interface DhSettings {
   ui: Ui;
   urlPolicy?: UrlPolicy;
+  /** the host's media loader (DocumentProps.loadMedia): every media part asks it before it loads bytes or sets a source */
+  loadMedia?: import("../media-loader").LoadMedia;
+  /** address prefixes the loader claims (DocumentProps.mediaPrefixes); they reach it without the urlPolicy */
+  mediaPrefixes?: readonly string[];
+  /** the loader bytes this document holds (kept by DocumentView, so a loader function made on each render does not reset it) */
+  mediaTotal?: { used: number };
   slots: Slots;
   components: Components;
   hostBlocks: Map<string, BlockDef<any, any>>;

@@ -6,6 +6,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { InlineViewProps } from "../inline";
 import type { CiteMark, CiteUse } from "./inline";
+import { useDh } from "../../react/context";
+import { applyUrlPolicy } from "../../safety";
 
 /** the part's own words */
 const W = { open: "Open source", copy: "Copy", copied: "Copied", failed: "Copy failed", entry: "Reference" };
@@ -14,6 +16,7 @@ const SHEET_W = 640, HOVER_MS = 150, LEAVE_MS = 250;
 let closeOpen: (() => void) | null = null;
 
 function Mark({ use }: { use: CiteUse }) {
+  const { urlPolicy } = useDh(), link = (h: string) => applyUrlPolicy(h, "link", urlPolicy);   // a reference's link goes through the host's urlPolicy like every other link
   const mark = useRef<HTMLButtonElement>(null), card = useRef<HTMLDivElement>(null), timer = useRef(0), leave = useRef(0);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ left: number; top: number } | "sheet">("sheet");
@@ -64,9 +67,9 @@ function Mark({ use }: { use: CiteUse }) {
           onKeyDown={cardKeys} onPointerEnter={() => clearTimeout(leave.current)}
           onPointerLeave={(e) => { if (e.pointerType !== "touch") leave.current = window.setTimeout(close, LEAVE_MS); }}>
           <div className="dh-pop-title">{use.label}</div>
-          <p className="dh-pop-text cite-entry">{use.card.segs.map((s, k) => (s.href ? <a key={k} href={s.href} rel="noreferrer">{s.t}</a> : s.i ? <i key={k}>{s.t}</i> : <React.Fragment key={k}>{s.t}</React.Fragment>))}</p>
+          <p className="dh-pop-text cite-entry">{use.card.segs.map((s, k) => (s.href && link(s.href) ? <a key={k} href={link(s.href)!} rel="noreferrer">{s.t}</a> : s.href ? <span key={k} className="dh-link-off">{s.t}</span> : s.i ? <i key={k}>{s.t}</i> : <React.Fragment key={k}>{s.t}</React.Fragment>))}</p>
           <div className="dh-pop-actions">
-            {use.card.link && <a href={use.card.link} className="dh-pop-act" rel="noreferrer">{W.open}</a>}
+            {use.card.link && link(use.card.link) && <a href={link(use.card.link)!} className="dh-pop-act" rel="noreferrer">{W.open}</a>}
             <button type="button" className="dh-pop-act" onClick={copyIt}>{copy}</button>
           </div>
         </div>, host)}

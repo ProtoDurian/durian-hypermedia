@@ -19,6 +19,7 @@ import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
 import { diagramOf } from "./core/diagrams";
 import { folderBlock, withIdPrefix } from "./parts/runtime";
+import { withMediaPrefixes } from "./media-loader";
 import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 import { RefSession, fencedSource, type ResolveReference } from "./refs";
@@ -48,6 +49,8 @@ export interface ParseOptions {
   urlPolicy?: UrlPolicy;
   /** caps (default: LIMITS) */
   limits?: Partial<Limits>;
+  /** address prefixes the host's media loader claims, such as `["media:", "@"]` (a scheme name and a colon, or `@`): the media parts accept such an address in `src`, and a Markdown image keeps it as written, so it reaches `loadMedia` (DocumentProps) and not the urlPolicy. Pass the same list as DocumentProps.mediaPrefixes. Default none: 0.7.0 behaviour. */
+  mediaPrefixes?: readonly string[];
   /** put before every id the page makes (headings, #ids, tabs), so a page cannot clobber the host's own ids (default "dh-") */
   idPrefix?: string;
   /** host blocks for this call (added to the ones registered with registerBlock) */
@@ -118,7 +121,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
   // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
   // layout budget that every animation draws from (core/work.ts)
-  return withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
+  return withMediaPrefixes(opts.mediaPrefixes, () => withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     // the page's references (refs.ts): counted, checked and, with the host's resolver, read in place
@@ -337,7 +340,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  }))));
+  })))));
 }
 
 // all the tables of contents of one page together list at most this many headings (each lists the page's headings
@@ -419,7 +422,7 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
   // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }))));
+  withMediaPrefixes(k.opts.mediaPrefixes, () => withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })))));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

@@ -5,14 +5,16 @@ import { Controls, reducedMotion } from "../../ui/parts";
 import type { Ui } from "../../ui/ui";
 import { useStatic, StaticSteps } from "./static";
 import type { StaticProp } from "../types";
+import { cssWord } from "../../safety";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // a colour word -> the theme's variables (the base, its soft fill and its ink for words)
 const SOFT: Record<string, string> = { acc: "var(--acc-soft)", good: "var(--good-soft)", warn: "var(--warn-soft)", bad: "var(--bad-soft)", muted: "var(--surface-2)" };
-export const colBase = (c: string) => (c ? `var(--${c})` : "var(--acc)");
-export const colSoft = (c: string) => SOFT[c] ?? `var(--${c || "c1"}-soft, var(--acc-soft))`;
-export const colInk = (c: string) => (c === "muted" ? "var(--muted)" : c ? `var(--${c}-ink, var(--${c}))` : "var(--acc-ink)");
+// (a word that is not a plain word is drawn as the default colour: cssWord, safety.ts)
+export const colBase = (c: string) => (c ? `var(--${cssWord(c, "acc")})` : "var(--acc)");
+export const colSoft = (c: string) => SOFT[c] ?? `var(--${cssWord(c || "c1", "c1")}-soft, var(--acc-soft))`;
+export const colInk = (c: string) => (c === "muted" ? "var(--muted)" : c ? `var(--${cssWord(c, "acc")}-ink, var(--${cssWord(c, "acc")}))` : "var(--acc-ink)");
 
 /** Is an item written under step s shown at step i (-1: before the first @step, always)? new: it came in at this step. */
 export const shownAt = (s: number, i: number, n: number) => n < 2 || s <= i;

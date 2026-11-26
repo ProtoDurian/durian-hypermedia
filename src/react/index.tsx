@@ -34,3 +34,4 @@ export { DocumentView, Blocks, MarkdownPart, TerminalPart, FileTreePart, EditorP
 export { DEFAULT_SLOTS, plainCode, useDh, type Slots, type Components, type PartComponent, type CodeSlotProps, type InlineCodeSlotProps, type LinkSlotProps, type TableSlotProps, type HeadingSlotProps } from "./context";
 export { UI, type Ui } from "../ui/ui";
 export type { DocumentProps };
+export type { LoadMedia, MediaKind, MediaRequest, MediaResult } from "../media-loader";

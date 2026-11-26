@@ -1,6 +1,19 @@
-/** Media response bytes are capped before they are copied or decoded. */
-export async function mediaBytes(url: string, cap: number, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
+import type { MediaOutcome } from "../../media-loader";
+
+/** How a part asks its host's loader first (react/media-loader.tsx makes it): the answer is bytes, an address to fetch, or a refusal. */
+export type MediaVia = (cap: number, signal?: AbortSignal) => Promise<MediaOutcome>;
+
+/** Media response bytes are capped before they are copied or decoded. With `via` (the host has a loader), the loader is asked first:
+ *  its bytes are checked against `cap`, its blob: address is fetched under the same cap, a refusal throws its reason. */
+export async function mediaBytes(url: string, cap: number, signal?: AbortSignal, via?: MediaVia): Promise<Uint8Array<ArrayBuffer>> {
   if (!Number.isSafeInteger(cap) || cap < 0) throw new Error("the media byte cap must be a non-negative integer");
+  if (via) {
+    const o = await via(cap, signal);
+    if (o.kind === "refused") throw new Error(o.reason);
+    // the bytes count toward the page's total while they are read here; the caller owns them after this returns
+    if (o.kind === "bytes") { o.release(); if (o.bytes.byteLength > cap) throw new Error(`the media file exceeds its ${cap} byte cap`); return o.bytes; }
+    url = o.url;
+  }
   const res = await fetch(url, { signal });
   const reader = res.body?.getReader();
   let complete = false;
@@ -28,6 +41,6 @@ export async function mediaBytes(url: string, cap: number, signal?: AbortSignal)
   }
 }
 
-export async function mediaText(url: string, cap: number, signal?: AbortSignal): Promise<string> {
-  return new TextDecoder().decode(await mediaBytes(url, cap, signal));
+export async function mediaText(url: string, cap: number, signal?: AbortSignal, via?: MediaVia): Promise<string> {
+  return new TextDecoder().decode(await mediaBytes(url, cap, signal, via));
 }

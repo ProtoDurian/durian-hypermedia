@@ -106,6 +106,8 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   blocks={[terminalSession, taskBlock]}
   inlines={[fileRef, taskRef]}
   urlPolicy={policy}         // checked again at render time
+  loadMedia={loadMedia}      // 0.8.0: your own loader for media (see "The host media loader" below)
+  mediaPrefixes={["media:", "@"]}   // the address forms that loader takes
   ui={{ next: "Next", back: "Back" }}                  // the renderer's own words
 />
 ```
@@ -129,6 +131,56 @@ So `hydrateDocument` is that, with the class `js`. A page that re-renders its ro
 while it hydrates should wrap that update in `React.startTransition`: React switches a part that gets an update before it
 has hydrated to client rendering (its error 424), which throws the server's drawing away. The queue finds a part by a block with no height, class
 `dh-turn`, that sits at the top of the part inside its frame.
+
+### The host media loader (0.8.0)
+
+If your files are not reachable by URL (they sit behind a login, or an authenticated daemon reads them), pass `loadMedia`. Every media part asks it before it loads bytes or sets a source: Markdown images, `gallery`, `compare-image`, `video` (file, sources, poster, captions, transcript, thumbnails), `audio` (file, peaks, transcript), `pdf` and `lottie`. Without `loadMedia` nothing changes from 0.7.0.
+
+```tsx
+import type { LoadMedia } from "durian-markdown/react/strict";
+
+const loadMedia: LoadMedia = async ({ url, kind, part, role, maxBytes, signal }) => {
+  // url: "media:q3-report.pdf", "@notes/diagram.png", or an https address that passed your urlPolicy
+  // kind: "image" | "video" | "audio" | "pdf" | "lottie" | "text";  part: "pdf", "gallery", "markdown" ...;  role: "poster", "captions" ...
+  // maxBytes: the most this file may have; reading past it is wasted
+  if (!url.startsWith("media:") && !url.startsWith("@")) return { useDefault: true };    // not yours: never fetch it (see below)
+  const res = await daemonRead(url, { signal });                                          // your authenticated read
+  if (!res.ok) return { refused: "you cannot open this file" };                           // the part says why
+  if (kind === "video" || kind === "audio") {                                             // big: hand over a blob, nothing is copied or counted
+    const u = URL.createObjectURL(await res.blob());
+    signal.addEventListener("abort", () => URL.revokeObjectURL(u), { once: true });       // revoke it when the signal aborts
+    return { objectUrl: u };
+  }
+  return { bytes: new Uint8Array(await res.arrayBuffer()) };                              // small files: bytes (checked against maxBytes)
+};
+
+const MEDIA = ["media:", "@"];
+const doc = parse(text, { mediaPrefixes: MEDIA });                 // the parser must know them too
+<DhDocument doc={doc} loadMedia={loadMedia} mediaPrefixes={MEDIA} />
+```
+
+How the host says which addresses its loader takes: **`mediaPrefixes`**, a list of address forms: a scheme name and a colon (`"media:"`) or `"@"`. (`http:`, `https:`, `data:`, `blob:`, `javascript:`, `file:` and the like are ignored.) An address that begins with one is *claimed*:
+
+- it skips your `urlPolicy` and the default rules, and goes only to the loader; it is never put in a `src`, `href` or request, so a claimed address that the loader refuses is a refused part, not a broken one. The text can still show in a part's error note (for example "This file could not be loaded: media:clip.mp4");
+- the parser accepts it in a media part's `src` and the like (pass the same list as `parse(text, { mediaPrefixes })`; without it a part says `media: URLs are not allowed`). The claim is compared with the text as the parser reads it: in a Markdown image after entities are decoded (`![x](&#64;a.png)` is `@a.png`), in a part's attribute exactly as written. A host that reads the AST gets an image's `src` unchecked by `urlPolicy` when it is claimed (the string as written, trimmed): treat it as the loader's, not as a URL;
+- the Node file checks (`checkLocalFiles`, option `mediaPrefixes`) skip it: it is not a file on disk.
+
+Every other address is checked by your `urlPolicy` and the default rules as always, and then the loader is asked about it too. **Answer `{ useDefault: true }` for anything you did not claim, and never fetch it yourself**: it is the author's text, and a loader that fetches it for them turns a document into requests made with your daemon's network and credentials. (For a claimed address `useDefault` is a refusal.)
+
+What the loader may answer, and what is checked:
+
+| Answer | What happens |
+| --- | --- |
+| `{ bytes }` | the file's bytes, copied, and held to `maxBytes`: the part's own cap for pdf, lottie, captions, peaks and transcripts; 32 MiB for an image, 512 MiB for a video, 64 MiB for audio set on an element. One document may hold 256 MiB of loader bytes at once (bytes being read, and blobs made from bytes that are still on the page; counted per `DhDocument`, whatever function you pass as `loadMedia`, so an inline one is fine); past that the answer is a refusal. A part that sets a source makes a blob from the bytes (its type from the file extension: png, jpg, gif, webp, avif, mp4, webm, mp3 ...; **svg is refused**, answer an `objectUrl` if you really serve svg) and revokes it when it unmounts. |
+| `{ objectUrl }` | a `blob:` URL, only from the loader. **The best answer for video and audio**: nothing is copied, counted or held by the package. It is yours: revoke it when `signal` aborts (the part unmounts or its address changes), not before (a `finally` that revokes on return breaks the image). For pdf, lottie, captions, peaks and transcripts the part fetches it under the same cap. Its size is not checked for an image, video or audio element: the browser streams it. |
+| `{ refused: reason }` | the part shows its refused state with the reason. A loader that throws or answers anything else counts as refused. |
+| `{ useDefault: true }` | not mine: the usual load. A refusal for a claimed address. |
+
+**CSP.** Blobs are `blob:` sources: allow `img-src blob:` and `media-src blob:`, and `connect-src blob:` for pdf, lottie, captions, peaks and transcripts (the package fetches those), or answer `{ bytes }` for the last group. Without them every bytes image and video is a CSP violation.
+
+**When it asks.** The loader is not asked while a part is far from the screen: an image in prose, a gallery, a compare-image and a video's poster are asked for when they come within 300 px of the viewport; a video's file (a `clip`: when it comes into view) and an audio file are asked for when the reader presses Play, which then waits for the answer ("Loading") and plays. The small files (peaks, transcript, thumbnail track) are asked for when the part is near. Costs of that: a video's length is not known until Play unless the fence says `duration=`, an audio waveform is a flat line until Play (the file is not decoded before it is asked for), and a video's or audio's download link appears after Play. A printed or static page is a full page: when the page is printing (or print media is on), when the host passes `static` or a part is static, every image is asked for at once, whether it is near the viewport or not (a browser does not wait for an answer that comes later: print once the page has loaded). A browser that wants `play()` inside the reader's own click (Safari on iOS; this was measured in Chromium, which does not) refuses the play that follows the loader's answer: the part then shows "Ready: press play", and the next press plays at once, inside the click, with the file already at hand. The loader is read when a part loads: a new function on each render reloads nothing; an address that changes asks again, and the earlier request's `signal` is aborted.
+
+A `blob:` address written by an author is refused as before, with or without a loader, and never reaches it. A `downloads` card is a link, not a load, and keeps using `urlPolicy` as `link`.
 
 **Strict CSP.** No part uses `eval`, `new Function` or WebAssembly in the browser; no CDN; no font is fetched.
 Proved by the example site served with

@@ -8,6 +8,7 @@ import type { PartViewProps } from "../types";
 import { Icon, Menu, STR, clamp, cssVar, onButton, sameOrigin, toneVar, typing, useDrag, useMediaUrl, useReducedMotion, useThemeTick } from "../downloads/media-ui";
 import { fmtTime } from "../downloads/media";
 import { mediaBytes, mediaText } from "../downloads/media-fetch";
+import { refusedText, useHasLoader, useMediaSrcs, useMediaVia, useSeen } from "../../react/media-loader";
 import { Transcript } from "./transcript";
 import { parseVtt, speakerOf, type Cue } from "./timed";
 import { barsOf, peaksOf } from "./peaks-data";
@@ -37,10 +38,15 @@ const readCols = (el: Element, tone: string): Cols => ({
 
 export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
   const url = useMediaUrl();
-  const src = url(spec.src, "image") ?? "";
+  const via = useMediaVia("audio");
+  const root = useRef<HTMLDivElement>(null), hasLoader = useHasLoader();
+  // with a loader: the audio file is asked for when the reader presses Play (the small peaks and transcript files once the part is near the viewport)
+  const seen = useSeen(root), [want, setWant] = useState(false), [ready, setReady] = useState(false), pend = useRef(false);
+  const [srcState] = useMediaSrcs("audio", [{ url: spec.src, kind: "audio" }], want);
+  const src = srcState.status === "ready" ? srcState.src : "";
   const peaksUrl = spec.peaks ? url(spec.peaks, "image") : null, transcriptUrl = spec.transcriptFile ? url(spec.transcriptFile, "image") : null;
   const caps = spec.caps;
-  const root = useRef<HTMLDivElement>(null), audioEl = useRef<HTMLAudioElement>(null), canvas = useRef<HTMLCanvasElement>(null), wrap = useRef<HTMLDivElement>(null);
+  const audioEl = useRef<HTMLAudioElement>(null), canvas = useRef<HTMLCanvasElement>(null), wrap = useRef<HTMLDivElement>(null);
   const [t, setT] = useState(spec.start), [dur, setDur] = useState(spec.duration ?? 0), [playing, setPlaying] = useState(false), [rate, setRate] = useState(1);
   const [muted, setMuted] = useState(false), [vol, setVol] = useState(1), [buffered, setBuffered] = useState(0), [peaks, setPeaks] = useState<number[] | null>(null);
   const [cues, setCues] = useState<Cue[]>(spec.cues), [open, setOpen] = useState(spec.transcript === "open"), [w, setW] = useState(0), [err, setErr] = useState(""), [note, setNote] = useState("");
@@ -56,7 +62,12 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
     const a = audioEl.current, d = (a && Number.isFinite(a.duration) && a.duration) || D || 0;
     const v = clamp(to, 0, d || to); tref.current = v; if (a) a.currentTime = v; setT(v);
   }, [D]);
-  const toggle = useCallback(() => { const a = audioEl.current; if (!a) return; if (a.paused) void a.play().catch(() => setErr(STR.loadFail)); else a.pause(); }, []);
+  const toggle = useCallback(() => {
+    const a = audioEl.current; if (!a) return;
+    if (hasLoader && !src && srcState.status !== "refused") { pend.current = true; setWant(true); return; }   // ask the loader now, play when the file arrives
+    if (a.paused) void a.play().catch(() => setErr(STR.loadFail)); else a.pause();
+  }, [hasLoader, src, srcState.status]);
+  useEffect(() => { if (!pend.current || !src) return; pend.current = false; void audioEl.current?.play().catch((e) => { if (e?.name === "NotAllowedError") setReady(true); else setErr(STR.loadFail); }); }, [src]);   // a browser that wants play() inside the click: the reader presses Play again
   useEffect(() => {
     const a = audioEl.current; if (!a) return;
     const onMeta = () => { if (Number.isFinite(a.duration)) setDur(a.duration); if (spec.start && a.currentTime < 0.01) a.currentTime = spec.start; };
@@ -64,7 +75,7 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
     const onProg = () => { try { setBuffered(a.buffered.length ? a.buffered.end(a.buffered.length - 1) : 0); } catch {} };
     const on = ["loadedmetadata", "durationchange"].map((n) => (a.addEventListener(n, onMeta), n));
     a.addEventListener("timeupdate", onTime); a.addEventListener("progress", onProg);
-    const pl = () => setPlaying(true), pa = () => setPlaying(false), er = () => setErr(`${STR.loadFail}: ${spec.src}`);
+    const pl = () => { setPlaying(true); setReady(false); }, pa = () => setPlaying(false), er = () => setErr(`${STR.loadFail}: ${spec.src}`);
     a.addEventListener("play", pl); a.addEventListener("pause", pa); a.addEventListener("ended", pa); a.addEventListener("error", er);
     if (a.readyState >= 1) onMeta();
     return () => { on.forEach((n) => a.removeEventListener(n, onMeta)); a.removeEventListener("timeupdate", onTime); a.removeEventListener("progress", onProg); a.removeEventListener("play", pl); a.removeEventListener("pause", pa); a.removeEventListener("ended", pa); a.removeEventListener("error", er); };
@@ -73,11 +84,12 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
 
   // ---- peaks: a peaks file, else decode the file when it is on our own origin and small, else a flat line until it plays
   useEffect(() => {
+    if (hasLoader && !seen) return;
     let dead = false; const controller = new AbortController();
     (async () => {
       try {
         if (peaksUrl) {
-          const txt = await mediaText(peaksUrl, caps.peaksBytes, controller.signal);
+          const txt = await mediaText(peaksUrl, caps.peaksBytes, controller.signal, via(spec.peaks!, "text", "peaks"));
           if (dead) return;
           const p = peaksOf(JSON.parse(txt), caps.waveformSamples); if (!p) throw new Error(`the peaks file is not audiowaveform JSON, or has over ${caps.waveformSamples} samples`);
           if (!dead) setPeaks(p); return;
@@ -95,20 +107,20 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
       } catch { /* a flat line until it plays */ }
     })();
     return () => { dead = true; controller.abort(); };
-  }, [peaksUrl, src, caps]);
+  }, [peaksUrl, src, caps, seen]);
 
   // ---- a transcript file (WebVTT or SRT), when the author named one
   useEffect(() => {
-    if (!transcriptUrl || spec.cues.length) return;
+    if (!transcriptUrl || spec.cues.length || (hasLoader && !seen)) return;
     let dead = false; const controller = new AbortController();
-    mediaText(transcriptUrl, caps.transcriptBytes, controller.signal).then((txt) => {
+    mediaText(transcriptUrl, caps.transcriptBytes, controller.signal, via(spec.transcriptFile!, "text", "transcript")).then((txt) => {
       if (dead) return;
       const budget = new Budget(partLimitsOf(), null, null, "the audio part");
       const list = parseVtt(txt, budget, caps.vttCues).map((c): Cue => { const [sp, text] = speakerOf(c.text); return { t: c.start, speaker: sp, text: text.split("\n").join(" "), line: 0 }; });
       if (!dead) setCues(list.slice(0, caps.transcriptLines));
     }).catch(() => {});
     return () => { dead = true; controller.abort(); };
-  }, [transcriptUrl, spec.cues.length, caps]);
+  }, [transcriptUrl, spec.cues.length, caps, seen]);
 
   // ---- the wave
   useEffect(() => {
@@ -261,7 +273,7 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
         {spec.transcript !== "off" && (cues.length || transcriptUrl) ? <button type="button" className="m-ctl has-text" aria-expanded={open} onClick={() => setOpen((o) => !o)} title={STR.transcript}><Icon n="text" size={20} /><span>{STR.transcript}</span></button> : null}
       </div>
       {open && cues.length ? <Transcript cues={cues} t={t} onSeek={seek} reduced={reduced} /> : null}
-      {!src ? <p className="m-err" role="note">{STR.addressRefused}</p> : err ? <p className="m-err" role="alert">{err}</p> : note ? <p className="m-note">{note}</p> : null}
+      {ready && !playing ? <p className="m-note" role="status">{STR.ready}</p> : srcState.status === "loading" ? <p className="m-note" role="status">{STR.loading}</p> : srcState.status === "idle" ? null : !src ? <p className="m-err" role="note">{refusedText(STR.addressRefused, srcState)}</p> : err ? <p className="m-err" role="alert">{err}</p> : note ? <p className="m-note">{note}</p> : null}
     </div>
   );
 }

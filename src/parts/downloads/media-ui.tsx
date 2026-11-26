@@ -1,14 +1,15 @@
 // Shared pieces of the media parts (format version 11): icons, strings, the drag-to-seek hook, a small menu. They live in
 // the first of the six folders; the other five import them from here. No HTML strings anywhere: every node is made by
 // React (strict Trusted Types).
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { applyUrlPolicy } from "../../safety";
+import { claimedBy, claimedRefusal, cleanPrefixes } from "../../media-loader";
 import { useDh } from "../../react/context";
 
 export const STR = {
   play: "Play", pause: "Pause", back: "Back", forward: "Forward", seconds: "seconds", mute: "Mute", unmute: "Unmute", volume: "Volume", speed: "Speed", captions: "Captions", captionsOff: "Off", pip: "Picture in picture",
   fullscreen: "Full screen", exitFullscreen: "Exit full screen", download: "Download", transcript: "Transcript", search: "Search the transcript", noMatch: "No line has that word", chapters: "Chapters", markers: "Markers",
-  seek: "Seek", of: "of", loadFail: "This file could not be loaded", loading: "Loading", close: "Close", next: "Next", prev: "Previous", zoomIn: "Zoom in", zoomOut: "Zoom out", fitWidth: "Fit width", fitPage: "Fit page", zoomReset: "Reset zoom",
+  seek: "Seek", of: "of", loadFail: "This file could not be loaded", ready: "Ready: press play", loading: "Loading", close: "Close", next: "Next", prev: "Previous", zoomIn: "Zoom in", zoomOut: "Zoom out", fitWidth: "Fit width", fitPage: "Fit page", zoomReset: "Reset zoom",
   page: "Page", pages: "pages", outline: "Outline", findInPdf: "Find in the document", copy: "Copy", copied: "Copied", pause2: "Pause animation", replay: "Replay", frame: "Frame", stillFrame: "Still frame (reduced motion)",
   image: "Image", images: "images", gallery: "Gallery", checksum: "Checksum", verify: "Check it with", tooBig: "too large", lines: "lines", of2: "of", clipHint: "Plays while in view", expand: "Show", collapse: "Hide", addressRefused: "This address is not allowed here",
 };
@@ -60,8 +61,10 @@ export function Icon({ n, size = 22, ...rest }: { n: string; size?: number } & P
 /** The address a part may load: the host's urlPolicy, then the default rules again (applyUrlPolicy). null = refused.
  *  kind "link" for a download link, "image" for every resource the view loads. */
 export function useMediaUrl(): (url: string, kind?: "link" | "image") => string | null {
-  const { urlPolicy } = useDh();
-  return useCallback((url: string, kind: "link" | "image" = "link") => applyUrlPolicy(url, kind, urlPolicy), [urlPolicy]);
+  const { urlPolicy, loadMedia, mediaPrefixes } = useDh();
+  const prefixes = useMemo(() => cleanPrefixes(mediaPrefixes), [mediaPrefixes]);
+  // with a host loader, an address it claims (media:, @path) is not refused here: it is only ever given to the loader, never put in the page
+  return useCallback((url: string, kind: "link" | "image" = "link") => (kind === "image" && loadMedia && claimedBy(url, prefixes) && !claimedRefusal(url) ? url.trim() : applyUrlPolicy(url, kind, urlPolicy)), [urlPolicy, loadMedia, prefixes]);
 }
 export const sameOrigin = (url: string) => { try { return new URL(url, location.href).origin === location.origin; } catch { return false; } };
 

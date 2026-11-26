@@ -10,6 +10,7 @@
 // blob: or javascript:) and again through the host's own policy when the view draws it. Hand scans only.
 import { definePart } from "../types";
 import { isSpace, type Err } from "../kit/text";
+import { claimedWhileParsing } from "../../media-loader";
 import type { Budget } from "../../core/budget";
 
 export const CI_KEYS = ["id", "title", "before", "after", "start", "direction", "ratio", "fit", "llm", "static"];
@@ -38,7 +39,7 @@ export function imageUrlProblem(url: string, maxLen = 500): string | null {
   if (!url) return "the image has no address";
   if (url.length > maxLen) return `the address is over ${maxLen} characters`;
   const scheme = schemeOf(url);
-  if (scheme && scheme.toLowerCase() !== "http" && scheme.toLowerCase() !== "https") return `the address starts with "${scheme.slice(0, 20)}:", which a host never loads here (a relative path, http or https only)`;
+  if (scheme && scheme.toLowerCase() !== "http" && scheme.toLowerCase() !== "https" && !claimedWhileParsing(url)) return `the address starts with "${scheme.slice(0, 20)}:", which a host never loads here (a relative path, http or https only)`;
   if (url.startsWith("//")) return "an address that starts with // is not a path or an http(s) address";
   if (url.includes("\\")) return "an address with a backslash is not a path or an http(s) address; use /";
   const cut = (() => { let i = 0; while (i < url.length && url[i] !== "?" && url[i] !== "#") i++; return i; })();

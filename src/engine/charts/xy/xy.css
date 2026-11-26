@@ -1,0 +1,89 @@
+.xy-grid{stroke:var(--grid);stroke-width:1;fill:none}
+.xy-grid-x{stroke-dasharray:2 4}
+.xy-axis{stroke:var(--axis,var(--grid));stroke-width:1;fill:none}
+.xy-tick,.xy-cat,.xy-title,.xy-keytext{fill:var(--muted)}
+.xy-value,.xy-num{fill:var(--ink)}
+.xy-dotted{stroke-dasharray:.1 6;stroke-linecap:round}
+.xy-off{opacity:.4}
+.xy-dim{opacity:.35}
+.xy-bubble{fill-opacity:.55;stroke-width:1.5}
+.xy-ann-fill{fill-opacity:.45}
+.xy-key-area{fill-opacity:.5}
+.xy-gap{opacity:0}
+.xy-heat.xy-empty{fill:none;stroke:var(--grid);stroke-dasharray:2 3}
+.xy-num.xy-on-hi{fill:var(--heat-lo)}
+.xy-num.xy-on-lo{fill:var(--ink)}
+.xy-sb-bar{fill:var(--es)}
+.xy-sb-bar.xy-sb-good{fill:var(--good);stroke:var(--good)}
+.xy-sb-bar.xy-sb-bad{fill:var(--bad);stroke:var(--bad)}
+.xy-sb-bar.xy-sb-warn{fill:var(--warn);stroke:var(--warn)}
+.xy-sb-bar.xy-sb-acc{fill:var(--acc);stroke:var(--acc)}
+.xy-sb-block{stroke-width:1}
+.ch-col.ch-lit{stroke:var(--acc)}
+.xy-thick{stroke-width:2.4}
+.eng-p.ch-warm{fill:var(--warn);stroke:var(--warn)}
+.xy-sb-ref{stroke:var(--lk-hairline-2,var(--line-2));stroke-width:2}
+.xy-sb-peak{stroke:var(--bad);stroke-width:2.5}
+.xy-sb-limit{stroke:var(--acc);stroke-width:2}
+.xy-sb-move{stroke:var(--acc);stroke-width:2.5;color:var(--acc)!important}
+.xy-sb-clear{stroke:var(--surface);stroke-width:6;stroke-dasharray:none}
+.xy-h0{fill:color-mix(in oklab,var(--heat-lo) 100%,var(--heat-hi) 0%)}
+.xy-hp0{fill:color-mix(in oklab,var(--heat-mid) 100%,var(--heat-hi) 0%)}
+.xy-hn0{fill:color-mix(in oklab,var(--heat-mid) 100%,var(--heat-neg) 0%)}
+.xy-h1{fill:color-mix(in oklab,var(--heat-lo) 95%,var(--heat-hi) 5%)}
+.xy-hp1{fill:color-mix(in oklab,var(--heat-mid) 95%,var(--heat-hi) 5%)}
+.xy-hn1{fill:color-mix(in oklab,var(--heat-mid) 95%,var(--heat-neg) 5%)}
+.xy-h2{fill:color-mix(in oklab,var(--heat-lo) 89%,var(--heat-hi) 11%)}
+.xy-hp2{fill:color-mix(in oklab,var(--heat-mid) 89%,var(--heat-hi) 11%)}
+.xy-hn2{fill:color-mix(in oklab,var(--heat-mid) 89%,var(--heat-neg) 11%)}
+.xy-h3{fill:color-mix(in oklab,var(--heat-lo) 84%,var(--heat-hi) 16%)}
+.xy-hp3{fill:color-mix(in oklab,var(--heat-mid) 84%,var(--heat-hi) 16%)}
+.xy-hn3{fill:color-mix(in oklab,var(--heat-mid) 84%,var(--heat-neg) 16%)}
+.xy-h4{fill:color-mix(in oklab,var(--heat-lo) 79%,var(--heat-hi) 21%)}
+.xy-hp4{fill:color-mix(in oklab,var(--heat-mid) 79%,var(--heat-hi) 21%)}
+.xy-hn4{fill:color-mix(in oklab,var(--heat-mid) 79%,var(--heat-neg) 21%)}
+.xy-h5{fill:color-mix(in oklab,var(--heat-lo) 74%,var(--heat-hi) 26%)}
+.xy-hp5{fill:color-mix(in oklab,var(--heat-mid) 74%,var(--heat-hi) 26%)}
+.xy-hn5{fill:color-mix(in oklab,var(--heat-mid) 74%,var(--heat-neg) 26%)}
+.xy-h6{fill:color-mix(in oklab,var(--heat-lo) 68%,var(--heat-hi) 32%)}
+.xy-hp6{fill:color-mix(in oklab,var(--heat-mid) 68%,var(--heat-hi) 32%)}
+.xy-hn6{fill:color-mix(in oklab,var(--heat-mid) 68%,var(--heat-neg) 32%)}
+.xy-h7{fill:color-mix(in oklab,var(--heat-lo) 63%,var(--heat-hi) 37%)}
+.xy-hp7{fill:color-mix(in oklab,var(--heat-mid) 63%,var(--heat-hi) 37%)}
+.xy-hn7{fill:color-mix(in oklab,var(--heat-mid) 63%,var(--heat-neg) 37%)}
+.xy-h8{fill:color-mix(in oklab,var(--heat-lo) 58%,var(--heat-hi) 42%)}
+.xy-hp8{fill:color-mix(in oklab,var(--heat-mid) 58%,var(--heat-hi) 42%)}
+.xy-hn8{fill:color-mix(in oklab,var(--heat-mid) 58%,var(--heat-neg) 42%)}
+.xy-h9{fill:color-mix(in oklab,var(--heat-lo) 53%,var(--heat-hi) 47%)}
+.xy-hp9{fill:color-mix(in oklab,var(--heat-mid) 53%,var(--heat-hi) 47%)}
+.xy-hn9{fill:color-mix(in oklab,var(--heat-mid) 53%,var(--heat-neg) 47%)}
+.xy-h10{fill:color-mix(in oklab,var(--heat-lo) 47%,var(--heat-hi) 53%)}
+.xy-hp10{fill:color-mix(in oklab,var(--heat-mid) 47%,var(--heat-hi) 53%)}
+.xy-hn10{fill:color-mix(in oklab,var(--heat-mid) 47%,var(--heat-neg) 53%)}
+.xy-h11{fill:color-mix(in oklab,var(--heat-lo) 42%,var(--heat-hi) 58%)}
+.xy-hp11{fill:color-mix(in oklab,var(--heat-mid) 42%,var(--heat-hi) 58%)}
+.xy-hn11{fill:color-mix(in oklab,var(--heat-mid) 42%,var(--heat-neg) 58%)}
+.xy-h12{fill:color-mix(in oklab,var(--heat-lo) 37%,var(--heat-hi) 63%)}
+.xy-hp12{fill:color-mix(in oklab,var(--heat-mid) 37%,var(--heat-hi) 63%)}
+.xy-hn12{fill:color-mix(in oklab,var(--heat-mid) 37%,var(--heat-neg) 63%)}
+.xy-h13{fill:color-mix(in oklab,var(--heat-lo) 32%,var(--heat-hi) 68%)}
+.xy-hp13{fill:color-mix(in oklab,var(--heat-mid) 32%,var(--heat-hi) 68%)}
+.xy-hn13{fill:color-mix(in oklab,var(--heat-mid) 32%,var(--heat-neg) 68%)}
+.xy-h14{fill:color-mix(in oklab,var(--heat-lo) 26%,var(--heat-hi) 74%)}
+.xy-hp14{fill:color-mix(in oklab,var(--heat-mid) 26%,var(--heat-hi) 74%)}
+.xy-hn14{fill:color-mix(in oklab,var(--heat-mid) 26%,var(--heat-neg) 74%)}
+.xy-h15{fill:color-mix(in oklab,var(--heat-lo) 21%,var(--heat-hi) 79%)}
+.xy-hp15{fill:color-mix(in oklab,var(--heat-mid) 21%,var(--heat-hi) 79%)}
+.xy-hn15{fill:color-mix(in oklab,var(--heat-mid) 21%,var(--heat-neg) 79%)}
+.xy-h16{fill:color-mix(in oklab,var(--heat-lo) 16%,var(--heat-hi) 84%)}
+.xy-hp16{fill:color-mix(in oklab,var(--heat-mid) 16%,var(--heat-hi) 84%)}
+.xy-hn16{fill:color-mix(in oklab,var(--heat-mid) 16%,var(--heat-neg) 84%)}
+.xy-h17{fill:color-mix(in oklab,var(--heat-lo) 11%,var(--heat-hi) 89%)}
+.xy-hp17{fill:color-mix(in oklab,var(--heat-mid) 11%,var(--heat-hi) 89%)}
+.xy-hn17{fill:color-mix(in oklab,var(--heat-mid) 11%,var(--heat-neg) 89%)}
+.xy-h18{fill:color-mix(in oklab,var(--heat-lo) 5%,var(--heat-hi) 95%)}
+.xy-hp18{fill:color-mix(in oklab,var(--heat-mid) 5%,var(--heat-hi) 95%)}
+.xy-hn18{fill:color-mix(in oklab,var(--heat-mid) 5%,var(--heat-neg) 95%)}
+.xy-h19{fill:color-mix(in oklab,var(--heat-lo) 0%,var(--heat-hi) 100%)}
+.xy-hp19{fill:color-mix(in oklab,var(--heat-mid) 0%,var(--heat-hi) 100%)}
+.xy-hn19{fill:color-mix(in oklab,var(--heat-mid) 0%,var(--heat-neg) 100%)}

@@ -1,0 +1,38 @@
+/* blocks2: the paints of the head-block layouts' primitives (layouts/time, sheet, grid). The blocks put the stage's own class names
+   on a primitive (fill-<paint> stroke-<paint> stg-thick stg-struck, the grid's gf-<fill> ge-<edge> g-thick g-strike ...). The renderer
+   paints from the primitive's fields through zero-specificity custom properties, so a class here wins; stage tokens only, no colours. */
+/* the old stage's own classes paint their fill and edge themselves (parts.css): the primitive's paint wins */
+.eng .eng-p.scn-frame, .eng .eng-p.scn-shape { fill: var(--ef, none); stroke: var(--es, none); }
+/* plain paints (no role): the stage's surfaces and lines */
+.eng .eng-p.gf-none, .eng .eng-p.fill-none { fill: none; }
+.eng .eng-p.gf-surface, .eng .eng-p.fill-surface { fill: var(--surface); }
+.eng .eng-p.gf-surface-2, .eng .eng-p.fill-surface-2 { fill: var(--surface-2); }
+.eng .eng-p.ge-none, .eng .eng-p.stroke-none { stroke: none; }
+.eng .eng-p.ge-line-2, .eng .eng-p.stroke-line-2 { stroke: var(--line-2); }
+.eng .eng-p.stroke-line { stroke: var(--line); }
+.eng .eng-p.stroke-muted { stroke: var(--muted); }
+/* a thick or dashed outline (widths are inline on the primitive, so these two say !important) */
+.eng .eng-p.stg-thick, .eng .eng-p.g-thick { stroke-width: var(--stg-thick, 2.4px) !important; }
+.eng .eng-p.stg-dash { stroke-dasharray: var(--stg-dash, 6 4); }
+/* words: haloed on a line, faded (a struck word has its own red line: render/svg.tsx StrikeLines, eng-polish) */
+.eng .stg-t.stg-halo, .eng .stg-t.g-halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.eng .eng-p.stg-dim:not(.stg-box), .eng .eng-p.g-dim:not(.stg-box) { opacity: var(--stg-dim, .38); }
+.eng .stg-edge.g-dotted .stg-line { stroke-dasharray: 0.1 4.5; stroke-linecap: round; }
+/* corner radii of the grid's boxes (g-r<px>) */
+.eng .g-r0 rect { rx: 0; }
+.eng .g-r1 rect { rx: 1px; }
+.eng .g-r2 rect { rx: 2px; }
+.eng .g-r3 rect { rx: 3px; }
+.eng .g-r4 rect { rx: 4px; }
+.eng .g-r5 rect { rx: 5px; }
+.eng .g-r6 rect { rx: 6px; }
+.eng .g-r7 rect { rx: 7px; }
+.eng .g-r8 rect { rx: 8px; }
+.eng .g-r9 rect { rx: 9px; }
+.eng .g-r10 rect { rx: 10px; }
+.eng .g-r11 rect { rx: 11px; }
+.eng .g-r12 rect { rx: 12px; }
+/* eng-lanes2: a lit frame or chip (sheet/items.ts, lanes/items.ts stg-w-hot) as the stage drew a lit box (ui/stage.css .stg-box.stg-hot,
+   .stg-box.stg-dash): the thick lit border with its soft shadow, dashed 4 4 when it is dashed (a removed layer) */
+.eng rect.eng-p.stg-w-hot { stroke-width: var(--stg-hot-w, 3.2px); filter: drop-shadow(0 1px 5px var(--stg-halo, rgba(15, 23, 42, .28))); }
+.eng rect.eng-p.stg-w-hot.stg-dash { stroke-dasharray: 4 4; }

@@ -51,7 +51,7 @@ const TSX = readFileSync(join(import.meta.dir, "../../src/ui/stage.tsx"), "utf8"
 test("the step scroll follows only a step the reader asked for: never on load, never on Play's own steps", () => {
   expect(TSX).toMatch(/const go = \(x: number\) => \{ setPlaying\(false\); wantFollow\.current = true; setK\(/);
   expect(TSX).toMatch(/if \(!wantFollow\.current\) return; wantFollow\.current = false;/);
-  expect(TSX).toContain("setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200)"); // Play's advance does not ask for it
+  expect(TSX).toContain("setTimeout(() => setK((x) => Math.min(n, x + 1)), STAGE_DWELL / speed)"); // Play's advance does not ask for it
   expect((TSX.match(/wantFollow\.current = true/g) ?? []).length).toBe(1);
   expect(TSX).toMatch(/matchMedia\("screen and \(max-width: 560px\)"\)/);
 });

@@ -2,7 +2,8 @@
 // as the drawing does, so a page budget another part (or an earlier file in the same test process) spent cannot reach
 // it; and a stage over its own budget is listed still, in words (its title, the named-budget message, every step),
 // as it is drawn. The drawing path already behaved this way; the LLM path threw BudgetError out of jsonOf.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "../old-engine";
 import { beginDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
 import { parseDoc, jsonOf, llmView } from "../../src/core/dh-lib";
 import { STAGE_OVER_MESSAGE as UI_MESSAGE } from "../../src/ui/stage";

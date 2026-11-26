@@ -16,7 +16,7 @@ roles:
 A standalone phase strip connects every adjacent phase, including links that wrap to another row on a phone.
 
 ```animation
-title: A package journey | fetch through publish
+title: A package journey | from its dependencies to the registry
 track: job fetch, resolve | cache lookup | job build, test | store publish
 carry: one package
 @step Resolve: The package starts with its dependencies.

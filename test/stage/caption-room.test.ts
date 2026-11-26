@@ -15,8 +15,8 @@ const SRC = "---\nroles: { client: c1, server: c3 }\n---\n# T\n\n```animation\n#
 test("every step's caption is in the caption box, the shown one first, the others hidden and kept from screen readers", () => {
   const html = renderToStaticMarkup(React.createElement(DhDocument, { doc: parse(SRC, { path: "t.dh.md" }) }));
   const box = html.match(/<div class="stg-capbox">([\s\S]*?)<\/div>/)?.[1] ?? "";
-  expect(box).toContain('<p class="stg-cap" data-bar-caption="">Short.</p>');
-  expect([...box.matchAll(/<p class="stg-cap stg-cap-room" aria-hidden="true">([^<]*)<\/p>/g)].map((m) => m[1])).toEqual(["Short.", "A much longer caption that wraps to a second line on a phone, and would have moved the page under the stage."]);
+  expect(box).toContain('<p class="stg-cap" data-bar-caption=""><strong class="eng-step-title">Ask.</strong> Short.</p>'); // the step's title leads (one engine)
+  expect([...box.matchAll(/<p class="stg-cap stg-cap-room" aria-hidden="true">(.*?)<\/p>/g)].map((m) => m[1].replace(/<strong[^>]*>[^<]*<\/strong> /, ""))).toEqual(["Short.", "A much longer caption that wraps to a second line on a phone, and would have moved the page under the stage."]);
 });
 
 test("the stylesheet stacks the captions in one grid cell and hides the room copies", () => {

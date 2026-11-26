@@ -10,6 +10,7 @@ import { FONT, measure, type Item } from "../../src/core/stage-core";
 import { beginDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
 import { checkDoc } from "../../src/core/doccheck";
 import { jsonOf, parseDoc } from "../../src/core/dh-lib";
+import { withEngine } from "../../src/engine/page";
 import { readFileSync } from "node:fs";
 import { pageRoles } from "../../src/core/stage-roles";
 import { join } from "node:path";
@@ -533,7 +534,7 @@ describe("sheet: the outcome column's height is a page token (theme: sheet-outco
     expect(pageRoles({ theme: { "fill-c9": "#EEF0FF #1E2340" } }).errors.join(" ")).toMatch(/not a stage token/);
     expect(layoutStage(withTheme({}).model, 1178).fills).toBeUndefined();
     expect(layoutStage(withTheme({ "fill-c1": "#EEF0FF #1E2340", "fill-c0": "#F2F4F7 #20262F" }).model, 390).fills).toEqual({ c1: ["#EEF0FF", "#1E2340"], c0: ["#F2F4F7", "#20262F"] });
-    const bad: any[] = []; checkDoc(parseDoc("t.dh.md", "---\ntitle: T\ntheme:\n  fill-c2: pink\n---\n\n# T\n\n```animation\n" + src + "\n```\n"), undefined, bad);
+    const bad: any[] = []; withEngine("old", () => checkDoc(parseDoc("t.dh.md", "---\ntitle: T\ntheme:\n  fill-c2: pink\n---\n\n# T\n\n```animation\n" + src + "\n```\n"), undefined, bad));
     expect(JSON.stringify(bad)).toMatch(/two colours, light then dark/);
   });
   test("sheet-outcome: panel is for the wide stage only: on a phone the stacked column is as tall as its content, the same as level", () => {

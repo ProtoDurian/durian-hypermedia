@@ -1,7 +1,8 @@
 // The two sets of caps (0.6.2): LIMITS for authored pages, UNTRUSTED_LIMITS for text nobody reviewed. The YAML pages here
 // are made up with the counts of the largest real pages measured (one chart of about 1,800 nodes; a page of about
 // 11,500 nodes and 80,500 characters of YAML): LIMITS reads them, UNTRUSTED_LIMITS refuses them. Counts only.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "./old-engine";
 import { PART_LIMITS } from "../src/parts/generated/limits";
 import { parse, LIMITS, UNTRUSTED_LIMITS } from "../src/index";
 import { yamlNodeCount } from "../src/host/yaml";

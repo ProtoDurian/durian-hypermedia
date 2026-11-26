@@ -1,14 +1,12 @@
 // Chart steps, the time axis, annotations, value formats and heatmaps on the core chart part: the time library, parse, the
-// LLM view, every refusal, the caps, the budget, and the config the browser hands Chart.js.
+// LLM view, every refusal, the caps and the budget. What the chart looks like is tested in test/engine/chwire/.
 import { describe, expect, test } from "bun:test";
 import { parse, check } from "../src/index";
 import { Budget, BudgetError, pageBudget, withBudget } from "../src/core/budget";
 import { LIMITS, UNTRUSTED_LIMITS } from "../src/safety";
 import { ticksEvery, MAX_TICKS } from "../src/core/pagecharts";
 import { specAt, chart11Check, chartTable11, evalChart11, fmtValue, durationText, bytesText, unitOf } from "../src/core/chart11";
-import { parseTime, fmtTime, timeTicks, startOf, add, partsOf, isDateOnly, MIN, HOUR, DAY } from "../src/core/chart-time";
-import { installTimeAdapter, TIME_FORMATS } from "../src/ui/chart-time-adapter";
-import { heatRamp, mix, parseColour, chartConfig11 } from "../src/ui/chart-config11";
+import { parseTime, fmtTime, timeTicks, startOf, add, partsOf, isDateOnly, HOUR, DAY } from "../src/core/chart-time";
 
 const yaml = (s: string) => Bun.YAML.parse(s) as any;
 const fresh = () => {};
@@ -57,18 +55,6 @@ describe("time library", () => {
     expect(parseTime("2026-11-20 10:00:30.5Z", "UTC")).toBe(Date.UTC(2026, 10, 20, 10, 0, 30, 500));
     expect(parseTime("2026-11-20T10:00+0100", "UTC")).toBe(Date.UTC(2026, 10, 20, 9, 0));
     for (const bad of ["2026-11-20T25:00", "2026-13-01", "2026-11-20T10", "2026-11-20x", "2026-11-20T10:00 +", "20261120", "x".repeat(10_000)]) expect(parseTime(bad, "UTC")).toBeNull();
-  });
-  test("the Chart.js adapter answers with our code and the scale's zone", () => {
-    let members: any = null;
-    installTimeAdapter({ _date: { override: (m: any) => { members = m; } } } as any);
-    const a = { options: { tz: "America/Los_Angeles" } };
-    expect(members.formats()).toBe(TIME_FORMATS);
-    const t = members.parse.call(a, "2026-11-20T10:00");
-    expect(t).toBe(Date.UTC(2026, 10, 20, 18, 0));
-    expect(members.format.call(a, t, "HH:mm")).toBe("10:00");
-    expect(members.startOf.call(a, t + 7 * MIN, "hour")).toBe(t);
-    expect(members.add.call(a, t, 1, "day")).toBe(Date.UTC(2026, 10, 21, 18, 0));
-    expect(members.diff.call(a, t + 3 * HOUR, t, "hour")).toBe(3);
   });
 });
 
@@ -243,17 +229,6 @@ ${extra}`;
   test("the reader's evaluation is its own part budget, drawn from nothing when there is no page", () => {
     for (let i = 0; i < 20; i++) expect(evalChart11(yaml(T(ANN)), undefined, 0).error).toBeUndefined();
   });
-  test("a time chart's config uses a time scale, the zone, formats and the annotation plugin", () => {
-    fresh();
-    const d = yaml(T(ANN)), e = evalChart11(d);
-    const tok = (n: string) => ({ "--font-sans": "sans", "--muted": "#444", "--grid": "#eee" } as any)[n] ?? "#888";
-    const cfg = chartConfig11(d, e, { tok, narrow: false, reduce: true }, 150_000);
-    expect(cfg.options.scales.x.type).toBe("time");
-    expect(cfg.options.scales.x.adapters.date.tz).toBe("America/Los_Angeles");
-    expect(cfg.options.scales.y.ticks.callback(410)).toBe("410 ms");
-    expect(cfg.plugins.some((p: any) => p.id === "dhAnn")).toBe(true);
-    expect(cfg.data.datasets[0].spanGaps).toBe(true);
-  });
 });
 
 describe("heatmap", () => {
@@ -293,18 +268,6 @@ series:
     fresh();
     const big = `kind: heatmap\nx: { values: [${Array.from({ length: 150 }, (_, i) => i).join(",")}] }\ny: { values: [${Array.from({ length: 100 }, (_, i) => `r${i}`).join(",")}] }\nseries:\n  - name: v\n    data: [${Array.from({ length: 100 }, () => `[${Array.from({ length: 150 }, () => 1).join(",")}]`).join(",")}]\n`;
     expect(chart11Check(yaml(big)).errors.join()).toMatch(/at most 10000 cells/);
-  });
-  test("the ramp runs from lo to hi, and two-sided around diverge", () => {
-    const tok = (n: string) => ({ "--heat-lo": "#ffffff", "--heat-hi": "#0000ff", "--heat-mid": "#ffffff", "--heat-neg": "#ff0000" } as any)[n];
-    const r = heatRamp(tok, undefined, undefined, 0, 10);
-    expect(parseColour(r(0).fill)).toEqual([255, 255, 255]);
-    expect(parseColour(r(10).fill)).toEqual([0, 0, 255]);
-    const m = parseColour(r(5).fill); expect(m[0]).toBeGreaterThan(0); expect(m[0]).toBeLessThan(255);
-    const d = heatRamp(tok, undefined, 0, -10, 10);
-    expect(parseColour(d(-10).fill)).toEqual([255, 0, 0]);
-    expect(parseColour(d(0).fill)).toEqual([255, 255, 255]);
-    expect(parseColour(d(10).fill)).toEqual([0, 0, 255]);
-    expect(mix([0, 0, 0], [255, 255, 255], 0.5)[0]).toBeGreaterThan(90);
   });
 });
 

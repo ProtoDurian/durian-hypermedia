@@ -9,7 +9,7 @@ import { beginDocument, endDocument } from "../../src/core/stage-budget";
 
 afterEach(() => { endDocument(); beginDocument(); });
 const DIR = join(import.meta.dir, "../../fixtures/stage");
-const view = (src: string) => llmView(parse(src, { path: "t.dh.md" }));
+const view = (src: string) => llmView(parse(src, { path: "t.dh.md", engine: "old" }));
 const HEAD = "---\nroles: { client: c1, server: c3 }\n---\n# T\n\n```animation\n";
 
 describe("the LLM view of a composed stage", () => {
@@ -39,7 +39,7 @@ describe("the LLM view of a composed stage", () => {
 });
 
 describe("doccheck words for a composed stage", () => {
-  const msgs = (src: string) => check(parse(src, { path: "t.dh.md" })).map((p) => p.message);
+  const msgs = (src: string) => check(parse(src, { path: "t.dh.md", engine: "old" })).map((p) => p.message);
   const CARDS = "## Clients\nclient c1: the browser\n## Servers\nserver s1: the API\n";
   test("a colour or a pixel size reads 'no colour value', never 'no a colour value'", () => {
     const m = msgs(HEAD + CARDS.replace("the browser", "the browser #ff0000") + "@step One: one.\nc1 -> s1: GET 40px\n@step Two: two.\ns1 -> c1: ok\n```\n");

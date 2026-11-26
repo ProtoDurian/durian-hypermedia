@@ -12,7 +12,7 @@ import { html } from "./helpers";
 
 const BODY = 'box a "app" note="the front"\nbox b "database"\na -> b';
 const STEPS = `${BODY}\n@step one\nhighlight a\n@step two\nhighlight b`;
-const page = (word: string, body = BODY) => html(parse(`---\ntitle: T\n---\n\n\`\`\`animation${word}\n${body}\n\`\`\`\n`) as any);
+const page = (word: string, body = BODY) => html(parse(`---\ntitle: T\n---\n\n\`\`\`animation${word}\n${body}\n\`\`\`\n`, { engine: "old" }) as any, "old");
 const draw = (src: string, info: Record<string, string> = {}, st?: string | false) => {
   const [head, ...rest] = src.split(/^@step /m);
   const steps = rest.map((r, k) => { const [t, ...b] = r.split("\n"); return { title: t.trim(), raw: b.join("\n"), line: 10 * (k + 1) }; });
@@ -41,7 +41,7 @@ describe("a still scene (no steps)", () => {
   });
   test("the page's checks take the word zoom and a still scene", () => {
     for (const word of ["", " zoom", " 3d zoom"]) {
-      const d = parse(`---\ntitle: T\n---\n\n\`\`\`animation${word}\n${BODY}\n\`\`\`\n`) as any;
+      const d = parse(`---\ntitle: T\n---\n\n\`\`\`animation${word}\n${BODY}\n\`\`\`\n`, { engine: "old" }) as any;
       expect((d.issues ?? []).filter((i: any) => i.level === "error")).toEqual([]);
     }
   });

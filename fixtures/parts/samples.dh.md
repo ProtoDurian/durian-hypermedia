@@ -80,7 +80,7 @@ data: [74, 88, 109, 110, 86, 88, 122, 87, 132, 140, 93, 50, 99, 127, 56, 69, 80,
 kind: boxplot
 title: Checkout time by day
 x: { label: day, values: [Mon, Tue, Wed] }
-y: { label: seconds to pay, format: duration }
+y: { label: time to pay, format: duration }
 tone: c4
 data:
   - [120, 100, 121, 110, 106, 125, 169, 146, 134, 102, 132, 128, 114, 152]
@@ -291,7 +291,7 @@ A fence in the data's own language, followed by `explore`, becomes a foldable tr
 }
 ```
 
-The same reader takes YAML and CSV. TOML exploration is refused until a TOML reader is available; the TOML example below is ordinary code:
+The same reader takes YAML and CSV. TOML reads the same way (a plain `toml` fence without `explore` stays ordinary code). Each explorer has a **Rich | Raw** switch: Raw shows the source as plain text with line numbers:
 
 ```yaml explore title="A service config" query=".limits | map_values(ascii_upcase)"
 service: shop
@@ -306,7 +306,7 @@ hosts:
     zone: b
 ```
 
-```toml
+```toml explore title="A server table" query=".limits.cpu"
 [server]
 host = "198.51.100.7"
 port = 8443
@@ -325,7 +325,7 @@ ap-south,70,260,410000
 
 ## Fishbone
 
-Causes by category along a spine into the effect. In a narrow column the spine turns vertical.
+Causes by category along a spine into the effect. In a narrow column (a phone) the spine runs down the left edge, each category a block of causes, the effect at the bottom.
 
 ```fishbone title="Why is checkout slow?"
 effect: Checkout takes 4 seconds at p95
@@ -607,7 +607,7 @@ sessions, users -> postgres
 
 ## Http
 
-An `http` block is a request and, after a blank line, its response, as text. It is drawn as a method tag and the address (the query split into names and values), the headers (folded after six), the body (JSON is pretty and can be folded), the status as a tag coloured by its class, and a button that copies the request as `curl`. A secret in a header is never written out: use a placeholder such as `<token>`.
+An `http` block is a request and, after a blank line, its response, as text. It is drawn as a method tag and the address (the query split into names and values), the headers and the body as sections that open and close (a short one starts open, a long one closed), the body (JSON is pretty and can be folded), the status as a tag coloured by its class, and a button that copies the request as `curl`. A parameter's value and a request header's value are text fields: edit one and the address and the curl follow (nothing is sent). A secret in a header is never written out: use a placeholder such as `<token>`.
 
 ```http title="Create an order"
 POST /v1/orders?dry_run=false&currency=usd HTTP/1.1

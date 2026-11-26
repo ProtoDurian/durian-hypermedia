@@ -62,3 +62,9 @@ stack layers
 highlight b1 a1 tone=good
 say b1: 200 OK
 ```
+
+:::llm
+Animation, 12 steps, 3D (2D flat on a phone or with no WebGL). Two machines, the browser's and the server's, each with the same five layers: application, TLS, TCP, IP and link.
+
+1. The layers split apart. 2. to 5. Going down, the request passes TLS (encrypts it), TCP (numbered segments), IP (packets) and the link layer (signals). 6. The signals cross the wire to the server's machine. 7. to 10. Going up, each layer undoes its twin's work, to IP, TCP, TLS, and the web server reads the request. 11. TCP on both machines talks only to TCP. 12. The reply goes back the same way, one layer per hop.
+:::

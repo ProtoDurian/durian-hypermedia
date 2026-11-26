@@ -1,7 +1,8 @@
 // The layers example (0.7.0-rc.3): one request packet from a laptop's browser through a switch, a home router and two
 // internet routers to a server, and the first packet of the answer back, told on the composed stage in ten scenes.
 // The page is the Format page's example of its own (fixtures/stage/example-layers.dh.md, made by scripts/fixtures.ts).
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect } from "bun:test";
+import { test } from "../old-engine";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
@@ -23,7 +24,7 @@ describe("the layers example", () => {
     expect(fences.length).toBe(10);
     expect(fences.map((f) => (f.src.match(/^@step /gm) ?? []).length)).toEqual([7, 6, 6, 5, 10, 11, 6, 6, 9, 0]);
     expect(fences.map((f) => f.info)).toEqual([...Array(9).fill(""), "static"]);
-    const doc = parse(text, { path: "example-layers.dh.md" });
+    const doc = parse(text, { path: "example-layers.dh.md", engine: "old" });
     const stages = doc.blocks.filter((b) => b.type === "animation" && b.stage);
     expect(stages.length).toBe(13); // ten composed scenes and the three layer-1 signal stills
     expect(doc.blocks.filter((b) => b.type === "error")).toEqual([]);
@@ -41,21 +42,21 @@ describe("the layers example", () => {
   });
 
   test("in a scene, a router, its routing table and the packet are three families", () => {
-    const doc = parse(text, { path: "example-layers.dh.md" });
+    const doc = parse(text, { path: "example-layers.dh.md", engine: "old" });
     const used = doc.blocks.filter((b: any) => b.type === "animation" && b.stage).map((b: any) => new Set([...[b.stage.src.head, ...b.stage.src.steps.map((st: any) => st.raw)].join("\n").matchAll(/^\s*(ip|router|table) [a-z0-9]+:|^rows (?:plain )?(table)$/gm)].map((m: RegExpMatchArray) => m[1] ?? m[2]))); // a table card or a step table (rc.5)
     expect(used.filter((u) => u.has("ip") && u.has("router") && u.has("table")).length).toBeGreaterThan(0);
     expect(used.every((u) => !u.has("ip") || u.size === 1 || u.has("router") || u.has("table"))).toBe(true);
   });
 
   test("it draws on the server, every scene a stage, the tenth still", () => {
-    const doc = parse(text, { path: "example-layers.dh.md" });
-    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
+    const doc = parse(text, { path: "example-layers.dh.md", engine: "old" });
+    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc, engine: "old" }));
     expect((html.match(/class="stg(?: stg-static)?"/g) ?? []).length).toBe(13); // with the three signal stills
     expect((html.match(/class="stg stg-static"/g) ?? []).length).toBe(1);
   }, 15_000); // it checks the drawing, not speed: every scene draws its full set of screen plans (about 5 s under load)
 
   test("the LLM view carries the packet's facts hop by hop", () => {
-    const v = llmView(parse(text, { path: "example-layers.dh.md" }));
+    const v = llmView(parse(text, { path: "example-layers.dh.md", engine: "old" }));
     for (const s of ["203.0.113.80", "198.51.100.7", "TTL 61", "00:00:5E:00:53:B2", "source port 40001"]) expect(v).toContain(s);
   });
 

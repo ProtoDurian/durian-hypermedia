@@ -1,7 +1,8 @@
 // An animation block carries `texts`: the strings the scene compiler reads as labels, captions, say and note texts, in
 // story order. animationTexts(block) gives the same list. Tools that read the Document JSON (a word checker, say) use
 // either, and never reach into scene internals.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "./old-engine";
 import { parse, animationTexts, type AnimationBlock } from "../src/index";
 import { animOf, parseDoc } from "../src/core/dh-lib";
 import { fixtures } from "./helpers";

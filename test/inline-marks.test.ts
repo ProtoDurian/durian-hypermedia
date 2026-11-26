@@ -1,5 +1,6 @@
 // Inline marks in captions, speech and notes (SPEC 6.15): `code`, **bold** and *italic*, and nothing else.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "./old-engine";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { compileScene, sceneLlm, type Compiled } from "../src/core/scene";
@@ -66,7 +67,7 @@ describe("inline marks in captions, speech and notes", () => {
 describe("inline marks in a rendered page", () => {
   const src = "---\ntitle: T\ndescription: D\n---\n\n# T\n\n```animation layout=graph\nbox a \"A\" note=\"keeps the `id`\"\n@step Run `task gen`, **never** by *hand*.\nsay a: run `task gen` now\n@step two\nhighlight a\n```\n";
   test("a caption draws code, bold and italic as elements, never as HTML text", () => {
-    const out = html(parse(src));
+    const out = html(parse(src), "old");
     expect(out).toContain('<code class="scn-code"');
     expect(out).toContain("<strong>never</strong>");
     expect(out).toContain("<em>hand</em>");
@@ -101,7 +102,7 @@ describe("inline marks in a rendered page", () => {
 describe("the static step list", () => {
   test("a static animation's caption and its step list draw the marks as elements", () => {
     const src = "---\ntitle: T\ndescription: D\n---\n\n# T\n\n```animation layout=graph static=true\nbox a \"A\"\n@step Run `task gen` **now**.\nhighlight a\n@step two\nhighlight a\n```\n";
-    const out = html(parse(src));
+    const out = html(parse(src), "old");
     const a = out.indexOf("dh-static-steps"), steps = out.slice(a, out.indexOf("</details>", a));
     expect(steps).toContain('<code class="scn-code"');
     expect(steps).toContain("<strong>now</strong>");

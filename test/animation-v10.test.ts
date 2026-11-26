@@ -40,7 +40,7 @@ const fences = (): Fence[] => {
 const ALL = fences();
 
 describe("format version 11: the numbers", () => {
-  test("format version 12, package 0.7.0 until the release tag", () => { expect(FORMAT_VERSION).toBe(12); expect(VERSION).toBe("0.7.0"); expect(JSON.parse(readFileSync(join(import.meta.dir, "../package.json"), "utf8")).version).toBe("0.7.0"); });
+  test("format version 12, package 0.8.0", () => { expect(FORMAT_VERSION).toBe(12); expect(VERSION).toBe("0.8.0"); expect(JSON.parse(readFileSync(join(import.meta.dir, "../package.json"), "utf8")).version).toBe("0.8.0"); });
   test("every Format fixture parses and its animations compile with no refusal", () => {
     expect(ALL.length).toBeGreaterThanOrEqual(27);
     expect(ALL.flatMap((x) => x.c.errors.map((e) => `${x.name}: ${e.msg}`))).toEqual([]);

@@ -1,6 +1,6 @@
 {
   "name": "durian-markdown",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "DurianMarkdown: Markdown with rich parts for people and a plain view for LLMs. The format, a pure parser, the LLM view, the checks and a React renderer.",
   "type": "module",
   "sideEffects": [

@@ -2,7 +2,7 @@
 
 A scene inside a scene (SPEC 6.12) on the one engine. Code: `core/scenes.ts` (new), the parts marked `eng-scenes`
 in `core/states.ts`, `core/diff.ts`, `core/check.ts`, `core/llm.ts`, `pipeline.ts` and `parse/lower-graph.ts`
-(`lowerScene` only, agreed with brant).
+(`lowerScene` only, agreed with the integrator).
 
 ## What the engine does now
 

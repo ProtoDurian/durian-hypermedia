@@ -1,5 +1,5 @@
-// The one engine (format 12): the frozen contracts every lane builds against. DESIGN: showcase-fb/DESIGN.md option 1;
-// the words: src/engine/ENGINE.md. Change this file only through the integrator (brant): every lane imports it.
+// The one engine (format 12): the frozen contracts every lane builds against.
+// the words: src/engine/ENGINE.md. Change this file only through the integrator: every lane imports it.
 //
 // The pipeline, one direction only:
 //   source text ──parse──▶ Model (things, relations, steps of facts)

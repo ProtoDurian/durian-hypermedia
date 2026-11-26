@@ -28,7 +28,7 @@ afterAll(() => {
   mock.module("../../../src/engine/render/route", () => realRoute);
 });
 
-// upstream gaps (reported to brant): lowerGraph gives `buckets` no layout, and core never opens a zoomed array/map; patched here so the layouts are tested
+// upstream gaps (reported to the integrator): lowerGraph gives `buckets` no layout, and core never opens a zoomed array/map; patched here so the layouts are tested
 function compileFixed(src: ReturnType<typeof fence>["src"]) {
   const c = compile(src);
   const h = c.model.things.h; if (h && !h.layout && h.keys.count) { h.layout = "map"; h.container = true; h.keys.buckets = h.keys.count; }

@@ -1,4 +1,4 @@
-// Layout family "tree" (lane eng-data, brant's extra scope): tree. Contract: ../types.ts LayoutPlugin, ../ENGINE.md section 3.
+// Layout family "tree" (lane eng-data): tree. Contract: ../types.ts LayoutPlugin, ../ENGINE.md section 3.
 //
 // Indent (or `in t under n [left|right]`: state.in = the parent, state.side) = children. Each node is centred over its
 // children; a binary tree (any node with a side) keeps an empty side's room, so a node with one child stays above its

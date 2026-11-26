@@ -1,7 +1,7 @@
 # Match harness (`scripts/match.ts`)
 
 The measuring stick for the one-engine rewrite: it draws every animation and chart fence of `fixtures/` alone on a page,
-at 1280 and 390 px, shoots every step and measures what is drawn. It reads the page; it changes no engine code.
+at 1280 and 390 px, shoots every step and measures what is drawn. It reads the page and changes nothing in the package.
 
 ## Run
 ```

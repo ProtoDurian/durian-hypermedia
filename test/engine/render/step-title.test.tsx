@@ -1,4 +1,4 @@
-// fmt12: an author's step title is never dropped (brant's ruling, 26 Nov): the caption leads with it in bold ("Title."), and
+// fmt12: an author's step title is never dropped (ruling, 26 Nov): the caption leads with it in bold ("Title."), and
 // the step control names each step by it (the slider's value text and tooltip; Back and Next name the step they go to).
 import { describe, expect, test } from "bun:test";
 import React from "react";

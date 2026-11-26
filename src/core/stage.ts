@@ -2266,7 +2266,7 @@ function connectors(m: Model, rects: Map<string, Rect & { lane: number }>, w: nu
     }
     const cy0 = cy, cx0 = cx;
     while (!inTarget && hit() && tries++ < 12) cy += tries % 2 ? -24 * tries : 24 * tries;
-    // no clear place: the label covers no words if it can, as near its line as it can (raziel, rc.3: the layers story at
+    // no clear place: the label covers no words if it can, as near its line as it can (rc.3: the layers story at
     // 800: 'the server's flight' slid ~140 px down onto the NAT table and hid 'to 198.51.100.7:'); a box edge it may cover
     if (!inTarget && hit()) {
       const words = (x: number, y: number) => labelWords.filter((it) => { if (it.k !== "text" || !seenIn(it)) return false; const tw = measure(it.s, it.f), lx = it.anchor === "middle" ? it.x - tw / 2 : it.anchor === "end" ? it.x - tw : it.x; return x + cw / 2 > lx - 2 && x - cw / 2 < lx + tw + 2 && y + 20 > it.y - 12 && y < it.y + 4; }).length;

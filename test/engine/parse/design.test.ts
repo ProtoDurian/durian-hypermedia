@@ -1,4 +1,4 @@
-// Lane parse: the 7 DESIGN.md examples (A to G) in format 12 read with no refusal and tell the story the design says.
+// Lane parse: the 7 design examples (A to G) in format 12 read with no refusal and tell the story the design says.
 import { describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +10,7 @@ const dir = join(import.meta.dir, "design");
 const load = (name: string) => fencesOf(join(dir, name + ".dh.md"), undefined, name)[0].src;
 
 test("seven examples", () => expect(readdirSync(dir).filter((f) => f.endsWith(".dh.md")).length).toBe(7));
-describe("DESIGN.md examples in format 12", () => {
+describe("design examples in format 12", () => {
   for (const f of readdirSync(dir).filter((x) => x.endsWith(".dh.md")).sort()) test(f, () => {
     const src = load(f.replace(".dh.md", ""));
     expect(src.format12).toBe(true);

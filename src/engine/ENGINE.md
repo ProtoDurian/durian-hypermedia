@@ -1,6 +1,6 @@
 # The one engine (format 12): words and lane contracts
 
-The design is `showcase-fb/DESIGN.md` option 1. The types are in `src/engine/types.ts` (frozen; changes only through
+The design: one model for every layout. The types are in `src/engine/types.ts` (frozen; changes only through
 the integrator). This file is the grammar the parser implements and the contract each lane meets.
 
 ## 1. Which form a block is
@@ -127,7 +127,7 @@ leave layers then pace all plain off from into`.
 - **Port, do not rewrite:** a layout lane moves the existing code (`src/core/stage*.ts`, `src/core/scene.ts`,
   `src/core/route.ts`) behind the plug-in interface, keeping its measured rules (still things, fanned lines,
   11 px words, phone forms). Delete nothing from the old engines: the integrator switches them off at the end.
-- **Done for a lane** = its fixtures (see `showcase-fb/LANES.md`) pass the match gate at 1280 and 390 against the
+- **Done for a lane** = its fixtures pass the match gate at 1280 and 390 against the
   baseline, its tests pass, and its commits pass the gates.
 
 ## 4. What still draws through an adapter

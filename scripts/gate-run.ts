@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // The gate report: a new-engine match run (scripts/match.ts --engine new) set against a baseline run, fence by fence and
-// check by check, worst first, with the lane that owns each fence (showcase-fb/HELPERS.md). The rule is "no worse than the
+// check by check, worst first, with the lane that owns each fence. The rule is "no worse than the
 // baseline": a fence is worse when, at a width, a check's total over its steps is higher than the baseline's.
 //   bun scripts/gate-run.ts --pair <label>=<new run>,<baseline run> [--pair ...] [--out GATE-RUN.md] [--sha <integration sha>]
 // A run is a folder written by scripts/match.ts (report.json, site/). Tables are at most 4 columns wide.
@@ -75,7 +75,7 @@ function laneOf(f: Fence): string {
 // ------------------------------------------------------------------ one pair of runs
 const total = (f: Fence | undefined, w: string, c: Check) => f?.widths[w]?.steps.reduce((s, st) => s + st.checks[c], 0) ?? 0;
 const widthsOf = (r: Report) => (r.meta.widths as number[]).map(String);
-/** Known and accounted for (brant, 25 Nov): a check that goes up because the story or the control changes the data, not the layout. It is listed, never counted. */
+/** Known and accounted for (25 Nov): a check that goes up because the story or the control changes the data, not the layout. It is listed, never counted. */
 const KNOWN: { id: string; check: Check; why: string }[] = [
   { id: "gt/12-monthly-budget.dh.md#1", check: "moved", why: "the balance \"1,270\" is a value that changes in step 5, so its words are elsewhere" },
   { id: "format/31-chart-with-controls.dh.md#1", check: "moved", why: "the control changes the chart's data, so its words move" },
@@ -174,7 +174,7 @@ const pairs = opts("--pair");
 if (!pairs.length) { console.error("usage: bun scripts/gate-run.ts --pair <label>=<new run>,<baseline run> [--pair ...] [--out GATE-RUN.md] [--sha <sha>]"); process.exit(2); }
 const sha = opts("--sha")[0] ?? "";
 const out = opts("--out")[0] ?? "GATE-RUN.md";
-const md: string[] = [`# Gate run${sha ? ` ${sha}` : ""}`, ``, `Written ${new Date().toISOString()} by scripts/gate-run.ts. Rule (brant): **no worse than the baseline**, per fence and per check: at a width, a check's total over the fence's steps may not be higher than the baseline's. The baseline is not at 0 either.`, ``];
+const md: string[] = [`# Gate run${sha ? ` ${sha}` : ""}`, ``, `Written ${new Date().toISOString()} by scripts/gate-run.ts. Rule: **no worse than the baseline**, per fence and per check: at a width, a check's total over the fence's steps may not be higher than the baseline's. The baseline is not at 0 either.`, ``];
 for (const p of pairs) {
   const m = /^([^=]+)=([^,]+),(.+)$/.exec(p);
   if (!m) { console.error(`bad --pair ${p}`); process.exit(2); }

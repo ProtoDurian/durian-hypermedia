@@ -1,4 +1,4 @@
-// The 7 DESIGN.md (section 2.6) examples in format 12, made-up content, read by the test builder into Models.
+// The 7 design examples in format 12, made-up content, read by the test builder into Models.
 import type { Model } from "../../../src/engine/types";
 import { build } from "./build";
 

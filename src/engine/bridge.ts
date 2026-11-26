@@ -1,7 +1,6 @@
 // The bridge from a page's ```animation block to the one engine (integrator). The host picks the engine with
 // DocumentProps / DhSettings `engine`: "old" (the two old engines), "new" (the one engine; its errors show), or "auto"
-// (the one engine where it draws this block at a desktop and a phone width, else the old engines: the safety net,
-// PLAN.md). A page whose front matter says `format: 12` always needs the new engine.
+// (the one engine where it draws this block at a desktop and a phone width, else the old engines: the safety net). A page whose front matter says `format: 12` always needs the new engine.
 import type { AnimationBlock } from "../types";
 import type { Compiled, EngineSrc } from "./types";
 import { compile } from "./pipeline";

@@ -80,7 +80,7 @@
 - `keep mark` (a token mark that lasts) is not carried by lower-stage's `mark` fact; every mark is one step.
 - A tag's own role (`tag id (role): words`) is not carried by lower-stage's `is` fact; the chip takes the card's role.
 - The letter chip before a title (`+ (a)`) lowers to `is`, so it draws as a state word.
-- Left to the polish lane (brant): timeline rows at 390 (stage 13, layers 4), the shorter stage window at 390 (layers 2, 3, stage 15).
+- Left to the polish lane: timeline rows at 390 (stage 13, layers 4), the shorter stage window at 390 (layers 2, 3, stage 15).
   The red strike line and the units squares are done (render/POLISH-NOTES.md).
 
 ## render2: a line's words never cover a card's title

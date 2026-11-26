@@ -1,6 +1,6 @@
 # blocks2: timeline, sheet, wrap, track and the grid's ported words draw from the Model
 
-For the integrator (SPEC.md and CHANGELOG.md are brant's). Code: `layouts/parts.ts`, `layouts/block-parts.ts`, and the five
+For the integrator (who keeps SPEC.md and CHANGELOG.md). Code: `layouts/parts.ts`, `layouts/block-parts.ts`, and the five
 layouts (`time.ts`, `sheet.ts`, `grid.ts`). Tests: `test/engine/blocks2/`.
 
 ## What changed

@@ -3,6 +3,31 @@
 The input is untrusted: an agent or a stranger may have written it. `parse()` turns it into plain data and the renderer
 draws that data with React, so author text is always a text node or an escaped attribute.
 
+The optional `react/map-tiles` host provider uses DOM-created image tiles, without HTML-string sinks,
+script loading or workers, and is included in the strict Trusted Types import-graph check. The host supplies
+the tile template and required plain-text attribution; Markdown cannot select a server. Before each camera
+is drawn, every expanded URL passes the document's `urlPolicy(url, "image")` and `applyUrlPolicy`, including
+rewritten URLs; a refusal clears all visible tiles and restores the still picture with a reason. At most 64
+tile images are attached. Starts wait for 100 ms of camera quiet; at most 8 image requests remain unfinished
+per provider, including detached images, as measured against a slow server by the browser checker. Detached
+in-flight images keep their sources and handlers until load/error; removing a source does not reliably
+cancel its request. Already-issued requests can finish after fallback or destruction. An image retries at
+most once, then stays blank; only an entirely failed view restores the still picture.
+Per-attempt timeouts default to 12 seconds (`TILE_TIMEOUT_MS`) and include queue time; hosts may lower
+them through `timeoutMs`. A timed-out request keeps its slot until its actual load/error event. Its one
+allowed retry has a separate timeout, which can expire while waiting for a slot. Thus a fully hung view
+can fall back with "Tile server did not answer" while all physical slots remain occupied; it cannot start
+an unbounded replacement loop. Detached late responses never replace the current tile attempt.
+
+The tile service sees viewed coordinates, the reader's IP and timing, and may receive its own cookies on
+ordinary cross-origin image requests. Prefer a host-run tile proxy to limit these disclosures. Optional
+`crossOrigin: "anonymous"` omits cross-origin credentials when the service supports CORS; it does not hide
+IP, timing or coordinates. `referrerPolicy` defaults to `no-referrer`; the host may opt into an origin policy
+for a service that requires a Referer. Keys in a tile template are public, never secrets. Permit only the
+intended image origins in both the image policy and CSP `img-src`; a policy cannot expand the CSP, and a
+broad `img-src https:` also permits all HTTPS Markdown images. No tile service is contacted by default.
+Same-origin tiles over HTTP/1.1 share the browser's six connections per host with the app, so hung tiles can stall the app's requests; serve tiles from another origin or over HTTP/2.
+
 ## What parse() does with hostile input
 
 | Attack | What happens | Fixture |

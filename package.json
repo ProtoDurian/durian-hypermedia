@@ -123,6 +123,11 @@
     "./styles.css": "./dist/styles.css",
     "./fixtures/*": "./fixtures/*",
     "./package.json": "./package.json",
+    "./react/map-tiles": {
+      "types": "./src/react/map-tiles.ts",
+      "bun": "./src/react/map-tiles.ts",
+      "import": "./dist/react/map-tiles.js"
+    },
     "./react/map-providers": {
       "types": "./src/react/map-providers.ts",
       "bun": "./src/react/map-providers.ts",

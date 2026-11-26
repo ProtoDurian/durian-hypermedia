@@ -198,6 +198,64 @@ policy with 0 violations (`bun run tt`).
 **Messages, not pages.** For chat-like text where a leading `---` is a rule, not front matter:
 `parse(text, { frontMatter: false })`.
 
+**Host map providers.** The strict-safe image provider needs no optional map library:
+
+```tsx
+import { defaultUrlPolicy, type UrlPolicy } from "durian-markdown";
+import { tileProvider } from "durian-markdown/react/map-tiles";
+const map = tileProvider({
+  tiles: "https://tiles.example.com/{z}/{x}/{y}.png",
+  attribution: "Example map contributors",
+  referrerPolicy: "no-referrer", // default; may use strict-origin-when-cross-origin or strict-origin
+  crossOrigin: "anonymous",     // optional; requires CORS support on the tile server
+});
+const policy: UrlPolicy = (url, kind) => {
+  if (kind !== "image") return defaultUrlPolicy(url, kind);
+  try { return new URL(url).origin === "https://tiles.example.com" ? url : null; }
+  catch { return null; }
+};
+<DhDocument doc={doc} map={map} urlPolicy={policy} />;
+```
+
+`tiles` and nonblank plain-text `attribution` are required; there is no default tile server.
+The template must include `{z}`, `{x}`, `{y}` and no other brace placeholders, or it throws `TileTemplateError`.
+It uses Web Mercator XYZ coordinates and 256-pixel tiles. Any API key in the template is public: readers
+can inspect image requests. Use service-side restrictions or a host proxy rather than a secret key.
+The part owns pan, zoom, pins,
+routes and all gestures; the provider follows its camera, scaling whole zoom-level images between levels.
+At most 64 tile images are attached. Requests start after the camera has been still for 100 ms, with at most
+8 unfinished image requests per provider, including detached images. The slow-tile server in the browser
+check measures this bound. An off-screen image leaves the DOM immediately; its source and slot remain
+until its load/error event, since removing a source does not reliably cancel the network request.
+Every camera's URLs pass `urlPolicy(url, "image")` and `applyUrlPolicy` before requests begin.
+A refused URL or oversized viewport clears the tiles and shows the still picture with a reason.
+An image may retry once, then stays blank while the other tiles and gestures keep working. Only if every
+tile of the current view fails does the layer restore the still picture with a load-failure reason.
+Each attempt has a 12-second timeout (`TILE_TIMEOUT_MS`), including time waiting for a request slot.
+Hosts may lower it with `timeoutMs` (1 through 12000 ms). A timeout permits at most one retry with its own
+timeout; if every slot is held by unfinished requests, that queued retry can expire without being sent.
+An entirely timed-out view shows the still picture with "Tile server did not answer". A timed-out image
+keeps its physical slot until its actual load/error event, even after fallback; timeout never frees a slot
+early or creates a request loop.
+Pair the image policy with the same allowed origins in CSP: the example above needs
+`img-src https://tiles.example.com`. If CSP omits an origin allowed by the policy, tile loads trigger CSP
+violations and may fall back. Avoid `img-src https:`: it permits every HTTPS origin for Markdown images
+too. No script, worker or connection permission is needed.
+Static maps never request tiles. Credit is text, including when it contains markup characters.
+`referrerPolicy` defaults to `no-referrer`; a service that requires a Referer can use
+`strict-origin-when-cross-origin` or `strict-origin`. A direct tile service sees the reader's IP, request
+timing and viewed area; ordinary cross-origin images may carry that service's cookies. Prefer a host-run
+proxy when these disclosures are unwanted. `crossOrigin: "anonymous"` omits cross-origin cookies but needs
+the server's CORS headers; it does not hide the IP, timing or coordinates.
+Same-origin tiles over HTTP/1.1 share the browser's six connections per host with the app, so hung tiles can stall the app's requests; serve tiles from another origin or over HTTP/2.
+
+For Leaflet, MapLibre or Google, import `mapProvider` from `durian-markdown/react/map-providers`
+and install its optional library and CSS. That separate entry has its own CSP needs and stays outside
+the strict graph. A host may also supply `MapHost` itself: `openBasemap(element, camera, context)`
+returns a `Basemap` with `setView(camera)`, `resize()` and `destroy()`. The optional context supplies
+the document's latest `urlPolicy` and `onStatus(reason)` (null for available, text for the still-picture note).
+Read `context.urlPolicy` when drawing rather than caching it: a new inline policy does not rebuild the base layer.
+
 **Phones.** Every part has a layout for 390 and 360 px wide screens (stacked, or a scrollable part with a visible hint);
 nothing pushes the page sideways. Touch steps the parts and moves the animation stage.
 

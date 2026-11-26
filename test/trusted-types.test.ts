@@ -23,7 +23,7 @@ async function graph(entry: string) {
 }
 
 describe("trusted types: the strict entry's import graph", () => {
-  for (const entry of ["src/react/strict.tsx", "src/react/codewalk.tsx", "src/react/containers.tsx", "src/react/document.tsx"]) {
+  for (const entry of ["src/react/strict.tsx", "src/react/codewalk.tsx", "src/react/containers.tsx", "src/react/document.tsx", "src/react/map-tiles.ts"]) {
     test(`${entry}: no HTML-string sink`, async () => {
       const g = await graph(entry);
       expect(g.inputs.filter((x) => /node_modules\/(mermaid|dompurify)\//.test(x))).toEqual([]);

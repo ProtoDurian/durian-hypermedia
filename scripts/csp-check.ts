@@ -24,12 +24,13 @@ const outFile = process.argv.includes("--out") ? process.argv[process.argv.index
 const freePort = () => { const s = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("") }); const p = s.port; s.stop(true); return p; };
 const PORT = freePort();
 
-const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), DIR, String(PORT), ...(strictStyle ? ["--strict-style"] : []), ...(trusted ? ["--trusted-types"] : [])], { stdout: "pipe", stderr: "inherit" });
+const server = Bun.spawn(["bun", join(PKG, "example/serve.ts"), DIR, String(PORT), "--tile-probe", ...(strictStyle ? ["--strict-style"] : []), ...(trusted ? ["--trusted-types"] : [])], { stdout: "pipe", stderr: "inherit" });
 await new Promise((r) => setTimeout(r, 800));
 if (server.exitCode !== null) { console.error(`the page server did not start on port ${PORT}: the check is broken`); process.exit(2); }
 
 const COLLECT = `(() => {
-  const s = window.__dh = { csp: [], errors: [], alerts: 0 };
+  const s = window.__dh = { csp: [], errors: [], alerts: 0, tileMax: 0 };
+  new MutationObserver(() => { s.tileMax = Math.max(s.tileMax, document.querySelectorAll('.map-base img').length); }).observe(document, {childList:true,subtree:true});
   document.addEventListener("securitypolicyviolation", (e) => s.csp.push(e.effectiveDirective + " " + (e.blockedURI || "") + " " + (e.sourceFile || "").split("/").pop() + ":" + e.lineNumber + " " + (e.sample || "").slice(0, 60)));
   window.addEventListener("error", (e) => s.errors.push(String(e.message).slice(0, 200)));
   window.addEventListener("unhandledrejection", (e) => s.errors.push("rejection " + String(e.reason).slice(0, 200)));
@@ -85,6 +86,88 @@ if (trusted) {
   if (!c.csp.some((x) => x.startsWith("require-trusted-types-for")) || !threw) { console.error("the Trusted Types control did not report: the check is broken"); process.exit(2); }
 }
 const results: { page: string; csp: string[]; errors: string[]; alerts: number; danger: string[]; drawn: Record<string, number> }[] = [];
+async function tileCases(file: string) {
+  const wait = async (expression: string) => {
+    for (let k=0; k<80; k++) { if (await p.eval<boolean>(expression)) return; await p.sleep(100); }
+    throw new Error("tile browser check timed out");
+  };
+  for (const scenario of ["slow", "static", "one", "all", "policy", "cap", "hang"]) {
+    const danger: string[] = [];
+    const stats = async () => await (await fetch(`http://127.0.0.1:${PORT}/__tile-stats?case=${scenario}`)).json() as {total:number;open:number;peak:number;per:Record<string,number>};
+    try {
+      await p.goto(`http://127.0.0.1:${PORT}/${file}?tiles=${scenario}`);
+      await wait(`!!document.querySelector('.map')`);
+      if (scenario === "static") {
+        await p.sleep(400);
+        if ((await stats()).total || !await p.eval<boolean>(`!!document.querySelector('.map[data-based="still"][data-dh-static]')`)) danger.push("static map made tile requests or lost its still picture");
+      } else {
+        await wait(`!!document.querySelector('.map[data-based="tiles"]') || !!document.querySelector('.map-note')`);
+        if (scenario === "slow") {
+          await p.sleep(250);
+          // Brief rests also exercise slots held by detached, still-loading images.
+          for (let k=0;k<4;k++) { await p.eval(`document.querySelector('[aria-label="Zoom in"]').click()`); await p.sleep(150); }
+          const at = await p.eval<{x:number;y:number}>(`(() => { const r=document.querySelector('.map-stage').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
+          for (let k=0; k<40; k++) { await p.wheel(at.x,at.y,0,k<20?-120:120,2); await p.sleep(16); }
+          await p.sleep(1800);
+          if (!(await stats()).total || (await stats()).peak > 8) danger.push("slow tile server exceeded 8 open requests or received no requests");
+        } else if (scenario === "one") {
+          await wait(`!!document.querySelector('.map-base img[style*="visibility: hidden"]')`);
+          const mixed = await p.eval<boolean>(`document.querySelector('.map').dataset.based === 'tiles' && [...document.querySelectorAll('.map-base img')].some(i=>i.naturalWidth>0)`);
+          if (!mixed || (await stats()).per["3/4/4"] !== 2) danger.push("one 404 tile did not retry once and preserve good tiles");
+          await p.eval(`document.querySelector('[aria-label="Zoom in"]').click()`);
+          await p.sleep(350);
+          if (!await p.eval<boolean>(`document.querySelector('.map').dataset.based === 'tiles'`)) danger.push("one 404 stopped zooming");
+        } else if (scenario === "all") {
+          await wait(`!!document.querySelector('.map-note')`);
+          if (!await p.eval<boolean>(`document.querySelector('.map').dataset.based==='still' && document.querySelector('.map-note').textContent.includes('Tile images could not load')`)
+            || Object.values((await stats()).per).some(n=>n>2)) danger.push("all failed tiles did not fall back with bounded retries");
+        } else if (scenario === "policy") {
+          await p.sleep(250);
+          for (let k=0;k<3;k++) { await p.eval(`document.getElementById('tile-policy').click()`); await p.sleep(30); }
+          await p.eval(`document.querySelector('[aria-label="Zoom in"]').click()`);
+          await p.sleep(350);
+          if (!await p.eval<boolean>(`document.documentElement.dataset.tileOpens==='1' && [...document.querySelectorAll('.map-base img')].some(i=>i.src.includes('policy=3'))`)) danger.push("inline policy rebuilt the base layer or the next draw used a stale policy");
+        } else if (scenario === "hang") {
+          for (let k=0;k<40 && !(await stats()).total;k++) await p.sleep(25);
+          const at = await p.eval<{x:number;y:number}>(`(() => {const r=document.querySelector('.map-stage').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};})()`);
+          await p.drag(at.x,at.y,at.x+400,at.y);
+          await wait(`!!document.querySelector('.map-note')`);
+          const before = (await stats()).total;
+          await p.eval(`document.querySelector('[aria-label="Zoom in"]').click()`);
+          await p.sleep(400);
+          if (!(await stats()).open || (await stats()).total !== before || !await p.eval<boolean>(`document.querySelector('.map').dataset.based==='still' && document.querySelector('.map-note').textContent.toLowerCase().includes('tile server did not answer')`)) danger.push("hung server did not fall back while retaining its unfinished request slots");
+        } else {
+          await p.eval(`Object.assign(document.querySelector('.map-stage').style,{width:'2048px',height:'2048px'})`);
+          await wait(`document.querySelectorAll('.map-base img').length===64`);
+          await p.eval(`Object.assign(document.querySelector('.map-stage').style,{width:'8192px',height:'8192px'})`);
+          await wait(`!!document.querySelector('.map-note')`);
+          if (!await p.eval<boolean>(`document.querySelectorAll('.map-base img').length===0 && document.querySelector('.map-note').textContent.includes('64 tiles')`)) danger.push("oversized tile view did not respect the DOM cap");
+        }
+      }
+    } catch (e) { danger.push(String(e)); }
+    finally {
+      if (scenario === "hang") {
+        try {
+          const response = await fetch(`http://127.0.0.1:${PORT}/__tile-release`);
+          if (!response.ok) throw new Error("could not release hung tile responses");
+          await response.json();
+          for (let k=0;k<80 && (await stats()).open;k++) await p.sleep(25);
+          if ((await stats()).open) danger.push("hung tile responses remained open after the case");
+        } catch (e) { danger.push(String(e)); }
+      }
+    }
+    const s = await p.eval<{csp:string[];errors:string[];alerts:number;tileMax:number}>(`window.__dh`);
+    const counts = await stats();
+    if (s.tileMax > 64) danger.push("more than 64 tile images were attached");
+    if (counts.peak > 8) danger.push("more than 8 tile requests were open at the server");
+    danger.push(...await p.eval<string[]>(DANGER));
+    const drawn = {tileRequests:counts.total,tilePeak:counts.peak,tileDomMax:s.tileMax,...(scenario === "hang" ? {tileOpenAfterCleanup:counts.open} : {})};
+    const bad = s.csp.length+s.errors.length+s.alerts+danger.length;
+    results.push({page:`${file}?tiles=${scenario}`,csp:s.csp,errors:s.errors,alerts:s.alerts,danger,drawn});
+    console.log(`${bad?"FAIL":"ok  "} ${file}?tiles=${scenario} csp ${s.csp.length} errors ${s.errors.length} alerts ${s.alerts} danger ${danger.length} ${JSON.stringify(drawn)}`);
+    for (const reason of danger) console.log(`       ${reason}`);
+  }
+}
 for (const f of pages) {
   await p.goto(`http://127.0.0.1:${PORT}/${f}`);
   await p.sleep(900);
@@ -95,8 +178,27 @@ for (const f of pages) {
   if (has3d) { await p.eval(`(() => { const s = document.querySelector(".dh-doc .scn"); if (s && !s.querySelector(".scn3")) s.querySelector(".scn-mode")?.click(); })()`); for (let k = 0; k < 24; k++) { await p.sleep(250); if (await p.eval<boolean>(`!!document.querySelector(".dh-doc .scn3-canvas") && !document.querySelector(".dh-doc .scn3-loading")`)) break; } }
   const waitMs = (await p.eval<boolean>(`!!document.querySelector(".dh-doc canvas")`)) ? 1500 : 300;
   await p.sleep(waitMs);
-  const s = await p.eval<{ csp: string[]; errors: string[]; alerts: number }>(`window.__dh`);
   const danger = await p.eval<string[]>(DANGER);
+  if (/^(tt-)?map-tiles\.html$/.test(f)) {
+    const tiles = () => p.eval<number>(`document.querySelectorAll('.map[data-based="tiles"] .map-base img').length`);
+    for (let k = 0; k < 20 && !(await tiles()); k++) await p.sleep(100);
+    const before = await p.eval<string>(`[...document.querySelectorAll('.map-base img')].map(i => i.src).join('|')`);
+    const positions = () => p.eval<string>(`[...document.querySelectorAll('.map-base img')].map(i => i.style.left + ',' + i.style.top).join('|')`);
+    const positioned = await positions();
+    const stage = await p.eval<{x: number; y: number}>(`(() => { const r = document.querySelector('.map-stage').getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
+    await p.drag(stage.x, stage.y, stage.x + 100, stage.y + 50);
+    await p.sleep(150);
+    if (positioned === await positions()) danger.push("local tile provider did not follow the pan gesture");
+    await p.eval(`document.querySelector('.map-btn[aria-label="Zoom in"]').click()`);
+    for (let k=0;k<30;k++) {
+      await p.sleep(100);
+      if (await p.eval<boolean>(`[...document.querySelectorAll('.map-base img')].every(i=>i.complete && i.naturalWidth>0)`)) break;
+    }
+    const after = await p.eval<string>(`[...document.querySelectorAll('.map-base img')].map(i => i.src).join('|')`);
+    const ok = await p.eval<boolean>(`(() => { const imgs = [...document.querySelectorAll('.map-base img')]; return imgs.length > 0 && imgs.length <= 64 && imgs.every(i => i.complete && i.naturalWidth > 0 && new URL(i.src).origin === location.origin) && document.querySelector('[data-dh-slot="attribution"]').textContent === 'Example tiles (local test)'; })()`);
+    if (!ok || !before || before === after) danger.push("local tile provider did not load, pan, zoom and credit its images");
+  }
+  const s = await p.eval<{ csp: string[]; errors: string[]; alerts: number }>(`window.__dh`);
   // a stage that did not follow its steps fails the page; a stage page whose stages were not stepped means the check is broken
   danger.push(...stg.bad);
   if (/^(tt(full)?-)?stage-/.test(f) && stg.stages - stg.still > 0 && stg.stepped === 0) danger.push("no stage was stepped: the check is broken");
@@ -106,6 +208,7 @@ for (const f of pages) {
   const bad = (s?.csp.length ?? 1) + (s?.errors.length ?? 0) + (s?.alerts ?? 0) + danger.length;
   console.log(`${bad ? "FAIL" : "ok  "} ${f}  csp ${s?.csp.length ?? "?"}  errors ${s?.errors.length ?? "?"}  alerts ${s?.alerts ?? "?"}  danger ${danger.length}  ${JSON.stringify(drawn)}`);
   for (const x of [...(s?.csp ?? []), ...(s?.errors ?? []), ...danger].slice(0, 6)) console.log(`       ${x}`);
+  if (/^(tt-)?map-tiles\.html$/.test(f)) await tileCases(f);
 }
 await p.close();
 server.kill();

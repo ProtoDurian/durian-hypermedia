@@ -15,6 +15,10 @@ import { barsOf, peaksOf } from "./peaks-data";
 import type { AudioSpec } from "./part";
 
 const H = { s: 56, m: 96, l: 140 } as const;
+const SEEK_MISSED = "This file cannot be jumped ahead in until it has loaded: the server that holds it must answer byte-range requests (206 Partial Content).";
+
+/** a jump that landed more than a moment away from where it was asked to go (the end of the file excepted) */
+export const seekMissed = (wanted: number, got: number, dur: number) => Number.isFinite(wanted) && dur > 0 && wanted < dur - 1.5 && Math.abs(got - wanted) > 1.5;
 
 /** x of a time on the wave (chapters are separated by a gap), and the time of an x */
 export function waveMap(dur: number, width: number, chapterT: number[], gap: number) {
@@ -61,6 +65,8 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
   const seek = useCallback((to: number) => {
     const a = audioEl.current, d = (a && Number.isFinite(a.duration) && a.duration) || D || 0;
     const v = clamp(to, 0, d || to); tref.current = v; if (a) a.currentTime = v; setT(v);
+    // a server that does not answer byte-range requests lets the browser jump only inside what it has loaded: say so instead of going silently back
+    if (a) a.addEventListener("seeked", () => { if (seekMissed(v, a.currentTime, d)) { tref.current = a.currentTime; setT(a.currentTime); setNote(SEEK_MISSED); } else setNote((n) => (n === SEEK_MISSED ? "" : n)); }, { once: true });
   }, [D]);
   const toggle = useCallback(() => {
     const a = audioEl.current; if (!a) return;
@@ -212,7 +218,10 @@ export default function AudioView({ data: spec }: PartViewProps<AudioSpec>) {
     const to = map.tOf(f * (w || 1)); tref.current = to; setT(to); draw();
     if (phase === "up") seek(to);
     else if (phase === "down") { /* the sound follows on release; the wave follows the finger now */ }
-  }, (cx) => { const r = wrap.current!.getBoundingClientRect(); return clamp((cx - r.left) / r.width, 0, 1); });
+  }, (cx) => { const r = wrap.current!.getBoundingClientRect(); return clamp((cx - r.left) / r.width, 0, 1); }, () => {
+    // the browser took the finger (a swipe scrolls the page): the sound and the wave stay where the sound is, and the wave follows it again
+    dragging.current = false; const a = audioEl.current; if (a) { tref.current = a.currentTime; setT(a.currentTime); } draw();
+  });
 
   const chapterNow = useMemo(() => { let k = -1; for (let i = 0; i < spec.chapters.length; i++) if (spec.chapters[i].t <= t + 0.05) k = i; return k; }, [spec.chapters, t]);
   const key = (e: React.KeyboardEvent) => {

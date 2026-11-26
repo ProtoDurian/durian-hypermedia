@@ -5,6 +5,7 @@ import { Pre, type HighlightedCode } from "codehike/code";
 import { HANDLERS_BASE, annotate, lineNumbers, mark, focus, type Ann } from "./ch";
 import { STILL_BASE, stillRows, rowsCode, stillAnns, stillLines, walkRuns, type Packed } from "./codewalk";
 import type { Ui } from "./ui";
+import { speedText, useSpeed } from "./speed";
 import { useStatic, type StaticProp } from "../parts/kit/static"; // static (SPEC 4.1)
 
 
@@ -13,21 +14,23 @@ export const reducedMotion = () => typeof window !== "undefined" && (!!window.ma
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
 // ---------------------------------------------------------------- controls: Back, (Play), the slider, Next
+// stepNames (fmt12): each step's name (its title): the slider's value text and tooltip, Back and Next name the step they go to
 // bands (format version 10): under the slider, where the story is inside a scene of its own (an animation's scene inside a scene)
-export function Controls(p: { ui: Ui; i: number; n: number; onGo: (k: number) => void; playing?: boolean; onPlay?: () => void; slider?: boolean; label?: string; nextDisabled?: boolean; children?: React.ReactNode; bands?: { from: number; to: number; label: string; depth: number }[] }) {
+export function Controls(p: { ui: Ui; i: number; n: number; onGo: (k: number) => void; playing?: boolean; onPlay?: () => void; speed?: number; onSpeed?: () => void; dwell?: number; slider?: boolean; label?: string; nextDisabled?: boolean; stepNames?: string[]; children?: React.ReactNode; bands?: { from: number; to: number; label: string; depth: number }[] }) {
   const { ui, i, n } = p;
   return (
     <div className="ctl" role="group" aria-label={p.label ?? ui.step}>
-      <button type="button" className="btn" onClick={() => p.onGo(i - 1)} disabled={i <= 0}>{ui.back}</button>
-      {p.onPlay && <button type="button" className="btn btn-play" onClick={p.onPlay} aria-pressed={!!p.playing}>{p.playing ? ui.pause : ui.play}</button>}
+      <button type="button" className="btn" onClick={() => p.onGo(i - 1)} disabled={i <= 0} title={p.stepNames?.[i - 1] || undefined}>{ui.back}</button>
+      {p.onPlay && <button type="button" className="btn btn-play" onClick={p.onPlay} aria-pressed={!!p.playing}>{p.playing ? ui.pause : ui.play}{p.playing && p.dwell ? <span key={i} className="ctl-tick" aria-hidden="true" style={{ animationDuration: `${Math.round(p.dwell)}ms` }} /> : null}</button>}
+      {p.onPlay && p.onSpeed && <button type="button" className="btn btn-speed" onClick={p.onSpeed} aria-label={`${ui.speed ?? "Speed"} ${speedText(p.speed ?? 1)}`} title={ui.speed ?? "Speed"}>{speedText(p.speed ?? 1)}</button>}
       <div className="ctl-mid">
         {p.children ?? (p.slider !== false && n > 1 ? (
-          <input type="range" className="ctl-range" min={0} max={n - 1} step={1} value={i} aria-label={ui.step} aria-valuetext={`${ui.step} ${i + 1} / ${n}`} onChange={(e) => p.onGo(+e.currentTarget.value)} style={{ ["--pct" as any]: `${n > 1 ? (i / (n - 1)) * 100 : 0}%` }} />
+          <input type="range" className="ctl-range" min={0} max={n - 1} step={1} value={i} aria-label={ui.step} aria-valuetext={`${ui.step} ${i + 1} / ${n}${p.stepNames?.[i] ? ": " + p.stepNames[i] : ""}`} title={p.stepNames?.[i] || undefined} onChange={(e) => p.onGo(+e.currentTarget.value)} style={{ ["--pct" as any]: `${n > 1 ? (i / (n - 1)) * 100 : 0}%` }} />
         ) : null)}
         {!p.children && p.slider !== false && n > 1 && p.bands && p.bands.length > 0 && <span className="ctl-bands" aria-hidden="true">{p.bands.map((b, k) => <span key={k} className={`ctl-band d-${b.depth}`} title={b.label} style={{ left: `${(b.from / (n - 1)) * 100}%`, width: `${(Math.max(0.5, b.to - b.from) / (n - 1)) * 100}%` }} />)}</span>}
         <span className="ctl-count" aria-live="polite">{i + 1} / {n}</span>
       </div>
-      <button type="button" className="btn btn-go" onClick={() => p.onGo(i + 1)} disabled={p.nextDisabled ?? i >= n - 1}>{ui.next}</button>
+      <button type="button" className="btn btn-go" onClick={() => p.onGo(i + 1)} disabled={p.nextDisabled ?? i >= n - 1} title={p.stepNames?.[i + 1] || undefined}>{ui.next}</button>
     </div>
   );
 }
@@ -278,6 +281,7 @@ export function Terminal({ steps, ui, title, prefixes, static: stp }: { steps: {
   const sx = useStatic(stp, steps.length), k = sx.on ? sx.i : kLive, typed = sx.on ? Infinity : typedLive;
   const [started, setStarted] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [speed, cycleSpeed] = useSpeed(); // the page's step speed (owner feedback 17): divides the typing and the pause
   const instant = useRef(false); // Play was just pressed: the next character is typed now, not after the pause
   const box = useRef<HTMLDivElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -294,7 +298,7 @@ export function Terminal({ steps, ui, title, prefixes, static: stp }: { steps: {
   useEffect(() => {
     if (!started || typed === Infinity) return;
     if (typed >= total(k)) {
-      if (playing) { if (k < steps.length - 1) { const t = setTimeout(() => { setK(k + 1); setTyped(0); }, 1100); return () => clearTimeout(t); } setPlaying(false); }
+      if (playing) { if (k < steps.length - 1) { const t = setTimeout(() => { setK(k + 1); setTyped(0); }, 1100 / speed); return () => clearTimeout(t); } setPlaying(false); }
       return;
     }
     let at = typed, li = 0; const sc = script(steps[k]);
@@ -303,9 +307,9 @@ export function Terminal({ steps, ui, title, prefixes, static: stp }: { steps: {
     const typing = line && line.k === "cmd" && at < sc[li] - 1;
     let delay = typing ? (at === 0 ? 380 : 42 + Math.random() * 40) : line?.k === "out" ? 140 : 260;
     if (instant.current) { delay = 0; instant.current = false; }
-    const t = setTimeout(() => setTyped(typed + 1), delay);
+    const t = setTimeout(() => setTyped(typed + 1), delay / speed);
     return () => clearTimeout(t);
-  }, [typed, started, k, playing]);
+  }, [typed, started, k, playing, speed]);
   useEffect(() => { body.current?.scrollTo({ top: body.current.scrollHeight }); }, [typed, k]);
   const go = (j: number) => { const c = Math.max(0, Math.min(steps.length - 1, j)); setK(c); setTyped(reducedMotion() || c < k ? Infinity : 0); setStarted(true); };
   const out: React.ReactNode[] = [];
@@ -338,7 +342,7 @@ export function Terminal({ steps, ui, title, prefixes, static: stp }: { steps: {
       <div className="term-chrome"><span className="win-dots" aria-hidden="true"><i /><i /><i /></span><span className="term-title">{title ?? ui.terminal}</span></div>
       <div className="term-body" ref={body} style={{ ["--rows" as any]: rows }} role="log" aria-label={ui.terminal}>{out}</div>
       {prefixes && Object.keys(prefixes).length > 0 && <ul className="t-key" aria-label={ui.marksKey ?? "Prompts"}>{Object.entries(prefixes).map(([k, m]) => <li key={k}><span className={`t-pr t-own tone-${m.colour}`}>{k}</span> <b>{m.label}</b>{m.means ? <span> {m.means}</span> : null}</li>)}</ul>}
-      {sx.on ? null : steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} onPlay={() => { if (!playing) { instant.current = true; const done = typed === Infinity || typed >= total(k); if (k === steps.length - 1 && done) go(0); else if (done) { setK(k + 1); setTyped(0); setStarted(true); } else setStarted(true); } setPlaying(!playing); }} />
+      {sx.on ? null : steps.length > 1 ? <Controls ui={ui} i={k} n={steps.length} onGo={go} playing={playing} speed={speed} onSpeed={cycleSpeed} onPlay={() => { if (!playing) { instant.current = true; const done = typed === Infinity || typed >= total(k); if (k === steps.length - 1 && done) go(0); else if (done) { setK(k + 1); setTyped(0); setStarted(true); } else setStarted(true); } setPlaying(!playing); }} />
         : <div className="ctl ctl-one"><button type="button" className="btn" onClick={() => go(0)}>{ui.replay}</button></div>}
     </div>
   );

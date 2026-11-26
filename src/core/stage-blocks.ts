@@ -284,7 +284,16 @@ function flowLine(segs: { s: string; ink: string; lead?: "sep" | "gap" }[], x0: 
 // one line per row (a cell's lines joined), chips as words in their role's ink. `rows <role>` (or `rows plain <role>`) draws
 // the rows in that family: each row's box in its fill and border, a plain row's words in its ink.
 type Cell = { lines: string[]; chip?: { role: string; s: string }; role?: string /* "=> role: words" in a [chip] row: the row's boxed cell in that role's colours, its own height */; blank?: boolean /* "_": nothing drawn, the column kept */; dropped?: boolean /* "-...": a dashed chip in a [chip] row */ };
-type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean; role?: string /* "rows <role>": the rows in that family's fill and border, plain rows in its ink */ };
+type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean; role?: string /* "rows <role>": the rows in that family's fill and border, plain rows in its ink */; keep?: number[] /* render3: each column at least this wide (only the one engine's lanes adapter sets it) */ };
+/** render3: what each column of a rows panel needs (the widest of its head and its cells). The one engine's lanes adapter
+ *  keeps a panel's columns at the widest over the steps that show the same head line (one size for the whole story), so a
+ *  step that adds words to one column does not move every column (example-layers 9: routing table T3, step 5) */
+export function rowsNeed(t: Rows): number[] {
+  const rs = t.rows.filter((r): r is { cells: Cell[] } => "cells" in r), nc = rs[0]?.cells.length ?? 0;
+  const one = (c: Cell) => (c.chip ? c.chip.s : c.lines.map((l) => toneOf(l)[0]).join("  "));
+  const cellNeed = (c: Cell) => (t.plain ? measure(one(c), "body") + 8 : c.chip ? measure(c.chip.s, "body") + 28 : Math.max(0, ...c.lines.map((l) => measure(toneOf(l)[0], "sub") + 4)));
+  return Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
+}
 const toneOf = (l: string): [string, string] => (l.startsWith("! ") ? [l.slice(2), "warn:ink"] : l.startsWith("* ") ? [l.slice(2), "acc:ink"] : l.startsWith("~ ") ? [l.slice(2), "muted"] : [l, ""]);
 registerBlock({
   word: "rows", kind: "panel",
@@ -322,8 +331,7 @@ registerBlock({
     const frame = t.role ? { fill: `role:${t.role}:plane`, stroke: `role:${t.role}:line`, role: t.role } : { fill: "surface", stroke: "line-2" };
     const plainInk = t.role ? `role:${t.role}:ink` : "ink";
     const one = (c: Cell) => (c.chip ? c.chip.s : c.lines.map((l) => toneOf(l)[0]).join("  "));
-    const cellNeed = (c: Cell) => (t.plain ? measure(one(c), "body") + 8 : c.chip ? measure(c.chip.s, "body") + 28 : Math.max(0, ...c.lines.map((l) => measure(toneOf(l)[0], "sub") + 4)));
-    const need = Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
+    const need = rowsNeed(t).map((x, j) => Math.max(x, t.keep?.[j] ?? 0)); // render3: keep (lanes adapter only)
     const inner = box.w - 24 - (nc - 1) * 16, sum = need.reduce((a, b) => a + b, 0);
     const stacked = box.narrow || sum > inner * 1.25;
     // a plain table that must shrink keeps each column at least as wide as its longest word, so an address or a prefix

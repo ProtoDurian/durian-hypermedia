@@ -153,7 +153,7 @@ export function chartCheck(d: any): string[] {
 
 const isLine = (s: any, m: ChartMeta) => (m.candle ? s?.kind === "line" : false);
 export interface ChartSeries { name: string; data: any[]; kind?: string; tone?: string; axis?: string }
-// evaluate a chart for given control values; returns the data Chart.js draws, or an error
+// evaluate a chart for given control values; returns the data the chart draws, or an error
 // Category kinds: data is a list of numbers (null = gap), or [low, high] in a bar series (a floating bar).
 // scatter and bubble: data is a list of points, written [x, y] (bubble: [x, y, size]) or {x, y, size}; they come back as {x, y, r?}.
 // The work is paid for from budget: by default one part of the running parse() call's page budget, or a fresh one (a

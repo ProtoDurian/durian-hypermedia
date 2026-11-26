@@ -10,7 +10,7 @@ node check "doccheck" in core
 node react "react renderer" [c2]
 check -> parse
 react -> parse
-react -> chart.js "lazy"
+react -> charts "own drawing"
 ```
 ````
 

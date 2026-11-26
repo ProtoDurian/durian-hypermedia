@@ -1,4 +1,4 @@
-// The chart part (```chart): Chart.js, loaded when the chart mounts; the reader's controls feed the chart's formulas.
+// The chart part (```chart): drawn by our own renderer (src/engine/charts), loaded when the chart mounts; the reader's controls feed the chart's formulas.
 import React from "react";
 import { Chart } from "../ui/chart";
 import { useDh } from "./context";

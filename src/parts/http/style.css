@@ -22,7 +22,8 @@
 .http-path { color: var(--ink); }
 .http-q { color: var(--muted); } .http-q b { color: var(--acc-ink); font-weight: 500; } .http-q em { font-style: normal; color: var(--c8-ink); } .http-q i { font-style: normal; color: var(--faint); }
 .http-ver { font: 400 12px var(--font-mono); color: var(--faint); }
-.http-copy { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); border-radius: var(--r-pill); padding: 0 12px; min-height: 36px; font: 500 12.5px var(--font-sans); cursor: pointer; }
+.http-acts { margin-left: auto; display: inline-flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.http-copy { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink); border-radius: var(--r-pill); padding: 0 12px; min-height: 36px; font: 500 12.5px var(--font-sans); cursor: pointer; }
 .http-copy:hover { border-color: var(--acc); color: var(--acc-ink); } .http-copy:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .http-status { display: inline-flex; align-items: center; gap: 8px; font: 500 14px var(--font-sans); padding: 4px 14px 4px 5px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); }
 .http-status b { font: 700 13px var(--font-mono); padding: 2px 10px; border-radius: var(--r-pill); color: var(--on-acc); }
@@ -31,8 +32,6 @@
 .http-heads dl { margin: 0; display: grid; gap: 2px; }
 .http-heads dl > div { display: grid; grid-template-columns: minmax(8em, max-content) 1fr; gap: 12px; font: 400 13px/1.5 var(--font-mono); }
 .http-heads dt { color: var(--acc-ink); font-weight: 500; overflow-wrap: anywhere; } .http-heads dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
-.http-more { all: unset; cursor: pointer; margin-top: 6px; color: var(--acc-ink); font: 500 12.5px var(--font-sans); min-height: 28px; display: inline-flex; align-items: center; }
-.http-more:hover { text-decoration: underline; } .http-more:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
 .http-body { border-top: 1px solid var(--line); background: var(--http-body-bg); color: var(--http-body-ink); padding: 12px 14px; overflow-x: auto; font: 400 13px/1.6 var(--font-mono); max-height: var(--http-body-max); overflow-y: auto; }
 .http-body:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
 .http-body pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
@@ -49,5 +48,24 @@
 .j-key { color: var(--ch-3); } .j-str { color: var(--ch-8); } .j-num { color: var(--ch-2); } .j-bool, .j-null { color: var(--ch-5); } .j-p { color: var(--term-faint); } .j-sum { color: var(--term-faint); font-style: italic; }
 @container (max-width: 520px) {
   .http-heads dl > div { grid-template-columns: 1fr; gap: 0; margin-bottom: 4px; }
-  .http-copy { margin-left: 0; }
+  .http-acts { margin-left: 0; flex-basis: 100%; }
 }
+
+/* sections that open and close, and the values a reader can edit */
+.http-hint { margin: -4px 0 0; padding: 0 14px 10px; font: 400 12px var(--font-sans); color: var(--muted); }
+.http-sec-h { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0 14px; border-top: 1px solid var(--line); cursor: pointer; font: 600 12.5px var(--font-sans); color: var(--ink-2); }
+.http-sec-h:hover { background: var(--surface-2); } .http-sec-h:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
+.http-sec-h .chev { color: var(--ink-2); flex: none; }
+.http-sec-n { font: 400 12px var(--font-mono); color: var(--muted); }
+.http-sec-b[hidden] { display: none; }
+.http-sec .http-heads, .http-sec .http-body { border-top: 0; }
+.http-edit { font: inherit; color: inherit; background: transparent; border: 0; border-bottom: 1px dashed var(--muted); border-radius: 3px; padding: 2px 2px; margin: 0; max-width: 100%; min-width: 3ch; box-sizing: content-box; }
+.http-edit:hover { background: var(--acc-softer); border-bottom-color: var(--acc); }
+.http-edit:focus { outline: 2px solid var(--acc); outline-offset: 1px; background: var(--surface); border-bottom-color: transparent; }
+.http-edit.is-grow { display: block; width: 100%; box-sizing: border-box; min-height: 26px; }
+.http-reset { all: unset; cursor: pointer; color: var(--acc-ink); font: 500 12.5px var(--font-sans); min-height: 36px; padding: 0 6px; display: inline-flex; align-items: center; }
+.http-reset:hover { text-decoration: underline; } .http-reset:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
+.http-curl { margin: 0; padding: 12px 14px; background: var(--http-body-bg); color: var(--http-body-ink); font: 400 13px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: var(--http-body-max); overflow: auto; }
+.http-curl:focus-visible { outline: 2px solid var(--acc); outline-offset: -2px; }
+.http[data-dh-static] .http-edit { border-bottom: 0; }
+@media print { .http-sec-b[hidden] { display: block !important; } .http-sec-h { pointer-events: none; } .http-sec-h .chev, .http-acts, .http-hint { display: none !important; } }

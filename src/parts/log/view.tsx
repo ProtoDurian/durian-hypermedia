@@ -12,6 +12,8 @@ type Hl = { text: string; kind: "filter" | "lines"; query?: string; from?: numbe
 type E = Entry & { last?: number };
 type D = { title: string; entries: E[]; labels: Record<string, string>; highlights: Hl[]; filter: string; lines: number; time: string; caps: QueryCaps };
 const LEVELS = ["debug", "info", "warn", "error"];
+// what a level word means to a reader (the key names only the levels that occur in the log)
+const LEVEL_MEANS: Record<string, string> = { error: "something failed", warn: "worth a look", info: "normal progress", debug: "detail for developers" };
 const LEVEL_RE = /\b(trace|debug|dbg|info|notice|warn|warning|error|err|fatal|panic|crit|critical)\b/i;
 
 const rangeText = (ns: number[]) => { const o: string[] = []; let a = ns[0], b = ns[0]; for (let i = 1; i <= ns.length; i++) { if (ns[i] === b + 1) { b = ns[i]; continue; } o.push(a === b ? `${a}` : `${a}–${b}`); a = b = ns[i]; } return o.join(", "); };
@@ -35,6 +37,22 @@ function pieces(body: string, marks: [number, number][], shift: number): React.R
   }
   if (at < body.length) out.push(body.slice(at));
   return out;
+}
+
+/** The key: what the colours and marks of this log mean. Only what occurs in this log is named. */
+export function LogKey({ counts, highlights, folded, search }: { counts: Record<string, number>; highlights: Hl[]; folded: boolean; search: boolean }) {
+  const levels = [...LEVELS, ...Object.keys(counts).filter((l) => !LEVELS.includes(l))].filter((l) => (counts[l] ?? 0) > 0);
+  return (
+    <div className="lg-key" role="group" aria-label="Key" data-dh-slot="key">
+      <div className="lg-key-h">Key</div>
+      <ul className="lg-key-list">
+        {levels.map((l) => <li key={l} className="lg-key-i"><span className={`lg-key-lv lv-${l}`}>{l}</span><span className="lg-key-t">{LEVEL_MEANS[l] ?? "a line of this level"}</span></li>)}
+        {highlights.map((h, i) => <li key={`h${i}`} className="lg-key-i"><span className={`lg-key-edge tone-${h.colour}`} aria-hidden="true" /><span className="lg-key-t"><b>Marked by the author</b>: {h.why}</span></li>)}
+        {search ? <li className="lg-key-i"><span className="lg-key-mark lg-m">words</span><span className="lg-key-t">the words your search matched</span></li> : null}
+        {folded ? <li className="lg-key-i"><span className="chip lg-rep">×3</span><span className="lg-key-t">the same line, repeated that many times in a row</span></li> : null}
+      </ul>
+    </div>
+  );
 }
 
 export default function LogView({ data: d, static: stp }: PartViewProps<D>) {
@@ -107,6 +125,7 @@ export default function LogView({ data: d, static: stp }: PartViewProps<D>) {
           );
         })}
       </ol>
+      <LogKey counts={counts} highlights={d.highlights} folded={d.entries.some((e) => e.repeat > 1)} search={!sx.on} />
       {!shown.length ? <p className="lg-empty">No line matches. Clear the filter or turn a level back on.</p> : null}
       <details className="lg-subset"><summary>What the filter understands (LogQL subset)</summary>
         <p><b>Has:</b> a selector {"{"}level="error", app=~"shop|cart"{"}"} over the labels and the fields of each line; line filters |= != |~ !~ ; | json and | logfmt; field filters like | status &gt;= 500 and | duration &gt; 2s (joined by and, or, a comma). Plain words mean |= "words".</p>

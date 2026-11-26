@@ -448,7 +448,8 @@ const mdTable = (cols: string[], rows: string[][]) => {
   const cell = (s: string) => s.split("|").join("\\|").split("\n").join(" ");
   return `| ${cols.map(cell).join(" | ")} |\n| ${cols.map(() => "---").join(" | ")} |\n${rows.map((r) => `| ${r.map(cell).join(" | ")} |`).join("\n")}`;
 };
-export const pct = (x: number) => `${(x * 100) % 1 === 0 ? (x * 100).toFixed(0) : (x * 100).toFixed(1)}%`;
+/** a share as a percent with at most one decimal and no trailing zero (0.18 is 18%, not 18.0% from a float's 18.000000000000004) */
+export const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
 function viewText(v: View): string {
   const f = (x: number) => fmtValue(x, v.fmt.format, v.fmt.currency);
   const unit = unitOf(v.fmt) ? ` (${unitOf(v.fmt)})` : "";

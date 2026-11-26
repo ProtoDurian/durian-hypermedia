@@ -8,7 +8,7 @@ import { connGeom, bezAt, type Geom } from "../core/scene";
 import type { Route } from "../core/route";
 
 export interface FloorEnd { x: number; y: number; w: number; h: number; kind: string }
-export interface FloorWay { implicit: boolean; off: number; bend: number; rt: Route | null }
+export interface FloorWay { implicit: boolean; off: number; bend: number; rt: Route | null; poly?: { x: number; y: number }[] | null }
 
 // a container's slab a line may cross (format version 10), in world units: its floor plan and the height of its top
 export interface Slab { x0: number; x1: number; z0: number; z1: number; top: number }
@@ -33,8 +33,24 @@ export class FloorCurve extends THREE.Curve<THREE.Vector3> {
     return target.set(x, overSlabs(x, z, this.h0 + (this.h1 - this.h0) * t, this.slabs), z);
   }
 }
+// (one engine) a line the 2D router already drew, as its corner points in floor-plan units, lifted the same way
+export class PolyCurve extends THREE.Curve<THREE.Vector3> {
+  private cum: number[] = [0];
+  constructor(private pts: { x: number; y: number }[], private h0: number, private h1: number, private X0: number, private Z0: number, private slabs: Slab[] = []) {
+    super();
+    for (let i = 1; i < pts.length; i++) this.cum.push(this.cum[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+  }
+  override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const L = this.cum[this.cum.length - 1] || 1, d = Math.max(0, Math.min(1, t)) * L;
+    let i = 1; while (i < this.pts.length - 1 && this.cum[i] < d) i++;
+    const a = this.pts[i - 1], b = this.pts[i], seg = (this.cum[i] - this.cum[i - 1]) || 1, u = Math.max(0, Math.min(1, (d - this.cum[i - 1]) / seg));
+    const x = a.x + (b.x - a.x) * u - this.X0, z = a.y + (b.y - a.y) * u - this.Z0;
+    return target.set(x, overSlabs(x, z, this.h0 + (this.h1 - this.h0) * t, this.slabs), z);
+  }
+}
 // the 2D line between two things (their floor-plan boxes), as the 2D stage draws it, lifted into 3D
-export function floorCurve(a: FloorEnd, b: FloorEnd, way: FloorWay, h0: number, h1: number, X0: number, Z0: number, slabs: Slab[] = []): FloorCurve {
+export function floorCurve(a: FloorEnd, b: FloorEnd, way: FloorWay, h0: number, h1: number, X0: number, Z0: number, slabs: Slab[] = []): THREE.Curve<THREE.Vector3> {
+  if (way.poly && way.poly.length >= 2) return new PolyCurve(way.poly, h0, h1, X0, Z0, slabs);
   return new FloorCurve(connGeom(a, b, a.kind, b.kind, way.implicit, way.off, way.bend, way.rt), h0, h1, X0, Z0, slabs);
 }
 // how high a line runs at a thing: a little above its foot, so it reads as on the floor beside it

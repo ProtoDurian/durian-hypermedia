@@ -43,12 +43,13 @@ export class HydrationOrder {
   attach(key: string, mark: HTMLElement) {
     const e = this.entry(key);
     e.mark = mark; e.box = mark.parentElement;
+    if (!e.done) mark.setAttribute?.("data-wait", ""); // table-more leaves the part's tables alone until it has hydrated
     if (this.io && !e.released) this.io.observe(mark);
     this.kick();
   }
-  detach(key: string) { const e = this.entries.get(key); if (e?.mark && this.io) this.io.unobserve(e.mark); if (e) { e.mark = null; e.box = null; } }
+  detach(key: string) { const e = this.entries.get(key); if (e?.mark && this.io) this.io.unobserve(e.mark); e?.mark?.removeAttribute?.("data-wait"); if (e) { e.mark = null; e.box = null; } }
   /** the part has drawn itself: the next one may go */
-  drawn(key: string) { const e = this.entries.get(key); if (e && !e.done) { e.done = true; if (this.current === e && this.wait) this.wait(); } }
+  drawn(key: string) { const e = this.entries.get(key); if (e && !e.done) { e.done = true; e.mark?.removeAttribute?.("data-wait"); if (this.current === e && this.wait) this.wait(); } }
 
   private wait: (() => void) | null = null;
   private current: Entry | null = null;

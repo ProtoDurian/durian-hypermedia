@@ -99,6 +99,8 @@ export interface DhSettings {
   /** the host's options for the folder parts, by part name (DocumentProps.partOptions); {} when none. A part reads the key it owns
    *  (weather: `units`, the host's default units); a part never needs an option to draw. */
   partOptions?: Readonly<Record<string, unknown>>;
+  /** which animation engine draws (src/engine/bridge.ts): "old", "auto" or "new"; default ENGINE_DEFAULT */
+  engine?: import("../engine/bridge").EngineMode;
 }
 export const DhContext = createContext<DhSettings | null>(null);
 export function useDh(): DhSettings {

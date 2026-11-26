@@ -21,6 +21,7 @@ import { compileScene, sceneLlm, KINDS as SCENE_KINDS, type Compiled } from "./s
 import { codeSpans } from "./inline";
 import { diagramOf, isDiagram } from "./diagrams"; // state, class and ER diagrams: each compiles to a scene
 import { isStagePart, setStageRoles, stagePartJson, stagePartLlm, stagePartTexts } from "./stage-part"; // the composed stage (0.7.0)
+import { engineView, engineLlm, engineTexts, type EngineView } from "../engine/page"; // the one engine (src/engine): its blocks read their LLM view, texts and checks from it
 import { parseTier, tierLlm } from "./tier";
 import { parseAlign, alignLlm } from "./align";
 import { folderPartRows, folderLlm, folderFenceWord, folderPart } from "../parts/runtime";
@@ -768,7 +769,7 @@ export { chartControls, evalChart, chartMeta, chartCheck, CHART_KINDS, CHART_KEY
 // animation: see tools/scene.ts (pure, shared with the browser)
 export function animSrc(p: PartNode) {
   const info: Record<string, string> = {};
-  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels", "zoom"]) if (p.attrs[k]) info[k] = p.attrs[k];
+  for (const k of ["layout", "dir", "kind", "view", "size", "fill", "pace", "only", "labels", "zoom", "look"]) if (p.attrs[k]) info[k] = p.attrs[k]; // fmt12: look=stage|classic reaches the one engine (it was dropped: every fence drew in its origin's default look)
   return { head: p.head, steps: p.steps.map((s) => ({ title: s.title, raw: s.raw, line: s.line })), base: p.bodyLine, info };
 }
 // one compile per part: the page, its JSON, its LLM view and its checks share it (a part over its work budget keeps
@@ -782,6 +783,8 @@ export function animOf(p: PartNode): Compiled {
   catch (e) { if (e instanceof BudgetError) compiled.set(p, { over: e }); throw e; }
 }
 export { SCENE_KINDS };
+/** the one engine's view of an animation part when it draws it (a format 12 page, or the page's engine mode), else null (src/engine/page.ts) */
+export const engineOf = (p: PartNode): EngineView | null => engineView(p, () => ({ anim: animSrc(p), engine: { roles: stagePartJson(p).roles, format12: String((p as any).fm?.format ?? "") === "12" } }));
 
 // ---------- LLM view ----------
 const tok = (s: string) => Math.round(s.length / 4);
@@ -834,7 +837,7 @@ function chartLlm(p: PartNode): string {
 // the LLM view of an animation: the entities it starts with, short, then its step captions as a numbered list
 // (made once per compile; it plays the story again, which the compile already paid for: not charged twice)
 const llmText = new WeakMap<Compiled, string>();
-function animLlm(p: PartNode): string { if (isStagePart(p)) return stagePartLlm(p); const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
+function animLlm(p: PartNode): string { const e = engineOf(p); if (e) return engineLlm(e); if (isStagePart(p)) return stagePartLlm(p); const c = animOf(p); let t = llmText.get(c); if (t == null) { t = unmetered(() => sceneLlm(c)); llmText.set(c, t); } return t; }
 function llmOfNodes(nodes: Node[], publicView: boolean): string {
   const out: string[] = [];
   for (const n of nodes) {
@@ -898,7 +901,7 @@ export function humanText(doc: Doc, src?: string): string {
       if (n.kind === "md") out.push(inlineToLlm(n.text));
       else if (n.kind === "part") {
         if (n.name === "llm") continue;
-        if (n.name === "animation") out.push(...(isStagePart(n) ? stagePartTexts(n) : animOf(n).scene.texts));
+        if (n.name === "animation") { const e = engineOf(n); out.push(...(e ? engineTexts(e) : isStagePart(n) ? stagePartTexts(n) : animOf(n).scene.texts)); }
         else if (isDiagram(n.name)) out.push(...diagramOf(n).texts);
         else if (n.name === "chart") out.push(yamlTexts(chartYaml(n)).join("\n"));
         else if (n.name === "codewalk") { out.push(...n.steps.map((s) => s.raw)); if (src) codewalkRefs(doc, n).forEach((r) => { const t = readRange(doc, r, src); if (t.text) out.push(t.text); }); }
@@ -1108,7 +1111,7 @@ export function jsonOf(doc: Doc, src?: string, publicView = false): any {
     if (n.kind === "toc") return { type: "toc", line: n.line, depth: +(n.attrs.depth ?? 3), scope: n.attrs.section ? "section" : "page", source: n.src };
     const base: any = { type: n.name, id: n.attrs.id ?? null, attrs: n.attrs, line: n.line, source: n.source + (n.llm ? "\n\n" + n.llm.source : ""), llm: llmOfPart(n, publicView) || null, llmKind: llmKindOf(n), size: tok(llmOfPart(n, publicView)) };
     switch (n.name) {
-      case "animation": base.anim = animSrc(n); if (isStagePart(n)) base.stage = stagePartJson(n); break; // a composed stage also carries its stage source
+      case "animation": base.anim = animSrc(n); base.engine = { roles: stagePartJson(n).roles, format12: String((n as any).fm?.format ?? "") === "12" }; if (isStagePart(n)) base.stage = stagePartJson(n); break; // a composed stage also carries its stage source
       case "state": case "class": case "er": { const d = diagramOf(n); base.anim = d.src; base.refused = d.errors; base.body = n.body; break; }
       case "chart": { const d = chartYaml(n); base.chart = d; base.controls = chartControls(d).controls; base.initial = chartInitial(n, d); break; }
       case "tierlist": base.tier = parseTier(n.body, n.bodyLine, n.attrs.title ?? ""); break;

@@ -17,6 +17,7 @@ import { useStatic, StaticSteps, type StaticProp } from "../parts/kit/static";
 import type { Compiled } from "../core/scene"; // (tokenIds' cache)
 import { cueAt, moreSides, rideHeads } from "../core/edge10";
 import { Controls, reducedMotion } from "./parts";
+import { useSpeed } from "./speed";
 import type { Ui } from "./ui";
 import type { Stage3, View3, Item3, Pick } from "./anim3d";
 import { lerpRoute } from "../core/route";
@@ -176,6 +177,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   const i = st.on ? st.i : liveI, from = st.on ? st.i : liveFrom, t = st.on ? 1 : liveT;
   const [howOpen, setHowOpen] = useState(false); // the ? button under the stage: the whole "how to move" text
   const [playing, setPlaying] = useState(false);
+  const [speed, cycleSpeed] = useSpeed(); // the page's step speed (owner feedback 17): divides the motion and the pause
   const [user, setUser] = useState<Rect | null>(null);   // the reader's own camera; null follows the story
   const [sel, setSel] = useState<number | null>(null);    // the entity whose note is open
   const [ar, setAr] = useState(c.aspect);                  // the stage's real shape (it has a minimum height on phones)
@@ -272,7 +274,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
     if (!keepCam) { setUser(null); s3.current?.back(); fitAsked.current = false; }
     if (reducedMotion()) { setT(1); return; }
     setT(0);
-    const start = performance.now(), d = dur(to);
+    const start = performance.now(), d = dur(to) / speed;
     // (format version 11) a frame's time can be a little before the click: clamped, so a step never runs back first
     const tick = (now: number) => { const p = stepT(now, start, d); setT(p); if (p < 1) raf.current = requestAnimationFrame(tick); };
     raf.current = requestAnimationFrame(tick);
@@ -301,9 +303,9 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
   useEffect(() => {
     if (!playing || st.on) return;
     if (i >= n - 1) { setPlaying(false); return; }
-    const tm = setTimeout(() => go(i + 1), dur(i) + 1700);
+    const tm = setTimeout(() => go(i + 1), (dur(i) + 1700) / speed);
     return () => clearTimeout(tm);
-  }, [playing, i, st.on]);
+  }, [playing, i, st.on, speed]);
   // the stage keeps its shape from the scene, but has a minimum height; read the real shape for the camera
   useEffect(() => {
     const el = stage.current; if (!el) return;
@@ -671,7 +673,7 @@ export function Animation({ src, ui, srText, static: staticProp }: { src: SceneS
       {!still && !st.on && <><div className="scn-caps" aria-live="polite">
         {src.steps.map((s, k) => <div key={k} className={cx("scn-cap", k === i && "is-active")} aria-hidden={k !== i}><span className="cw-num">{k + 1}</span><span><SceneChip c={c} k={k} ui={U} /><Rich text={s.title} />{zoomCue(k)}</span></div>)}
       </div>
-      <Controls ui={ui} i={i} n={n} bands={sceneBands(c)} onGo={(k) => go(k)} playing={playing} onPlay={() => { if (!playing) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }} />
+      <Controls ui={ui} i={i} n={n} bands={sceneBands(c)} onGo={(k) => go(k)} playing={playing} speed={speed} onSpeed={cycleSpeed} dwell={(dur(i) + 1700) / speed} onPlay={() => { if (!playing && i > 0) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }} />
       <details className="scn-steps">
         <summary>{ui.allSteps ?? "All steps"} ({n})</summary>
         {c.nest ? <StepList c={c} titles={src.steps.map((s) => s.title)} i={i} go={(k) => go(k)} /> : <ol>{src.steps.map((s, k) => <li key={k}><button type="button" className={cx(k === i && "is-cur")} onClick={() => go(k)}><Rich text={s.title} /></button></li>)}</ol>}

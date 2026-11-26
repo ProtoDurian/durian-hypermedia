@@ -17,6 +17,7 @@ import { Turn } from "./turn";
 import { ReferencePart } from "./reference";
 import { pageStatic } from "../parts/kit/static";
 import { useTableMore } from "./table-more";
+import { usePauseAway } from "./pause-away"; // hydrate
 
 
 export interface DocumentProps {
@@ -59,6 +60,8 @@ export interface DocumentProps {
   interactive?: "off" | "static" | "on";
   /** options for the folder parts, by part name: `{ weather: { units: { temp: "f", wind: "mph" } } }` sets the default units of every weather part (the reader's own choice still wins) */
   partOptions?: Readonly<Record<string, unknown>>;
+  /** which animation engine draws: "old", "auto" or "new" (src/engine/bridge.ts); default ENGINE_DEFAULT */
+  engine?: import("../engine/bridge").EngineMode;
   className?: string;
 }
 
@@ -112,12 +115,14 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     map: p.map,
     now: p.now,
     partOptions: p.partOptions,
-  }), [p.ui, p.urlPolicy, p.loadMedia, p.mediaPrefixes, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions]);
+    engine: p.engine,
+  }), [p.ui, p.urlPolicy, p.loadMedia, p.mediaPrefixes, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions, p.engine]);
 
   const { doc } = p;
   // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)
   const root = useRef<HTMLDivElement>(null);
   useTableMore(root, settings.ui.hintTable ?? "↔ Swipe the table to see all of it");
+  usePauseAway(root); // hydrate: a figure off the screen keeps its CSS animations still
   return (
     <DhContext.Provider value={settings}>
       <div ref={root} className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>

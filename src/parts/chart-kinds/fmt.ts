@@ -1,5 +1,6 @@
 // Number formats of the chart kinds (the same words as every chart's axis): number, percent, money, duration,
 // duration-ms, bytes. Pure; nothing here reads author text.
+import { compactNum } from "../../core/compact-num";
 export const FORMATS = ["number", "percent", "money", "duration", "duration-ms", "bytes"];
 const nf = new Map<string, Intl.NumberFormat>();
 const numFmt = (key: string, o: Intl.NumberFormatOptions) => { let f = nf.get(key); if (!f) { f = new Intl.NumberFormat("en-US", o); nf.set(key, f); } return f; };
@@ -33,8 +34,9 @@ export function bytesText(v: number, digits = 1): string {
   while (x >= 1024 && i < BYTE_UNITS.length - 1) { x /= 1024; i++; }
   return `${neg}${i === 0 ? String(Math.round(x)) : trim(x, digits)} ${BYTE_UNITS[i]}`;
 }
-/** a value as the axis, the card and the table show it; `compact` is for ticks (shorter) */
-export function fmtValue(v: unknown, format = "number", currency = "USD", compact = false): string {
+/** a value as the axis, the card and the table show it; `compact` is for ticks (shorter); `narrow` (a phone's chart) makes a plain number
+ *  of a tick 1k, 1.5k, 2M and leaves the unit formats as they are */
+export function fmtValue(v: unknown, format = "number", currency = "USD", compact = false, narrow = false): string {
   if (typeof v !== "number" || !Number.isFinite(v)) return v == null ? "" : String(v);
   switch (format) {
     case "percent": return `${trim(v, 2)}%`;
@@ -42,7 +44,7 @@ export function fmtValue(v: unknown, format = "number", currency = "USD", compac
     case "duration": return durationText(v);
     case "duration-ms": return Math.abs(v) >= 1000 ? durationText(v / 1000) : `${trim(v, 2)} ms`;
     case "bytes": return bytesText(v);
-    default: return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    default: if (compact && narrow) return compactNum(v); return Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 });
   }
 }
 /** the unit a table header names: p95 (ms) */

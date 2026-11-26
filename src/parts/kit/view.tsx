@@ -2,6 +2,7 @@
 // variables and the one popover card. Add, never alter: every part draws with these.
 import React, { useEffect, useState } from "react";
 import { Controls, reducedMotion } from "../../ui/parts";
+import { useSpeed } from "../../ui/speed";
 import type { Ui } from "../../ui/ui";
 import { useStatic, StaticSteps } from "./static";
 import type { StaticProp } from "../types";
@@ -21,21 +22,27 @@ export const shownAt = (s: number, i: number, n: number) => n < 2 || s <= i;
 export const newAt = (s: number, i: number, n: number) => n >= 2 && s >= 0 && s === i;
 export const oldAt = (s: number, i: number, n: number) => n >= 2 && s >= 0 && s < i;
 
-/** The step state of a part with n steps. Play starts at once and stops at the last step; static draws one step. */
+/** The pause between two steps while a kit part plays, at speed 1. */
+export const KIT_DWELL = 1600;
+/** The step state of a part with n steps. Play starts at once and stops at the last step; static draws one step.
+ * Play on the first step stays on it for a whole pause (owner feedback 17: the first step is played, not skipped);
+ * elsewhere it moves on at once. The page's speed (ui/speed.ts) divides the pause. */
 export function useSteps(n: number, stp: StaticProp, titles: string[] = []) {
   const [i, setI] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [speed, cycleSpeed] = useSpeed();
   const sx = useStatic(stp, n, titles);
   useEffect(() => { if (sx.on) setPlaying(false); }, [sx.on]);
   const go = (k: number) => { setPlaying(false); setI(Math.max(0, Math.min(n - 1, k))); };
   useEffect(() => {
     if (!playing) return;
-    const id = window.setInterval(() => setI((v) => { if (v >= n - 1) { setPlaying(false); return v; } return v + 1; }), 1600);
-    return () => window.clearInterval(id);
-  }, [playing, n]);
-  const play = () => { if (playing) { setPlaying(false); return; } setI((v) => (v >= n - 1 ? 0 : v + 1)); setPlaying(!reducedMotion()); };
-  if (sx.on) return { i: sx.i, go: (_: number) => {}, playing: false, play: () => {}, sx };
-  return { i, go, playing, play, sx };
+    const id = window.setTimeout(() => setI((v) => { if (v >= n - 1) { setPlaying(false); return v; } return v + 1; }), KIT_DWELL / speed);
+    return () => window.clearTimeout(id);
+  }, [playing, n, i, speed]);
+  const play = () => { if (playing) { setPlaying(false); return; } setI((v) => (v >= n - 1 || v === 0 ? 0 : v + 1)); setPlaying(!reducedMotion()); };
+  const dwell = KIT_DWELL / speed;
+  if (sx.on) return { i: sx.i, go: (_: number) => {}, playing: false, play: () => {}, sx, speed, cycleSpeed: () => {}, dwell };
+  return { i, go, playing, play, sx, speed, cycleSpeed, dwell };
 }
 export type Steps = ReturnType<typeof useSteps>;
 
@@ -52,7 +59,7 @@ export function Stepper({ n, titles, st, ui, label }: { n: number; titles: strin
   return (
     <>
       <div className="anim-cap dh-cap" aria-live="polite"><span className="cw-num" style={{ minWidth: `max(22px, calc(${String(n).length}ch + 12px))` }}>{st.i + 1}</span><StepTitle titles={titles} index={st.i} /></div>
-      <Controls ui={ui} i={st.i} n={n} onGo={st.go} playing={st.playing} onPlay={st.play} label={label ?? ui.step} />
+      <Controls ui={ui} i={st.i} n={n} onGo={st.go} playing={st.playing} onPlay={st.play} speed={st.speed} onSpeed={st.cycleSpeed} dwell={st.dwell} label={label ?? ui.step} />
     </>
   );
 }

@@ -23,3 +23,11 @@
 .fish-sub, .fish-cause text { font-size: 13px; }
 /* Show new words immediately: opacity animations on nested SVG groups can leave their text unpainted. */
 .fish-bone.is-new, .fish-cause.is-new { animation: none; }
+/* the phone form: a thick bone to each category's name, a rail of its colour with the causes hung on it, all left to right */
+.fish-narrow .fish-spine { stroke-width: 3.5; }
+.fish-narrow .fish-line { stroke-width: 3.5; stroke-linecap: round; }
+.fish-rail { stroke: var(--fc, var(--ink-2)); stroke-width: 3; stroke-linecap: round; }
+.fish-narrow .fish-tick { stroke-width: 2; }
+.fish-narrow .fish-bone.is-lit .fish-line, .fish-narrow .fish-bone.is-lit .fish-rail { stroke-width: 5; }
+.fish-narrow .fish-cause text { font-size: 13px; }
+.fish-narrow text.fish-sub { fill: var(--ink-2); }

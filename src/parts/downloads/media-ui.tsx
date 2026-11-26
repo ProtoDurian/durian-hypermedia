@@ -99,10 +99,11 @@ export const cssVar = (el: Element, name: string) => getComputedStyle(el).getPro
 export const toneVar = (tone: string) => `--${tone}`;
 
 /** Drag to seek: pointer down on the track, move, up. The track keeps its vertical scroll on a phone (touch-action: pan-y in CSS). */
-export function useDrag(onFrac: (f: number, phase: "down" | "move" | "up") => void, toFrac: (clientX: number) => number) {
+export function useDrag(onFrac: (f: number, phase: "down" | "move" | "up") => void, toFrac: (clientX: number) => number, onCancel?: () => void) {
   const act = useRef(false);
   const cb = useRef(onFrac); cb.current = onFrac;
   const tf = useRef(toFrac); tf.current = toFrac;
+  const oc = useRef(onCancel); oc.current = onCancel;
   return {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.button !== 0 && e.pointerType === "mouse") return;
@@ -111,7 +112,8 @@ export function useDrag(onFrac: (f: number, phase: "down" | "move" | "up") => vo
     },
     onPointerMove: (e: React.PointerEvent) => { if (act.current) cb.current(tf.current(e.clientX), "move"); },
     onPointerUp: (e: React.PointerEvent) => { if (!act.current) return; act.current = false; cb.current(tf.current(e.clientX), "up"); },
-    onPointerCancel: () => { act.current = false; },
+    // the browser took the finger (a vertical swipe scrolls the page): the drag is over and nothing is committed; the caller puts its state back
+    onPointerCancel: () => { if (!act.current) return; act.current = false; oc.current?.(); },
   };
 }
 

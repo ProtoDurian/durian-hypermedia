@@ -55,3 +55,18 @@
 .dx[data-dh-static] .dx-q, .dx[data-dh-static] .dx-chips, .dx[data-dh-static] .dx-tools, .dx[data-dh-static] .dx-copy { display:none; }
 @media print { .dx-q, .dx-chips, .dx-tools, .dx-copy { display:none !important; } }
 .dx-title, .dx-chip { min-width:0; max-width:100%; overflow-wrap:anywhere; }
+
+/* the switch between the rich view and the raw source (a two-button toggle), and the raw view */
+.dx-switch { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-pill, 999px); overflow: hidden; background: var(--surface-2); }
+.dx-sw { min-height: 32px; min-width: 52px; padding: 0 14px; border: 0; background: transparent; font-size: 13px; }
+.dx-sw + .dx-sw { border-left: 1px solid var(--line-2); }
+.dx-sw:hover { background: var(--acc-soft); }
+.dx-sw[aria-pressed="true"] { background: var(--acc-soft); color: var(--acc-ink); font-weight: 600; }
+.dx-sw:focus-visible { outline-offset: -2px; }
+.dx-raw { border: 1px solid var(--line); border-radius: var(--r-s, 8px); background: var(--surface-2); overflow: auto; max-height: 420px; max-width: 100%; }
+.dx-raw-ol { list-style: none; margin: 0; padding: 8px 0; counter-reset: dxl; font: 13px/1.55 var(--font-mono); width: max-content; min-width: 100%; }
+.dx-raw-li { counter-increment: dxl; white-space: pre; padding: 0 12px 0 calc(var(--dx-gutter, 3ch) + 22px); position: relative; }
+.dx-raw-li::before { content: counter(dxl); position: absolute; left: 0; width: var(--dx-gutter, 3ch); padding-left: 8px; box-sizing: content-box; text-align: right; color: var(--faint); user-select: none; }
+.dx-raw .dx-more { margin: 6px 10px; }
+.dx[data-dh-static] .dx-switch { display: none; }
+@media print { .dx-switch { display: none !important; } }

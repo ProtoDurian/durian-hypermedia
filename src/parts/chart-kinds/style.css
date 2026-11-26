@@ -15,7 +15,7 @@
 .ck-t-acc { --chart-kinds-tone: var(--acc); } .ck-t-good { --chart-kinds-tone: var(--good); } .ck-t-warn { --chart-kinds-tone: var(--warn); } .ck-t-bad { --chart-kinds-tone: var(--bad); }
 .ck-t-muted { --chart-kinds-tone: var(--faint); }
 
-.ck { padding: 4px 0; }
+.ck[data-dh-kind] { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); padding: 16px; }
 .ck-title { font-weight: 600; color: var(--ink); margin: 0 0 8px; }
 .ck-box { position: relative; max-width: 100%; overflow-x: auto; }
 .ck .chart-table > summary { padding: 4px 0; min-height: 24px; cursor: pointer; }
@@ -61,10 +61,10 @@
 
 /* funnel */
 .ck-stage { animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }
-.ck-fun { fill: color-mix(in oklab, var(--chart-kinds-tone) var(--chart-kinds-ramp, 100%), var(--surface)); stroke: color-mix(in oklab, var(--chart-kinds-tone) 60%, var(--surface)); stroke-width: 1; stroke-linejoin: round; }
-.ck-st-name { fill: var(--ink); font-size: 14px; font-weight: 500; } .ck-st-val { fill: var(--ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.ck-fun-pct { fill: var(--ink); font-size: 13px; font-weight: 700; paint-order: stroke; stroke: color-mix(in oklab, var(--surface) 65%, transparent); stroke-width: 3px; stroke-linejoin: round; }
-.ck-drop rect { fill: var(--bad-soft); } .ck-drop text { fill: var(--bad-ink); font-size: 12px; font-weight: 600; }
+.ck-fun { fill: color-mix(in oklab, var(--chart-kinds-tone) var(--chart-kinds-ramp, 40%), var(--surface)); stroke: color-mix(in oklab, var(--chart-kinds-tone) 70%, var(--surface)); stroke-width: 1.2; stroke-linejoin: round; }
+.ck-st { font-size: 14px; }
+.ck-st-name { fill: var(--ink); font-weight: 500; } .ck-st-val { fill: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; } .ck-st-share { fill: var(--ink-2); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ck-drop { fill: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
 
 /* waterfall */
 .ck-wf { animation: ck-fade var(--dur-slow, 640ms) var(--ease, ease-out) both; }

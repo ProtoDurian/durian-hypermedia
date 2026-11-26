@@ -33,6 +33,12 @@ figure.part-animation:has(.stg) { --stg-want: min(var(--stg-max), 100vw - 32px);
 .stg-play { display: inline-grid; place-items: center; }
 .stg-play > span { grid-area: 1 / 1; }
 .stg-play > [aria-hidden="true"] { visibility: hidden; }
+.stg-play { position: relative; overflow: hidden; }
+/* the time left before Play takes the next step (owner feedback 17) */
+.stg-tick { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--acc); transform-origin: left; animation: dh-stg-tick linear forwards; pointer-events: none; }
+@keyframes dh-stg-tick { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .stg-tick { display: none; } }
+.stg-speed { font-variant-numeric: tabular-nums; }
 .stg-btn:disabled { opacity: .45; cursor: default; }
 .stg-btn:focus-visible, .stg-stepbtn:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .stg-count { font: 12px var(--font-mono); color: var(--muted); min-width: 3.5em; text-align: right; }

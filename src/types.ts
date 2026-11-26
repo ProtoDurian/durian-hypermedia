@@ -52,6 +52,8 @@ export interface CodeWalkBlock extends PartBase { type: "codewalk"; steps: CodeW
 
 export interface ChartBlock extends PartBase { type: "chart"; chart: any; controls: ChartControl[]; initial: { x: Val[]; series: ChartSeries[]; vars: Record<string, Val>; error?: string; limit?: "part" | "page"; /** the facts of a chart written with steps, a time axis, annotations, formats, a heatmap or the page-chart words (core/chart11.ts) */ ext?: any } }
 export interface AnimationBlock extends PartBase { type: "animation"; anim: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> };
+  /** the one engine (format 12, src/engine): the page's roles and whether its front matter says `format: 12` */
+  engine?: { roles: Record<string, number>; format12: boolean };
   /** a composed stage (0.7.0: lanes, cards, panels, a time block; every animation whose fence does not ask for the graph engine): its source and the page's roles (role name -> colour 0 to 8) */
   stage?: { src: { head: string; steps: { title: string; raw: string; line: number }[]; base: number; info: Record<string, string> }; roles: Record<string, number> };
   /** what a reader sees as text in this animation, in story order: quoted labels, captions, say and note texts (animationTexts(block)) */

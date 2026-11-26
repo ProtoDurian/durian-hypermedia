@@ -1,7 +1,7 @@
 // This package is the source of this file: edit it here. It began as a copy synced from a private prototype (scripts/sync.ts, now frozen).
 // The renderer's own words (buttons, labels), per language. The article text comes from the dh JSON.
 export type Ui = {
-  back: string; next: string; play: string; pause: string; step: string; changed: string; line: string; lines: string; pinned: string;
+  back: string; next: string; play: string; pause: string; speed: string; step: string; changed: string; line: string; lines: string; pinned: string;
   theFile: string; swipe: string; theChange: string; after: string; table: string; no3d: string; loading3d: string;
   forPeople: string; llmSkips: string; llmShort: string; llmInstead: string; llmHere: string; onThisPage: string;
   sampleKicker: string; readLlm: string; codeCited: string; theme: string; skip: string; foot: string; llmKicker: string;
@@ -42,7 +42,7 @@ const en: Ui = {
   foldLines: "… {n} lines",
   candleUp: "Up: the close is at or above the open", candleDown: "Down: the close is below the open", candlePeriod: "period", candleWords: { open: "Open", high: "High", low: "Low", close: "Close" },
   hintOff: "Drag to move · click the stage to use the wheel and the arrow keys", hintOn: "Drag, scroll or arrow keys: move · Ctrl + scroll, pinch or + −: zoom · Esc: back to the story", hintOff3d: "Drag to turn, right-drag or Shift + drag to move · click the stage to use the wheel and the keys", hintOn3d: "Drag: turn · right-drag, Shift + drag or two fingers: move · wheel or pinch: zoom · arrows, W A S D: move · + −: zoom · Esc: back", resetView: "Reset the view", stageLabel: "The stage: drag, scroll or use the arrow keys to move",
-  back: "← Back", next: "Next →", play: "▶ Play", pause: "❚❚ Pause", step: "Step", changed: "changed", line: "line", lines: "lines", pinned: "pinned at",
+  back: "← Back", next: "Next →", play: "▶ Play", pause: "❚❚ Pause", speed: "Speed", step: "Step", changed: "changed", line: "line", lines: "lines", pinned: "pinned at",
   theFile: "The file", swipe: "↔ Swipe the stage to see all of it", theChange: "the change", after: "the file after it", table: "Show the numbers as a table",
   no3d: "This 3D stage needs WebGL, which this browser does not offer. The captions below still tell the story.", loading3d: "Loading the 3D stage…",
   forPeople: "For people", llmSkips: "LLMs skip this part: the author marked it as not needed by them.", llmShort: "LLMs read a short text instead.",
@@ -66,7 +66,7 @@ export const UI: Record<string, Ui> = {
   "hintOn3d": "拖动：旋转 · 右键拖动、Shift + 拖动或双指：移动 · 滚轮或捏合：缩放 · 方向键、W A S D：移动 · + −：缩放 · Esc：返回",
   "resetView": "重置视图",
   "stageLabel": "舞台：拖动、滚动或用方向键移动",
-    ...en, foldLines: "… {n} 行", back: "← 上一步", next: "下一步 →", play: "▶ 播放", pause: "❚❚ 暂停", step: "步骤", changed: "已变", line: "行", lines: "行", pinned: "固定于",
+    ...en, foldLines: "… {n} 行", back: "← 上一步", next: "下一步 →", play: "▶ 播放", pause: "❚❚ 暂停", speed: "速度", step: "步骤", changed: "已变", line: "行", lines: "行", pinned: "固定于",
     theFile: "文件", swipe: "↔ 左右滑动查看完整舞台", theChange: "改动", after: "改动后的文件", table: "以表格显示数字",
     no3d: "此 3D 舞台需要 WebGL，但此浏览器不支持。下面的说明文字仍讲述了全过程。", loading3d: "正在加载 3D 舞台…",
     forPeople: "给人看的", llmSkips: "LLM 跳过此部分：作者标明 LLM 不需要它。", llmShort: "LLM 读的是一段简短文字。",
@@ -78,7 +78,7 @@ export const UI: Record<string, Ui> = {
     files: "文件", close: "关闭", original: "文件原样", before: "改前", after2: "改后", beforeAfter: "改动前或改动后", explorer: "资源管理器", more: "更多文件，未显示", terminal: "终端", replay: "↻ 重放", reset: "重置", chart: "图表", pick: "请选择：",
   },
   es: {
-    ...en, foldLines: "… {n} líneas", back: "← Atrás", next: "Siguiente →", play: "▶ Reproducir", pause: "❚❚ Pausa", step: "Paso", changed: "cambió", line: "línea", lines: "líneas", pinned: "fijado en",
+    ...en, foldLines: "… {n} líneas", back: "← Atrás", next: "Siguiente →", play: "▶ Reproducir", pause: "❚❚ Pausa", speed: "Velocidad", step: "Paso", changed: "cambió", line: "línea", lines: "líneas", pinned: "fijado en",
     theFile: "El archivo", swipe: "↔ Desliza el escenario para verlo entero", theChange: "el cambio", after: "el archivo después", table: "Ver los números en una tabla",
     no3d: "Este escenario 3D necesita WebGL, que este navegador no ofrece. Los textos de abajo cuentan la historia igual.", loading3d: "Cargando el escenario 3D…",
     forPeople: "Para personas", llmSkips: "Los LLM se saltan esta parte: el autor la marcó como innecesaria para ellos.", llmShort: "Los LLM leen un texto breve en su lugar.",
@@ -90,7 +90,7 @@ export const UI: Record<string, Ui> = {
     files: "Archivos", close: "Cerrar", original: "Los archivos tal como están", before: "Antes", after2: "Después", beforeAfter: "Antes o después del cambio", explorer: "Explorador", more: "más archivos, no se muestran", terminal: "Terminal", replay: "↻ Repetir", reset: "Restablecer", chart: "Gráfico", pick: "Elige una:",
   },
   hi: {
-    ...en, foldLines: "… {n} पंक्तियाँ", back: "← पीछे", next: "आगे →", play: "▶ चलाएँ", pause: "❚❚ रोकें", step: "चरण", changed: "बदला", line: "पंक्ति", lines: "पंक्तियाँ", pinned: "स्थिर कमिट",
+    ...en, foldLines: "… {n} पंक्तियाँ", back: "← पीछे", next: "आगे →", play: "▶ चलाएँ", pause: "❚❚ रोकें", speed: "गति", step: "चरण", changed: "बदला", line: "पंक्ति", lines: "पंक्तियाँ", pinned: "स्थिर कमिट",
     theFile: "फ़ाइल", swipe: "↔ पूरा मंच देखने के लिए स्वाइप करें", theChange: "बदलाव", after: "बदलाव के बाद फ़ाइल", table: "संख्याएँ तालिका में देखें",
     no3d: "इस 3D मंच के लिए WebGL चाहिए, जो यह ब्राउज़र नहीं देता। नीचे के कैप्शन फिर भी पूरी बात बताते हैं।", loading3d: "3D मंच लोड हो रहा है…",
     forPeople: "लोगों के लिए", llmSkips: "LLM यह हिस्सा छोड़ देते हैं: लेखक ने इसे उनके लिए अनावश्यक बताया है।", llmShort: "LLM इसकी जगह एक छोटा पाठ पढ़ते हैं।",
@@ -102,7 +102,7 @@ export const UI: Record<string, Ui> = {
     files: "फ़ाइलें", close: "बंद करें", original: "फ़ाइलें जैसी हैं", before: "पहले", after2: "बाद में", beforeAfter: "बदलाव से पहले या बाद", explorer: "एक्सप्लोरर", more: "और फ़ाइलें, दिखाई नहीं गईं", terminal: "टर्मिनल", replay: "↻ फिर चलाएँ", reset: "रीसेट", chart: "चार्ट", pick: "एक चुनें:",
   },
   pt: {
-    ...en, foldLines: "… {n} linhas", back: "← Voltar", next: "Avançar →", play: "▶ Reproduzir", pause: "❚❚ Pausar", step: "Passo", changed: "mudou", line: "linha", lines: "linhas", pinned: "fixado em",
+    ...en, foldLines: "… {n} linhas", back: "← Voltar", next: "Avançar →", play: "▶ Reproduzir", pause: "❚❚ Pausar", speed: "Velocidade", step: "Passo", changed: "mudou", line: "linha", lines: "linhas", pinned: "fixado em",
     theFile: "O arquivo", swipe: "↔ Deslize o palco para ver tudo", theChange: "a mudança", after: "o arquivo depois", table: "Ver os números numa tabela",
     no3d: "Este palco 3D precisa de WebGL, que este navegador não oferece. As legendas abaixo contam a história mesmo assim.", loading3d: "Carregando o palco 3D…",
     forPeople: "Para pessoas", llmSkips: "Os LLMs pulam esta parte: o autor a marcou como desnecessária para eles.", llmShort: "Os LLMs leem um texto curto no lugar.",
@@ -114,7 +114,7 @@ export const UI: Record<string, Ui> = {
     files: "Arquivos", close: "Fechar", original: "Os arquivos como estão", before: "Antes", after2: "Depois", beforeAfter: "Antes ou depois da mudança", explorer: "Explorador", more: "mais arquivos, não mostrados", terminal: "Terminal", replay: "↻ Repetir", reset: "Redefinir", chart: "Gráfico", pick: "Escolha uma:",
   },
   bn: {
-    ...en, foldLines: "… {n} লাইন", back: "← পিছনে", next: "পরের ধাপ →", play: "▶ চালান", pause: "❚❚ থামান", step: "ধাপ", changed: "বদলেছে", line: "লাইন", lines: "লাইন", pinned: "স্থির কমিট",
+    ...en, foldLines: "… {n} লাইন", back: "← পিছনে", next: "পরের ধাপ →", play: "▶ চালান", pause: "❚❚ থামান", speed: "গতি", step: "ধাপ", changed: "বদলেছে", line: "লাইন", lines: "লাইন", pinned: "স্থির কমিট",
     theFile: "ফাইল", swipe: "↔ পুরো মঞ্চ দেখতে সোয়াইপ করুন", theChange: "পরিবর্তন", after: "পরিবর্তনের পরে ফাইল", table: "সংখ্যাগুলো টেবিলে দেখুন",
     no3d: "এই 3D মঞ্চের জন্য WebGL দরকার, যা এই ব্রাউজারে নেই। নিচের ক্যাপশনগুলো তবুও পুরো ঘটনা বলে।", loading3d: "3D মঞ্চ লোড হচ্ছে…",
     forPeople: "মানুষের জন্য", llmSkips: "LLM এই অংশ বাদ দেয়: লেখক এটিকে তাদের জন্য অপ্রয়োজনীয় বলে চিহ্নিত করেছেন।", llmShort: "LLM এর বদলে একটি ছোট লেখা পড়ে।",

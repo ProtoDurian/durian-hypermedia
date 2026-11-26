@@ -32,7 +32,7 @@ node check "doccheck" in core
 node react "react renderer" [c2]
 check -> parse
 react -> parse
-react -> chart.js "lazy"`;
+react -> charts "own drawing"`;
 const sampleText = readFileSync(join(HERE, "sample.md"), "utf8");
 const sampleDoc = parse(sampleText, { path: "sample.dh.md" });
 const sampleBlock = (title: string) => sampleDoc.blocks.find((b: any) => b.type === "graph" && b.data.title.startsWith(title)) as any;
@@ -53,8 +53,8 @@ describe("graph: parse", () => {
     const s = g(SMALL, { title: "Package dependencies", layout: "layers" });
     expect(s.errors).toEqual([]);
     expect(s.groups.map((x) => [x.id, x.label, x.tone])).toEqual([["core", "core", "c1"]]);
-    expect(s.nodes.map((n) => [n.id, n.label, n.group, n.tone, n.declared])).toEqual([["parse", "parser", "core", "c1", true], ["check", "doccheck", "core", "c1", true], ["react", "react renderer", null, "c2", true], ["chart.js", "chart.js", null, null, false]]);
-    expect(s.edges.map((e) => [e.from, e.to, e.label])).toEqual([["check", "parse", ""], ["react", "parse", ""], ["react", "chart.js", "lazy"]]);
+    expect(s.nodes.map((n) => [n.id, n.label, n.group, n.tone, n.declared])).toEqual([["parse", "parser", "core", "c1", true], ["check", "doccheck", "core", "c1", true], ["react", "react renderer", null, "c2", true], ["charts", "charts", null, null, false]]);
+    expect(s.edges.map((e) => [e.from, e.to, e.label])).toEqual([["check", "parse", ""], ["react", "parse", ""], ["react", "charts", "own drawing"]]);
   });
   test("lists and chains: a, b -> c -> d makes every pair of each hop", () => {
     const s = g(`a, b -> c -> d, e "x" [warn] dashed`);
@@ -110,14 +110,14 @@ describe("graph: the LLM view", () => {
 
 Nodes by group:
 - core: parse "parser", check "doccheck"
-- in no group: react "react renderer", chart.js
+- in no group: react "react renderer", charts
 
 Edges:
 check -> parse
 react -> parse
-react -> chart.js: lazy
+react -> charts: own drawing
 
-Most connected: parse (2 in), react (2 out), check (1 out), chart.js (1 in).`;
+Most connected: parse (2 in), react (2 out), check (1 out), charts (1 in).`;
     expect(graphLlm(g(SMALL, { title: "Package dependencies", layout: "layers" }))).toBe(want);
     expect(parse(fm + fence('title="Package dependencies" layout=layers', SMALL) + "\n", { path: "x.dh.md" }).llm).toContain(want);
   });

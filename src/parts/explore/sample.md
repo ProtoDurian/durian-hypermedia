@@ -15,7 +15,7 @@ A fence in the data's own language, followed by `explore`, becomes a foldable tr
 }
 ```
 
-The same reader takes YAML and CSV. TOML exploration is refused until a TOML reader is available; the TOML example below is ordinary code:
+The same reader takes YAML and CSV. TOML reads the same way (a plain `toml` fence without `explore` stays ordinary code). Each explorer has a **Rich | Raw** switch: Raw shows the source as plain text with line numbers:
 
 ```yaml explore title="A service config" query=".limits | map_values(ascii_upcase)"
 service: shop
@@ -30,7 +30,7 @@ hosts:
     zone: b
 ```
 
-```toml
+```toml explore title="A server table" query=".limits.cpu"
 [server]
 host = "198.51.100.7"
 port = 8443

@@ -6,13 +6,14 @@ import { yamlParse, chargeYaml } from "../host/yaml";
 // Format version 3: parts are fenced blocks (```terminal ...) or containers (:::tabs ...); see SPEC.md.
 import { existsSync, readFileSync, readdirSync, statSync } from "../host/fs";
 import { dirname, join, relative, resolve } from "../host/path";
-import { PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
+import { engineOf, PARTS, LLM_LIMIT, CALLOUTS, MOUSE_WORDS, CHART_KINDS, CHART_KEYS, ParseError, parseDoc, llmView, llmFormOf, safeYaml, checkCodeRef, mapCodeRefs, sectionsOf, h10, structureOf, listDh, llmPathFor, rootOf, tok, codewalkRefs, codewalkAnimate, readRange, editorFiles, applyDiff, parseTree, treeSteps, terminalSteps, chartControls, evalChart, chartCheck, animOf, mouseParts, madeUpFiles } from "./dh-lib";
 import { parseDefs } from "./expr";
 import { BudgetError, partBudget } from "./budget";
 import { chartRoom, briefJson } from "./chart";
 import { chart11Check } from "./chart11";
 import { animOverMessage } from "./work";
 import { isStagePart, stagePartCheck } from "./stage-part"; // the composed stage (0.7.0)
+import { engineCheck } from "../engine/page"; // the one engine: an animation it draws is checked by it
 import { BudgetError as StageBudgetError } from "./stage-budget";
 import { parseTier, splitAround } from "./tier";
 import { parseAlign } from "./align";
@@ -129,7 +130,8 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     // an editor shows the files as they are before its first edit, so one edit is two states; any other part needs 2 steps or none (a composed stage says so itself, once)
     if (p.steps.length === 1 && p.name !== "editor" && !(p.name === "animation" && isStagePart(p))) err(p.steps[0].line, "part data", `${p.name} has one @step; steps need at least 2 (or none; an editor may have one edit)`);
     // an animation over its layout budget is said once and not checked further (core/work.ts)
-    if (p.name === "animation" && isStagePart(p)) { try { stagePartCheck(p); } catch (e) { if (!(e instanceof StageBudgetError)) throw e; err(p.line, "part data", `animation: ${e.message}`); return; } }
+    if (p.name === "animation" && engineOf(p)) { /* the one engine draws this block: its caps are the engine's own (core check) */ }
+    else if (p.name === "animation" && isStagePart(p)) { try { stagePartCheck(p); } catch (e) { if (!(e instanceof StageBudgetError)) throw e; err(p.line, "part data", `animation: ${e.message}`); return; } }
     else if (p.name === "animation") { let over: string | null = null; try { animOf(p); } catch (e) { over = animOverMessage(e); if (over == null) throw e; } if (over) { err(p.line, "part data", `animation: ${over}`); return; } }
     const none = p.attrs.llm === "none";
     if (p.name === "human") {
@@ -149,7 +151,7 @@ function checkDoc(doc: Doc, src: string | undefined, issues: Issue[]) {
     checkPartData(doc, p, (l, m) => err(l, "part data", m), src, (l, m) => warn(l, "part data", m));
     // an animation's warnings (format version 6): a token's label too long for its small chip
     if (isDiagram(p.name)) for (const w of diagramOf(p).warnings) warn(w.line, "part data", `${p.name}: ${w.msg}`);
-    if (p.name === "animation") for (const w of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
+    if (p.name === "animation") for (const w of animChecks(p).warnings) warn(w.line, "part data", `animation: ${w.msg}`);
     if (def.form === "container") visit(p.nodes, p.name === "human" || ctx === "segment" ? "segment" : "part");
     if (p.name === "codewalk") codewalkRefs(doc, p).forEach((r, i) => {
       const s = p.steps[i];
@@ -197,12 +199,17 @@ function checkChart(p: PartNode, err: (l: number, m: string) => void, warn: (l: 
   for (const c of controls) { if (c.kind === "slider") cases.push({ [c.name]: c.min }, { [c.name]: c.max }); if (c.kind === "select") for (const o of c.options ?? []) cases.push({ [c.name]: o }); if (c.kind === "toggle") cases.push({ [c.name]: !c.value }); if (c.kind === "button") cases.push({ ...c.set }); }
   for (const v of cases) { const r = evalChart(d, v); if (r.limit === "page") { warn(p.line, `chart: not every control value was checked (the checks' budget for this page is spent)`); return; } if (r.error) { err(p.line, `chart${Object.keys(v).length ? ` with ${briefJson(v, 80)}` : ""}: ${r.error}`); return; } }
 }
+/** an animation's errors and warnings: the one engine's when it draws the block, else the old compiler's */
+function animChecks(p: PartNode): { errors: { line: number; msg: string }[]; warnings: { line: number; msg: string }[] } {
+  const e = engineOf(p);
+  return e ? engineCheck(e, p.line) : isStagePart(p) ? stagePartCheck(p) : animOf(p);
+}
 function checkPartData(doc: Doc, p: PartNode, err: (l: number, m: string) => void, src?: string, warn: (l: number, m: string) => void = err) {
   // a part in its own folder (src/parts/<name>/, format version 11) has its checks there
   if (folderPart(p.name)) { folderCheck(p, err, warn); return; }
   switch (p.name) {
     case "state": case "class": case "er": for (const e of diagramOf(p).errors) err(e.line < p.line ? p.line : e.line, `${p.name}: ${e.msg}`); break;
-    case "animation": for (const e of (isStagePart(p) ? stagePartCheck(p) : animOf(p)).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
+    case "animation": for (const e of animChecks(p).errors) err(e.line < p.line ? p.line : e.line, `animation: ${e.msg}`); break;
     case "codewalk": if (!p.steps.length) err(p.line, `codewalk has no @step`); for (const e of codewalkAnimate(p).errors) err(e.line, e.msg); { const mu = madeUpFiles(p.head, p.bodyLine); const stray = mu.rest.find((r) => r.text.trim()); if (stray) err(stray.line, `codewalk: before the first @step only @file blocks (made-up files) may come; put "${stray.text.trim().slice(0, 40)}" under a @step <code reference> or a @file <path>`); } break;
     case "chart": {
       // at most 20 problems per chart (each at most 300 characters), then a count of the rest

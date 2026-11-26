@@ -1,4 +1,4 @@
-Causes by category along a spine into the effect. In a narrow column the spine turns vertical.
+Causes by category along a spine into the effect. In a narrow column (a phone) the spine runs down the left edge, each category a block of causes, the effect at the bottom.
 
 ```fishbone title="Why is checkout slow?"
 effect: Checkout takes 4 seconds at p95

@@ -825,7 +825,7 @@ function layoutAt(m: Model, w: number, gapMode: { narrow?: boolean; clips?: bool
     const lg = drawLegend(m.steps.flatMap((s, si) => s.keys.map(([r, t, tone, dash]) => ({ r, t, tone, dash, k: si + 1 }))), box.w);
     if (lg.h) {
       const KEY_IN = 8, dx = PAD - KEY_IN; // 8 px in from the right edge, so its words never touch a frame's edge
-      const xs = lg.items.map((it: any) => it.x), lx = dx + Math.min(...xs) - 8;
+      const xs = lg.items.flatMap((it: any) => (typeof it.x === "number" ? [it.x] : [])) /* fmt12: a swatch's line stroke has points, not an x */, lx = dx + Math.min(...xs) - 8;
       const hit = (y0: number) => items.some((it: any) => {
         // a frame the legend sits wholly inside (a lane, band, panel or row) is a container, not in the way; a card never is
         if (it.k === "box") return it.cls !== "stg-region" && it.x < w && it.x + it.w > lx && it.y < y0 + lg.h + 6 && it.y + it.h > y0 - 6 && !(["lane", "band", "panel", "worksheet-row"].includes(it.bar?.kind) && it.x <= lx && it.x + it.w >= w - PAD - KEY_IN + 4 && it.y <= y0 - 3 && it.y + it.h >= y0 + lg.h + 3);

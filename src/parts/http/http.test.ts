@@ -8,7 +8,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { parse, check, LIMITS, UNTRUSTED_LIMITS } from "../../index";
 import { Budget, partLimitsOf } from "../../core/budget";
-import http, { curlOf, jsonTree, looksLikeHttp, parseHttp, secretHeaders, statusClass } from "./part";
+import http, { OPEN_BODY_ROWS, OPEN_HEADERS, bodyRows, curlOf, editedReq, encodeParam, joinTarget, jsonTree, looksLikeHttp, parseHttp, secretHeaders, splitTarget, statusClass } from "./part";
 import HttpView from "./view";
 
 // Key-shaped header values are put together at run time, so the source holds no literal that a secret scanner flags.
@@ -200,10 +200,10 @@ describe("http: linear (the doubling test, charges counted)", () => {
 });
 
 describe("http: the message is drawn", () => {
-  test("method chip, folded headers, status chip, a Copy button", () => {
+  test("method chip, a long header list closed under its button, status chip, a Copy button", () => {
     const many = "GET /a?x=1&y=2 HTTP/1.1\nHost: example.com\n" + Array.from({ length: 9 }, (_, i) => `X-H${i}: v${i}`).join("\n") + "\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: 5";
     const h = html(many);
-    for (const w of ["http-method", "4 more headers", "tone-bad", "Copy as curl", "<b>x</b>", 'data-dh-slot="status"']) expect(h).toContain(w);
+    for (const w of ["http-method", "http-sec-h", "Copy as curl", "tone-bad", "<b>x</b>", 'data-dh-slot="status"']) expect(h).toContain(w);
   });
   test("a JSON body is drawn as a tree with fold buttons", () => {
     const h = html(MSG);
@@ -216,9 +216,10 @@ describe("http: the message is drawn", () => {
     expect(live).not.toContain("data-dh-static");
     expect(s).toContain("data-dh-static");
     expect(s).toContain("X-H8");
-    expect(s).not.toContain("more headers");
+    expect(s).not.toContain("http-sec");
     expect(s).not.toContain("Copy as curl");
     expect(s).not.toContain("<button");
+    expect(s).not.toContain("<input");
     expect(s).toContain("&quot;d&quot;");
   });
   test("the title, and a plain block draws its text", () => {
@@ -230,6 +231,73 @@ describe("http: the message is drawn", () => {
   test("no HTML string sink", () => {
     const src = readFileSync(join(import.meta.dir, "view.tsx"), "utf8");
     expect(src).not.toMatch(new RegExp([["inner", "HTML"].join(""), ["dangerouslySetInner", "HTML"].join(""), ["insertAdjacent", "HTML"].join(""), "document\\.write", "eval\\(", "new Function"].join("|")));
+  });
+});
+
+describe("http: sections that open and close, values that edit", () => {
+  const sec = (h: string) => [...h.matchAll(/<button type="button" class="http-sec-h" aria-expanded="(true|false)" aria-controls="[^"]*"><span[^>]*><\/span><span class="http-sec-t">([^<]*)<\/span><span class="http-sec-n">([^<]*)<\/span>/g)].map((m) => [m[2], m[1], m[3]]);
+  const heads = (n: number) => Array.from({ length: n }, (_, i) => `X-H${i}: v${i}`).join("\n");
+  test("a short message starts open, a long one closed", () => {
+    const short = html(MSG);
+    expect(sec(short)).toEqual([["Headers", "true", "3"], ["Body", "true", "4 rows"], ["curl", "false", "as edited"], ["Headers", "true", "1"], ["Body", "true", "4 rows"]]);
+    const long = html(`POST /a HTTP/1.1\nHost: example.com\n${heads(OPEN_HEADERS)}\n\n{"a":[1,2,3,4,5,6,7,8],"b":{"c":{"d":1}}}\n\nHTTP/1.1 200 OK\n${heads(2)}\n\n${"line\n".repeat(OPEN_BODY_ROWS + 1)}`);
+    const got = sec(long);
+    expect(got[0].slice(0, 2)).toEqual(["Headers", "false"]);   // Host + 6 = 7 headers, over the 6 that start open
+    expect(got[1][1]).toBe("false");
+    expect(got.filter((g) => g[0] === "Headers" && g[2] === "2")[0][1]).toBe("true");
+    expect(got[got.length - 1].slice(0, 2)).toEqual(["Body", "false"]);
+  });
+  test("the content of a closed section is hidden, never left out", () => {
+    const h = html(`GET /a HTTP/1.1\nHost: example.com\n${heads(8)}`);
+    expect(h).toMatch(/class="http-sec-b" hidden="">.*X-H7/);
+    expect(h).toContain("X-H0");
+  });
+  test("the request has fields for the query values and the header values; the response does not", () => {
+    const h = html("GET /a?x=1&flag&y=two HTTP/1.1\nHost: example.com\nAccept: */*\n\nHTTP/1.1 200 OK\nServer: s");
+    expect(h.match(/<input /g)?.length).toBe(2 + 2);                       // x, y; Host, Accept
+    for (const w of ['aria-label="Value of x"', 'aria-label="Value of y"', 'aria-label="Value of the Accept header"', 'aria-label="Value of the Host header"', 'value="two"']) expect(h).toContain(w);
+    expect(h).not.toContain("Value of flag");
+    expect(h).not.toContain("Value of the Server header");
+  });
+  test("a bare message shows no hint, a message with values does", () => {
+    expect(html("GET https://example.com/a HTTP/1.1")).not.toContain("http-hint");
+    expect(html("GET /a?b=1 HTTP/1.1\nHost: x.example")).toContain("Nothing is sent");
+  });
+  test("a request with no host draws no curl section and no Copy button", () => {
+    const h = html("GET /a?b=1 HTTP/1.1");
+    expect(h).not.toContain("http-curl"); expect(h).not.toContain("Copy as curl");
+  });
+  test("bodyRows counts the drawn rows", () => {
+    expect(bodyRows("plain\ntext", null)).toBe(2);
+    expect(bodyRows('{"a":1,"b":[1,2]}', jsonTree('{"a":1,"b":[1,2]}', lim))).toBe(2 + 1 + (2 + 2));
+  });
+  test("the address splits into parameters and joins back unchanged; an edit is escaped", () => {
+    const t = "/s?q=a%20b&flag&r=1=2&e=";
+    const { head, params } = splitTarget(t);
+    expect(head).toBe("/s");
+    expect(params).toEqual([{ name: "q", value: "a%20b" }, { name: "flag", value: null }, { name: "r", value: "1=2" }, { name: "e", value: "" }]);
+    expect(joinTarget(head, params)).toBe(t);
+    expect(joinTarget(head, params, { 0: "x y&z#1" })).toBe("/s?q=x%20y%26z%231&flag&r=1=2&e=");
+    expect(splitTarget("/plain")).toEqual({ head: "/plain", params: [] });
+    expect(encodeParam("a b\nc")).toBe("a%20b%0Ac");
+  });
+  test("an edited request gives the curl for the edited request", () => {
+    const d = P(MSG.replace("/v1/orders", "/v1/orders?dry=1&n=2"));
+    const r = editedReq(d.req!, { 1: "9" }, { 1: "text/plain" });
+    expect(curlOf(r)).toBe(`curl -X POST 'https://api.example.com/v1/orders?dry=1&n=9' -H 'Content-Type: text/plain' -H 'Authorization: Bearer <token>' --data-raw '{ "sku": "tea", "qty": 2 }'`);
+    expect(curlOf(editedReq(d.req!, {}, {}))).toBe(d.curl!);                  // no edit: the same command
+    expect(d.req!.headers[1].value).toBe("application/json");                    // the author's request is never changed
+  });
+  test("curl is right for what a shell and curl do", () => {
+    const c = (b: string) => P(b).curl;
+    expect(c("GET /a?x[]=1&y={z} HTTP/1.1\nHost: h.example")).toBe("curl -g 'https://h.example/a?x[]=1&y={z}'");   // curl would read [] {} as a range
+    expect(c("GET /a HTTP/1.1\nHost: h.example\nX-Empty:")).toBe("curl 'https://h.example/a' -H 'X-Empty;'");       // an empty header needs ';'
+    expect(c("HEAD /a HTTP/1.1\nHost: h.example")).toBe("curl --head 'https://h.example/a'");
+    expect(c("GET /a HTTP/1.1\nHost: h.example\n\nbody")).toBe("curl -X GET 'https://h.example/a' --data-raw 'body'");
+    expect(c("OPTIONS * HTTP/1.1\nHost: h.example")).toBe("curl -X OPTIONS --request-target '*' 'https://h.example'");
+    expect(c("GET /a HTTP/2\nHost: h.example")).toBe("curl --http2 'https://h.example/a'");
+    expect(c("GET /a HTTP/1.0\nHost: h.example")).toBe("curl --http1.0 'https://h.example/a'");
+    expect(c("POST /a HTTP/1.1\nHost: h.example\nX-Q: it's $HOME `id` \"q\"\n\n$(rm -rf x); 'a'")).toBe("curl -X POST 'https://h.example/a' -H 'X-Q: it'\\''s $HOME `id` \"q\"' --data-raw '$(rm -rf x); '\\''a'\\'''");
   });
 });
 

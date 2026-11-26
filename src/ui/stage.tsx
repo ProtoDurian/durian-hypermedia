@@ -3,6 +3,7 @@
 // laid out once for every step, so a thing that stays never moves; a step only shows, hides and lights things.
 // No camera, pan or zoom. The player is one row: the title and its note, Back, Next, Play, the count; the named steps
 // as numbered buttons; one caption. Static (SPEC 4.1): one step, drawn whole, no player.
+import { useSpeed, speedText } from "./speed";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { BudgetError, newBudget, withStageBudget } from "../core/stage-budget";
@@ -242,6 +243,9 @@ function StageOver({ m }: { m: Model }) {
 }
 
 /** The part. `src` is the animation's source, `roles` the page's role numbers; layout runs at the column's width. */
+/** The pause between two steps while a composed stage plays, at speed 1. Play on step 1 stays there for one pause
+ * (owner feedback 17: the first step is played, not skipped); elsewhere it moves on at once. */
+const STAGE_DWELL = 3200;
 export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: StageSrc; roles: Record<string, number>; ui: Ui; static?: StaticProp; srText?: string; /** set by the client entry when it hydrates the server's markup */ hydrate?: boolean }) {
   // over one stage's budget (STAGE_WORK) a stage is never blank: it shows its still form (stillModel, StageOver)
   const c = useMemo(() => { try { return stageWork(() => compileStage(src.head, src.steps, src.base, src.info, roles)); } catch (e) { if (e instanceof BudgetError) return null; throw e; } }, [src, roles]);
@@ -249,6 +253,7 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   const st = useStatic(stp, n, titles);
   const [kLive, setK] = useState(n ? 1 : 0);
   const [playing, setPlaying] = useState(false);
+  const [speed, cycleSpeed] = useSpeed(); // the page's step speed (owner feedback 17)
   const [w, setW] = useState(0);
   const box = useRef<HTMLDivElement>(null);
   const wNow = useRef(0); wNow.current = w;
@@ -295,9 +300,9 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
   useEffect(() => {
     if (!playing || st.on) return;
     if (kLive >= n) { setPlaying(false); return; }
-    const t = setTimeout(() => setK((x) => Math.min(n, x + 1)), 3200);
+    const t = setTimeout(() => setK((x) => Math.min(n, x + 1)), STAGE_DWELL / speed);
     return () => clearTimeout(t);
-  }, [playing, kLive, n, st.on]);
+  }, [playing, kLive, n, st.on, speed]);
   // 0.7.0-rc.3 review: on a phone the footer floats over a tall stage; after a step the READER asked for (a footer
   // button, Back/Next, a key) the step's lit items are scrolled above the footer when they sit under it or above the
   // screen; never on load, never on Play's own steps, never within USER_SCROLL_MS of the reader moving the page
@@ -334,7 +339,8 @@ export function Stage({ src, roles, ui, static: stp, srText, hydrate }: { src: S
             <span className="stg-ctl" role="group" aria-label={ui.step}>
               <button type="button" className="stg-btn" onClick={() => go(k - 1)} disabled={k <= 1} aria-label={ui.back}>◀</button>
               <button type="button" className="stg-btn" onClick={() => go(k + 1)} disabled={k >= n} aria-label={ui.next}>▶</button>
-              <button type="button" className="stg-btn stg-play" aria-label={playing ? pauseLabel : ui.play.replace(/^▶ /, "")} aria-pressed={playing} onClick={() => { if (playing) { setPlaying(false); return; } if (k >= n) setK(1); setPlaying(true); }}><span aria-hidden={playing}>{ui.play}</span><span aria-hidden={!playing}>{pauseLabel !== ui.pause && <span className="stg-pause-symbol" aria-hidden="true">{"❚❚ "}</span>}{pauseLabel}</span></button>
+              <button type="button" className="stg-btn stg-play" aria-label={playing ? pauseLabel : ui.play.replace(/^▶ /, "")} aria-pressed={playing} onClick={() => { if (playing) { setPlaying(false); return; } if (k >= n) setK(1); else if (k > 1) setK(k + 1); setPlaying(true); }}>{playing && <span key={k} className="stg-tick" role="presentation" style={{ animationDuration: `${Math.round(STAGE_DWELL / speed)}ms` }} />}<span aria-hidden={playing}>{ui.play}</span><span aria-hidden={!playing}>{pauseLabel !== ui.pause && <span className="stg-pause-symbol" aria-hidden="true">{"❚❚ "}</span>}{pauseLabel}</span></button>
+              <button type="button" className="stg-btn stg-speed" onClick={cycleSpeed} aria-label={`${ui.speed ?? "Speed"} ${speedText(speed)}`} title={ui.speed ?? "Speed"}>{speedText(speed)}</button>
               <span className="stg-count" aria-live="polite" data-bar-count="">{k} / {n}</span>
             </span>
           )}

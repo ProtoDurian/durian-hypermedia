@@ -3,7 +3,7 @@
 //   bun scripts/sizes.ts [--md]
 // "first load": the entry and every chunk it imports at once; react and react-dom are left out (the host ships them
 // once; their size is printed apart). The parser entry has no React.
-// "later": chunks loaded only when needed (chart.js when a chart mounts, three.js when a reader opens 3D).
+// "later": chunks loaded only when needed (three.js when a reader opens 3D).
 // "own": the package's code alone, every dependency left out.
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,7 +25,7 @@ export const ENTRIES: [string, string][] = [
   ["react/alignment", "src/react/alignment.tsx"],
   ["react/containers", "src/react/containers.tsx"],
 ];
-const DEPS = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "codehike", "chart.js", "three", "entities", "linkify-it", "mdurl", "punycode.js", "uc.micro"];
+const DEPS = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "codehike", "three", "entities", "linkify-it", "mdurl", "punycode.js", "uc.micro"];
 const BASE = ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"];
 const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
 

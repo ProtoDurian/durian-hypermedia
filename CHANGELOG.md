@@ -4,9 +4,13 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
-## Unreleased
+## 0.8.0
 
-Host features asked for by a host that runs every page under a strict policy (`script-src 'self'`, `require-trusted-types-for 'script'`). Each is off until the host turns it on; without it, nothing changes.
+One engine draws every animation, and the page format is 12 (from the "Changed: the one engine is the default" section below). Also host features asked for by a host that runs every page under a strict policy (`script-src 'self'`, `require-trusted-types-for 'script'`). Each is off until the host turns it on; without it, nothing changes.
+
+### Changed: the format number is 12
+
+- **The format number is now 12** (`FORMAT_VERSION`, `doc.format`, SPEC.md): a page that says `format: 12` is read by the one engine, and `dh migrate` writes it.
 
 ### Security
 
@@ -21,6 +25,187 @@ Host features asked for by a host that runs every page under a strict policy (`s
 ### Docs
 
 - SPEC.md section 7 describes the chart time axis the code draws (`x: { scale: time }`); ADOPT.md no longer names a stale latest release in its install lines; README.md states the MIT licence.
+
+
+
+### Added: format 12 and `dh migrate` (SPEC.md 6.16, ENGINE.md)
+
+- **Format 12.** A page whose front matter holds `format: 12` writes every ```` ```animation ```` block in the engine's own words: thing lines with a role, flags and `|` lines; relations with labels; `role name cN: words` for a block's own colours and colour key; `@step Title: caption` (`\:` is a colon of the words); step words (`show`, `hide`, `at`, `in`, `is`, `text`, `tone`, `dim`, `light`, `say`, `split`, `merge`, `drop`, `focus`, `zoom`, `lift`, `enter`, `leave`, `then`, `pace` ...). Pages without it read as before and draw through the same engine. SPEC.md 6.16 lists every word.
+- **`dh migrate <file> [--write]`** (`bun run migrate`) rewrites a file to format 12 and prints the difference; it writes only with `--write`, exits 1 when the old reader refuses a block (naming the line) and 2 for wrong arguments. A migrated page compiles with the same states. It keeps a graph scene's colour key (the families become roles of the block, with their words), every step's whole caption, a line's label (written hidden in the setup and shown by its step), `then` between a relay's hops, a state word as `is`, head blocks above the lanes as `lanes-at: N`, and `columns`, `bars` and `units` as chart things.
+- **A step's title leads its caption** in bold ("**Title.** caption"; no extra full stop after a title that ends in . ! ? : ; or …), and the step control names each step by its title (the slider's value text and tooltip; Back and Next name the step they go to). The LLM view keeps `Title: caption`.
+- **`look=stage|classic`** on an animation fence now reaches the engine; the page dropped it, so a graph-engine block was always drawn classic and a format 12 block always in the stage look.
+- **The adapters are named** (SPEC.md 6.16, ENGINE.md section 4): graph and free geometry, the lanes' replay of stage source (chips on a card, head blocks, step panels, stage charts), the items of a timeline, grid and sheet, and the time words still draw through the older code.
+
+### Changed: a gone word is refused, and doccheck checks the layout (SPEC.md 6.16 and 9)
+
+- **A gone word in a format 12 block is refused with its new spelling** (`add remove move swap push pop send join highlight spotlight tag state hush keep off fill dashed cross mark inside peak limit bars units counts calc chips grid rows map list cells`); so is a word of a layout the scene does not use (`unwrap` in a graph), naming the layout. An unowned word in an older block stays a warning. `set id k=v` and `set box: a => b` (the wrap layout's) both read.
+- **`check()` warns about layout faults** in what the layouts drew, at 1000 and 390 px, with the step's line: words under 11 px on the screen, two lines crossing away from the thing they share, a thing a step does not move that sits elsewhere than in the step before, and words over words. It never refuses, runs in `check()` only, and says a finding once when the next step repeats it.
+- **doccheck, the page's LLM view and translation texts read the engine** when it draws the block (a format 12 page always; others by the page's `engine` option).
+
+### Changed: charts of every kind on the one engine (SPEC.md 7)
+
+- **No chart library.** `chart.js` and `chartjs-chart-matrix` are no longer dependencies; every `chart` and every chart-kinds fence (histogram, boxplot, violin, funnel, waterfall, treemap, sunburst, calendar) is drawn as SVG with the page's tokens. The first load fetches no chart chunk (the 73 KB gzip "later" chunk of `react/chart` is gone). The old canvas `aria-label` is gone (the SVG has `role="img"` and the same label), and the candlestick `words:` option in another language is not read.
+- **Every kind glides.** A slider, a dropdown, a toggle or a step that sets new numbers moves each bar, line, point, slice, radar corner, box, stage, block, arc and day to its new place. Reduced motion, static and print draw the end state.
+- **One popover per mark** (hover, tap, focus); the arrow keys walk the marks, Esc closes; a series' key item is a button that hides or shows it; annotations are marks.
+- **A calendar never scrolls sideways.** A year that does not fit wraps into strips of whole weeks, each with its weekday and month words; cells shrink to 15 px on a phone. Names under bars a little wider than their band sit on two staggered lines instead of being cut.
+- **No hydration warning on a chart's table.**
+- **A stage's bars draw in the chart system** as one bar chart whose bars, lines, tabs and arrows keep one key for the whole story, so a step glides them; `columns` is as tall as the most places any column holds in any step, so nothing moves between steps; an axis number and a unit that is a word have a space between them ("1500 dollars"). A wrapped category word on a horizontal bar chart has its lines 18 px apart.
+- **A chart in a graph scene fits the stage:** as wide as the stage and as tall as its drawing (a dot plot, units, spans) or a chart's usual height, never a card's size.
+
+### Changed: the composed stage and the worksheets on the one engine (SPEC.md 6.13)
+
+- **Cards draw from the model.** The old stage gives only places and sizes; a card's title, lines, state, tone, pills, token chips, record keys, badges, lit border, crossed-out and dashed looks come from the model and the steps. A state word (`[+ open]`) is bold words at the card's top right in its tone; a tag is a chip on the strip above the card. A line's marks (`* ` `** ` `= ` `. ` `~ ` `> ` `(tone) `) give it its look.
+- **A rows panel keeps its columns over the story:** every panel with the same head line gets the widest each column needs in any step, so a step that adds words to one column moves no column.
+- **A timeline, a sheet, a wrap and a track are parts of the model.** A part shows, fades and is lit by the steps, so the camera frames what a step shows; a wrap's step notes are a strip under the last part that draws; a worksheet's outcome column sits right under the groups on a phone. Every refusal of the old blocks is reported once, with its line.
+- **Data structures.** A cell keeps its own tone and dim (`tone a.3 good`); a token or a pointer may sit at a cell (`i at a.2`); a raised scene's array, list, stack and queue are as big as the data layout draws them, with their lines leaving at that border.
+- **A step's `beside`** (a card and its counted squares) reaches the grid layout. A counted unit that remains is a lighter square; a time block inside a lanes scene keeps the stage's flat paints; a struck word has its own red line; an inset's range reads `Close-up (24–36)`, not `24..36`; a plot's line runs through no point label.
+
+### Fixed: the one engine's drawing (SPEC.md 6.8, 6.9, 6.12)
+
+- **Words on a line** sit by their own line and cover no card's title or tag, no other chip and none of the stage's words. Two lines that say the same words keep a label each (they were joined into one). A line a pair and its reverse share is drawn once. A finished send's dot is left out when it would sit on words.
+- **A box's words never break badly** (two characters alone, a file's extension alone), and a graph scene's boxes share one title size.
+- **A format 12 graph scene sits where its old form sat** at 1280 and at 390 (rows of groups, the phone's form, the slots the lines take); a page with more than 8 roles raises its scenes too, naming only the roles each uses.
+- **A small graph scene fills its stage** on a wide screen (up to 1.5 times natural size, one frame for every step that shows all things), not a strip in a big box.
+- **A scene wider than a phone shrinks to fit** only when every step fits, in one frame for the whole story; a view that cuts only a thing's outer border (6 px or less a side) shades no edge; a step's smallest words count a line's words and speech.
+- **A step's glide never starts from a point:** a step asked for before the stage measured its width glides from the view on screen, or from the step's own frame (the stage used to grow from nothing at 390 px).
+- **A graph scene's members never cover each other:** a member drawn larger than the old scene's box (a data structure sized by its cells) pushes the members after it in its row, or below it in its column, by what it grew, and its group grows to hold them; lines end at the drawn boxes. Data structures side by side in one group are ranked, and on a phone a row wider than the stage is a column.
+- **A lit box in the grid is drawn lit** (a bin taking items, a matrix cell): the stage's thick border and shadow; the class it had was not styled.
+- **The colour key shows each role's lines as well as its boxes** (a short stroke in the line colour beside the soft fill with its 2 px edge), in an engine stage's key and a composed stage's own; in light, the yellow role's lines are a dark amber-grey, so a key of the fill alone read yellow beside lines that are not.
+- **A send whose words become an item draws them once** (`send "seg 1" app -> buf as s1`).
+- **A scene inside a scene** draws from its own plan: a step inside it moves only its things, each scene keeps its own size and is frozen while the story is elsewhere, the leave step frames where the story left off, and doccheck reads each step against the scene it is in. Its LLM view names the scenes and indents their steps.
+- **The phone's foot is one row** (560 px and under): back, play, speed, the step count, next; the stage's colour key shows each role's line colour beside its box swatch.
+- **3D words sit still.** A label (a line's words, a packet's chip, a token's chip, speech) picks its place once per step when the camera has arrived and keeps it, a layer's name keeps its row while the step plays, layers together show the top layer's words and what the step touches (a name with no clear spot is left out, layer names stay), the Speed control sets the 3D move (760 ms divided by the speed), and a camera held while a step plays reads where the things will rest. A chip that lies on a word that settled after it was placed is picked afresh once the step is over, a layer's name stays on its own row with layers together, and the rows are held 6 px in from the stage's bottom (three tokens' pills no longer stack at 390 px).
+### Fixed: a long page of animations works on a phone in far less time (hydrate)
+
+- The browser no longer lays out or hydrates the server's plans of a stage (one per screen width and one for print: 15 in all). They sit in a Suspense boundary that stays as the server drew it until the stage has measured its width and drawn its own one plan in their place; nothing flashes, and print and a page with no script are as before. A stage with no width when it first measures (hidden) draws the server's plans itself, as before. On the 87-stage sample page at 390 px, 4x CPU slowdown and fast 3G, every stage now works after 187 s instead of 314 s (long tasks 97 s instead of 195 s, the longest 11 s instead of 38 s).
+- The server draws a stage of the one engine at 6 screen widths and print, not 14 and print: the widths the stage picks for itself on a 320, 375, 390 and 414 to 430 px phone, a 768 px tablet and a desktop page (286, 341, 356, 380, 730 and 1178; `ENG_SSR_W` in render/svg.tsx, shown by engine.css with `data-ew`). On those screens the server's drawing is the one the stage keeps; between them the nearest narrower one shows until the stage has drawn its own. The 87-stage sample page is 12 MB of HTML instead of 19 MB.
+- The server draws a stage's camera buttons (zoom out, zoom in, show everything) too, off until the stage has its own plan: the stage's bar no longer grows a row when it hydrates, so the drawing stays where it was (at 390 px, 85 of the 87 stages move 0 px; they moved 32 to 36 px).
+- A part off the screen keeps its CSS animations still (a weather icon's rain, a terminal's cursor, a map's flowing arc): each running one made the browser work out the page's styles and layout again every frame. They are paused while their figure is more than 300 px off the screen and played again when it comes back (Web Animations; the markup is not touched). A 3D stage's frame loop stops while it is off the screen (it drew nothing there) and starts again when it comes back. On the 87-stage sample page at 390 px and 4x CPU slowdown, an idle page draws 60 frames a second instead of about 25, with no layout at all instead of one every frame.
+- Before a stage has its plan (the server, a page with no script) it draws both hints, and the CSS shows the phone's short one where the plan will be a phone plan: the hint line no longer changes length when the stage hydrates.
+
+### Fixed: the one engine's LLM view says what the old one said (llm3)
+
+- The LLM view of an animation the one engine draws had lost the facts only a layout holds: a nested packet's fields (a `nest:` beside lanes), a step's card, rows and chips panels, a bar or column block's axis, values, peak and limit, a lanes key, crossed-out and dashed cards, badges, and the "not shown: about N things on the stage" cap note (the rough things cap now holds before the engine compiles too). Each layout adds its own lines through `LayoutPlugin.llm`; a `Step k: ` line now sits under step k's caption, other lines with the setup. The core's lines also say a tone's meaning (`turns bad (in trouble)`, `tone cleared, back to normal`), a send on a dashed line, a group, a pointer at a cell and what a lit cell holds, a tree node's place, a map's buckets, a band's place over the lanes, and a family only lines use.
+
+### Fixed: the 3D camera frames each step's things whole (owner point 2)
+
+- A framed shot is whole with its words: the fit gives each labelled thing's label room (half its width each side, a line above), so a box and its name are no longer cut at the stage's edge, most on a phone.
+- A close-up no longer fills the stage: `camera <ids> close` fills 78% of it (was 96%), a plain framed look 70% (was 84%); the whole view fills 90%.
+- A step that sends something frames the packet's two ends with the thing the author framed, so its line is whole (format 67, steps 3 to 5).
+- A focused layer's plane is seen from at least 0.55 rad up: a `tilt=low` kept from an earlier step drew it edge on (format 70, step 6).
+- Zooming out all the way is the whole stage on a phone too (format 65, step 8).
+- What the step touches is checked in the shot the stage will draw (after the camera is kept above the planes) and pulled back or slid until it is whole.
+- A stack of five layers or more on a wide stage is pulled in and seen from higher up, the floor is the room the things take, an auto close-up keeps its distance from the whole view, and on a phone the least scale is 9.5 px (from the framing work of the labels lane).
+
+### Fixed: the motion sweep (owner point 28)
+
+- **Zoom in, then Next.** The step's camera glide starts from the view on screen; it used to jump back to the story's frame and glide from there.
+- **2D zoom limit.** Zooming in again and again stopped at 4x of the view the reader already had (16x, 64x, ...); it stops at 4x the stage's natural size.
+- **3D zoom.** The + button and key zoomed the 3D stage out; they zoom in. A step the reader asks for returns the 3D camera to the story, as the old stage did.
+- **Riding headings.** A container's heading that rides with the view is blended between the views a step starts and ends in, so it no longer flies across and back inside one step.
+- **Hydration.** The stage's drawn numbers are rounded to 0.01, so the server's markup and the browser's agree (React warned "Prop cx did not match" on four fixtures).
+- `scripts/sweep.ts` (with `sweep-film.ts`, `sweep-sum.ts`, `sweep-report.ts`, `sweep-build.ts`) plays every step of every animation fence in a browser, samples every frame and reports shaking words, a jumping camera, the starting view and zoom-in breakage.
+
+### Changed: the one engine is the default
+
+- **Every animation is drawn by the one engine** unless the host passes `engine: "old"` (to `parse()`, `check()` and `<DhDocument engine>`), while the old engines exist. `"auto"` still falls back to the old engines for a block the engine cannot draw.
+- **A block the engine refuses shows the engine's refusal**, with its line (`line 7: ...`), in an error box. It is no longer drawn by the old engine instead. The page's LLM view, translation texts and doccheck read the same engine.
+- **Sizes**: ADOPT.md section 6 is measured again; the charts no longer load a chart library, and SPEC.md and ADOPT.md no longer name one.
+- Three 3D fixtures (64, 67, 68 in `fixtures/format`) carry an `:::llm` block: the engine's own LLM view of them is over the 400-token limit doccheck sets.
+
+### Changed: one 2D stage draws every animation (src/engine/render)
+
+- **One renderer.** Graph and composed-stage animations are drawn by one SVG stage from the engine's plan: things glide by
+  key between steps (positions only, nothing is laid out again mid-glide), a send is a dot along its line with its words
+  in a chip of its colour, a lost send is crossed out and fades, a stream flows, speech sits on a free side of its thing.
+  Reduced motion shows each step's end at once. The server draws step 1 whole.
+- **The camera.** A scene that fits the stage is shown whole at its natural size. A wider one (a phone) is shrunk to
+  fit, down to the size where its smallest words are 11 px, when every step fits that way (one frame for the whole story,
+  no zoom between steps); else it is a window at natural size on what the step touches, with shaded edges where the
+  scene goes on, and it moves only when the step needs it. Words are never drawn under 11 px. The reader can drag, pinch, Ctrl+wheel, use + / - / 0 / Esc, "Show everything"
+  and "Back to the story". A scene inside a scene is drawn from its own plan, with an "Inside · <name>" chip.
+- **Lines.** Fanned ports, right angles, around things and container headings, clear of lines already drawn; a pair both
+  ways between two things runs as two parallel lines. A line's words sit beside it in a chip, clear of words and things.
+- **Words.** Captions, notes and speech draw `code`, **bold** and *italic*. A path too long for a line breaks after a "/",
+  never inside a file name. A cut title keeps its whole words as a tip. Tokens at one thing sit side by side.
+- **Width.** A graph-engine page (look classic) keeps the article's width; the composed stage still goes full width.
+
+### Added: a raw view on every data explorer, and TOML explore (SPEC.md, explore)
+
+- **Rich | Raw.** The JSON, YAML, TOML and CSV explorers have a two-button switch in their header. Raw is the source as plain read-only text with line numbers: no search, no query box. JSON is pretty-printed with 2 spaces; YAML, TOML and CSV are as written. Rich stays the default and is unchanged. Works at 390 px (the lines scroll sideways).
+- **`toml explore` works.** A small built-in TOML reader (tables, arrays of tables, dotted and quoted keys, strings, numbers, booleans, arrays, inline tables; dates kept as text) replaces the old refusal. A plain `toml` fence without `explore` stays ordinary code.
+
+### Changed: the http view is shorter, editable and copies the curl you edited (SPEC.md, http)
+
+- **Sections.** The request's headers and body, the response's headers and body, and a new *curl* section each open and close. A short one starts open (up to 6 headers, a body of up to 10 rows), a long one closed. The old "N more headers" fold is gone; a section shows all its headers.
+- **Edit in place.** A query parameter's value and a request header's value are text fields. The address and the curl follow what you type; **Reset edits** restores the author's request. Nothing is sent.
+- **Copy as curl is right for the edited request**, and now also: `-g` for an address with `[ ] { }`, `--head` for HEAD, `-X GET` for a GET with a body, `Name;` for an empty header, `--request-target '*'` for `OPTIONS *`, `--http1.0` and `--http2`.
+
+### Added: a key under every log (SPEC.md, log)
+
+- Readers did not know what the highlights meant. A **Key** under the lines now names what is drawn, and only what occurs in that log: each level that has a line (the coloured level word and what it means), each author `@highlight` (its colour edge and its reason), the mark on words the search matched, and the ×N chip when repeats are folded. A static log has the key too, without the search mark.
+
+### Changed: the editor sample is a whole made-up project (fixtures/format/42-editor.dh.md)
+
+- The sample was two files of three lines. It is now `pantry`, a made-up command line tool: 14 files in folders up to four levels deep (`src/cli/commands/`, `src/core/`, `src/util/`, `test/`), four of them 60 to 121 lines, and eleven edits in six folders that add a best-before day from the data type to the tests and the README. Code lines are at most 58 characters, so the file reads on a phone. Its LLM view is a short `:::llm` summary. test/editor-sample.test.ts keeps it that big and checks that every edit applies exactly.
+
+### Fixed: a big editor keeps its panes inside their box (src/ui/parts.css)
+
+- An editor whose file tree or file was taller than its box (14 files, a 120-line file) grew its grid row past the box, so the step bar was drawn over the tree and the code on a desktop. The row is now fixed to the box: the tree and the file scroll inside it, and the step bar stays below.
+
+### Changed: a chart with controls glides between states (SPEC.md, chart)
+
+- Moving a slider, a choice, a toggle or a step redrew the whole chart. When the kind and the series are the same, the new numbers now go into the datasets the chart already has, so bars, points, lines, pie slices and radar corners slide from where they were (0.35 s). Reduced motion still jumps. A chart whose kind or series changed is drawn afresh, as before.
+- New samples: `fixtures/format/82-chart-pie-radar-controls.dh.md` (a pie and a radar, each with a slider and a choice; made-up numbers).
+
+### Changed: the funnel is drawn as a designed chart (SPEC.md, chart-kinds)
+
+- Centred tapered bands (at most 760 px wide) with an even gap, the name and count inside each band when they fit and beside it (name over count) when not, the share of the first stage on a wide chart, and the drop between stages as a quiet `−82%` in the gap. The colour steps from strong to light down the funnel and uses the page's tokens only; it works at 390 px.
+- A share is written with at most one decimal and no trailing zero (`18%`, not `18.0%`) in the funnel's cards and in the numbers table and LLM view of the chart kinds.
+
+### Changed: compact value axes on a phone (SPEC.md, chart and chart-kinds)
+
+- Under 480 px a plain number on a value axis is written 1k, 1.5k, 2M (Chart.js charts: bar, line, area, scatter, bubble, candlestick, the second axis, a log axis, radar and polar rings, a declared `format: number`; chart kinds: histogram counts and values, box plot, violin, waterfall), and the room kept at the left of the plot shrinks to match. Money, percent, bytes and times keep their words; tooltips and tables keep the whole number; a wide chart is unchanged.
+- New sample: `fixtures/format/83-chart-large-numbers-on-a-phone.dh.md`.
+Fixes from the owner's look at the showcase page (the parts lane).
+
+### Fixed: audio can be skipped ahead (SPEC.md, audio; example server)
+
+- **The example server did not answer byte-range requests** (it sent the whole file, `200`, with no `Accept-Ranges`, as `application/octet-stream`). Browsers seek in audio and video by asking for a range; Safari on an iPhone cannot seek at all without a `206`. `example/serve.ts` now answers `Range` (`206` with `Content-Range`, `416` past the end), says `Accept-Ranges: bytes` and names audio, video, image, PDF and caption types. A host serving the file must do the same (SPEC audio, Seeking).
+- **A touch that turned into a page scroll froze the wave.** The finger started on the wave, the page took it (a pointer cancel) and the part never left its dragging state: the wave stopped following the sound until the next tap. A cancelled drag now puts the wave back on the sound (`useDrag` takes an optional cancel callback; video is unchanged).
+- **A jump that did not land is said.** When the sound lands over 1.5 s from where a click or a skip asked (a server with no ranges, a file not loaded yet), the wave goes back to where the sound is and a line under the player says the server must answer byte-range requests. Before, the wave jumped and silently went back.
+- Click and drag on the wave, the skip buttons, the arrow keys and a finger drag are pinned in a real browser at 1280 and 390 px (`test/audio-seek.test.tsx`); the server's ranges in `test/serve-range.test.ts`.
+### Fixed: the swipe hint sat on top of the drawing (animation, class, state, ER)
+
+- The line under a stage that scrolls sideways ("↔ Swipe to see all of it") carries the class `.table-more`, which takes a line out of the flow (a table's line is placed by script under its table). Nothing placed this one, so on a phone it lay over the top of the drawing and covered words ("Customer account profile" in an ER at 390 px). It is now back in the flow, under the stage. The sequence, wardley and grid lines were already plain in-flow lines; a table's line is placed under its table by script and was never over it. CSS only (`parts.css`); the animation engine is untouched.
+
+### Fixed: sankey on a phone drew the wrong shape first (SPEC.md, sankey)
+
+- The server's first drawing was always the wide one (726 px), so on a 390 px phone the reader saw a drawing wider than its card until the page's script reached it. Measured at 390 px with the CPU 4 times slower: on the Sankey example page the first drawing that fit the card came at about 510 ms (the wide one was on screen from about 180 ms); on a page with many parts, at 8.8 to 10.1 s (wide one from 1.3 s). The server now writes a wide and a phone-width drawing and the style shows the one that fits the card, so the first paint is already the right one: 165 to 178 ms on the example page, 1.38 s on the many-parts page (when the page first paints it). Layout itself was never the cost (1 to 3 ms for 20 nodes, 3 ms for 40 nodes and 70 flows); a step click (about 25 ms), a tap (about 30 ms) and a resize (about 30 ms) at 4x are unchanged.
+
+### Fixed: timeline has no coloured edge on its cards (SPEC.md, timeline)
+
+- The thick coloured bar down the left of each event card is gone. The line (now running from dot to dot, a little stronger in dark) and the colour dots carry the structure; dates stay right-aligned and readable, down and across.
+
+### Fixed: fishbone on a phone (SPEC.md, fishbone)
+
+- Under 600 px the bones were thin, slanted and close to the spine, and the words sat in two squeezed columns. The phone shape is now one column: the spine down the left edge, each category a thick bone out to its name, its causes listed under the name on a rail of the category's colour, every word level and left to right, the effect at the bottom. Pinned at 390 and 360 px. The wide shape is unchanged.
+
+### Fixed: charts (showcase review)
+
+- **A chart with a dropdown or toggle draws each view on its own scale.** The value scale stays still while a slider moves, over the slider positions that keep the same categories; "per call" bars of 0 to 6 were drawn on the 0 to 250 axis of "running total" at 20 questions.
+- **Funnel.** One continuous shape: each band narrows to the next stage's width, and a stage's width is the square root of its share, so a stage of 2.8% is a readable band, not a 10 px sliver. The share of the first stage shows on a phone when it fits.
+- **Pie and doughnut shares add up to 100%** (largest remainder), in the key, in the slices and in the LLM text.
+- **Radar ring numbers** sit between the first two spokes, over the outlines; on the first spoke they hid under the data points.
+- **A chart of lines only fits its value axis to its numbers** (no steps or controls): loans of 760 to 1,000 no longer sit in the top quarter of a 0 to 1,000 axis. Bars, areas, stacks and charts that move still start at 0.
+- **Event and range tags of a time chart** sit in their own band above the plot; they covered the peak.
+- **An area's key swatch** is its faint fill inside its line, as the area is drawn (it was the line colour alone).
+- **A bubble chart has a size key**: a small and a large circle with the smallest and largest size (`Size: 60 to 900`).
+- **A log axis** no longer adds an empty decade below data that starts on a power of ten (points from 1 drew an axis from 0.1).
+- **A funnel stage name** in a full-width band goes over its count instead of being cut ("Visited the si…" at 390 px).
+- **Names under a waterfall or box plot** stay inside the chart: a staggered last name slides in from the edge ("Novembe" at 390 px).
+- **Halos round chart words now show**: sunburst names and radar and polar ring numbers have an outline of the page colour (a general `.chart-svg text { stroke: none }` rule hid it), so they read on light rings and wedges in dark mode.
+- **Chart kinds.** A waterfall whose totals stay high starts its axis under its lowest total (start and total bars carry a break mark) and keeps every step value; a histogram keeps its round x ticks (50, 100, 150 ms, not one); duration axes step on round units of time and write short ticks, and a millisecond axis on a phone names its unit in the title; a box plot's axis starts a little under its smallest value; a sunburst shares its rings by the levels the tree really has and is as tall as it is wide; a calendar's squares grow in a wide card and the grid is centred.
 
 ## 0.7.0
 

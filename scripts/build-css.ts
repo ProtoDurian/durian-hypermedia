@@ -8,7 +8,7 @@
 //   (map --font-sans, --font-mono and --font-display), so the package never fetches a font.
 // - src/styles/dh.css (the package's own rules, variants and the reduced-motion rules) is added as written.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { PART_CSS } from "../src/parts/generated/css";
 
 const PKG = resolve(import.meta.dir, "..");
@@ -74,6 +74,14 @@ function transform(css: string, dropChrome: boolean): string {
   return out.join("\n");
 }
 
+/** a sheet with its @import "<relative path>" lines replaced by the files they name (recursively, each file once) */
+export function inlineImports(file: string, seen = new Set<string>()): string {
+  if (seen.has(file)) return ""; seen.add(file);
+  return readFileSync(file, "utf8").replace(/@import\s+(?:url\()?["']([^"']+)["']\)?\s*;/g, (_m, rel: string) => `/* ---- ${rel} ---- */\n${inlineImports(resolve(dirname(file), rel), seen)}`);
+}
+/** the one engine's sheets: src/engine/render/engine.css, the root, with the sheets it imports (look, layouts, charts) */
+export const ENGINE_CSS = join(PKG, "src/engine/render/engine.css");
+
 export function buildCss(): string {
   const all = readdirSync(UI).filter((f) => f.endsWith(".css"));
   // colours.css (the measured role palette's planes and 3:1 edges) comes after the other part sheets, so its edges win
@@ -81,6 +89,7 @@ export function buildCss(): string {
   const parts = order.filter((f) => all.includes(f)).map((f) => `/* ---- ${f} (scoped) ---- */\n${transform(readFileSync(join(UI, f), "utf8"), f === "base.css")}`);
   // the parts in their own folders (src/parts/<name>/style.css), the kit first: listed by scripts/parts.ts
   for (const f of PART_CSS) parts.push(`/* ---- parts/${f} (scoped) ---- */\n${transform(readFileSync(join(PKG, "src/parts", f), "utf8"), false)}`);
+  parts.push(`/* ---- engine/render/engine.css and its imports (scoped) ---- */\n${transform(inlineImports(ENGINE_CSS), false)}`);
   const own = readFileSync(join(PKG, "src/styles/dh.css"), "utf8");
   return `/* durian-markdown styles: every rule is scoped under .dh-doc. Theme tokens: THEME.md. */\n${parts.join("\n\n")}\n\n/* ---- dh.css (the package's own rules) ---- */\n${own}`;
 }

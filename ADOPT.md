@@ -98,6 +98,7 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   variant="flat"             // the host's style name: data-dh-variant on the root
   theme="dark"               // or leave it to <html data-theme> / the system
   motion="off"               // still everything (also: prefers-reduced-motion)
+  engine="new"               // the default: every animation is drawn by the one engine; "old" keeps the old engines (pass the same to parse() and check())
   slots={{ Frame, Callout, Error, Spinner }}   // swap the chrome
   // and draw Markdown your way (no default: leave one out and the renderer draws it):
   //   Code {lang,text,meta,hl}, InlineCode {text}, Link {href,title,external,children},
@@ -284,33 +285,33 @@ A host with several styles and palettes: one `variant` per style (a block of tok
 
 ## 6. Sizes
 
-Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0-rc.3. React and react-dom are
+Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0, with the one animation engine. React and react-dom are
 left out of every row but the first (the host ships them once): 139 KB, 46 KB gzipped. *Own code only* is
 the package's code in every chunk, first load and later, with the dependencies left out.
 
 | Entry | First load (min / gzip) | Later, on demand (min / gzip) | Own code only (min / gzip) |
 | --- | --- | --- | --- |
-| `durian-markdown` (parse, llmView, check) | 954 KB / 349 KB | none | 902 KB / 324 KB |
-| `react` (every part) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (libraries loaded only when needed: chart.js when a chart mounts, three.js when a reader opens 3D, and others) | 3.0 MB / 1.0 MB |
-| `react/strict` (every part, under Trusted Types) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (the same) | 3.0 MB / 1.0 MB |
-| `react/document` (no part) | 646 KB / 237 KB | none | 581 KB / 207 KB |
-| `react/terminal` | 26 KB / 12 KB | none | 26 KB / 12 KB |
-| `react/filetree` | 26 KB / 11 KB | none | 26 KB / 11 KB |
-| `react/editor` | 44 KB / 19 KB | none | 31 KB / 14 KB |
-| `react/codewalk` | 61 KB / 25 KB | none | 48 KB / 20 KB |
-| `react/chart` | 137 KB / 51 KB | 208 KB / 73 KB (chart.js) | 140 KB / 53 KB |
-| `react/animation` | 580 KB / 219 KB | 543 KB / 145 KB (three.js, 3D only) | 623 KB / 236 KB |
+| `durian-markdown` (parse, llmView, check) | 1.9 MB / 708 KB | none | 1.7 MB / 636 KB |
+| `react` (every part) | 2.3 MB / 847 KB | 2.9 MB / 919 KB (libraries loaded only when needed: three.js when a reader opens 3D, and others) | 4.5 MB / 1.5 MB |
+| `react/strict` (every part, under Trusted Types) | 2.3 MB / 847 KB | 2.9 MB / 919 KB (the same) | 4.5 MB / 1.5 MB |
+| `react/document` (no part) | 1.1 MB / 380 KB | none | 1016 KB / 349 KB |
+| `react/terminal` | 28 KB / 13 KB | none | 28 KB / 13 KB |
+| `react/filetree` | 27 KB / 12 KB | none | 27 KB / 12 KB |
+| `react/editor` | 46 KB / 19 KB | none | 33 KB / 14 KB |
+| `react/codewalk` | 69 KB / 27 KB | none | 56 KB / 23 KB |
+| `react/chart` | 229 KB / 88 KB | 571 KB / 156 KB (three.js, only when a 3D animation opens) | 299 KB / 115 KB |
+| `react/animation` | 997 KB / 378 KB | 570 KB / 156 KB (three.js, 3D only) | 1.0 MB / 406 KB |
 | `react/tierlist` | 23 KB / 10 KB | none | 23 KB / 10 KB |
 | `react/alignment` | 30 KB / 13 KB | none | 30 KB / 13 KB |
-| `react/containers` | 646 KB / 237 KB | none | 581 KB / 207 KB |
+| `react/containers` | 1.1 MB / 379 KB | none | 1014 KB / 348 KB |
 
 The part entries share most of what they load (the document view, the Markdown renderer, the step controls), so two
-parts cost far less than the sum of their rows. `styles.css` is about 232 KB, 39 KB gzipped.
+parts cost far less than the sum of their rows. `styles.css` is about 383 KB, 63 KB gzipped.
 
 ## 7. What is optional
 
 - **3D** loads three.js only when a reader opens the 3D view of an animation.
-- **chart.js** loads when a chart mounts.
+- **Charts** are drawn by the package's own code: nothing loads for them.
 - **Colours for code** need `highlight()` on the server; without it code is plain.
 - **Any part** can be left out of `DocumentView`'s `components`; it then shows its LLM text.
 

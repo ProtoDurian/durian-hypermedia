@@ -23,7 +23,7 @@ This package holds:
 | the styles | `durian-markdown/styles.css` | scoped under `.dh-doc`; themed by CSS custom properties ([THEME.md](THEME.md)) |
 | fixtures | `fixtures/` | one page per part and option, plus a hostile set |
 
-Licence: to be decided (see [Licence](#licence)).
+Licence: MIT (see [Licence](#licence) and `LICENSE`).
 
 ## Quick start
 

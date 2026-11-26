@@ -19,7 +19,7 @@ afterEach(() => { endDocument(); beginDocument(); });
 describe("the stage samples (fixtures/stage)", () => {
   test("there is one page per Format page stage section", () => { expect(pages.length).toBeGreaterThanOrEqual(38); });
   for (const f of pages) test(f, () => {
-    const text = readFileSync(join(FIX, f), "utf8"), doc = parse(text, { path: f });
+    const text = readFileSync(join(FIX, f), "utf8"), doc = parse(text, { path: f, engine: "old" });
     const stages = doc.blocks.filter((b) => b.type === "animation" && b.stage);
     expect(stages.length).toBeGreaterThan(0);
     expect(check(doc).filter((p) => p.level === "error")).toEqual([]);
@@ -28,14 +28,14 @@ describe("the stage samples (fixtures/stage)", () => {
       expect(b.texts).toEqual(animationTexts(b));
     }
     expect(llmView(doc).length).toBeGreaterThan(100);
-    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
+    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc, engine: "old" }));
     expect(html).toContain('class="stg');
   }, 15_000); // it checks each page, not speed: a page draws ten screen plans per stage (about 5 s for the layers example on a loaded machine)
 });
 
 describe("an animation that asks for the graph engine keeps it", () => {
   test("layout=graph is not a stage", () => {
-    const doc = parse("# T\n\n```animation layout=graph\nbox a \"A\"\nbox b \"B\"\na -> b\n```\n", { path: "t.dh.md" });
+    const doc = parse("# T\n\n```animation layout=graph\nbox a \"A\"\nbox b \"B\"\na -> b\n```\n", { path: "t.dh.md", engine: "old" });
     const b = doc.blocks.find((x) => x.type === "animation");
     expect(b && b.type === "animation" && b.stage).toBeFalsy();
   });
@@ -51,7 +51,7 @@ describe("the stage's budget", () => {
   });
   test("a stage over the budget is an error block and an error, not a hung page", () => {
     beginDocument(newBudget(5));
-    const doc = parse(page, { path: "t.dh.md" });
+    const doc = parse(page, { path: "t.dh.md", engine: "old" });
     const err = doc.blocks.find((x) => x.type === "error");
     expect(err && err.type === "error" && err.message).toMatch(/needs more work than a page may use/);
     expect(doc.problems.some((p) => p.level === "error" && /animation: /.test(p.message))).toBe(true);
@@ -73,15 +73,15 @@ describe("the stage's budget", () => {
 
 describe("the stage draws on a budget of its own", () => {
   test("rendering a page spends nothing of the stage budget a parse or a direct call uses", () => {
-    const doc = parse(readFileSync(join(FIX, pages[0]), "utf8"), { path: pages[0] });
+    const doc = parse(readFileSync(join(FIX, pages[0]), "utf8"), { path: pages[0], engine: "old" });
     beginDocument();
     const before = docBudget().left().work;
-    for (let i = 0; i < 3; i++) expect(renderToStaticMarkup(React.createElement(DhDocument, { doc }))).toContain('class="stg');
+    for (let i = 0; i < 3; i++) expect(renderToStaticMarkup(React.createElement(DhDocument, { doc, engine: "old" }))).toContain('class="stg');
     expect(docBudget().left().work).toBe(before);
   });
   test("a scene within its budget draws its stage, not the over-budget note", () => {
-    const doc = parse(readFileSync(join(FIX, pages[0]), "utf8"), { path: pages[0] });
-    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
+    const doc = parse(readFileSync(join(FIX, pages[0]), "utf8"), { path: pages[0], engine: "old" });
+    const html = renderToStaticMarkup(React.createElement(DhDocument, { doc, engine: "old" }));
     expect(html).not.toContain("stg-over");
   });
 });
@@ -93,9 +93,9 @@ describe("each stage's own layout budget (STAGE_WORK), as in the prototype", () 
   });
   test("every stage page draws, one page after another in one process, with the page's own budget empty", () => {
     for (const f of pages) {
-      beginDocument(); const doc = parse(readFileSync(join(FIX, f), "utf8"), { path: f });
+      beginDocument(); const doc = parse(readFileSync(join(FIX, f), "utf8"), { path: f, engine: "old" });
       beginDocument(newBudget(0, 0));
-      const html = renderToStaticMarkup(React.createElement(DhDocument, { doc }));
+      const html = renderToStaticMarkup(React.createElement(DhDocument, { doc, engine: "old" }));
       expect(html).toContain('class="stg');
       expect(html).not.toContain("stg-over");
     }

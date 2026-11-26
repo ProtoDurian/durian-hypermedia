@@ -50,3 +50,9 @@ add pill xr "x = 42" layer=reg
 stack layers
 highlight xr tone=good
 ```
+
+:::llm
+Animation, 8 steps, 3D (2D flat on a phone or with no WebGL). Five layers from fast and small to slow and huge: registers (the program), L1 cache, L2 cache, RAM (holds x = 42) and disk, joined top to bottom.
+
+1. The program asks the L1 cache for x: a miss. 2. L1 asks L2: another miss. 3. L2 asks RAM, which has x (a hit); the disk is not needed. 4. Zoom in on RAM, the slow part of the trip. 5. The value x = 42 goes up and L2 keeps a copy. 6. L1 keeps a copy too. 7. It reaches the program and is held in a register. 8. Layers back together: the next read of x is answered at once.
+:::

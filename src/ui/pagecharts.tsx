@@ -8,7 +8,6 @@ import { fmtValue } from "../core/chart11";
 import { UNIT_TILES, formulaText, type CalcRow, type PcExt } from "../core/pagecharts";
 import type { Val } from "../core/expr";
 import type { Ui } from "./ui";
-import type { KeyItem } from "./pagecharts-config";
 
 // English for every language for now, like words11.ts: the rest of the page's words are in ui.ts per language
 const en = {
@@ -29,46 +28,6 @@ export function ScaleToggle({ log, onChange, w }: { log: boolean; onChange: (log
         <button type="button" className="pc-seg-b" aria-pressed={log} onClick={() => onChange(true)}>{w.log}</button>
       </span>
     </div>
-  );
-}
-
-/** the glyph of one series: its line style and its marker, drawn as SVG so the dashes and shapes are really seen */
-export function Glyph({ item }: { item: KeyItem }) {
-  const W = 30, H = 14, cy = H / 2, cx = W / 2;
-  const dash = item.line === "dashed" ? "7 4" : item.line === "dotted" ? "0.1 5" : undefined;
-  const c = item.colour, m = item.marker;
-  const mark = (() => {
-    if (m === "none") return null;
-    const r = 4.2;
-    if (m === "square") return <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={c} />;
-    if (m === "triangle") return <polygon points={`${cx},${cy - r - 0.6} ${cx + r + 0.8},${cy + r} ${cx - r - 0.8},${cy + r}`} fill={c} />;
-    if (m === "diamond") return <polygon points={`${cx},${cy - r - 1} ${cx + r + 1},${cy} ${cx},${cy + r + 1} ${cx - r - 1},${cy}`} fill={c} />;
-    if (m === "plus") return <path d={`M${cx - r} ${cy}H${cx + r}M${cx} ${cy - r}V${cy + r}`} stroke={c} strokeWidth="2.4" fill="none" />;
-    if (m === "cross") return <path d={`M${cx - r} ${cy - r}L${cx + r} ${cy + r}M${cx + r} ${cy - r}L${cx - r} ${cy + r}`} stroke={c} strokeWidth="2.4" fill="none" />;
-    return <circle cx={cx} cy={cy} r={r} fill={c} />;
-  })();
-  if (item.shape === "bar") return <svg className="pc-glyph" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true"><rect x="6" y="2" width="18" height="10" rx="2" fill={c} /></svg>;
-  return (
-    <svg className="pc-glyph" width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-      {item.shape === "line" && <line x1="1" y1={cy} x2={W - 1} y2={cy} stroke={c} strokeWidth={item.line === "dotted" ? 3 : 2.5} strokeDasharray={dash} strokeLinecap={item.line === "dotted" ? "round" : "butt"} />}
-      {mark}
-    </svg>
-  );
-}
-
-/** the key under a chart that has styled series: one item per series; each is a button that shows or hides the series */
-export function KeyList({ items, hidden, onToggle, live, w }: { items: KeyItem[]; hidden: number[]; onToggle: (i: number) => void; live: boolean; w: PW }) {
-  if (items.length < 2 && !items.some((x) => x.line !== "solid" || x.marker !== "circle")) return null;
-  return (
-    <ul className="pc-key" aria-label={w.key} data-dh-slot="key">
-      {items.map((it, i) => (
-        <li key={it.label + i}>
-          {live
-            ? <button type="button" className="pc-key-b" aria-pressed={!hidden.includes(i)} title={w.hide} onClick={() => onToggle(i)}><Glyph item={it} /><span>{it.label}</span></button>
-            : <span className="pc-key-b"><Glyph item={it} /><span>{it.label}</span></span>}
-        </li>
-      ))}
-    </ul>
   );
 }
 

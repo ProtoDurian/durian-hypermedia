@@ -178,3 +178,19 @@ test("the definition matches its folder", () => {
   expect(timeline.name).toBe("timeline");
   expect(timeline.steps).toBe(true);
 });
+
+describe("timeline: no coloured edge on the cards", () => {
+  const css = readFileSync(join(import.meta.dir, "style.css"), "utf8");
+  test("the card has a plain 1 px frame: no thick coloured side (the dot and the line carry the colour)", () => {
+    const card = css.match(/\.timeline-card\s*\{([^}]*)\}/)![1];
+    expect(card).not.toMatch(/border-(left|inline-start)/);
+    expect(card).not.toMatch(/box-shadow/);
+    expect(card).toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(css).not.toMatch(/border-left:\s*[2-9]px/);
+  });
+  test("the dot is still the event's colour and the line still joins the events, down and across", () => {
+    expect(css).toMatch(/\.timeline-item::after\s*\{[^}]*background:\s*var\(--tc, var\(--timeline-dot\)\)/);
+    expect(css).toMatch(/\.timeline-item::before\s*\{[^}]*background:\s*var\(--timeline-line\)/);
+    expect(css).toMatch(/\.is-across \.timeline-item\s*\{[^}]*border-top:\s*2px solid var\(--timeline-line\)/);
+  });
+});

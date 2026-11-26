@@ -151,22 +151,57 @@ export function secretHeaders(hs: Header[], budget?: Budget): Header[] {
 
 // ---- Copy as curl ----
 const shq = (s: string) => `'${s.split("'").join(`'\\''`)}'`;
-/** `curl` for the request, or null when the host cannot be told. */
+/** `curl` for the request, or null when the host cannot be told. Correct for what a shell and curl do with it: every word
+ *  single-quoted; -g when the address holds [ ] { } (curl would read them as a range); an empty header sent with "Name;";
+ *  --head for HEAD; -X GET when a GET carries a body; --request-target for "OPTIONS *"; --http1.0 and --http2 when named. */
 export function curlOf(r: Req): string | null {
-  let url = r.target;
+  let url = r.target, star = false;
   if (!url.toLowerCase().startsWith("http://") && !url.toLowerCase().startsWith("https://")) {
     const host = r.headers.find((h) => h.name.toLowerCase() === "host")?.value;
     if (!host) return null;
     const local = ["localhost", "127.", "[::1]", "192.0.2.", "198.51.100.", "203.0.113."].some((p) => host.startsWith(p)) && !host.endsWith(":443");
-    url = `${local ? "http" : "https"}://${host}${url.startsWith("/") || url === "*" ? url : "/" + url}`;
+    star = url === "*";
+    url = `${local ? "http" : "https"}://${host}${star ? "" : url.startsWith("/") ? url : "/" + url}`;
   }
   const parts = ["curl"];
-  if (r.method !== "GET") parts.push("-X", r.method);
+  if ([...url].some((c) => "[]{}".includes(c))) parts.push("-g");
+  if (r.method === "HEAD") parts.push("--head");
+  else if (r.method !== "GET" || (r.body && r.method === "GET")) parts.push("-X", r.method);
+  if (r.version === "HTTP/1.0") parts.push("--http1.0"); else if (r.version === "HTTP/2" || r.version === "HTTP/2.0") parts.push("--http2");
+  if (star) parts.push("--request-target", shq("*"));
   parts.push(shq(url));
-  for (const h of r.headers) { const n = h.name.toLowerCase(); if (n !== "host" && n !== "content-length") parts.push("-H", shq(`${h.name}: ${h.value}`)); }
+  for (const h of r.headers) { const n = h.name.toLowerCase(); if (n !== "host" && n !== "content-length") parts.push("-H", shq(h.value === "" ? `${h.name};` : `${h.name}: ${h.value}`)); }
   if (r.body) parts.push("--data-raw", shq(r.body));
   return parts.join(" ");
 }
+
+// ---- a request the reader edits in place (a reading aid: nothing is sent) ----
+export interface Param { name: string; value: string | null }
+/** The address cut into what comes before "?" and its query parameters (a flag with no "=" has value null). */
+export function splitTarget(target: string): { head: string; params: Param[] } {
+  const at = target.indexOf("?");
+  if (at < 0) return { head: target, params: [] };
+  const params = target.slice(at + 1).split("&").map((kv) => { const e = kv.indexOf("="); return e < 0 ? { name: kv, value: null } : { name: kv.slice(0, e), value: kv.slice(e + 1) }; });
+  return { head: target.slice(0, at), params };
+}
+const ENC: Record<string, string> = { " ": "%20", "&": "%26", "#": "%23", "\n": "%0A", "\r": "%0D", "\t": "%09" };
+/** What a reader typed as a parameter's value, with the characters that would cut the address (space & # and line ends) escaped. */
+export function encodeParam(v: string): string { let o = ""; for (const c of v) o += ENC[c] ?? c; return o; }
+/** The address with some parameter values replaced (index -> typed text); untouched parameters stay exactly as written. */
+export function joinTarget(head: string, params: Param[], edits: Record<number, string> = {}): string {
+  if (!params.length) return head;
+  return head + "?" + params.map((p, i) => (p.value === null ? p.name : `${p.name}=${i in edits ? encodeParam(edits[i]) : p.value}`)).join("&");
+}
+/** The request with edited parameter values and header values (index -> typed text): what the card shows and curl copies. */
+export function editedReq(r: Req, qEdit: Record<number, string>, hEdit: Record<number, string>): Req {
+  const { head, params } = splitTarget(r.target);
+  return { ...r, target: joinTarget(head, params, qEdit), headers: r.headers.map((h, i) => (i in hEdit ? { ...h, value: hEdit[i] } : h)) };
+}
+/** Sections that start open: a short list of headers, a short body. A long one starts closed (one tap opens it). */
+export const OPEN_HEADERS = 6, OPEN_BODY_ROWS = 10;
+const rowsOf = (n: JNode): number => ("kids" in n ? (n.kids.length ? 2 + n.kids.reduce((a, k) => a + rowsOf(k), 0) : 1) : 1);
+/** How many rows a body takes when drawn (the tree's rows, or the lines of the text). */
+export const bodyRows = (text: string, tree: JNode | null): number => (tree ? rowsOf(tree) : text.split("\n").length);
 
 // ---- a JSON body as a tree the reader can fold ----
 /** Pretty tree of a JSON body, or null when it is not JSON (or too deep or large: it stays text). Charges a step and a value a node. */

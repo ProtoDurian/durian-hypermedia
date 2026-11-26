@@ -7,6 +7,7 @@ import { forbidden, FONT, measure, type Item , wrapRoom, setPhoneFont, drawnW, p
 import { pageRoles } from "../../src/core/stage-roles";
 import { sectionsOutsideFences, isStagePart } from "../../src/core/stage-part";
 import { jsonOf, llmView, parseDoc } from "../../src/core/dh-lib";
+import { withEngine } from "../../src/engine/page";
 import { checkDoc } from "../../src/core/doccheck";
 import { beginDocument, newBudget, BudgetError } from "../../src/core/stage-budget";
 
@@ -481,7 +482,7 @@ describe("page", () => {
   });
   test("the LLM view lists the facts per step", () => {
     const d = page("```animation\ntitle: T | n\n## A\nclient a: A\n## B\nserver b: B\n@step One: first\na -> b: call\n@step Two: second\nsay b: done\n```");
-    const v = llmView(d, "t.dh.md");
+    const v = withEngine("old", () => llmView(d, "t.dh.md"));
     expect(v).toContain("1. One: first\n   call: A to B.");
     expect(v).toContain("2. Two: second\n   B says: done.");
   });

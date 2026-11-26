@@ -2,7 +2,7 @@
 // The format's own parser (core/dh-lib.ts, shared with the site and doccheck) reads the parts; this file adds the caps,
 // the URL policy, the safe Markdown tree, host blocks, and turns every part into plain typed data.
 import {
-  PARTS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf, chartYamlError,
+  PARTS, ParseError, parseDoc, jsonOf, llmOfPart, llmKindOf, llmView as dhLlmView, animOf, engineOf, chartYamlError,
   type Doc as DhDoc, type Node as DhNode, type PartNode, type MdNode as DhMd,
 } from "./core/dh-lib";
 import { checkDoc } from "./core/doccheck";
@@ -17,13 +17,16 @@ import { BudgetError as StageBudgetError } from "./core/stage-budget";
 import { pageBudget, withBudget } from "./core/budget";
 import { animPageBudget, withAnimBudget, animOverMessage } from "./core/work";
 import { stepTextSize } from "./core/dh-lib";
+import { withEngine, engineTexts } from "./engine/page";
+import type { EngineMode } from "./engine/bridge";
 import { diagramOf } from "./core/diagrams";
 import { folderBlock, withIdPrefix } from "./parts/runtime";
+import { withMediaPrefixes } from "./media-loader";
 import { finishInlines, inlineLlmHead, prepareInlines } from "./parts/inline-runtime";
 import type { AnimationBlock, Block, Document, Problem, ErrorBlock, LlmKind, HostBlock } from "./types";
 import { RefSession, fencedSource, type ResolveReference } from "./refs";
 
-export const FORMAT_VERSION = 11;
+export const FORMAT_VERSION = 12;
 /** check() evaluates every chart at several control values: its budget is this many times the page's */
 const CHECK_FACTOR = 8;
 // check() reads a page's YAML texts again (about once more each): its YAML page totals are this many times the page's
@@ -48,6 +51,8 @@ export interface ParseOptions {
   urlPolicy?: UrlPolicy;
   /** caps (default: LIMITS) */
   limits?: Partial<Limits>;
+  /** address prefixes the host's media loader claims, such as `["media:", "@"]` (a scheme name and a colon, or `@`): the media parts accept such an address in `src`, and a Markdown image keeps it as written, so it reaches `loadMedia` (DocumentProps) and not the urlPolicy. Pass the same list as DocumentProps.mediaPrefixes. Default none: 0.7.0 behaviour. */
+  mediaPrefixes?: readonly string[];
   /** put before every id the page makes (headings, #ids, tabs), so a page cannot clobber the host's own ids (default "dh-") */
   idPrefix?: string;
   /** host blocks for this call (added to the ones registered with registerBlock) */
@@ -59,6 +64,9 @@ export interface ParseOptions {
   glossary?: { term: string; aliases?: string[]; def: string }[];
   /** drop "> **Security finding:**" callouts from the LLM view (a public render) */
   publicView?: boolean;
+  /** which animation engine draws the page (src/engine/bridge.ts): "old", "auto" or "new", as DocumentProps.engine; default ENGINE_DEFAULT.
+   *  The LLM view, the translation texts and the doccheck of a block the one engine draws come from the engine; a page that says `format: 12` is always its. Pass the mode the page is drawn with. */
+  engine?: EngineMode;
   /** false: a leading "---" block is Markdown (a rule and text the reader sees), not front matter (default true) */
   frontMatter?: boolean;
   /** marks every page may use in a file tree, as the front matter `marks:` writes them: { deprecated: { label: "deprecated", colour: "warn", means: "..." } }. A page's own entry of the same name wins (SPEC.md section 3.1) */
@@ -99,6 +107,9 @@ function emptyDoc(source: string, path: string, problems: Problem[], blocks: Blo
 }
 
 export function parse(text: string, opts: ParseOptions = {}): Document {
+  return withEngine(opts.engine, () => parseWith(text, opts));
+}
+function parseWith(text: string, opts: ParseOptions): Document {
   const lim: Limits = { ...LIMITS, ...(opts.limits ?? {}) };
   const idPrefix = opts.idPrefix ?? "dh-";
   const problems: Problem[] = [];
@@ -118,7 +129,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
 
   // one evaluation budget for the whole call: every chart (and its LLM view) draws from it, none restarts it; and one
   // layout budget that every animation draws from (core/work.ts)
-  return withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
+  return withMediaPrefixes(opts.mediaPrefixes, () => withIdPrefix(idPrefix, () => withBudget(pageBudget(lim), () => withAnimBudget(animPageBudget(lim), () => withHostParts(defs, problems, () => {
     // 1. the format's parser
     let dh: DhDoc;
     // the page's references (refs.ts): counted, checked and, with the host's resolver, read in place
@@ -276,14 +287,21 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
         if (p.steps.length > lim.maxAnimSteps) return refuse(p, `${p.steps.length} steps; the limit is ${lim.maxAnimSteps}`);
         // a composed stage (0.7.0) is compiled once (core/stage-part.ts stageOf); over the stage budget of the page it
         // is refused here (core/stage-budget.ts), and its own caps (cards, rows, steps) are doccheck errors
-        if (isStagePart(p)) {
+        // llm3: the rough count of things holds before any compile, the one engine's too (it ran only before the old compile,
+        // so engine "new" compiled a 1,201-value list and its LLM view said "Starts with: nothing" in place of the cap note)
+        const stagePart = isStagePart(p);
+        if (!stagePart) {
+          const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
+          // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
+          let values = 0;
+          for (let i = p.body.indexOf("["); i >= 0; i = p.body.indexOf("[", i + 1)) { const j = p.body.indexOf("]", i + 1); if (j < 0) break; values += p.body.slice(i + 1, j).split(",").length; i = j; }
+          if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
+        }
+        const eng = engineOf(p); // the one engine draws this block: its texts, its own caps (core check), no old compile
+        if (eng) animTexts = engineTexts(eng);
+        else if (stagePart) {
           try { animTexts = stageTexts(stageOf(p)); } catch (e) { if (e instanceof StageBudgetError) return refuse(p, e.message); throw e; }
         } else {
-        const lines = p.head.split("\n").filter((l) => l.trim() && !/^\s*(#|\/\/)/.test(l)).length;
-        // the list values: [...p.body.matchAll(/\[([^\]]*)\]/g)], found in one pass (the pattern scanned to the end from every [ with no ])
-        let values = 0;
-        for (let i = p.body.indexOf("["); i >= 0; i = p.body.indexOf("[", i + 1)) { const j = p.body.indexOf("]", i + 1); if (j < 0) break; values += p.body.slice(i + 1, j).split(",").length; i = j; }
-        if (lines + values > lim.maxAnimEntities * 2) return refuse(p, `about ${lines + values} things on the stage; the limit is ${lim.maxAnimEntities}`);
         // compiled once (core/dh-lib.ts animOf); over its work budget, or the page's, it is refused here
         let c: ReturnType<typeof animOf>;
         try { c = animOf(p); } catch (e) { const m = animOverMessage(e, lim); if (m) return refuse(p, m); throw e; }
@@ -337,7 +355,7 @@ export function parse(text: string, opts: ParseOptions = {}): Document {
       }
       return blk as Block;
     }
-  }))));
+  })))));
 }
 
 // all the tables of contents of one page together list at most this many headings (each lists the page's headings
@@ -403,6 +421,10 @@ export function llmView(doc: Document | string, opts: ParseOptions = {}): string
 
 /** The doccheck rules for one page, as a list. Parts parse() refused are reported once each and not checked again. */
 export function check(doc: Document | string, opts: ParseOptions = {}): Problem[] {
+  const mode = opts.engine ?? (typeof doc === "string" ? undefined : kept.get(doc)?.opts.engine);
+  return withEngine(mode, () => checkWith(doc, opts));
+}
+function checkWith(doc: Document | string, opts: ParseOptions): Problem[] {
   let d = typeof doc === "string" ? parse(doc, opts) : doc;
   let k = kept.get(d);
   if (!k) { d = parse(d.source, { ...opts, path: d.path }); k = kept.get(d); }
@@ -419,7 +441,7 @@ export function check(doc: Document | string, opts: ParseOptions = {}): Problem[
   // The YAML page totals are CHECK_YAML_FACTOR times the page's. A layout budget too: an animation parse() never
   // reached, past the block cap, is compiled here at most this far.
   const cl: Limits = { ...LIMITS, ...(k.opts.limits ?? {}) };
-  withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } }))));
+  withMediaPrefixes(k.opts.mediaPrefixes, () => withIdPrefix(k.opts.idPrefix ?? "dh-", () => withBudget(pageBudget({ ...cl, maxPageEvalSteps: cl.maxPageEvalSteps * CHECK_FACTOR, maxPageEvalValues: cl.maxPageEvalValues * CHECK_FACTOR, maxPageEvalChars: cl.maxPageEvalChars * CHECK_FACTOR, maxPageYamlChars: cl.maxPageYamlChars * CHECK_YAML_FACTOR, maxPageYamlNodes: cl.maxPageYamlNodes * CHECK_YAML_FACTOR }), () => withAnimBudget(animPageBudget(cl), () => withHostParts(defs, [], () => { try { checkDoc(dh, undefined, issues); } catch (e) { issues.push({ file: dh.path, line: 1, msg: `the checks stopped: ${(e as Error).message}`, level: "error" }); } })))));
   for (const i of issues) out.push({ line: i.line, level: i.level, message: i.msg });
   for (const [p, h] of k.hosts) {
     if (!h.def.check) continue;

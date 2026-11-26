@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import type { InlineViewProps } from "../inline";
 import type { Spark } from "./inline";
+import { cssWord } from "../../safety";
 
 const W = 64, H = 16, PAD = 2;
 /** the geometry of one sparkline: pure, so the tests and the view read the same numbers */
@@ -16,7 +17,7 @@ export function sparkShapes(s: Spark): { bars: { x: number; y: number; w: number
   }
   return { bars: [], points: v.map((x, i) => `${xs(i).toFixed(1)},${y(x).toFixed(1)}`).join(" "), last: { x: xs(v.length - 1), y: y(v[v.length - 1]) } };
 }
-const colour = (c: string) => (c === "muted" ? "var(--faint)" : c === "acc" ? "var(--spark-ink)" : `var(--${c})`);
+const colour = (c: string) => (c === "muted" ? "var(--faint)" : c === "acc" ? "var(--spark-ink)" : `var(--${cssWord(c, "spark-ink")})`);
 const r1 = (n: number) => n.toFixed(1);
 
 export default function SparkInline({ text, data }: InlineViewProps<Spark>) {

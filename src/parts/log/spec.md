@@ -6,7 +6,7 @@
 @highlight |= "timeout" [bad] "the request timed out"
 ```
 
-Reads JSON, logfmt and time/level/message lines. Consecutive repeated lines fold (fold=off disables it). Level chips, as-written or relative times, matched-word marks, author highlights and a reader LogQL box are included. @highlight accepts a LogQL filter or line 3-5, optional colour word and a quoted reason. llm=highlights keeps matching lines and two nearby lines; otherwise the LLM reads highlights first and the log as written, folding repeats.
+Reads JSON, logfmt and time/level/message lines. Consecutive repeated lines fold (fold=off disables it). Level chips, as-written or relative times, matched-word marks, author highlights and a reader LogQL box are included. A **key** under the lines names what the colours and marks mean, and only what occurs in that log: each level that has a line (a coloured level word and what it means), each author highlight (its colour and its reason), the mark on words the search matched (not in a static log, which has no search) and the ×N chip when the log has folded repeats. @highlight accepts a LogQL filter or line 3-5, optional colour word and a quoted reason. llm=highlights keeps matching lines and two nearby lines; otherwise the LLM reads highlights first and the log as written, folding repeats.
 
 The LogQL subset supports selectors, literal and non-backtracking regex line filters, json/logfmt parser stages and field comparisons (including durations and bytes), joined by and, or or comma. Metric queries and unsupported stages are refused by name. Every reader query receives a new budget.
 

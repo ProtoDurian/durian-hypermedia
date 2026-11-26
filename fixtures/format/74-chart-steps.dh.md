@@ -11,6 +11,7 @@ Each step shows its own data on top of the one before; one control row steps thr
 kind: line
 title: Requests per second
 x: { label: time, values: ["10:00", "10:05", "10:10"] }
+y: { label: requests/s }
 series:
   - name: api
     data: [120, 130, 125]

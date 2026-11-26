@@ -795,7 +795,7 @@ export function drawLegend(keys: { r: string; t: string; k: number; tone?: strin
     for (const e of row) {
       const when = { from: e.k };
       // one entry: the swatch (kind chip, no label, as the originals stamp it) and its words beside it
-      items.push({ k: "box", x: ex, y: y + (Math.min(e.h, lh) - KEY_SW) / 2, w: KEY_SW, h: KEY_SW, ...keyPaint(e), r: 3, cls: "stg-key", bar: { kind: "chip" }, ...when }); // wordless, as the originals stamp the swatch; its words are the text beside it
+      items.push({ k: "box", x: ex, y: y + (Math.min(e.h, lh) - KEY_SW) / 2, w: KEY_SW, h: KEY_SW, ...keyPaint(e), r: 3, cls: "stg-key", bar: { kind: "chip" }, ...when }, keyStroke(ex, y + Math.min(e.h, lh) / 2, e, when)); // wordless, as the originals stamp the swatch; its words are the text beside it
       e.ls.forEach((l, i) => items.push({ k: "text", x: ex + KEY_SW + KEY_GAP, y: y + i * lh + lh - 4, s: l, f: "sub", ink: "ink-2", ...when }));
       ex += e.w + KEY_SEP;
     }
@@ -808,10 +808,14 @@ export const keyEntryW = (t: string) => KEY_SW + KEY_GAP + measure(t, "sub");
 /** "chip": the swatch is a wordless chip (a corner legend, as a scene's original); false: inside a legend box, unstamped (the hero's) */
 // "[dashed]" on a key line: the same swatch, same size and place, its border dashed
 const keyPaint=(key:{r:string;tone?:string;dash?:boolean})=>({...(key.tone==="plain"?{fill:"surface-2",stroke:"muted"}:{fill:key.tone?`${key.tone}:soft`:`role:${key.r}:soft`,stroke:key.tone?`${key.tone}:line`:`role:${key.r}:line`}),...(key.dash?{dash:true}:{})});
+// fmt12: a short stroke across the swatch in the role's line colour: the key shows how the role's lines look as well as its boxes
+// (in light the yellow role's lines are a dark amber-grey, which a yellow swatch alone did not say); no words move
+const keyStroke = (x: number, cy: number, key: { r: string; tone?: string; dash?: boolean }, when: { from: number }): Item => ({ k: "path", pts: [[x + 3, cy], [x + KEY_SW - 3, cy]], ink: keyPaint(key).stroke, w: 2.5, cls: "stg-key-line", ...when } as Item);
 export function keyEntry(x: number, base: number, kk: { r: string; t: string; k: number; tone?: string; dash?: boolean }, chip = true): Item[] {
   const when = { from: kk.k };
   return [
     { k: "box", x, y: base - 12, w: KEY_SW, h: KEY_SW, ...keyPaint(kk), r: 3, cls: "stg-key", ...(chip ? { bar: { kind: "chip" } } : {}), ...when }, // wordless, as the originals stamp it
+    keyStroke(x, base - 12 + KEY_SW / 2, kk, when),
     { k: "text", x: x + KEY_SW + KEY_GAP, y: base, s: kk.t, f: "sub", ink: "ink-2", ...when },
   ];
 }

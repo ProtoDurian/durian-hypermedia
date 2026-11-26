@@ -1,0 +1,81 @@
+/* The timeline layout's exact paints (src/engine/layouts/time/prims.ts). A primitive carries its role and tone in fields; the stage colours it
+   cannot name (a faint edge, the muted ink as a fill, a tick's line-2) travel as classes: pf-<fill> ps-<stroke> pi-<ink>, ":" written "_".
+   Role paints (pf-role_job_soft ...) are not here: the primitive's role field says them. Stage tokens only; no colour values. */
+.stg-box.pf-none { fill: none; }
+.stg-box.pf-surface { fill: var(--surface); }
+.stg-box.pf-surface-2 { fill: var(--surface-2); }
+.stg-box.pf-muted { fill: var(--muted); }
+.stg-box.pf-muted_line { fill: var(--muted); }
+.stg-box.pf-good_soft { fill: var(--good-soft); }
+.stg-box.pf-good_line { fill: var(--good); }
+.stg-box.ps-good_line { stroke: var(--good); }
+.stg-box.pf-bad_soft { fill: var(--bad-soft); }
+.stg-box.pf-bad_line { fill: var(--bad); }
+.stg-box.ps-bad_line { stroke: var(--bad); }
+.stg-box.pf-warn_soft { fill: var(--warn-soft); }
+.stg-box.pf-warn_line { fill: var(--warn); }
+.stg-box.ps-warn_line { stroke: var(--warn); }
+.stg-box.pf-acc_soft { fill: var(--acc-soft); }
+.stg-box.pf-acc_line { fill: var(--acc); }
+.stg-box.ps-acc_line { stroke: var(--acc); }
+.stg-box.ps-none { stroke: none; }
+.stg-box.ps-line { stroke: var(--line); }
+.stg-box.ps-line-2 { stroke: var(--line-2); }
+.stg-box.ps-muted { stroke: var(--muted); }
+.stg-box.ps-scn-faint-edge { stroke: var(--scn-faint-edge, var(--line)); }
+.stg-t.pi-ink { fill: var(--ink); }
+.stg-edge.pi-ink .stg-line { stroke: var(--ink); }
+.stg-tri.pi-ink { fill: var(--ink); }
+.stg-t.pi-ink_ink { fill: var(--ink); }
+.stg-edge.pi-ink_ink .stg-line { stroke: var(--ink); }
+.stg-tri.pi-ink_ink { fill: var(--ink); }
+.stg-t.pi-ink_line { fill: var(--ink); }
+.stg-edge.pi-ink_line .stg-line { stroke: var(--ink); }
+.stg-tri.pi-ink_line { fill: var(--ink); }
+.stg-t.pi-line { fill: var(--line); }
+.stg-edge.pi-line .stg-line { stroke: var(--line); }
+.stg-tri.pi-line { fill: var(--line); }
+.stg-t.pi-line-2 { fill: var(--line-2); }
+.stg-edge.pi-line-2 .stg-line { stroke: var(--line-2); }
+.stg-tri.pi-line-2 { fill: var(--line-2); }
+.stg-t.pi-muted { fill: var(--muted); }
+.stg-edge.pi-muted .stg-line { stroke: var(--muted); }
+.stg-tri.pi-muted { fill: var(--muted); }
+.stg-t.pi-muted_ink { fill: var(--muted); }
+.stg-edge.pi-muted_ink .stg-line { stroke: var(--muted); }
+.stg-tri.pi-muted_ink { fill: var(--muted); }
+.stg-t.pi-none { fill: none; }
+.stg-edge.pi-none .stg-line { stroke: none; }
+.stg-tri.pi-none { fill: none; }
+.stg-t.pi-good_ink { fill: var(--good-ink); }
+.stg-edge.pi-good_ink .stg-line { stroke: var(--good-ink); }
+.stg-tri.pi-good_ink { fill: var(--good-ink); }
+.stg-t.pi-good_line { fill: var(--good); }
+.stg-edge.pi-good_line .stg-line { stroke: var(--good); }
+.stg-tri.pi-good_line { fill: var(--good); }
+.stg-t.pi-bad_ink { fill: var(--bad-ink); }
+.stg-edge.pi-bad_ink .stg-line { stroke: var(--bad-ink); }
+.stg-tri.pi-bad_ink { fill: var(--bad-ink); }
+.stg-t.pi-bad_line { fill: var(--bad); }
+.stg-edge.pi-bad_line .stg-line { stroke: var(--bad); }
+.stg-tri.pi-bad_line { fill: var(--bad); }
+.stg-t.pi-warn_ink { fill: var(--warn-ink); }
+.stg-edge.pi-warn_ink .stg-line { stroke: var(--warn-ink); }
+.stg-tri.pi-warn_ink { fill: var(--warn-ink); }
+.stg-t.pi-warn_line { fill: var(--warn); }
+.stg-edge.pi-warn_line .stg-line { stroke: var(--warn); }
+.stg-tri.pi-warn_line { fill: var(--warn); }
+.stg-t.pi-acc_ink { fill: var(--acc-ink); }
+.stg-edge.pi-acc_ink .stg-line { stroke: var(--acc-ink); }
+.stg-tri.pi-acc_ink { fill: var(--acc-ink); }
+.stg-t.pi-acc_line { fill: var(--acc); }
+.stg-edge.pi-acc_line .stg-line { stroke: var(--acc); }
+.stg-tri.pi-acc_line { fill: var(--acc); }
+/* a path's width when the three widths of the primitive are not enough, and a dotted path */
+.stg-edge.stg-w-1 .stg-line { stroke-width: 1px; }
+.stg-edge.stg-w-2 .stg-line { stroke-width: 2px; }
+.stg-edge.stg-w-2\.5 .stg-line { stroke-width: 2.5px; }
+.stg-edge.stg-w-3 .stg-line { stroke-width: 3px; }
+.stg-edge.stg-dotted .stg-line { stroke-dasharray: 0.1 4.5; stroke-linecap: round; }
+.stg-t.pi-surface { fill: var(--surface); }
+.stg-box.pf-line { fill: var(--es); }

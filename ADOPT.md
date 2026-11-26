@@ -5,15 +5,15 @@ view, the theme tokens to map, the sizes, what is optional, and how to add the h
 
 ## 0. Pin a version
 
-Releases are git tags `v<version>` (`v0.1.0` was the first, `v0.3.0` is the latest); the package is not on a registry. Pin the tag, never a
+Releases are git tags `v<version>` (`v0.1.0` was the first; the latest is at the top of the repository's tags and releases pages); the package is not on a registry. Pin the tag, never a
 branch, so the renderer under your pages only changes when you move the pin:
 
 ```sh
-bun add git+https://github.com/<owner>/durian-markdown.git#v0.3.0
+bun add git+https://github.com/<owner>/durian-markdown.git#v<version>   # the tag you chose, e.g. v0.8.0
 ```
 
 ```json
-{ "dependencies": { "durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v0.3.0" } }
+{ "dependencies": { "durian-markdown": "git+https://github.com/<owner>/durian-markdown.git#v<version>" } }
 ```
 
 Bun reads the TypeScript sources directly (the `bun` export condition); for Node and other bundlers the install runs
@@ -32,7 +32,7 @@ says so there). To move: read the CHANGELOG entries between your tag and the new
 | `durian-markdown/react/document` | React | `DocumentView`: the document with only the parts you pass |
 | `durian-markdown/react/<part>` | React | one part: `terminal`, `filetree`, `editor`, `codewalk`, `chart`, `animation`, `tierlist`, `alignment`, `containers` (tabs, accordion, human), `markdown` |
 | `durian-markdown/react/reference` | React | `ReferenceChip`, `ReferencePart`, `SvgPart`, `InteractiveStill` (the reference looks; every `DhDocument` already has them) |
-| `durian-markdown/react/interactive` | browser | `InteractivePart`: runs an interactive part in a sandboxed frame; the only module with a Trusted Types policy (`dh-interactive`) |
+| `durian-markdown/react/interactive` | browser | `InteractivePart`, `InteractivePartProps`, `interactiveFrame()`, `IX_FRAME_CSP`, `IX_LIMITS`, `IX_TOKENS`; the srcdoc path alone creates a Trusted Types policy (`dh-interactive`) |
 | `durian-markdown/react/hydrate` | browser | `hydrateDocument`, `renderDocument`, `readDocument`, `documentJson` |
 | `durian-markdown/styles.css` | CSS | every rule under `.dh-doc` |
 
@@ -98,6 +98,7 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   variant="flat"             // the host's style name: data-dh-variant on the root
   theme="dark"               // or leave it to <html data-theme> / the system
   motion="off"               // still everything (also: prefers-reduced-motion)
+  engine="new"               // the default: every animation is drawn by the one engine; "old" keeps the old engines (pass the same to parse() and check())
   slots={{ Frame, Callout, Error, Spinner }}   // swap the chrome
   // and draw Markdown your way (no default: leave one out and the renderer draws it):
   //   Code {lang,text,meta,hl}, InlineCode {text}, Link {href,title,external,children},
@@ -106,6 +107,8 @@ blocks' own checks: run it where agents write pages, to tell them what to fix.
   blocks={[terminalSession, taskBlock]}
   inlines={[fileRef, taskRef]}
   urlPolicy={policy}         // checked again at render time
+  loadMedia={loadMedia}      // 0.8.0: your own loader for media (see "The host media loader" below)
+  mediaPrefixes={["media:", "@"]}   // the address forms that loader takes
   ui={{ next: "Next", back: "Back" }}                  // the renderer's own words
 />
 ```
@@ -130,6 +133,56 @@ while it hydrates should wrap that update in `React.startTransition`: React swit
 has hydrated to client rendering (its error 424), which throws the server's drawing away. The queue finds a part by a block with no height, class
 `dh-turn`, that sits at the top of the part inside its frame.
 
+### The host media loader (0.8.0)
+
+If your files are not reachable by URL (they sit behind a login, or an authenticated daemon reads them), pass `loadMedia`. Every media part asks it before it loads bytes or sets a source: Markdown images, `gallery`, `compare-image`, `video` (file, sources, poster, captions, transcript, thumbnails), `audio` (file, peaks, transcript), `pdf` and `lottie`. Without `loadMedia` nothing changes from 0.7.0.
+
+```tsx
+import type { LoadMedia } from "durian-markdown/react/strict";
+
+const loadMedia: LoadMedia = async ({ url, kind, part, role, maxBytes, signal }) => {
+  // url: "media:q3-report.pdf", "@notes/diagram.png", or an https address that passed your urlPolicy
+  // kind: "image" | "video" | "audio" | "pdf" | "lottie" | "text";  part: "pdf", "gallery", "markdown" ...;  role: "poster", "captions" ...
+  // maxBytes: the most this file may have; reading past it is wasted
+  if (!url.startsWith("media:") && !url.startsWith("@")) return { useDefault: true };    // not yours: never fetch it (see below)
+  const res = await daemonRead(url, { signal });                                          // your authenticated read
+  if (!res.ok) return { refused: "you cannot open this file" };                           // the part says why
+  if (kind === "video" || kind === "audio") {                                             // big: hand over a blob, nothing is copied or counted
+    const u = URL.createObjectURL(await res.blob());
+    signal.addEventListener("abort", () => URL.revokeObjectURL(u), { once: true });       // revoke it when the signal aborts
+    return { objectUrl: u };
+  }
+  return { bytes: new Uint8Array(await res.arrayBuffer()) };                              // small files: bytes (checked against maxBytes)
+};
+
+const MEDIA = ["media:", "@"];
+const doc = parse(text, { mediaPrefixes: MEDIA });                 // the parser must know them too
+<DhDocument doc={doc} loadMedia={loadMedia} mediaPrefixes={MEDIA} />
+```
+
+How the host says which addresses its loader takes: **`mediaPrefixes`**, a list of address forms: a scheme name and a colon (`"media:"`) or `"@"`. (`http:`, `https:`, `data:`, `blob:`, `javascript:`, `file:` and the like are ignored.) An address that begins with one is *claimed*:
+
+- it skips your `urlPolicy` and the default rules, and goes only to the loader; it is never put in a `src`, `href` or request, so a claimed address that the loader refuses is a refused part, not a broken one. The text can still show in a part's error note (for example "This file could not be loaded: media:clip.mp4");
+- the parser accepts it in a media part's `src` and the like (pass the same list as `parse(text, { mediaPrefixes })`; without it a part says `media: URLs are not allowed`). The claim is compared with the text as the parser reads it: in a Markdown image after entities are decoded (`![x](&#64;a.png)` is `@a.png`), in a part's attribute exactly as written. A host that reads the AST gets an image's `src` unchecked by `urlPolicy` when it is claimed (the string as written, trimmed): treat it as the loader's, not as a URL;
+- the Node file checks (`checkLocalFiles`, option `mediaPrefixes`) skip it: it is not a file on disk.
+
+Every other address is checked by your `urlPolicy` and the default rules as always, and then the loader is asked about it too. **Answer `{ useDefault: true }` for anything you did not claim, and never fetch it yourself**: it is the author's text, and a loader that fetches it for them turns a document into requests made with your daemon's network and credentials. (For a claimed address `useDefault` is a refusal.)
+
+What the loader may answer, and what is checked:
+
+| Answer | What happens |
+| --- | --- |
+| `{ bytes }` | the file's bytes, copied, and held to `maxBytes`: the part's own cap for pdf, lottie, captions, peaks and transcripts; 32 MiB for an image, 512 MiB for a video, 64 MiB for audio set on an element. One document may hold 256 MiB of loader bytes at once (bytes being read, and blobs made from bytes that are still on the page; counted per `DhDocument`, whatever function you pass as `loadMedia`, so an inline one is fine); past that the answer is a refusal. A part that sets a source makes a blob from the bytes (its type from the file extension: png, jpg, gif, webp, avif, mp4, webm, mp3 ...; **svg is refused**, answer an `objectUrl` if you really serve svg) and revokes it when it unmounts. |
+| `{ objectUrl }` | a `blob:` URL, only from the loader. **The best answer for video and audio**: nothing is copied, counted or held by the package. It is yours: revoke it when `signal` aborts (the part unmounts or its address changes), not before (a `finally` that revokes on return breaks the image). For pdf, lottie, captions, peaks and transcripts the part fetches it under the same cap. Its size is not checked for an image, video or audio element: the browser streams it. |
+| `{ refused: reason }` | the part shows its refused state with the reason. A loader that throws or answers anything else counts as refused. |
+| `{ useDefault: true }` | not mine: the usual load. A refusal for a claimed address. |
+
+**CSP.** Blobs are `blob:` sources: allow `img-src blob:` and `media-src blob:`, and `connect-src blob:` for pdf, lottie, captions, peaks and transcripts (the package fetches those), or answer `{ bytes }` for the last group. Without them every bytes image and video is a CSP violation.
+
+**When it asks.** The loader is not asked while a part is far from the screen: an image in prose, a gallery, a compare-image and a video's poster are asked for when they come within 300 px of the viewport; a video's file (a `clip`: when it comes into view) and an audio file are asked for when the reader presses Play, which then waits for the answer ("Loading") and plays. The small files (peaks, transcript, thumbnail track) are asked for when the part is near. Costs of that: a video's length is not known until Play unless the fence says `duration=`, an audio waveform is a flat line until Play (the file is not decoded before it is asked for), and a video's or audio's download link appears after Play. A printed or static page is a full page: when the page is printing (or print media is on), when the host passes `static` or a part is static, every image is asked for at once, whether it is near the viewport or not (a browser does not wait for an answer that comes later: print once the page has loaded). A browser that wants `play()` inside the reader's own click (Safari on iOS; this was measured in Chromium, which does not) refuses the play that follows the loader's answer: the part then shows "Ready: press play", and the next press plays at once, inside the click, with the file already at hand. The loader is read when a part loads: a new function on each render reloads nothing; an address that changes asks again, and the earlier request's `signal` is aborted.
+
+A `blob:` address written by an author is refused as before, with or without a loader, and never reaches it. A `downloads` card is a link, not a load, and keeps using `urlPolicy` as `link`.
+
 **Strict CSP.** No part uses `eval`, `new Function` or WebAssembly in the browser; no CDN; no font is fetched.
 Proved by the example site served with
 `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'`:
@@ -145,6 +198,64 @@ policy with 0 violations (`bun run tt`).
 
 **Messages, not pages.** For chat-like text where a leading `---` is a rule, not front matter:
 `parse(text, { frontMatter: false })`.
+
+**Host map providers.** The strict-safe image provider needs no optional map library:
+
+```tsx
+import { defaultUrlPolicy, type UrlPolicy } from "durian-markdown";
+import { tileProvider } from "durian-markdown/react/map-tiles";
+const map = tileProvider({
+  tiles: "https://tiles.example.com/{z}/{x}/{y}.png",
+  attribution: "Example map contributors",
+  referrerPolicy: "no-referrer", // default; may use strict-origin-when-cross-origin or strict-origin
+  crossOrigin: "anonymous",     // optional; requires CORS support on the tile server
+});
+const policy: UrlPolicy = (url, kind) => {
+  if (kind !== "image") return defaultUrlPolicy(url, kind);
+  try { return new URL(url).origin === "https://tiles.example.com" ? url : null; }
+  catch { return null; }
+};
+<DhDocument doc={doc} map={map} urlPolicy={policy} />;
+```
+
+`tiles` and nonblank plain-text `attribution` are required; there is no default tile server.
+The template must include `{z}`, `{x}`, `{y}` and no other brace placeholders, or it throws `TileTemplateError`.
+It uses Web Mercator XYZ coordinates and 256-pixel tiles. Any API key in the template is public: readers
+can inspect image requests. Use service-side restrictions or a host proxy rather than a secret key.
+The part owns pan, zoom, pins,
+routes and all gestures; the provider follows its camera, scaling whole zoom-level images between levels.
+At most 64 tile images are attached. Requests start after the camera has been still for 100 ms, with at most
+8 unfinished image requests per provider, including detached images. The slow-tile server in the browser
+check measures this bound. An off-screen image leaves the DOM immediately; its source and slot remain
+until its load/error event, since removing a source does not reliably cancel the network request.
+Every camera's URLs pass `urlPolicy(url, "image")` and `applyUrlPolicy` before requests begin.
+A refused URL or oversized viewport clears the tiles and shows the still picture with a reason.
+An image may retry once, then stays blank while the other tiles and gestures keep working. Only if every
+tile of the current view fails does the layer restore the still picture with a load-failure reason.
+Each attempt has a 12-second timeout (`TILE_TIMEOUT_MS`), including time waiting for a request slot.
+Hosts may lower it with `timeoutMs` (1 through 12000 ms). A timeout permits at most one retry with its own
+timeout; if every slot is held by unfinished requests, that queued retry can expire without being sent.
+An entirely timed-out view shows the still picture with "Tile server did not answer". A timed-out image
+keeps its physical slot until its actual load/error event, even after fallback; timeout never frees a slot
+early or creates a request loop.
+Pair the image policy with the same allowed origins in CSP: the example above needs
+`img-src https://tiles.example.com`. If CSP omits an origin allowed by the policy, tile loads trigger CSP
+violations and may fall back. Avoid `img-src https:`: it permits every HTTPS origin for Markdown images
+too. No script, worker or connection permission is needed.
+Static maps never request tiles. Credit is text, including when it contains markup characters.
+`referrerPolicy` defaults to `no-referrer`; a service that requires a Referer can use
+`strict-origin-when-cross-origin` or `strict-origin`. A direct tile service sees the reader's IP, request
+timing and viewed area; ordinary cross-origin images may carry that service's cookies. Prefer a host-run
+proxy when these disclosures are unwanted. `crossOrigin: "anonymous"` omits cross-origin cookies but needs
+the server's CORS headers; it does not hide the IP, timing or coordinates.
+Same-origin tiles over HTTP/1.1 share the browser's six connections per host with the app, so hung tiles can stall the app's requests; serve tiles from another origin or over HTTP/2.
+
+For Leaflet, MapLibre or Google, import `mapProvider` from `durian-markdown/react/map-providers`
+and install its optional library and CSS. That separate entry has its own CSP needs and stays outside
+the strict graph. A host may also supply `MapHost` itself: `openBasemap(element, camera, context)`
+returns a `Basemap` with `setView(camera)`, `resize()` and `destroy()`. The optional context supplies
+the document's latest `urlPolicy` and `onStatus(reason)` (null for available, text for the still-picture note).
+Read `context.urlPolicy` when drawing rather than caching it: a new inline policy does not rebuild the base layer.
 
 **Phones.** Every part has a layout for 390 and 360 px wide screens (stacked, or a scrollable part with a visible hint);
 nothing pushes the page sideways. Touch steps the parts and moves the animation stage.
@@ -174,33 +285,33 @@ A host with several styles and palettes: one `variant` per style (a block of tok
 
 ## 6. Sizes
 
-Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0-rc.3. React and react-dom are
+Measured with `bun run sizes` (Bun's bundler, minified; gzip of the result) on 0.7.0, with the one animation engine. React and react-dom are
 left out of every row but the first (the host ships them once): 139 KB, 46 KB gzipped. *Own code only* is
 the package's code in every chunk, first load and later, with the dependencies left out.
 
 | Entry | First load (min / gzip) | Later, on demand (min / gzip) | Own code only (min / gzip) |
 | --- | --- | --- | --- |
-| `durian-markdown` (parse, llmView, check) | 954 KB / 349 KB | none | 902 KB / 324 KB |
-| `react` (every part) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (libraries loaded only when needed: chart.js when a chart mounts, three.js when a reader opens 3D, and others) | 3.0 MB / 1.0 MB |
-| `react/strict` (every part, under Trusted Types) | 1.3 MB / 477 KB | 2.5 MB / 777 KB (the same) | 3.0 MB / 1.0 MB |
-| `react/document` (no part) | 646 KB / 237 KB | none | 581 KB / 207 KB |
-| `react/terminal` | 26 KB / 12 KB | none | 26 KB / 12 KB |
-| `react/filetree` | 26 KB / 11 KB | none | 26 KB / 11 KB |
-| `react/editor` | 44 KB / 19 KB | none | 31 KB / 14 KB |
-| `react/codewalk` | 61 KB / 25 KB | none | 48 KB / 20 KB |
-| `react/chart` | 137 KB / 51 KB | 208 KB / 73 KB (chart.js) | 140 KB / 53 KB |
-| `react/animation` | 580 KB / 219 KB | 543 KB / 145 KB (three.js, 3D only) | 623 KB / 236 KB |
+| `durian-markdown` (parse, llmView, check) | 1.9 MB / 708 KB | none | 1.7 MB / 636 KB |
+| `react` (every part) | 2.3 MB / 847 KB | 2.9 MB / 919 KB (libraries loaded only when needed: three.js when a reader opens 3D, and others) | 4.5 MB / 1.5 MB |
+| `react/strict` (every part, under Trusted Types) | 2.3 MB / 847 KB | 2.9 MB / 919 KB (the same) | 4.5 MB / 1.5 MB |
+| `react/document` (no part) | 1.1 MB / 380 KB | none | 1016 KB / 349 KB |
+| `react/terminal` | 28 KB / 13 KB | none | 28 KB / 13 KB |
+| `react/filetree` | 27 KB / 12 KB | none | 27 KB / 12 KB |
+| `react/editor` | 46 KB / 19 KB | none | 33 KB / 14 KB |
+| `react/codewalk` | 69 KB / 27 KB | none | 56 KB / 23 KB |
+| `react/chart` | 229 KB / 88 KB | 571 KB / 156 KB (three.js, only when a 3D animation opens) | 299 KB / 115 KB |
+| `react/animation` | 997 KB / 378 KB | 570 KB / 156 KB (three.js, 3D only) | 1.0 MB / 406 KB |
 | `react/tierlist` | 23 KB / 10 KB | none | 23 KB / 10 KB |
 | `react/alignment` | 30 KB / 13 KB | none | 30 KB / 13 KB |
-| `react/containers` | 646 KB / 237 KB | none | 581 KB / 207 KB |
+| `react/containers` | 1.1 MB / 379 KB | none | 1014 KB / 348 KB |
 
 The part entries share most of what they load (the document view, the Markdown renderer, the step controls), so two
-parts cost far less than the sum of their rows. `styles.css` is about 232 KB, 39 KB gzipped.
+parts cost far less than the sum of their rows. `styles.css` is about 383 KB, 63 KB gzipped.
 
 ## 7. What is optional
 
 - **3D** loads three.js only when a reader opens the 3D view of an animation.
-- **chart.js** loads when a chart mounts.
+- **Charts** are drawn by the package's own code: nothing loads for them.
 - **Colours for code** need `highlight()` on the server; without it code is plain.
 - **Any part** can be left out of `DocumentView`'s `components`; it then shows its LLM text.
 
@@ -276,6 +387,85 @@ const doc = parse(text, { resolveReference: answer, limits: UNTRUSTED_LIMITS });
   `'unsafe-inline'` for scripts the part stops at its 5 second check and the still stays.
 - **Looks.** Tokens `--ref-chip-*`, `--ref-pending-*`, `--ref-failed-*`, `--ref-refused-*`, `--ix-*`
   (`src/ui/refs.css`); words `refPending`, `refFailed`, `refRefused`, `ixOff` in `ui`.
+
+### A host's interactive component and frame page
+
+`components.interactive` accepts a host React component. Its exact props are `InteractiveProps` from
+`durian-markdown/react/reference` (also re-exported by `durian-markdown/react/interactive`): **`{ block }` only**.
+The `block` is the checked `InteractiveBlock`: `type: "interactive"`, `html`, `css`, `script` (section strings),
+`fallback` (parsed Markdown blocks), `alt` (the reference's label), `title` (`string | null`), `height` (80–1200),
+and the common part fields `id`, `attrs`, `line`, `llm` and `llmKind`.
+There are no separate sections, label, theme, dark, mode or limits props. Read `useDh().interactive` for the host's
+`"off" | "static" | "on"` mode and `useDh().ui` for translated words. Theme values are computed CSS custom properties
+on the rendered slot, not parser data; `InteractivePart` reads the names in `IX_TOKENS` and the nearest `data-theme`
+(or `prefers-color-scheme`) and sends `dhTokens` and `dark` to the frame. It observes `data-theme` changes on the
+document element and the nearest `.dh-doc`; system theme changes alone are not watched.
+The runtime caps exported as `IX_LIMITS` are 5 seconds to answer with a height, 10 minutes of life and 80–1200 px height.
+Parse caps (including a host's lower `maxInteractiveBytes`) are enforced by `parse()` before component dispatch.
+
+For a page that permits no inline scripts, wrap `InteractivePart` with the host-only `frameSrc` prop:
+
+```tsx
+import { InteractivePart, type InteractiveProps } from "durian-markdown/react/interactive";
+const HostInteractive = (props: InteractiveProps) =>
+  <InteractivePart {...props} frameSrc="/interactive-frame.html" />;
+// <DhDocument doc={doc} interactive="on" components={{ interactive: HostInteractive }} />
+```
+
+Serve a fixed response at that route, without redirects, user data or author content. A server can call
+`interactiveFrame()` from the same entry; it returns `{ html, csp }`. Send `html` as `text/html; charset=utf-8` and
+`csp` as the **Content-Security-Policy response header**:
+
+```text
+default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; sandbox allow-scripts; frame-ancestors 'self'
+```
+
+The response header is mandatory. `sandbox allow-scripts` forces an opaque origin even if a framer omits its
+iframe's sandbox attribute; `frame-ancestors 'self'` refuses cross-origin ancestors. These two directives do not
+work in a meta policy, so the HTML's meta copy deliberately leaves them out. The bootstrap also refuses to start
+unless `window.origin === "null"`, and accepts messages only from `window.parent` with `event.origin` equal to
+the shell URL's own `location.origin`. A cross-site framer must never be able to feed code to a host-origin shell.
+
+Leave this route out of middleware that adds the app's global CSP, Trusted Types directives or frame headers
+(including `X-Frame-Options`). Send the returned CSP itself, rather than appending the app's policy: multiple
+policies intersect, so a global inline-script ban, Trusted Types requirement or frame denial can disable the shell.
+Also send `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`. The route must serve the same fixed,
+secret-free response for query strings and ambient cookies, without login redirects or state-changing actions.
+If it stops after 5 seconds with **"Interactive part did not answer"**, inspect the shell response headers and
+browser console for an inherited/global CSP, Trusted Types or frame-header refusal.
+
+These inline script permissions belong to the frame response only. The parent can retain `script-src 'self'`,
+`require-trusted-types-for 'script'` and `trusted-types 'none'`. The parent **must list the exact shell URL in
+`frame-src`**, for example `frame-src https://app.example/interactive-frame.html`; do not grant all of `'self'`.
+If the app has other shells, list their exact URLs too. `frameSrc` accepts only a same-origin HTTP(S) URL, relative or absolute;
+empty, cross-origin, credential-bearing and non-HTTP URLs are refused. It is a host option, never a Markdown attribute.
+The parent sets `src`, never `srcdoc`, and never creates `dh-interactive` on this path. The shell itself must not
+require Trusted Types: its own bootstrap parses markup and installs the inline script inside the sandbox.
+
+The frame always has `sandbox="allow-scripts"`, with no `allow-same-origin`. After `{ dhReady: true }` from that
+frame, the parent sends `{ dhInit: true, html, css, script, mode, dhTokens, dark }` once; `"static"` sends an empty
+script and the shell adds `script-src 'none'` before installing markup. It tries an inline script probe and refuses
+static initialization if that probe runs. Only the already admitted bootstrap continues. This behavior is measured
+in Chromium; it is not the same barrier as srcdoc static's `sandbox=""`, and other engines need host validation.
+The shell checks both its parent's window and origin on every message, initializes once, and
+later accepts theme updates. The parent's only accepted replies are the ready signal and `{ dhHeight: number }`,
+with no extra fields; every reply must have `event.source === frame.contentWindow`. It clamps finite heights to
+80–1200 px. Both runnable modes retain the 5 second height deadline, 10 minute lifetime and removal on a second load.
+Messages use target origin `"*"` because the sandbox gives the frame an opaque origin.
+Every other message listener on the host page must also check `event.source` against its own expected sender,
+not merely the message's shape: author code in this frame can post arbitrary messages to the parent.
+
+`parse()` still checks all sections and code as in the srcdoc path; the reference shell does not re-run that checker.
+Hosts replacing the component own their isolation and should follow the same rules. A shell request is an ordinary
+same-origin request and may carry ambient HTTP credentials: its response must contain no secrets. Without the parent's
+`frame-src 'none'`, a script can still attempt a self-navigation. Under the deliberately broad test policy `'self'`,
+one navigation that completes makes one request before removal. A 204/205 response or an unfinished navigation
+does not fire the second load: a script can repeat credentialed same-origin GETs until the 10 minute stop. The
+required exact-path policy blocks other paths (measured: 0 requests to the off-route destination), but CSP path
+matching ignores queries, so `?data=...` on the shell URL remains a channel into server/proxy logs. Redirects can
+also make further requests. Do not put state-changing behavior on allowed shell routes, and treat their query
+logs accordingly; removal is not a network firewall.
+See SECURITY.md and `bun scripts/interactive-check.ts --frame-src`.
 
 ## 9. Fixtures for a visual matrix
 

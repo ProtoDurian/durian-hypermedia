@@ -29,7 +29,7 @@
 
 /* static: one state drawn whole, no motion of any kind inside it */
 [data-dh-static] *, [data-dh-static] *::before, [data-dh-static] *::after { animation: none !important; transition: none !important; }
-[data-dh-static] .ctl, [data-dh-static] .btn-play { display: none !important; }
+[data-dh-static] .ctl, [data-dh-static] .btn-play, [data-dh-static] .btn-speed { display: none !important; }
 .dh-static-steps { margin: 8px 14px 10px; font-size: var(--fs-s); color: var(--muted); }
 .dh-static-cap { margin: 0 0 4px; color: var(--ink); }
 .dh-static-cap .cw-num { margin-right: 6px; }
@@ -40,7 +40,7 @@
 @media (prefers-reduced-motion: reduce) { .dh-dg * { animation: none !important; transition: none !important; } }
 [data-dh-motion="off"] .dh-dg * { animation: none !important; transition: none !important; }
 @media print {
-  .dh-dg .ctl, .dh-dg .btn-play { display: none !important; }
+  .dh-dg .ctl, .dh-dg .btn-play, .dh-dg .btn-speed { display: none !important; }
   .dh-box .dh-inner { min-width: 0 !important; }
   .dh-static-steps details > summary { list-style: none; }
 }

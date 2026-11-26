@@ -1,0 +1,72 @@
+/* The one engine's root sheet (lane render). Layout and chart lanes add their own sheets with @import lines below;
+   scripts/build-css.ts inlines them (relative to this file) and scopes every rule under .dh-doc. */
+@import "../look/look.css";
+@import "../charts/xy/xy.css";
+@import "../layouts/time/time.css";
+@import "../layouts/blocks.css"; /* eng-blocks2 */
+
+/* The renderer's paints (svg.tsx): custom properties read with zero specificity, so a class a layout or a chart puts
+   on a primitive always wins over them. */
+:where(.eng-p) { fill: var(--ef, none); stroke: var(--es, none); stroke-dasharray: var(--ed, none); fill-opacity: var(--efo, 1); stroke-opacity: var(--eso, 1); }
+/* the old stage's box class (the lanes layout keeps it on its boxes) paints every box white in parts.css: the box's own
+   role paint wins there */
+.eng .eng-p.scn-shape, .eng .eng-p.scn-frame { fill: var(--ef, none); stroke: var(--es, none); }
+/* eng-lanes2: a relation drawn along another's line (pipeline.ts eng-shared): the line once, its arrowhead kept */
+.eng g.eng-shared > path.stg-line { stroke: none; }
+/* a meter's fill is a path prim (prims: t:<id>:meter-fill): its inner line is filled, not stroked */
+.eng g.eng-meter .stg-line { fill: var(--meter); stroke: none; }
+
+/* a dimmed or down thing: its words, chips and lines fade with its box (the box itself carries its own opacity) */
+.eng .eng-dim:not(.stg-box) { opacity: var(--lk-dim, .4); }
+/* a thing that is down: a cross over it in the bad tone */
+.eng .eng-down { stroke: var(--bad); stroke-width: 2.4px; stroke-linecap: round; fill: none; }
+/* a meter (level=): an outlined track and its fill, in the old engine's meter tokens */
+.eng rect.eng-meter { fill: var(--meter-track); stroke: var(--meter); stroke-width: 1; stroke-opacity: .55; }
+.eng g.eng-meter { fill: var(--meter); stroke: none; }
+
+/* the full-width breakout (ui/stage.css figure.part-animation:has(.stg)) is for look=stage only: look=classic (the graph
+   engine's pages) keeps the article column, as the old .scn stage did, so a graph lays out for the same width as before */
+figure.part-animation:has(.eng[data-look="classic"]) { --stg-want: 100%; }
+@media (min-width: 1240px) { .page.has-side figure.part-animation:has(.eng[data-look="classic"]) { margin-left: 0; } }
+
+.eng .eng-svg { user-select: none; -webkit-user-select: none; }
+.eng .eng-svg:active { cursor: grabbing; }
+.eng .eng-legend { line-height: 1.3; }
+.eng .eng-note { color: var(--lk-ink-2, var(--ink-2)); }
+.eng .eng-hint { line-height: 1.35; }
+/* a box's or a chip's colour change eases (reduced motion: at once, below) */
+.eng .eng-svg .stg-box, .eng .eng-svg g > rect.eng-p { transition: fill .3s, stroke .3s; }
+@media (prefers-reduced-motion: reduce) { .eng .eng-dot, .eng .eng-lost { display: none; } .eng .eng-svg * { transition: none !important; } }
+.eng.stg-static .eng-dot, .eng.stg-static .eng-hint { display: none; }
+@media print { .eng .eng-dot, .eng .eng-edges, .eng .eng-hint, .eng .stg-ctl { display: none; } }
+
+/* eng-polish: on a phone the foot sticks over a tall stage, so every pixel of it is a pixel of the stage the reader cannot see (the old
+   stage's foot was one row of dots, 40 px; the player's two rows were 51 px taller and covered the bottom of the window). One row:
+   back, play, speed, the step count, next; the step slider is for wider screens. */
+@media screen and (max-width: 560px) {
+  .eng .stg-foot .ctl { flex-wrap: nowrap; padding: 4px 8px; row-gap: 0; gap: 6px; }
+  .eng .stg-foot .ctl .btn { min-height: 32px; padding-block: 4px; }
+  .eng .stg-foot .ctl .ctl-mid { order: 0; flex: 1 1 auto; justify-content: center; }
+  .eng .stg-foot .ctl .ctl-range, .eng .stg-foot .ctl .ctl-bands { display: none; }
+  .eng .stg-foot .ctl > .btn:last-child { margin-left: 0; }
+  .eng .stg-foot .ctl .btn { padding-inline: 10px; }
+}
+
+/* eng-polish (v0.7.0 149ccb8): a container's heading that rides with the view sits over a halo of its container's own ground */
+.eng .eng-p.eng-ride { paint-order: stroke; stroke: var(--lk-fill-container, color-mix(in srgb, var(--surface) 82%, var(--surface-2))); stroke-width: 4px; stroke-linejoin: round; }
+
+/* hydrate: the server's plans of a stage (svg.tsx ENG_SSR_W, data-ew): 6 screen widths, not stage.css's 14 (data-w). The box
+   shows the widest one its width reaches, at the width where the client's own plan (screenPlanWidth) reaches it; print and
+   the default hiding are stage.css's (.stg-plan-ssr, data-print). */
+.eng-plan-ssr[data-ew="286"] { display: block; }
+@container stgbox (min-width: 341px) { .eng-plan-ssr[data-ew="286"] { display: none; } .eng-plan-ssr[data-ew="341"] { display: block; } }
+@container stgbox (min-width: 356px) { .eng-plan-ssr[data-ew="341"] { display: none; } .eng-plan-ssr[data-ew="356"] { display: block; } }
+@container stgbox (min-width: 380px) { .eng-plan-ssr[data-ew="356"] { display: none; } .eng-plan-ssr[data-ew="380"] { display: block; } }
+@container stgbox (min-width: 730px) { .eng-plan-ssr[data-ew="380"] { display: none; } .eng-plan-ssr[data-ew="730"] { display: block; } }
+@container stgbox (min-width: 1063px) { .eng-plan-ssr[data-ew="730"] { display: none; } .eng-plan-ssr[data-ew="1178"] { display: block; } }
+
+/* hydrate: before a stage has its plan it draws both hints (svg.tsx); the short one shows where its plan will be a phone
+   plan (under 480: a drawing box under 500 px, the hint line 24 px narrower), so the line keeps its length on hydration */
+.eng .eng-hint { container: enghint / inline-size; }
+.eng .eng-hint-phone { display: none; }
+@container enghint (max-width: 475.9px) { .eng .eng-hint-wide { display: none; } .eng .eng-hint-phone { display: inline; } }

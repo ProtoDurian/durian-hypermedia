@@ -1233,7 +1233,7 @@ registerBlock({
         for (const s of wrap(v.unit || "Value", w - 16, "sub", Infinity)) { items.push({ k: "text", x: 8, y: y + 12, s, f: "sub", ink: "muted" }); y += 18; }
         const vt = y + 30, vb = vt + 100, Y = (n: number) => vb - (n - v.a) / (v.b - v.a) * (vb - vt);
         items.push({ k: "path", pts: [[x0, vb], [x0, vt]], ink: "line-2", id: valueId, bar: { axis: valueId, min: v.a, max: v.b, "axis-direction": "y" } });
-        // p11 (raziel on the copper still): a line of whole-number levels (a few, like -2..+2) gets a grid line at every level
+        // p11 (on the copper still): a line of whole-number levels (a few, like -2..+2) gets a grid line at every level
         const levels = t.plotLine && Number.isInteger(v.a) && Number.isInteger(v.b) && v.b - v.a > 2 && v.b - v.a <= 8 && t.points.every((p) => Number.isInteger(p.value));
         for (const n of levels ? Array.from({ length: v.b - v.a + 1 }, (_, i) => v.a + i) : ticks(v, 200)) { const yy = Y(n), s = fmt(n); items.push({ k: "path", pts: [[x0 - 4, yy], [x1, yy]], ink: "line", dash: true }, { k: "text", x: x0 - 7, y: yy + 4, s: wrap(s, labW - 2, "sub", 1)[0], f: "sub", ink: "muted", anchor: "end" }); }
         const previous = new Map<string, Point>(), lineRects: { x: number; y: number; w: number; h: number }[] = [];
@@ -1243,7 +1243,7 @@ registerBlock({
             const lo = Math.max(prev.time, a.a), hi = Math.min(p.time, a.b);
             const valueAt = (n: number) => prev.value + (p.value - prev.value) * (n - prev.time) / (p.time - prev.time);
             items.push({ k: "path", pts: [[X(lo), Y(valueAt(lo))], [X(hi), Y(valueAt(hi))]], curve: "round", ink: `role:${p.role}:line` });
-            // a plain line's labels keep off the line itself (raziel at 390: the radio wave ran through '10: 315°')
+            // a plain line's labels keep off the line itself (at 390: the radio wave ran through '10: 315°')
             if (t.plotLine) { const ya = Y(valueAt(lo)), yb = Y(valueAt(hi)); lineRects.push({ x: X(lo), y: Math.min(ya, yb) - 1, w: Math.max(1, X(hi) - X(lo)), h: Math.abs(ya - yb) + 2 }); }
           }
           if (!within(p.time, a) || t.plotLine) continue;

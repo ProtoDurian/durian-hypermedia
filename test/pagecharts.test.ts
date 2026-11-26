@@ -1,6 +1,6 @@
 // Line styles and markers, goal lines and bands, the time axis' own bounds and ticks, the log and linear switch, and the
 // calculator layout on the core chart part. Parse, refusals (each names the fix), the LLM view, caps, the budget (a doubling
-// test that counts charges, no clock), and the drawing read back from the markup and the Chart.js config.
+// test that counts charges, no clock), and the drawing read back from the markup and the primitives.
 import { describe, expect, test } from "bun:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,10 +9,11 @@ import { parse, check } from "../src/index";
 import { chart11Check, chartTable11, evalChart11, prepareChart, usesChart11 } from "../src/core/chart11";
 import { chartControls, evalChart } from "../src/core/chart";
 import { LINE_STYLES, MARKERS, applyScale, toggleOf, formulaText, ticksEvery, placeLabels, caseValues, tickCountError, PC_CAPS } from "../src/core/pagecharts";
-import { chartConfig11 } from "../src/ui/chart-config11";
+import { chartFrom } from "../src/engine/charts/legacy";
+import { buildChart } from "../src/engine/charts/build";
+import { measure, setPhoneFont } from "../src/core/stage-core";
 import { Chart } from "../src/ui/chart";
-import { Calculator, ScaleToggle, KeyList, Glyph, UnitsGrid, PW } from "../src/ui/pagecharts";
-import { applyPcConfig, DASH } from "../src/ui/pagecharts-config";
+import { Calculator, ScaleToggle, UnitsGrid, PW } from "../src/ui/pagecharts";
 import { UI } from "../src/ui/ui";
 
 
@@ -21,8 +22,12 @@ const fresh = () => {};
 /** run fn with a page budget this small (steps and values) */
 const tiny = <T,>(n: number, fn: () => T): T => { const l = { steps: n, values: n, chars: 1e6 }; return withBudget(new Budget(l, l), fn); };
 const errs = (d: any) => { fresh(); return chart11Check(d).errors; };
-const tok = (n: string) => ({ "--surface": "#ffffff", "--font-sans": "sans-serif", "--muted": "#666", "--grid": "#eee", "--ink": "#111", "--faint": "#999", "--acc": "#44f", "--good": "#0a0", "--bad": "#d00", "--warn": "#d80", "--series-1": "#44f", "--series-2": "#f0a", "--series-3": "#0aa", "--series-4": "#e60", "--series-5": "#1a5", "--c6": "#08f", "--c7": "#c0c", "--c8": "#880", "--axis": "#ccc" }[n] ?? "#888");
-const look = { tok, narrow: false, reduce: true };
+/** the drawn chart of a fence's YAML at one width: primitives and marks */
+const drawn = (d: any, w = 640) => {
+  const lg = chartFrom(d)!;
+  setPhoneFont(w < 480);
+  return buildChart(lg.spec, lg.values, { x: 0, y: 0, w, h: 320 }, { phone: w < 480, look: "stage", measure });
+};
 
 const LINE = `
 kind: line
@@ -89,34 +94,35 @@ describe("line styles and markers", () => {
     expect(c.errors).toEqual([]);
     expect(JSON.stringify(c.base)).not.toContain("dashed");
   });
-  test("the Chart.js config carries dashes, shapes, and the page draws the key", () => {
+  test("the drawing carries dashes, shapes, and one key item per series with its dash pattern and shape", () => {
     const d = yaml(LINE);
     fresh();
-    const data = evalChart11(d);
-    const cfg = chartConfig11(d, data, look);
-    const [a, b, c] = cfg.data.datasets;
-    expect(a.borderDash).toEqual(DASH.solid);
-    expect(b.borderDash).toEqual(DASH.dashed); expect(b.pointStyle).toBe("rectRot");
-    expect(c.borderDash).toEqual(DASH.dotted); expect(c.borderCapStyle).toBe("round"); expect(c.pointRadius).toBe(0);
-    expect(cfg.options.plugins.legend.display).toBe(false);
-    expect(cfg.dhKey.map((k: any) => [k.label, k.line, k.marker])).toEqual([["This year", "solid", "circle"], ["Forecast", "dashed", "diamond"], ["Last year", "dotted", "none"]]);
-    // an unstyled chart keeps Chart.js' own legend and gets no key
-    const plain = yaml(`kind: line\nx: [a, b]\nseries:\n  - name: p\n    data: [1, 2]\n  - name: q\n    data: [2, 3]`);
-    const pc = chartConfig11(plain, evalChart11(plain), look);
-    expect(pc.options.plugins.legend.display).toBe(true);
-    expect(pc.dhKey).toEqual([]);
+    const { prims, marks } = drawn(d);
+    const line = (n: string) => prims.find((p) => p.k === "path" && p.key === `l:${n.replace(/ /g, "_")}`) as any;
+    expect(line("This year").dashed).toBeFalsy();
+    expect(line("Forecast").dashed).toBe(true);
+    expect(line("Last year").cls).toContain("xy-dotted");
+    // the shapes: a circle is a dot, a diamond a box (turned), "none" draws no marker at all
+    expect(prims.some((p) => p.k === "dot" && p.key === "m:This_year:0")).toBe(true);
+    expect(prims.some((p) => p.k === "box" && p.key === "m:Forecast:2")).toBe(true);
+    expect(prims.some((p) => /^m:Last_year:/.test(p.key))).toBe(false);
+    // the key: one item per series, each drawn as a line sample (with the same dash) and its marker
+    const keys = marks.filter((m) => m.kind === "key");
+    expect(keys.map((m) => m.title)).toEqual(["This year", "Forecast", "Last year"]);
+    expect(prims.find((p) => p.key === "key:1:g")).toMatchObject({ k: "path", dashed: true });
+    expect(prims.find((p) => p.key === "key:2:g")?.cls).toContain("xy-dotted");
+    expect(prims.some((p) => /^key:0:m/.test(p.key))).toBe(true);
+    expect(prims.some((p) => /^key:2:m/.test(p.key))).toBe(false); // no marker, none in the key
   });
-  test("the key is drawn from what the page was told: one item per series, a dash pattern and a shape each", () => {
-    const items = [{ label: "A", colour: "#44f", shape: "line", line: "solid", marker: "circle" }, { label: "B", colour: "#f0a", shape: "line", line: "dashed", marker: "square" }, { label: "C", colour: "#0aa", shape: "line", line: "dotted", marker: "none" }] as any;
-    const html = renderToStaticMarkup(React.createElement(KeyList, { items, hidden: [1], onToggle: () => {}, live: true, w: PW(UI.en) }));
-    expect((html.match(/<li[ >]/g) ?? []).length).toBe(3);
-    expect(html).toContain('aria-pressed="false"'); // B is hidden
-    expect(html).toContain('stroke-dasharray="7 4"'); expect(html).toContain('stroke-dasharray="0.1 5"');
-    expect(html).toContain("<rect"); // the square marker
-    const still = renderToStaticMarkup(React.createElement(KeyList, { items, hidden: [], onToggle: () => {}, live: false, w: PW(UI.en) }));
-    expect(still).not.toContain("<button"); // static: no controls
-    const dia = renderToStaticMarkup(React.createElement(Glyph, { item: { label: "D", colour: "#000", shape: "line", line: "solid", marker: "diamond" } as any }));
-    expect(dia).toContain("<polygon");
+  test("hiding a series (a key button) takes its line out and keeps the others' keys", () => {
+    const d = yaml(LINE), lg = chartFrom(d)!;
+    setPhoneFont(false);
+    const all = buildChart(lg.spec, lg.values, { x: 0, y: 0, w: 640, h: 320 }, { phone: false, look: "stage", measure });
+    const some = buildChart({ ...lg.spec, opts: { ...lg.spec.opts, hidden: "1" } }, lg.values, { x: 0, y: 0, w: 640, h: 320 }, { phone: false, look: "stage", measure });
+    expect(all.prims.some((p) => p.key === "l:Forecast")).toBe(true);
+    expect(some.prims.some((p) => p.key === "l:Forecast")).toBe(false);
+    expect(some.prims.some((p) => p.key === "l:This_year")).toBe(true);
+    expect(some.marks.filter((m) => m.kind === "key").length).toBe(3); // the button to show it again stays
   });
 });
 
@@ -258,18 +264,20 @@ describe("the time axis' own bounds and ticks", () => {
     const days = ticksEvery(la("2026-11-02T00:00:00Z"), la("2026-11-30T00:00:00Z"), "week", 1, "UTC", false);
     expect(days.length).toBeGreaterThan(2);
   });
-  test("the config puts the bounds on the scale and our ticks in place of Chart.js'", () => {
+  test("the drawing puts the bounds on the axis and our ticks on it, in the chart's zone", () => {
     const d = yaml(TIME);
     fresh();
-    const cfg = chartConfig11(d, evalChart11(d), look);
-    const x = cfg.options.scales.x;
-    expect(x.type).toBe("time");
-    expect(x.max - x.min).toBe(86_400_000);
-    expect(x.time.unit).toBe("hour");
-    const scale: any = { min: x.min, max: x.max, ticks: [] };
-    x.afterBuildTicks(scale);
-    expect(scale.ticks.length).toBe(7);
-    expect(applyPcConfig({ options: { scales: { x: { type: "category" } } }, data: { datasets: [] } }, undefined, tok)).toEqual([]);
+    const lg = chartFrom(d)!;
+    expect(lg.spec.opts["x.scale"]).toBe("time");
+    expect(lg.spec.opts.tz).toBe("America/Los_Angeles");
+    expect(Number(lg.spec.opts["x.max"]) - Number(lg.spec.opts["x.min"])).toBe(86_400_000);
+    const { prims } = drawn(d);
+    const ticks = prims.filter((p) => p.k === "text" && /^c:t\d/.test(p.key)) as any[];
+    expect(ticks.length).toBeGreaterThanOrEqual(3);
+    // the first and last tick are the bounds (a midnight in Los Angeles names its day), and every tick is a whole hour inside them
+    expect(ticks[0].lines[0]).toBe("Dec 1 00:00");
+    expect(ticks[ticks.length - 1].lines[0]).toBe("Dec 2 00:00");
+    for (const t of ticks.slice(1, -1)) expect(t.lines[0]).toMatch(/^\d\d:00$/);
   });
 });
 
@@ -294,9 +302,11 @@ describe("the log and linear switch", () => {
     const lin = applyScale(d, toggleOf(d)!, "linear");
     expect(lin.y.scale).toBe("linear"); expect(d.y.scale).toBe("log"); // the source is not changed
     fresh();
-    const cl = chartConfig11(lin, evalChart11(lin), look), cg = chartConfig11(d, evalChart11(d), look);
-    expect(cl.options.scales.y.type).toBe("linear");
-    expect(cg.options.scales.y.type).toBe("logarithmic");
+    expect(chartFrom(lin)!.spec.opts["y.scale"]).toBeUndefined();
+    expect(chartFrom(d)!.spec.opts["y.scale"]).toBe("log");
+    const tick = (x: any) => drawn(x).prims.filter((p) => p.k === "text" && /^t:y:/.test(p.key)).map((p: any) => p.lines[0]);
+    expect(tick(d)).toContain("100k"); expect(tick(d)).not.toContain("200k"); // powers of ten on the log view
+    expect(tick(lin)).toContain("200k"); // and the even steps on the linear one
     expect(usesChart11(d)).toBe(true);
     expect(chartTable11(d)).toContain("The reader can switch the y axis between log and linear; it starts as log.");
   });
@@ -447,7 +457,7 @@ describe("the calculator layout", () => {
     expect(prepareChart(d).steps[0].ext.pc!.calc!.hasChart).toBe(true);
     expect(chartTable11(d)).toContain("Under the result a chart is drawn from the same inputs.");
     const html = renderToStaticMarkup(React.createElement(Chart, { spec: d, controls: chartControls(d).controls, initial: evalChart11(d), ui: UI.en }));
-    expect(html).toContain("<canvas");
+    expect(html).toContain("chart-svg");
   });
   test("drawn: an input per control, a row per formula, one result; static lists the inputs and has no field", () => {
     const d = yaml(CALC);
@@ -468,7 +478,7 @@ describe("the calculator layout", () => {
     expect(still).toContain("1200"); expect(still).toContain("$39.60");
     const full = renderToStaticMarkup(React.createElement(Chart, { spec: d, controls, initial: ev, ui: UI.en, static: "" }));
     expect(full).toContain('data-dh-layout="calculator"');
-    expect(full).not.toContain("<canvas"); // no chart: no canvas
+    expect(full).not.toContain("chart-svg"); // no chart: no drawing
     expect(full).not.toContain('class="chart-ctl"'); // the inputs are the calculator's, not a second control row
   });
   test("an input the formula cannot take shows n/a (never Infinity), and an error keeps the inputs so the reader can recover", () => {

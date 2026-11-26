@@ -14,7 +14,7 @@ data: [74, 88, 109, 110, 86, 88, 122, 87, 132, 140, 93, 50, 99, 127, 56, 69, 80,
 kind: boxplot
 title: Checkout time by day
 x: { label: day, values: [Mon, Tue, Wed] }
-y: { label: seconds to pay, format: duration }
+y: { label: time to pay, format: duration }
 tone: c4
 data:
   - [120, 100, 121, 110, 106, 125, 169, 146, 134, 102, 132, 128, 114, 152]

@@ -1,6 +1,7 @@
 // The animation work budget (0.6.2): laying out an animation (play, lay out, route, place) is counted, never timed,
 // and charged to a budget of its own: one cap per animation, one for the whole page. These tests count work.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "./old-engine";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, check, LIMITS } from "../src/index";

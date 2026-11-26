@@ -1,0 +1,23 @@
+/* The chart part's own rules (page.tsx): the SVG, the buttons over each mark, the round kinds' strokes. Tokens only. */
+.chart-canvas { position: relative; }
+.chart-canvas.chart-scroll { overflow-x: auto; overflow-y: hidden; }
+.chart-frame { position: relative; max-width: none; }
+.chart-svg { display: block; overflow: visible; max-width: none; font-family: var(--font-sans); }
+.chart-marks { position: absolute; inset: 0; pointer-events: none; }
+.chart-mark { position: absolute; padding: 0; margin: 0; border: 0; background: transparent; cursor: pointer; pointer-events: auto; border-radius: 3px; -webkit-tap-highlight-color: transparent; }
+.chart-mark:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); }
+.chart-mark:focus-visible { outline: var(--focus-ring, 2px solid var(--acc)); outline-offset: var(--focus-offset, 1px); }
+.chart-mark[aria-expanded="true"] { background: color-mix(in oklab, var(--acc) 12%, transparent); }
+.chart-mark-key { border-radius: 6px; }
+.chart-mark-key[aria-pressed="false"] { background: transparent; }
+.chart-svg text { stroke: none; }
+/* the round kinds (pie, doughnut, polar, radar) */
+.ch-slice { stroke: var(--surface); stroke-width: 2; stroke-linejoin: round; }
+.ch-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+/* charts2: text.ch-halo, so it wins over `.chart-svg text { stroke: none }` above (the halo never showed) */
+.chart-svg text.ch-halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.ch-area { fill-opacity: .25; }
+.xy-area { stroke: none; }
+@media print { .chart-marks { display: none; } }
+/* a number on a heat cell: the page colour on the strong end, the ink on the weak, in both themes */
+.xy-num.xy-on-dark { fill: var(--surface); }

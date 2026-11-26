@@ -9,6 +9,7 @@ Each series has its own line style and marker, and a key that shows both.
 
 ```chart
 kind: line
+title: Loans by month
 x: { label: month, values: [Jan, Feb, Mar, Apr] }
 y: { label: loans }
 series:

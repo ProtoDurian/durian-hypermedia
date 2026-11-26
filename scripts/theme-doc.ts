@@ -156,7 +156,7 @@ For changes CSS cannot make, \`slots\` swap the chrome components: \`Frame\` (th
 
 - \`prefers-reduced-motion: reduce\` is honoured everywhere: CSS transitions and animations stop; the animation stage jumps to
   each step's end; streams stand still along their paths; the code walk does not morph; the terminal shows each step whole
-  instead of typing; Chart.js does not animate.
+  instead of typing; charts draw their end state at once.
 - A host style can turn motion off without the reader's setting: \`<DhDocument motion="off">\` (sets \`data-dh-motion="off"\`;
   the components check for that attribute anywhere on the page).
 `;

@@ -31,6 +31,7 @@ unwrap crate
 set box: status: packed => status: out for delivery
 @step At the door: The box comes off, and the gift is there.
 unwrap box
+set box: status: out for delivery => status: delivered
 light gift
 ```
 

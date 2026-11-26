@@ -15,12 +15,19 @@
 // frame makes a request (scripts/interactive-check.ts measures it); without it one request leaves before the stop.
 // A host page's own CSP also holds in the frame (a srcdoc frame keeps its page's policy): a page whose CSP has no
 // 'unsafe-inline' for scripts cannot run the frame's script either, and the part stops at its 5 s check.
+// frameSrc instead loads a fixed same-origin host page with its own CSP (interactiveFrame(), ADOPT.md). That path
+// never sets srcdoc or creates a Trusted Types policy; after ready it sends the checked sections by postMessage.
 import React, { useEffect, useRef, useState } from "react";
 import { useDh } from "./context";
 import { InteractiveStill } from "./reference";
 import { Md } from "./markdown";
 import { frameDoc, IX_LIMITS, IX_TOKENS } from "../core/interactive";
-import type { InteractiveBlock } from "../types";
+import type { InteractiveProps } from "./reference";
+export { interactiveFrame, IX_FRAME_CSP, IX_LIMITS, IX_TOKENS } from "../core/interactive";
+export type { InteractiveProps } from "./reference";
+
+/** Host-only option: a same-origin HTTP(S) page made by interactiveFrame(), served with its CSP header. */
+export interface InteractivePartProps extends InteractiveProps { frameSrc?: string }
 
 type Policy = { createHTML(s: string): unknown };
 let made: Policy | null | "denied" | undefined;
@@ -44,7 +51,7 @@ const darkAt = (el: Element) => {
 
 type State = "off" | "starting" | "running" | "static" | "stopped";
 
-export function InteractivePart({ block }: { block: InteractiveBlock }) {
+export function InteractivePart({ block, frameSrc }: InteractivePartProps) {
   const { interactive, ui } = useDh();
   const mode = interactive === "on" || interactive === "static" ? interactive : "off";
   const slot = useRef<HTMLDivElement>(null);
@@ -55,25 +62,47 @@ export function InteractivePart({ block }: { block: InteractiveBlock }) {
   useEffect(() => {
     const host = slot.current;
     if (mode === "off" || !host) return;
-    const pol = policy();
+    // An external page has its own CSP. Never create the srcdoc Trusted Types policy on this path.
+    const external = frameSrc !== undefined;
+    let src = "";
+    if (external) {
+      try {
+        const u = new URL(frameSrc, window.location.href);
+        if (!frameSrc || !/^https?:$/.test(u.protocol) || u.origin !== window.location.origin || u.username || u.password) throw new Error("frame source");
+        src = u.href;
+      } catch { setState("stopped"); setWhy("Interactive part: frameSrc must be a same-origin HTTP(S) URL"); return; }
+    }
+    const pol = external ? null : policy();
     if (pol === "denied") { setState("stopped"); setWhy(w.ixDenied ?? "Interactive part: this page does not allow it"); return; }
     const f = document.createElement("iframe");
-    f.setAttribute("sandbox", mode === "on" ? "allow-scripts" : "");   // never allow-same-origin, forms, pop-ups, top navigation
+    f.setAttribute("sandbox", external || mode === "on" ? "allow-scripts" : "");   // static external: only the shell's bootstrap runs
     f.setAttribute("referrerpolicy", "no-referrer");
     f.setAttribute("allow", "");
     f.title = block.title || block.alt || "Interactive part";
     f.className = "dh-ix-frame";
     f.style.height = `${block.height}px`;
-    const page = frameDoc(block, mode === "static");
-    (f as any).srcdoc = pol ? pol.createHTML(page) : page;
-    let loads = 0, live = true, running = false;
+    if (external) f.src = src;
+    else {
+      const page = frameDoc(block, mode === "static");
+      (f as any).srcdoc = pol ? pol.createHTML(page) : page;
+    }
+    let loads = 0, live = true, running = false, initialized = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const send = () => { try { f.contentWindow?.postMessage({ dhTokens: tokensOf(host), dark: darkAt(host) }, "*"); } catch { /* gone */ } };
+    const send = () => { if (!live || (external && !initialized)) return; try { f.contentWindow?.postMessage({ dhTokens: tokensOf(host), dark: darkAt(host) }, "*"); } catch { /* gone */ } };
     const stop = (msg: string) => { if (!live) return; live = false; f.remove(); setState("stopped"); setWhy(msg); };
     const onLoad = () => { loads++; if (loads > 1) stop(w.ixMoved ?? "Interactive part stopped: it tried to leave its frame"); else send(); };
     const onMessage = (e: MessageEvent) => {
-      if (e.source !== f.contentWindow) return;
+      if (!live || e.source !== f.contentWindow) return;
       const d = e.data;
+      if (external && d && typeof d === "object" && Object.keys(d).length === 1 && d.dhReady === true) {
+        if (!initialized) {
+          initialized = true;
+          // An allow-scripts sandbox without allow-same-origin has an opaque origin, hence targetOrigin "*".
+          f.contentWindow?.postMessage({ dhInit: true, html: block.html, css: block.css, script: mode === "on" ? block.script : "", mode, dhTokens: tokensOf(host), dark: darkAt(host) }, "*");
+        }
+        return;
+      }
+      if (external && (!initialized || !d || typeof d !== "object" || Object.keys(d).length !== 1)) return;
       if (!d || typeof d !== "object" || typeof d.dhHeight !== "number" || !Number.isFinite(d.dhHeight)) return;
       f.style.height = `${Math.max(IX_LIMITS.minHeight, Math.min(IX_LIMITS.maxHeight, Math.ceil(d.dhHeight)))}px`;
       setState((s) => (s === "starting" ? "running" : s));
@@ -87,12 +116,12 @@ export function InteractivePart({ block }: { block: InteractiveBlock }) {
     if (doc) watch.observe(doc, { attributes: true, attributeFilter: ["data-theme"] });
     host.replaceChildren(f);
     setState(mode === "on" ? "starting" : "static");
-    if (mode === "on") {
+    if (mode === "on" || external) {
       timers.push(setTimeout(() => { if (!running) stop(w.ixSilent ?? "Interactive part did not answer"); }, IX_LIMITS.silentMs));
       timers.push(setTimeout(() => stop(w.ixLife ?? "Interactive part stopped after 10 minutes"), IX_LIMITS.lifeMs));
     }
     return () => { live = false; for (const t of timers) clearTimeout(t); watch.disconnect(); window.removeEventListener("message", onMessage); f.removeEventListener("load", onLoad); f.remove(); };
-  }, [mode, block.html, block.css, block.script, block.height]);
+  }, [mode, block.html, block.css, block.script, block.height, frameSrc]);
 
   if (mode === "off") return <InteractiveStill block={block} />;
   // stopped: the still, with why (the frame is gone already)

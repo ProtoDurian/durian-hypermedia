@@ -1,5 +1,6 @@
 // Untrusted input: each hostile fixture is one attack, and each is neutralised.
-import { describe, expect, test } from "bun:test";
+import { describe, expect } from "bun:test";
+import { test } from "./old-engine";
 import { parse, check, defaultUrlPolicy, applyUrlPolicy, schemeOf } from "../src/index";
 import { fixtures, html, taskBlock } from "./helpers";
 

@@ -1,0 +1,72 @@
+/* Histogram, boxplot, violin, funnel, waterfall as engine primitives. Page tokens only (var(--...)), light and dark follow them.
+   The renderer paints roles and tones; these classes add what a role cannot say: the soft fills of a box, a violin and a funnel
+   band, the median's ink, the dashed marks, the type of the funnel's words. Every primitive of a kind carries kd-t-<tone>. */
+:root { --kd-box-fill: 22%; --kd-violin-fill: 30%; --kd-bar-mix: 88%; --kd-mark: var(--ink-2); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --kd-box-fill: 30%; --kd-violin-fill: 38%; --kd-bar-mix: 82%; } }
+:root[data-theme="dark"] { --kd-box-fill: 30%; --kd-violin-fill: 38%; --kd-bar-mix: 82%; }
+
+.kd-t-c1 { --kd-tone: var(--c1); } .kd-t-c2 { --kd-tone: var(--c2); } .kd-t-c3 { --kd-tone: var(--c3); } .kd-t-c4 { --kd-tone: var(--c4); }
+.kd-t-c5 { --kd-tone: var(--c5); } .kd-t-c6 { --kd-tone: var(--c6); } .kd-t-c7 { --kd-tone: var(--c7); } .kd-t-c8 { --kd-tone: var(--c8); }
+.kd-t-acc { --kd-tone: var(--acc); } .kd-t-good { --kd-tone: var(--good); } .kd-t-warn { --kd-tone: var(--warn); } .kd-t-bad { --kd-tone: var(--bad); }
+.kd-t-muted { --kd-tone: var(--faint); }
+
+/* the frame: grid, base, words */
+.kd-grid { stroke: var(--grid, var(--line)); stroke-width: 1; fill: none; }
+.kd-axis { stroke: var(--axis, var(--line-2)); stroke-width: 1.5; fill: none; }
+.kd-tick, .kd-cat, .kd-title, .kd-keytext { fill: var(--muted); font-variant-numeric: tabular-nums; }
+.kd-key { fill: var(--kd-tone); }
+.kd-gap { opacity: 0; }
+
+/* histogram */
+.kd-bar { fill: color-mix(in oklab, var(--kd-tone) var(--kd-bar-mix), var(--surface)); }
+.kd-bar.kd-over { fill-opacity: .62; }
+.kd-mark { stroke: var(--kd-mark); stroke-width: 1.6; stroke-dasharray: 5 4; fill: none; }
+.kd-chip rect { fill: var(--surface); stroke: var(--kd-mark); stroke-width: 1.2; }
+.kd-chip text { fill: var(--ink); font-weight: 600; }
+
+/* box plot and violin */
+.kd-whisker, .kd-cap { stroke: var(--kd-tone); stroke-width: 1.8; stroke-linecap: round; fill: none; }
+.kd-boxr { fill: color-mix(in oklab, var(--kd-tone) var(--kd-box-fill), var(--surface)); stroke: var(--kd-tone); stroke-width: 2; }
+.kd-median { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; fill: none; }
+.kd-mean { fill: var(--surface); stroke: var(--kd-tone); stroke-width: 1.6; }
+.kd-out { fill: var(--surface); stroke: var(--kd-tone); stroke-width: 1.6; }
+.kd-violin { fill: color-mix(in oklab, var(--kd-tone) var(--kd-violin-fill), var(--surface)); stroke: var(--kd-tone); stroke-width: 2; stroke-linejoin: round; }
+.kd-ibox { fill: var(--kd-tone); stroke: none; }
+.kd-median-dot { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4; }
+
+/* funnel: one band per stage, lighter towards the end (kd-r<percent of the tone in the band>) */
+.kd-fun { stroke: color-mix(in oklab, var(--kd-tone) 85%, var(--surface)); stroke-width: 1.2; stroke-linejoin: round; }
+.kd-st-name { fill: var(--ink); font-weight: 500; }
+.kd-st-val { fill: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.kd-st-share { fill: var(--ink-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+.kd-drop { fill: var(--bad-ink, var(--bad)); font-weight: 500; font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* waterfall */
+.kd-wfbar { fill: color-mix(in oklab, var(--kd-tone) 86%, var(--surface)); stroke: var(--kd-tone); stroke-width: 1; }
+.kd-conn { stroke: var(--faint); stroke-width: 1.2; stroke-dasharray: 3 3; fill: none; }
+/* charts2: the break mark across a base bar when the axis does not start at 0 */
+.kd-wf-break { stroke: var(--surface); stroke-width: 4; fill: none; }
+.kd-wf-val { fill: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.kd-fun.kd-r24 { fill: color-mix(in oklab, var(--kd-tone) 24%, var(--surface)); }
+.kd-fun.kd-r25 { fill: color-mix(in oklab, var(--kd-tone) 25%, var(--surface)); }
+.kd-fun.kd-r26 { fill: color-mix(in oklab, var(--kd-tone) 26%, var(--surface)); }
+.kd-fun.kd-r27 { fill: color-mix(in oklab, var(--kd-tone) 27%, var(--surface)); }
+.kd-fun.kd-r28 { fill: color-mix(in oklab, var(--kd-tone) 28%, var(--surface)); }
+.kd-fun.kd-r29 { fill: color-mix(in oklab, var(--kd-tone) 29%, var(--surface)); }
+.kd-fun.kd-r30 { fill: color-mix(in oklab, var(--kd-tone) 30%, var(--surface)); }
+.kd-fun.kd-r31 { fill: color-mix(in oklab, var(--kd-tone) 31%, var(--surface)); }
+.kd-fun.kd-r32 { fill: color-mix(in oklab, var(--kd-tone) 32%, var(--surface)); }
+.kd-fun.kd-r33 { fill: color-mix(in oklab, var(--kd-tone) 33%, var(--surface)); }
+.kd-fun.kd-r34 { fill: color-mix(in oklab, var(--kd-tone) 34%, var(--surface)); }
+.kd-fun.kd-r35 { fill: color-mix(in oklab, var(--kd-tone) 35%, var(--surface)); }
+.kd-fun.kd-r36 { fill: color-mix(in oklab, var(--kd-tone) 36%, var(--surface)); }
+.kd-fun.kd-r37 { fill: color-mix(in oklab, var(--kd-tone) 37%, var(--surface)); }
+.kd-fun.kd-r38 { fill: color-mix(in oklab, var(--kd-tone) 38%, var(--surface)); }
+.kd-fun.kd-r39 { fill: color-mix(in oklab, var(--kd-tone) 39%, var(--surface)); }
+.kd-fun.kd-r40 { fill: color-mix(in oklab, var(--kd-tone) 40%, var(--surface)); }
+.kd-fun.kd-r41 { fill: color-mix(in oklab, var(--kd-tone) 41%, var(--surface)); }
+.kd-fun.kd-r42 { fill: color-mix(in oklab, var(--kd-tone) 42%, var(--surface)); }
+.kd-fun.kd-r43 { fill: color-mix(in oklab, var(--kd-tone) 43%, var(--surface)); }
+.kd-fun.kd-r44 { fill: color-mix(in oklab, var(--kd-tone) 44%, var(--surface)); }
+.kd-fun.kd-r45 { fill: color-mix(in oklab, var(--kd-tone) 45%, var(--surface)); }
+.kd-fun.kd-r46 { fill: color-mix(in oklab, var(--kd-tone) 46%, var(--surface)); }

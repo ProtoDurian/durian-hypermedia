@@ -205,7 +205,7 @@ registerBlock({
     // Compact verdict records in several authored columns are worksheet rows; a separately boxed single-column summary is a card.
     const roomy = (!side && !pside) || g.items.some((it) => it.chip); // side verdicts: a compact list; a chip under each card: room around it
     const items: Item[] = [], hs: number[] = [];
-    // a card line takes the lines it needs: a clamp never drops a fact (raziel, rc.3: the layers story lost 'bytes 1001 to 1059')
+    // a card line takes the lines it needs: a clamp never drops a fact (rc.3: the layers story lost 'bytes 1001 to 1059')
     const lay = g.items.map((it) => { const tw = side && !it.chip ? w - bw - 30 : w - 22; const t = wrap(it.title, tw, "title", most(2)), s = it.subs.flatMap((x) => wrapRoom(x, tw, "sub", Infinity, 8)); return { t, s, h: (roomy ? 18 : pside ? 8 : 10) + t.length * LINE_H.title + s.length * LINE_H.sub + ((it.v && (!(side || pside) || it.chip)) || (g.reserve && roomy && box.narrow) ? 44 : 0) + (roomy ? 16 : pside ? 8 : 6) }; });
     for (let r = 0; r * cols < g.items.length; r++) hs.push(Math.max(...lay.slice(r * cols, r * cols + cols).map((x) => x.h)));
     const top = box.narrow || !roomy ? 0 : 38; // air above a grid of cards with a chip under each
@@ -284,7 +284,16 @@ function flowLine(segs: { s: string; ink: string; lead?: "sep" | "gap" }[], x0: 
 // one line per row (a cell's lines joined), chips as words in their role's ink. `rows <role>` (or `rows plain <role>`) draws
 // the rows in that family: each row's box in its fill and border, a plain row's words in its ink.
 type Cell = { lines: string[]; chip?: { role: string; s: string }; role?: string /* "=> role: words" in a [chip] row: the row's boxed cell in that role's colours, its own height */; blank?: boolean /* "_": nothing drawn, the column kept */; dropped?: boolean /* "-...": a dashed chip in a [chip] row */ };
-type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean; role?: string /* "rows <role>": the rows in that family's fill and border, plain rows in its ink */ };
+type Rows = { rows: ({ cells: Cell[]; boxed?: boolean /* "[chip]": each cell a boxed chip in the row */ } | { note: string })[]; head: string[]; plain: boolean; role?: string /* "rows <role>": the rows in that family's fill and border, plain rows in its ink */; keep?: number[] /* render3: each column at least this wide (only the one engine's lanes adapter sets it) */ };
+/** render3: what each column of a rows panel needs (the widest of its head and its cells). The one engine's lanes adapter
+ *  keeps a panel's columns at the widest over the steps that show the same head line (one size for the whole story), so a
+ *  step that adds words to one column does not move every column (example-layers 9: routing table T3, step 5) */
+export function rowsNeed(t: Rows): number[] {
+  const rs = t.rows.filter((r): r is { cells: Cell[] } => "cells" in r), nc = rs[0]?.cells.length ?? 0;
+  const one = (c: Cell) => (c.chip ? c.chip.s : c.lines.map((l) => toneOf(l)[0]).join("  "));
+  const cellNeed = (c: Cell) => (t.plain ? measure(one(c), "body") + 8 : c.chip ? measure(c.chip.s, "body") + 28 : Math.max(0, ...c.lines.map((l) => measure(toneOf(l)[0], "sub") + 4)));
+  return Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
+}
 const toneOf = (l: string): [string, string] => (l.startsWith("! ") ? [l.slice(2), "warn:ink"] : l.startsWith("* ") ? [l.slice(2), "acc:ink"] : l.startsWith("~ ") ? [l.slice(2), "muted"] : [l, ""]);
 registerBlock({
   word: "rows", kind: "panel",
@@ -322,12 +331,11 @@ registerBlock({
     const frame = t.role ? { fill: `role:${t.role}:plane`, stroke: `role:${t.role}:line`, role: t.role } : { fill: "surface", stroke: "line-2" };
     const plainInk = t.role ? `role:${t.role}:ink` : "ink";
     const one = (c: Cell) => (c.chip ? c.chip.s : c.lines.map((l) => toneOf(l)[0]).join("  "));
-    const cellNeed = (c: Cell) => (t.plain ? measure(one(c), "body") + 8 : c.chip ? measure(c.chip.s, "body") + 28 : Math.max(0, ...c.lines.map((l) => measure(toneOf(l)[0], "sub") + 4)));
-    const need = Array.from({ length: nc }, (_, j) => Math.max(40, t.head[j] ? measure(t.head[j], "sub") + 8 : 0, ...rs.map((r) => cellNeed(r.cells[j]))));
+    const need = rowsNeed(t).map((x, j) => Math.max(x, t.keep?.[j] ?? 0)); // render3: keep (lanes adapter only)
     const inner = box.w - 24 - (nc - 1) * 16, sum = need.reduce((a, b) => a + b, 0);
     const stacked = box.narrow || sum > inner * 1.25;
     // a plain table that must shrink keeps each column at least as wide as its longest word, so an address or a prefix
-    // is not broken inside (raziel, rc.3: routing table T3 at 800 split '198.51.100.200/31'); the others give up the room
+    // is not broken inside (rc.3: routing table T3 at 800 split '198.51.100.200/31'); the others give up the room
     const least = Array.from({ length: nc }, (_, j) => (t.plain ? Math.max(0, ...rs.map((r) => Math.max(0, ...one(r.cells[j]).split(" ").map((x) => measure(x, "body") + 8)))) : 0)), lsum = least.reduce((a2, b) => a2 + b, 0);
     const ws = stacked ? need.map(() => box.w - 24) : need.map((x) => (x * inner) / sum);
     if (!stacked && t.plain && lsum < inner && ws.some((x, j) => x < least[j])) {
@@ -380,9 +388,9 @@ registerBlock({
           const fl = flowLine(segs, 12, y, box.w - 24); items.push(...fl.items); y += fl.h + 6; continue;
         }
         // x on a whole pixel: thin stems ("11") at a fractional x blur into grey and lose their role colour
-        // a cell takes the lines it needs: a cut cell dropped a fact (raziel, rc.3: the layers story's routing table T3 at 800 lost
+        // a cell takes the lines it needs: a cut cell dropped a fact (rc.3: the layers story's routing table T3 at 800 lost
         // 'chosen' and the /31 /30 /26 prefixes); a row of one-line cells keeps its 24 px. Widths by measure(), the page font's
-        // (raziel on ec6cf6ab: the wider drawn estimate narrowed T4's other columns and wrapped cells that fit)
+        // (on ec6cf6ab: the wider drawn estimate narrowed T4's other columns and wrapped cells that fit)
         const cl = r.cells.map((c, j) => wrap(one(c), ws[j], "body", Infinity)), n = Math.max(1, ...cl.map((x) => x.length));
         r.cells.forEach((c, j) => cl[j].forEach((s, q) => items.push({ k: "text", x: Math.round(xs[j]), y: y + 17 + q * LINE_H.body, s, f: "body", ink: ink(c), tip: one(c), bar: { column: `r${j}` } })));
         y += 24 + (n - 1) * LINE_H.body; continue;

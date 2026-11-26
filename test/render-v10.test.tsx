@@ -9,8 +9,9 @@ import { renderToString } from "react-dom/server";
 import { parse } from "../src/index";
 import { highlight } from "../src/server";
 import { parseAlign } from "../src/core/align";
-import { evalChart } from "../src/core/chart";
-import { chartConfig, candleWicks } from "../src/ui/chart-config";
+import { chartFrom } from "../src/engine/charts/legacy";
+import { buildChart } from "../src/engine/charts/build";
+import { measure, setPhoneFont } from "../src/core/stage-core";
 import { Alignment } from "../src/ui/align";
 import { FileTree, Terminal, Editor } from "../src/ui/parts";
 import { UI } from "../src/ui/ui";
@@ -19,41 +20,45 @@ import { html as renderDoc, fixtures } from "./helpers";
 const ROOT = join(import.meta.dir, "..");
 const ui = UI.en;
 const read = (f: string) => readFileSync(join(ROOT, f), "utf8");
-const TOK: Record<string, string> = { "--good": "#1CAA53", "--bad": "#F91974", "--grid": "#ddd", "--muted": "#777", "--ink": "#111", "--surface": "#fff", "--font-sans": "sans", "--c6": "#2299EE" };
-const tok = (n: string) => TOK[n] ?? "#000";
-const look = { tok, narrow: false, reduce: false };
+/** the drawn chart of a fence's YAML: primitives and marks at one width */
+const drawn = (src: string, w = 600) => {
+  const lg = chartFrom(Bun.YAML.parse(src) as any)!;
+  setPhoneFont(w < 480);
+  return buildChart(lg.spec, lg.values, { x: 0, y: 0, w, h: 320 }, { phone: w < 480, look: "stage", measure });
+};
 const fixture = (name: string) => fixtures("format").find((f) => f.name.includes(name))!.text;
 
 describe("candlesticks draw through the package", () => {
   const WEEK = "kind: candlestick\ntitle: A week\nx: [Mon, Tue, Wed]\nseries:\n  - name: price\n    data: [[100, 108, 98, 105], [105, 110, 101, 102], [102, 104, 95, 96]]";
-  test("Chart.js config: floating bodies, wicks, good up and bad down (not colour alone), all four values in the tooltip", () => {
-    const spec = Bun.YAML.parse(WEEK) as any;
-    const cfg = chartConfig(spec, evalChart(spec), look);
-    expect(cfg.type).toBe("bar");
-    const ds = cfg.data.datasets[0];
-    expect(ds.data).toEqual([[100, 105], [102, 105], [96, 102]]);
-    expect(ds.candles[0]).toEqual([100, 108, 98, 105]);
-    expect(ds.wickColors).toEqual([tok("--good"), tok("--bad"), tok("--bad")]);
-    expect(ds.backgroundColor[1]).toBe(tok("--bad"));
-    expect(ds.backgroundColor[0]).toBe(tok("--good") + "40");
-    expect(cfg.options.scales.y.beginAtZero).toBe(false);
-    expect(cfg.options.plugins.tooltip.callbacks.label({ dataset: ds, dataIndex: 0 })).toEqual(["Open: 100", "High: 108", "Low: 98", "Close: 105"]);
-    expect(cfg.plugins).toEqual([candleWicks]);
-    expect(cfg.options.scales.x.ticks.font.size).toBeGreaterThanOrEqual(12);
+  test("floating bodies, wicks, good up and bad down (not colour alone), all four values in the popover", () => {
+    const { prims, marks } = drawn(WEEK);
+    const body = (k: string) => prims.find((p) => p.k === "rect" && p.key === k) as any;
+    expect(prims.filter((p) => p.k === "rect" && /^c:/.test(p.key)).map((p) => p.key)).toEqual(["c:Mon", "c:Tue", "c:Wed"]);
+    expect(prims.filter((p) => p.k === "path" && /^w:/.test(p.key)).length).toBe(3); // one wick each
+    expect([body("c:Mon").role, body("c:Tue").role, body("c:Wed").role]).toEqual(["good", "bad", "bad"]);
+    expect(body("c:Mon").cls).toContain("xy-up"); expect(body("c:Tue").cls).toContain("xy-down"); // the class says it too, not the colour alone
+    // the body runs from open to close: Monday's rose, so its top is above its bottom, and it is shorter than the wick
+    const wick = prims.find((p) => p.key === "w:Mon") as any;
+    expect(body("c:Mon").rect.h).toBeGreaterThan(0);
+    expect(wick.d).toMatch(/^M/);
+    const m = marks.find((x) => x.key === "cat:Mon")!;
+    expect(m.kind).toBe("candle");
+    expect(m.text).toBe("Open: 100\nHigh: 108\nLow: 98\nClose: 105");
+    expect(marks.filter((x) => x.kind === "key").map((x) => x.title)).toEqual(["Up: close at or above open", "Down: close below open"]);
   });
-  test("a line on top, a second axis; the tooltip words come from the page's language", () => {
-    const spec = Bun.YAML.parse("kind: candlestick\nx: [a, b, c]\ny2: { label: v }\nseries:\n  - name: p\n    data: [[1, 2, 1, 2], null, [2, 3, 2, 3]]\n  - name: avg\n    kind: line\n    tone: 6\n    data: [1, 2, 3]\n  - name: vol\n    kind: line\n    axis: y2\n    data: [5, 6, 7]") as any;
-    const cfg = chartConfig(spec, evalChart(spec), look);
-    expect(cfg.data.datasets.map((d: any) => d.type)).toEqual(["bar", "line", "line"]);
-    expect(cfg.data.datasets[0].data[1]).toBeNull();
-    expect(cfg.options.scales.y2.position).toBe("right");
-    const es = Bun.YAML.parse(WEEK) as any;
-    const c2 = chartConfig(es, evalChart(es), { ...look, words: { open: "Apertura", high: "Máximo", low: "Mínimo", close: "Cierre" } });
-    expect(c2.options.plugins.tooltip.callbacks.label({ dataset: c2.data.datasets[0], dataIndex: 1 })[0]).toBe("Apertura: 105");
+  test("a line on top and a second axis; a missing candle is an empty place", () => {
+    const { prims, marks } = drawn("kind: candlestick\nx: [a, b, c]\ny2: { label: v }\nseries:\n  - name: p\n    data: [[1, 2, 1, 2], null, [2, 3, 2, 3]]\n  - name: avg\n    kind: line\n    tone: 6\n    data: [1, 2, 3]\n  - name: vol\n    kind: line\n    axis: y2\n    data: [5, 6, 7]");
+    const candles = prims.filter((p) => p.k === "rect" && /^c:/.test(p.key)) as any[];
+    expect(candles.map((p) => [p.key, p.cls.includes("xy-gap")])).toEqual([["c:a", false], ["c:b", true], ["c:c", false]]); // b has no candle: an empty, flat place that keeps its key
+    expect(prims.some((p) => p.k === "path" && p.key === "l:avg")).toBe(true);
+    expect(prims.some((p) => p.k === "path" && p.key === "l:vol")).toBe(true);
+    expect(prims.some((p) => p.k === "text" && /^t:y2:/.test(p.key))).toBe(true); // the right axis has its own numbers
+    expect(marks.some((x) => x.key === "cat:b")).toBe(true); // the category still answers, with its line values
   });
   test("the page with a candlestick renders its chart and the key under it", () => {
     const out = renderDoc(parse(fixture("chart-candlestick")));
-    expect(out).toContain("<canvas");
+    expect(out).toContain("chart-svg");
+    expect(out).not.toContain("<canvas");
     expect(out).toContain("What an LLM reads here");
   });
 });
@@ -141,9 +146,9 @@ describe("the editor on a phone", () => {
 });
 
 describe("Play starts at once", () => {
-  test("the animation's Play steps at once (to the next step, or back to the first from the last)", () => {
+  test("the animation's Play steps at once (to the next step, or back to the first from the last); on the first step it plays that step first (owner feedback 17)", () => {
     const s = read("src/ui/anim.tsx");
-    expect(s).toContain("onPlay={() => { if (!playing) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }}");
+    expect(s).toContain("onPlay={() => { if (!playing && i > 0) go(i === n - 1 ? 0 : i + 1); setPlaying(!playing); }}");
     expect(s).not.toContain("if (!playing && i === n - 1) go(0)");
   });
   test("the terminal's Play types the first key now and moves on at once from a finished step", () => {

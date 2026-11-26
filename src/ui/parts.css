@@ -18,6 +18,12 @@
 .btn-go { background: var(--acc); color: var(--on-acc); border-color: var(--acc); }
 .btn-go:hover:not(:disabled) { color: var(--on-acc); filter: brightness(1.08); }
 .btn-play { min-width: 6.4em; }
+.btn-play { position: relative; overflow: hidden; }
+/* the time left before Play takes the next step (owner feedback 17): a thin bar along the button foot */
+.ctl-tick { position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--acc); transform-origin: left; animation: dh-ctl-tick linear forwards; pointer-events: none; }
+@keyframes dh-ctl-tick { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .ctl-tick { display: none; } }
+.btn-speed { min-width: 3.4em; padding-left: 10px; padding-right: 10px; font-variant-numeric: tabular-nums; }
 .btn-s { padding: 5px 12px; }
 .btn-quiet { border-style: dashed; color: var(--muted); }
 .btn-choice { background: var(--acc-soft); color: var(--acc-ink); border-color: var(--acc-soft); }
@@ -58,7 +64,7 @@
 .ide { border: 1px solid var(--term-line); border-radius: var(--r-l); overflow: hidden; background: var(--term); box-shadow: var(--shadow-sm); color: var(--term-ink); }
 .ide-chrome, .term-chrome { display: flex; align-items: center; gap: 12px; background: var(--ch-22); padding: 9px 12px; border-bottom: 1px solid var(--term-line); }
 .ide-title, .term-title { font: 500 12px var(--font-mono); color: var(--term-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ide-body { display: grid; grid-template-columns: minmax(150px, 30%) minmax(0, 1fr); height: calc(var(--rows) * 1.6 * 13px + 96px); }
+.ide-body { display: grid; grid-template-columns: minmax(150px, 30%) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(var(--rows) * 1.6 * 13px + 96px); }
 .ide-side { border-right: 1px solid var(--term-line); overflow: auto; background: var(--term-2); padding-bottom: 8px; }
 .ide-side-head { font: 600 11px var(--font-sans); letter-spacing: .1em; text-transform: uppercase; color: var(--term-faint); padding: 10px 12px 6px; }
 .ide-side ul, .fx-list { list-style: none; margin: 0; padding: 0; }
@@ -67,7 +73,7 @@
 .ide-row.is-cur { background: rgba(127,135,255,.26); }
 .ide-name { overflow: hidden; text-overflow: ellipsis; }
 .ide-badge { margin-left: auto; }
-.ide-main { display: flex; flex-direction: column; min-width: 0; }
+.ide-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .ide-tabs { display: flex; overflow-x: auto; background: var(--ch-22); border-bottom: 1px solid var(--term-line); scrollbar-width: thin; }
 .ide-tab { display: inline-flex; align-items: center; border-right: 1px solid var(--term-line); }
 .ide-tab button { border: 0; background: none; color: var(--term-faint); font: 400 12.5px var(--font-mono); padding: 8px 10px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
@@ -512,7 +518,8 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
 .scn.is-swipe .scn-stage[data-more="r"] { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent); }
 .scn.is-swipe .scn-stage[data-more="l"] { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent); }
 .scn.is-swipe .scn-stage[data-more="lr"] { -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent); }
-.scn-swipe-more { margin: 4px 14px 8px; color: var(--muted); font-size: var(--fs-xs); }
+/* the swipe line sits in the flow, under the stage: it also carries .table-more (out of the flow, placed by script under a table), which left it on top of the drawing and its words */
+.scn-swipe-more, .scn-swipe-more.table-more { position: static; margin: 4px 14px 8px; white-space: normal; color: var(--muted); font-size: var(--fs-xs); }
 /* its step list looks like one: the summary keeps its marker */
 .scn > .dh-static-steps details > summary { display: list-item; }
 /* static (SPEC 4.1): one state, whole; nothing to grab */
@@ -605,7 +612,7 @@ button.fx-line { cursor: pointer; } button.fx-line:hover { background: var(--sur
    no control row; its panes grow to what they hold instead of scrolling. A part the reader never reached is drawn for
    print by react/hydrate.tsx (printUnseen) in a .dh-print-copy box where the server's HTML stood. ---- */
 @media print {
-  .term .ctl, .fx .ctl, .ide .ctl, .cw .ctl, .term .btn-play { display: none !important; }
+  .term .ctl, .fx .ctl, .ide .ctl, .cw .ctl, .term .btn-play, .term .btn-speed { display: none !important; }
   .term-body, .ide-code .ch-pre, .cw-code { height: auto !important; max-height: none !important; overflow: visible !important; }
   .term, .fx, .ide, .cw, .dh-print-copy { break-inside: avoid; }
 }

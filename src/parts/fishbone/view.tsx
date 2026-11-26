@@ -28,10 +28,11 @@ function FishSvg({ spec, mode, i, n }: { spec: FishSpec; mode: "wide" | "narrow"
           <g key={b.cat} className={cx("fish-bone", lit.has(b.cat) && "is-lit", newAt(c.step, i, n) && "is-new")} style={{ ["--fc" as any]: colBase(c.colour) }}>
             <line x1={b.x0} y1={b.y0} x2={b.x1} y2={b.y1} className="fish-line" data-dh-slot="bone" />
             <g data-dh-slot="category" className="fish-cat"><rect x={cxw} y={cy} width={b.chip.w} height={ch} rx={12} fill={colSoft(c.colour)} stroke={colBase(c.colour)} />
-              <Lines lines={b.chip.text} x={cxw + b.chip.w / 2} y={cy + f + 3} lh={lh} cls="fish-cat-text" /></g>
+              <Lines lines={b.chip.text} x={mode === "wide" ? cxw + b.chip.w / 2 : cxw + 10} y={cy + f + 3} lh={lh} cls="fish-cat-text" anchor={mode === "wide" ? "middle" : "start"} /></g>
+            {b.rail && <line x1={b.rail[0]} y1={b.rail[1]} x2={b.rail[0]} y2={b.rail[2]} className="fish-rail" data-dh-slot="rail" />}
             {b.causes.map((ca, q) => shownAt(ca.step, i, n) && (
               <g key={q} data-dh-slot="cause" className={cx("fish-cause", newAt(ca.step, i, n) && "is-new")}>
-                <line x1={ca.tx} y1={ca.by} x2={mode === "wide" ? ca.tx + 12 : (b.side === -1 ? ca.tx + 12 : ca.tx - 12)} y2={ca.by} className="fish-tick" />
+                <line x1={ca.tx} y1={ca.by} x2={ca.tx + (mode === "wide" ? 12 : 10)} y2={ca.by} className="fish-tick" />
                 <Lines lines={ca.lines} x={mode === "wide" ? ca.tx - 4 : ca.x} y={ca.y + f - 2} lh={lh} anchor={mode === "wide" ? "end" : "start"} />
                 {ca.subs.map((sc, z) => shownAt(sc.step, i, n) && <Lines key={z} lines={sc.lines.map((t, zz) => (zz ? t : `· ${t}`))} x={mode === "wide" ? ca.tx - 4 : ca.x + 8} y={sc.y + f - 2} lh={lh} anchor={mode === "wide" ? "end" : "start"} cls="fish-sub" />)}
               </g>

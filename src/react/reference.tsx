@@ -12,6 +12,9 @@ import type { InteractiveBlock, MdInline, ReferenceBlock, SvgBlock } from "../ty
 type RefInline = Extract<MdInline, { t: "reference" }>;
 type Look = "unresolved" | "pending" | "ready" | "failed" | "refused";
 
+/** Exact props passed to components.interactive. Mode and UI words are available through useDh(). */
+export interface InteractiveProps { block: InteractiveBlock }
+
 function words(ui: Record<string, any>) {
   return {
     pending: (ui.refPending as string | undefined) ?? "Loading",

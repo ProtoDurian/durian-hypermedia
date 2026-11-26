@@ -13,17 +13,18 @@ import { labelledLayout, type Measure } from "./labels";
 const num = (v: number) => (Number.isInteger(v) ? v.toLocaleString("en-US") : v.toLocaleString("en-US", { maximumFractionDigits: 2 }));
 /** the part's own words (the renderer's shared words come from `ui`) */
 const W = { hint: "Hover or tap a flow or a node.", cannot: "This sankey cannot be drawn:", inFlow: "In", outFlow: "Out", from: "From", to: "To", amount: "amount", share: "Share", of: "of" };
-/** the stage width a sankey is laid out at before the first measure (the server's HTML) */
-const FIRST_WIDTH = 760;
+/** before the first measure (the server's HTML) the reader's width is not known: a wide drawing and a phone drawing are both made, and
+ *  CSS shows the one that fits the card (container query, 600 px). A phone reader's first paint is then already the right shape. */
+const FIRST_WIDTH = 760, PHONE_FIRST_WIDTH = 358;
 
 export default function SankeyView({ data: spec, ui, static: stp, stage }: PartViewProps<SankeySpec>) {
   const host = useRef<HTMLDivElement>(null);
-  const width = innerWidth(stage.width || FIRST_WIDTH);
   const nSteps = spec.steps.length, st = useSteps(nSteps, stp, spec.steps), step = nSteps > 1 ? st.i : Infinity;
   const [hover, setHover] = useState<{ kind: "flow" | "node"; k: number } | null>(null);
   const pop = usePopover(host, ui.close);
   const [measure, setMeasure] = useState<Measure>(() => (text: string) => text.length * LABEL_PX);
   useEffect(() => {
+    // one measure, made once the page's font is there (a measure with the stand-in font, then another with the real one, drew every label twice)
     let active = true;
     const update = () => {
       if (!active || !host.current) return;
@@ -32,13 +33,18 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
       ctx.font = "500 12px " + getComputedStyle(host.current).getPropertyValue("--font-sans");
       setMeasure(() => (text: string) => ctx.measureText(text).width);
     };
-    update();
-    void document.fonts?.ready.then(update);
+    if (!document.fonts || document.fonts.status === "loaded") update();
+    else void document.fonts.ready.then(update);
     return () => { active = false; };
   }, []);
-  const planned = useMemo(() => spec.errors.length || !spec.flows.length ? null : labelledLayout(spec, width, measure), [spec, width, measure]);
-  const lay = planned?.layout;
-  if (!lay) return <div className="sankey"><div className="cw-error">{W.cannot} {spec.errors[0]?.msg ?? "it has no flows"}</div></div>;
+  const pre = !stage.width;
+  const plans = useMemo(() => {
+    if (spec.errors.length || !spec.flows.length) return null;
+    const widths = pre ? [innerWidth(FIRST_WIDTH), innerWidth(PHONE_FIRST_WIDTH)] : [innerWidth(stage.width)];
+    return widths.map((w) => labelledLayout(spec, w, measure));
+  }, [spec, pre, stage.width, measure]);
+  const lay = plans?.[0].layout;
+  if (!plans || !lay) return <div className="sankey"><div className="cw-error">{W.cannot} {spec.errors[0]?.msg ?? "it has no flows"}</div></div>;
   const shown = (appear: number) => appear <= step;
   const lit = hover ? (hover.kind === "flow" ? pathOf(spec, hover.k) : new Set(spec.flows.map((f, k) => (f.from === lay.nodes[hover.k].id || f.to === lay.nodes[hover.k].id ? k : -1)).filter((k) => k >= 0))) : null;
   const litNodes = lit ? new Set([...lit].flatMap((k) => [spec.flows[k].from, spec.flows[k].to])) : null;
@@ -47,7 +53,10 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
   return (
     <div className={`sankey dh-pop-host${lay.vertical ? " is-vertical" : ""}`} ref={host} data-dh-static={st.sx.on || undefined} tabIndex={nSteps > 1 ? 0 : undefined} onKeyDown={stepKeys(st, nSteps)}>
       {spec.title && <div className="sankey-title">{spec.title}</div>}
-      <div className="sankey-box">
+      {plans.map((planned, drawn) => {
+      const lay = planned.layout;
+      return (
+      <div key={drawn} className={pre ? `sankey-box ${drawn ? "is-pre-phone" : "is-pre-wide"}` : "sankey-box"}>
         <svg width={lay.width} height={lay.height} viewBox={`0 0 ${lay.width} ${lay.height}`} role="group" aria-label={spec.title || "Sankey"}>
           <g className="sankey-links">
             {lay.links.map((l) => {
@@ -67,7 +76,7 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
           </g>
           <g className="sankey-nodes">
             {lay.nodes.map((n, k) => {
-              const on = nodeShown(n.id), dim = litNodes && !litNodes.has(n.id), a = planned!.labels.get(n.id)!;
+              const on = nodeShown(n.id), dim = litNodes && !litNodes.has(n.id), a = planned.labels.get(n.id)!;
               const d = { title: n.label, meta: `${W.inFlow} ${num(n.inV)}${unit} · ${W.outFlow} ${num(n.outV)}${unit}` };
               return (
                 <g key={n.id} className={`sk-node${on ? "" : " is-hidden"}${dim ? " is-dim" : ""}`} data-dh-slot="node" role="button" tabIndex={on ? 0 : -1} aria-hidden={on ? undefined : true} aria-label={`${d.title}: ${d.meta}`} {...pop.bind(`n${k}`, d)}
@@ -83,6 +92,8 @@ export default function SankeyView({ data: spec, ui, static: stp, stage }: PartV
           </g>
         </svg>
       </div>
+      );
+      })}
       <Stepper n={nSteps} titles={spec.steps} st={st} ui={ui} />
       {!st.sx.on && <p className="sankey-hint">{W.hint}</p>}
       <details className="chart-table"><summary>{ui.table}</summary>

@@ -5,6 +5,7 @@
 // The URL rule here is the structural one (what no address may ever be). The host's own `urlPolicy` is applied by each
 // view (applyUrlPolicy), because a part's parse() does not receive the policy.
 import type { Budget } from "../../core/budget";
+import { claimedWhileParsing } from "../../media-loader";
 import { COLOUR_WORDS, isSpace, type Err } from "../kit/text";
 
 export type { Err };
@@ -90,7 +91,7 @@ export function urlRefusal(url: string): string | null {
   for (let i = 0; i < url.length; i++) { const c = url.charCodeAt(i); if (c <= 0x20 || c === 0x7f || c === 0x5c || (c >= 0x80 && c <= 0x9f) || c === 0x2028 || c === 0x2029 || isSpace(url[i])) return "it has a space or a control character"; }
   if (u.startsWith("//")) return "it is protocol-relative; write https://";
   const sch = schemeWord(u);
-  if (sch && sch !== "http" && sch !== "https") return `${sch}: URLs are not allowed (only http, https or a path)`;
+  if (sch && sch !== "http" && sch !== "https" && !claimedWhileParsing(u)) return `${sch}: URLs are not allowed (only http, https or a path)`;
   return null;
 }
 /** the lower case scheme of an address ("" for a path): letters first, then letters, digits, + . -, then a colon */

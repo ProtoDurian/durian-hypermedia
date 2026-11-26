@@ -57,3 +57,13 @@ send arrow "init 2" coord -> box1
 stack layers
 highlight cli
 ```
+
+:::llm
+Animation, 13 steps, 3D (2D flat on a phone or with no WebGL). Four layers: your CLI (a note "no answers yet"), the coordinator, the template container (keeps nothing), and the registry (the template image).
+
+1. to 3. The layers split apart. The coordinator pulls the image from the registry and starts the template container from it.
+4. to 6. Init call 1 goes down from the CLI through the coordinator to the container, with no answers. The script makes project id A and stops at its first unanswered question, "name".
+7. to 9. The question and the state go back up to the CLI. The container keeps nothing: its layer alone shows no answer, no session, no paused script.
+10. to 12. The CLI keeps "name = hello-app" and project id A, and sends call 2 with both down. The script runs again from line 1, past the name.
+13. The layers stack back: only the CLI holds the answers.
+:::

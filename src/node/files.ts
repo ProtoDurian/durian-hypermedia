@@ -17,6 +17,7 @@ import type { Document, Block } from "../types";
 import { FOLDER_PARTS } from "../parts/generated/registry";
 import { LIMITS, type Limits } from "../safety";
 import type { PartFileRef } from "../parts/types";
+import { claimedBy, cleanPrefixes } from "../media-loader";
 
 /** one thing the check found (the same shape as the core check's Problem) */
 export interface FileIssue { line: number; level: "error" | "warn"; message: string }
@@ -34,6 +35,8 @@ export interface FileCheckOptions {
   root?: string;
   /** more folders to look in for a path, after the page's own folder, such as the site's public folder; each is its own root */
   roots?: string[];
+  /** the address prefixes the page was parsed with (ParseOptions.mediaPrefixes): an address that begins with one is the host loader's, not a file on disk, and is skipped */
+  mediaPrefixes?: readonly string[];
   /** the caps the page was parsed with (default LIMITS) */
   limits?: Limits;
   /** the most bytes read of one file when its part sets no cap of its own (default CAP_BYTES) */
@@ -140,6 +143,7 @@ export function checkLocalFiles(doc: Document, opts: FileCheckOptions = {}): Fil
   const pageDir = inside(root, at) ? dirname(at) : root;
   const bases = [{ dir: pageDir, root }, ...(opts.roots ?? []).map((r) => ({ dir: resolve(r), root: resolve(r) }))];
   const issues: FileIssue[] = [];
+  const claimed = cleanPrefixes(opts.mediaPrefixes);
   const seen = new Map<string, { size: number; bytes?: Uint8Array; capped: number }>();
   for (const b of partBlocks(doc.blocks)) {
     const def = (FOLDER_PARTS as Record<string, { files?: (d: any, c: { limits: Limits; line: number }) => PartFileRef[] }>)[b.type];
@@ -149,7 +153,7 @@ export function checkLocalFiles(doc: Document, opts: FileCheckOptions = {}): Fil
     try { refs = def.files((b as { data: unknown }).data, { limits, line: b.line }); } catch (e) { say(b.line, "warn", `its files could not be listed (${(e as Error).message})`); continue; }
     for (const ref of refs) {
       const written = ref.path;
-      if (!written || isRemote(written)) continue;
+      if (!written || isRemote(written) || claimedBy(written, claimed)) continue;
       const clean = cleanPath(written);
       const bad = refusal(clean);
       if (bad) { say(ref.line, "error", `${written} ${bad}; a media path is written relative to the page (media/talk.mp3), and it is not read`); continue; }

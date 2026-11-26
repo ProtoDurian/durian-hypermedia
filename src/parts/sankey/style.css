@@ -30,3 +30,7 @@
 [data-dh-motion="off"] .sk-band, [data-dh-motion="off"] .sk-node { transition: none; }
 .sankey[data-dh-static] .sk-band, .sankey[data-dh-static] .sk-node { transition: none; }
 @container (max-width: 600px) { .sankey { padding: 12px; } }
+/* before the first measure both drawings are in the page; the one that fits the card shows (the phone one scales to the card) */
+.sankey-box.is-pre-phone { display: none; }
+.sankey-box.is-pre-phone svg { width: 100%; height: auto; max-width: 100%; }
+@container (max-width: 600px) { .sankey-box.is-pre-wide { display: none; } .sankey-box.is-pre-phone { display: block; } }

@@ -9,7 +9,7 @@
 //   node react "react renderer" [c2]
 //   check -> parse
 //   react -> parse
-//   react -> chart.js "lazy"
+//   react -> charts "own drawing"
 //   ```
 //
 // Lines, one thing a line (`// text` is a comment):

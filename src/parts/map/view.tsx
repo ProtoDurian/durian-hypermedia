@@ -67,6 +67,8 @@ const gridStep = (zoom: number) => { const deg = 360 / (2 ** zoom); const steps 
 const codeOf = (t: EventTarget | null): string | null => (t as Element | null)?.closest?.("[data-code]")?.getAttribute("data-code") ?? null;
 
 function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boolean; spec: MapSpec; host: MapHost | null; ui: Ui; static?: StaticProp }) {
+  const {urlPolicy} = useDh();
+  const policyRef = useRef(urlPolicy); policyRef.current = urlPolicy;
   // static (SPEC 4.1): the chosen step (the last by default), its camera set at once (no flight), no controls, no hint
   const sx = useStatic(stp, spec.steps.length, spec.steps.map((x) => x.title));
   const [stepLive, setStep] = useState(0);
@@ -147,12 +149,14 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
   useEffect(() => {
     if (sx.on || mode !== "flat" || !host?.openBasemap || !baseEl.current || !stage.current) return;
     let dead = false;
+    setNote("");
+    const status = (reason: string | null) => { if (!dead) { setBased(reason === null); setNote(reason ? `${reason}, so this is the still picture.` : ""); } };
     const go = async () => {
       try {
-        const b = await host.openBasemap!(baseEl.current!, viewRef.current);
+        const b = await host.openBasemap!(baseEl.current!, viewRef.current, {get urlPolicy() { return policyRef.current; }, onStatus: status});
         if (dead) { b.destroy(); return; }
-        base.current = b; b.resize(); b.setView(viewRef.current); setBased(true);
-      } catch (e: any) { if (!dead) setNote(e?.message === "no-key" ? "Google Maps needs the host's key, so this is the still picture." : "The map provider could not load, so this is the still picture."); }
+        base.current = b; setBased(true); b.resize(); b.setView(viewRef.current);
+      } catch (e: any) { if (!dead) setNote(e?.message === "no-key" ? "Google Maps needs the host's key, so this is the still picture." : host.provider === "tiles" ? `${e?.message ?? "Tile provider failed"}, so this is the still picture.` : "The map provider could not load, so this is the still picture."); }
     };
     let io: IntersectionObserver | null = null;
     try { io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io?.disconnect(); go(); } }, { rootMargin: "300px 0px" }); io.observe(stage.current); } catch { go(); }
@@ -258,7 +262,7 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
   const pinAt = (p: MPlace) => { const q = px(p); return { x: q.x, y: q.y }; };
   const openPlace = (p: MPlace) => ({ data: { id: p.id, title: p.label, meta: `${p.lat}, ${p.lng}`, text: p.note || undefined, tone: p.colour, actions: [{ label: "Open in maps", href: osmLink(p) }] }, at: pinAt(p) });
   const zoom = (dz: number) => { if (mode === "globe") globeRef.current?.zoom(dz); else (stage.current as any)?.__zoom?.(dz); };
-  const attribution = mode === "flat" && based && host?.provider === "leaflet" ? (host.attribution ?? "© OpenStreetMap contributors") : mode === "flat" && based && host?.provider === "maplibre" ? (host.attribution ?? "") : "";
+  const attribution = mode === "flat" && based && host?.provider === "leaflet" ? (host.attribution ?? "© OpenStreetMap contributors") : mode === "flat" && based && (host?.provider === "maplibre" || host?.provider === "tiles") ? (host.attribution ?? "") : "";
   const showList = (p: MPlace) => {
     pop.close();
     if (mode === "globe") { turnGlobe({ lat: p.lat, lng: p.lng, k: 2.4 }); setTimeout(() => pop.show({ data: openPlace(p).data, at: { x: sizeRef.current.w / 2, y: sizeRef.current.h / 2 } }), 800); }
@@ -414,7 +418,7 @@ function MapRenderer({ spec, host, ui, static: stp, motionOff }: { motionOff:boo
         </div>}
         {geoMap && !sx.on ? <div className="map-ctl-l" role="group" aria-label="View"><button type="button" className="map-btn map-mode" onClick={toggleMode}>Globe</button></div> : null}
         <div className="map-scale" aria-hidden="true"><span style={{ width: Math.max(8, Math.round(bar.px)) }} />{bar.metres >= 1000 ? `${bar.metres / 1000} km` : `${bar.metres} m`}</div>
-        {attribution ? <div className="map-attr" data-dh-slot="attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{attribution}</a></div> : null}
+        {attribution ? <div className="map-attr" data-dh-slot="attribution">{host?.provider === "tiles" ? attribution : <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">{attribution}</a>}</div> : null}
         {pop.node}
       </div>
       )}

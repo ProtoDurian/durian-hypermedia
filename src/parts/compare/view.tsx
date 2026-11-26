@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { usePopover } from "../kit/view";
 import type { PartViewProps } from "../types";
+import { cssWord } from "../../safety";
 import type { Cell, CompareData, Row } from "./part";
 
 /** the part's own words (the renderer's shared words come from `ui`) */
@@ -66,7 +67,7 @@ export default function CompareView({ data, ui, stage }: PartViewProps<CompareDa
   const { options, rows } = compare;
   const cols = single ? [opt] : options.map((_, i) => i);
   const wins = (i: number) => compare.winner && compare.wins[i] > 0;
-  const optStyle = (colour: string) => (colour ? ({ ["--compare-opt" as string]: `var(--${colour})` } as React.CSSProperties) : undefined);
+  const optStyle = (colour: string) => (colour ? ({ ["--compare-opt" as string]: `var(--${cssWord(colour, "acc")})` } as React.CSSProperties) : undefined);
   const label = `${data.title || W.comparison} (${W.scrolls})`;
   return (
     <div className="cmp dh-pop-host" ref={host} data-view={single ? "single" : "table"} data-narrow={narrow ? "1" : undefined} data-edge={edge}>

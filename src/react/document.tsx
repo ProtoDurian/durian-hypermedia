@@ -8,6 +8,7 @@ import React, { useMemo, useRef } from "react";
 import { UI, type Ui } from "../ui/ui";
 import { registeredBlocks, type BlockDef } from "../blocks";
 import type { UrlPolicy } from "../safety";
+import type { LoadMedia } from "../media-loader";
 import type { InlineDef } from "../markdown";
 import type { Block, Document, HostBlock } from "../types";
 import { DhContext, DEFAULT_SLOTS, useDh, type Components, type DhSettings, type Slots, cx } from "./context";
@@ -16,6 +17,7 @@ import { Turn } from "./turn";
 import { ReferencePart } from "./reference";
 import { pageStatic } from "../parts/kit/static";
 import { useTableMore } from "./table-more";
+import { usePauseAway } from "./pause-away"; // hydrate
 
 
 export interface DocumentProps {
@@ -45,6 +47,10 @@ export interface DocumentProps {
   demoteHeadings?: number;
   /** links and images are checked again with this policy at render time (default: the parser's default policy) */
   urlPolicy?: UrlPolicy;
+  /** The host's media loader: called for every media address a part would load or show (video, audio, pdf, lottie, gallery, compare-image, Markdown images, captions, peaks, transcripts), after the urlPolicy, so it can serve `media:` files or `@path` bytes from an authenticated read. Answers `{ objectUrl }` (a blob: URL), `{ bytes }`, `{ refused }` or `{ useDefault: true }`; see ADOPT.md. Not given: 0.7.0 behaviour. */
+  loadMedia?: LoadMedia;
+  /** Address prefixes the loader claims, such as `["media:", "@"]`: such an address skips the urlPolicy and goes only to the loader (never into the page). Pass the same list to parse() as ParseOptions.mediaPrefixes. */
+  mediaPrefixes?: readonly string[];
   /** show "What an LLM reads here" under each part */
   llmPeek?: boolean;
   /** draw every folder part that steps or moves static: "" the finished state, "<n>" step n, or a step's title */
@@ -54,6 +60,8 @@ export interface DocumentProps {
   interactive?: "off" | "static" | "on";
   /** options for the folder parts, by part name: `{ weather: { units: { temp: "f", wind: "mph" } } }` sets the default units of every weather part (the reader's own choice still wins) */
   partOptions?: Readonly<Record<string, unknown>>;
+  /** which animation engine draws: "old", "auto" or "new" (src/engine/bridge.ts); default ENGINE_DEFAULT */
+  engine?: import("../engine/bridge").EngineMode;
   className?: string;
 }
 
@@ -88,9 +96,13 @@ export function Blocks({ blocks }: { blocks: Block[] }): React.ReactElement {
 }
 
 export function DocumentView(p: DocumentProps): React.ReactElement {
+  const mediaTotal = useRef({ used: 0 });   // the loader bytes this document holds
   const settings = useMemo<DhSettings>(() => ({
     ui: { ...UI.en, ...(p.ui ?? {}) } as Ui,
     urlPolicy: p.urlPolicy,
+    loadMedia: p.loadMedia,
+    mediaPrefixes: p.mediaPrefixes,
+    mediaTotal: mediaTotal.current,
     slots: { ...DEFAULT_SLOTS, ...(p.slots ?? {}) },
     components: p.components ?? {},
     hostBlocks: registeredBlocks(p.blocks ?? []),
@@ -103,12 +115,14 @@ export function DocumentView(p: DocumentProps): React.ReactElement {
     map: p.map,
     now: p.now,
     partOptions: p.partOptions,
-  }), [p.ui, p.urlPolicy, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions]);
+    engine: p.engine,
+  }), [p.ui, p.urlPolicy, p.loadMedia, p.mediaPrefixes, p.slots, p.components, p.blocks, p.inlines, p.llmPeek, p.demoteHeadings, p.static, p.interactive, p.doc.frontMatter, p.map, p.now, p.partOptions, p.engine]);
 
   const { doc } = p;
   // a table wider than its box: its hidden side fades and a line under it says to swipe (0.7.0-rc.3)
   const root = useRef<HTMLDivElement>(null);
   useTableMore(root, settings.ui.hintTable ?? "↔ Swipe the table to see all of it");
+  usePauseAway(root); // hydrate: a figure off the screen keeps its CSS animations still
   return (
     <DhContext.Provider value={settings}>
       <div ref={root} className={cx("dh-doc", p.className)} data-dh-variant={p.variant} data-theme={p.theme} data-dh-motion={p.motion === "off" ? "off" : undefined}>

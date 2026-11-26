@@ -8,7 +8,8 @@
 // This file is the host's opt-in entry `react/map-providers`: it is loaded only when the host passes a provider, only
 // when a map scrolls near. Leaflet 1.9.4 writes a string to `innerHTML` when it loads (its inline-SVG test), MapLibre
 // makes a worker from a URL and Google's loader adds a script; none of these runs under strict Trusted Types, so the
-// strict build never imports this file and draws the still picture and the list of places (use the map without a provider).
+// strict build never imports this file. Use react/map-tiles for image-only tiles under strict Trusted Types,
+// or use the map without a provider for the still picture and the list of places.
 import { unmerc, type Camera } from "../parts/map/model";
 import type { MapHost, Basemap } from "../parts/map/host";
 export type { MapHost, Basemap };

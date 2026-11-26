@@ -97,8 +97,23 @@ function TableView({ rows }: { rows: { [k: string]: J }[] }) {
   );
 }
 
+const RAW_CHUNK = 1000;
+/** The source as plain text: line numbers, no search, no query. Read only; the lines scroll sideways rather than wrap. */
+export function RawView({ text, lang }: { text: string; lang: string }) {
+  const lines = useMemo(() => text.split("\n"), [text]);
+  const [shown, setShown] = useState(RAW_CHUNK);
+  const width = String(lines.length).length;
+  return (
+    <div className="dx-raw" data-dh-slot="raw" role="region" tabIndex={0} aria-label={`Raw ${lang} source, ${lines.length} line${lines.length === 1 ? "" : "s"}`} style={{ ["--dx-gutter" as string]: `${width + 1}ch` }}>
+      <ol className="dx-raw-ol">{lines.slice(0, shown).map((l, i) => <li key={i} className="dx-raw-li">{l || "\u200b"}</li>)}</ol>
+      {lines.length > shown ? <button type="button" className="dx-more" onClick={() => setShown(shown + RAW_CHUNK)}>Show {Math.min(RAW_CHUNK, lines.length - shown)} more of {lines.length - shown} lines</button> : null}
+    </div>
+  );
+}
+
 function DataExplorer({ d, staticOn }: { d: D; staticOn: boolean }) {
   const uid = useId();
+  const [view, setView] = useState<"rich" | "raw">("rich");
   const [q, setQ] = useState(d.query);
   const [search, setSearch] = useState("");
   const [table, setTable] = useState(false);
@@ -126,7 +141,12 @@ function DataExplorer({ d, staticOn }: { d: D; staticOn: boolean }) {
   const err = run && !run.ok ? run : null;
   return (
     <div className="dx" data-lang={d.lang} data-dh-static={staticOn || undefined}>
-      <div className="dx-head">{d.title ? <span className="dx-title">{d.title}</span> : null}<span className="chip dx-lang">{d.lang}</span></div>
+      <div className="dx-head">{d.title ? <span className="dx-title">{d.title}</span> : null}<span className="chip dx-lang">{d.lang}</span>
+        <div className="dx-switch" role="group" aria-label="View" data-dh-slot="switch">
+          <button type="button" className="dx-sw" aria-pressed={view === "rich"} onClick={() => setView("rich")}>Rich</button>
+          <button type="button" className="dx-sw" aria-pressed={view === "raw"} onClick={() => setView("raw")}>Raw</button>
+        </div></div>
+      {view === "raw" ? <RawView text={d.raw} lang={d.lang} /> : <>
       <div className="dx-q" data-dh-slot="query">
         <label className="dx-lab" htmlFor={`${uid}q`}>jq</label>
         <input id={`${uid}q`} className="dx-input" type="text" spellCheck={false} autoCapitalize="off" autoComplete="off" value={q} placeholder="a jq query, like  .items[] | select(.n > 1)" maxLength={d.caps.readerQueryChars} onChange={(e) => setQ(e.target.value)} aria-describedby={`${uid}h`} />
@@ -146,6 +166,7 @@ function DataExplorer({ d, staticOn }: { d: D; staticOn: boolean }) {
       </div>
       <div className="dx-copied" role="status" aria-live="polite">{msg}</div>
       <details className="dx-subset"><summary>What the query box understands (jq subset)</summary><p><b>Has:</b> {JQ_SUBSET.has}.</p><p><b>Missing:</b> {JQ_SUBSET.lacks}.</p></details>
+      </>}
     </div>
   );
 }

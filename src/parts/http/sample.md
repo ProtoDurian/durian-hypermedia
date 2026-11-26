@@ -1,4 +1,4 @@
-An `http` block is a request and, after a blank line, its response, as text. It is drawn as a method tag and the address (the query split into names and values), the headers (folded after six), the body (JSON is pretty and can be folded), the status as a tag coloured by its class, and a button that copies the request as `curl`. A secret in a header is never written out: use a placeholder such as `<token>`.
+An `http` block is a request and, after a blank line, its response, as text. It is drawn as a method tag and the address (the query split into names and values), the headers and the body as sections that open and close (a short one starts open, a long one closed), the body (JSON is pretty and can be folded), the status as a tag coloured by its class, and a button that copies the request as `curl`. A parameter's value and a request header's value are text fields: edit one and the address and the curl follow (nothing is sent). A secret in a header is never written out: use a placeholder such as `<token>`.
 
 ```http title="Create an order"
 POST /v1/orders?dry_run=false&currency=usd HTTP/1.1

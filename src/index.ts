@@ -9,6 +9,7 @@
 export { parse, llmView, check, animationTexts, FORMAT_VERSION, type ParseOptions } from "./document";
 export { defineBlock, registerBlock, unregisterBlock, type BlockDef, type BlockInput } from "./blocks";
 export { LIMITS, UNTRUSTED_LIMITS, defaultUrlPolicy, applyUrlPolicy, schemeOf, type Limits, type UrlPolicy, type UrlKind } from "./safety";
+export type { LoadMedia, MediaKind, MediaRequest, MediaResult } from "./media-loader";
 export { setYamlParser } from "./host/yaml";
 export { CALLOUT_WORDS, inlineText, slug, type InlineDef } from "./markdown";
 export { REFERENCE_ONLY, REF_NAME_MAX, isReferenceType, nameProblem as referenceNameProblem, refText as referenceText } from "./core/refs";
@@ -19,7 +20,7 @@ import { FOLDER_PART_NAMES } from "./parts/generated/registry";
 export function defineInline<D = unknown, C = unknown>(def: InlineDef<D, C>): InlineDef<D, C> { return def; }
 export type * from "./types";
 /** This package's version (package.json); a consumer can check the one it pinned. */
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 export const PART_NAMES = ["terminal", "filetree", "editor", "codewalk", "chart", "animation", "state", "class", "er", "tierlist", "alignment", "tabs", "accordion", "human", "llm", ...FOLDER_PART_NAMES] as const;
 // the parts in their own folders (src/parts/<name>/, format version 11): their definitions, for tools and hosts
 export { FOLDER_PART_NAMES, FOLDER_PARTS } from "./parts/generated/registry";

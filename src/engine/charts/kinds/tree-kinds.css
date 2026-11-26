@@ -1,0 +1,55 @@
+/* tree and calendar chart kinds (treemap, sunburst, calendar): the looks a role cannot say. Page tokens only (var(--...)); every rule of fill and stroke carries !important so it also wins over a painter that sets them inline. */
+:root{--kd-empty:var(--surface-2);--kd-heat-lo:var(--surface-2)}
+.kd-t-c1{--kd-tone:var(--c1)}
+.kd-t-c2{--kd-tone:var(--c2)}
+.kd-t-c3{--kd-tone:var(--c3)}
+.kd-t-c4{--kd-tone:var(--c4)}
+.kd-t-c5{--kd-tone:var(--c5)}
+.kd-t-c6{--kd-tone:var(--c6)}
+.kd-t-c7{--kd-tone:var(--c7)}
+.kd-t-c8{--kd-tone:var(--c8)}
+.kd-t-acc{--kd-tone:var(--acc)}
+.kd-t-good{--kd-tone:var(--good)}
+.kd-t-warn{--kd-tone:var(--warn)}
+.kd-t-bad{--kd-tone:var(--bad)}
+.kd-t-muted{--kd-tone:var(--faint)}
+/* treemap: a block's colour deepens one step a level; a branch with a header is a little stronger */
+.kd-tile.kd-l1{fill:color-mix(in oklab,var(--kd-tone) 23%,var(--surface))!important;stroke:none!important}
+.kd-tile.kd-l2{fill:color-mix(in oklab,var(--kd-tone) 32%,var(--surface))!important;stroke:none!important}
+.kd-tile.kd-l3{fill:color-mix(in oklab,var(--kd-tone) 41%,var(--surface))!important;stroke:none!important}
+.kd-tile.kd-l4{fill:color-mix(in oklab,var(--kd-tone) 50%,var(--surface))!important;stroke:none!important}
+.kd-tile.kd-l5{fill:color-mix(in oklab,var(--kd-tone) 59%,var(--surface))!important;stroke:none!important}
+.kd-tile.kd-head{fill:color-mix(in oklab,var(--kd-tone) 26%,var(--surface))!important}
+.kd-tn{font-weight:600;pointer-events:none}.kd-tv{font-variant-numeric:tabular-nums;pointer-events:none}
+/* sunburst: a ring gets lighter the further out it is; words keep a halo of the page colour */
+.kd-arc.kd-r1{fill:color-mix(in oklab,var(--kd-tone) 71%,var(--surface))!important;stroke:var(--surface)!important;stroke-width:1px!important}
+.kd-arc.kd-r2{fill:color-mix(in oklab,var(--kd-tone) 56%,var(--surface))!important;stroke:var(--surface)!important;stroke-width:1px!important}
+.kd-arc.kd-r3{fill:color-mix(in oklab,var(--kd-tone) 41%,var(--surface))!important;stroke:var(--surface)!important;stroke-width:1px!important}
+.kd-arc.kd-r4{fill:color-mix(in oklab,var(--kd-tone) 26%,var(--surface))!important;stroke:var(--surface)!important;stroke-width:1px!important}
+.kd-arc.kd-r5{fill:color-mix(in oklab,var(--kd-tone) 11%,var(--surface))!important;stroke:var(--surface)!important;stroke-width:1px!important}
+.kd-an,.kd-cn{pointer-events:none}.chart-svg text.kd-an{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round} /* charts2: a solid halo that wins over `.chart-svg text { stroke: none }` (it never showed: light words on light rings read at about 2.3:1 in dark) */
+.kd-core{fill:var(--surface-2)!important;stroke:var(--line-2)!important;stroke-width:1px!important}.kd-cv{font-variant-numeric:tabular-nums;pointer-events:none}
+/* calendar: 20 steps of the tone mixed into the low colour; a day without data is dashed and empty */
+.kd-day{stroke:color-mix(in oklab,var(--kd-tone) 18%,var(--line))!important;stroke-width:1px!important}
+.kd-day.kd-empty{fill:var(--kd-empty)!important;stroke:var(--line-2)!important;stroke-dasharray:3 3}
+.kd-key{stroke:none!important}.kd-wd,.kd-month,.kd-keyt{pointer-events:none}.kd-month{font-weight:500}.kd-keyt{font-variant-numeric:tabular-nums}
+.kd-c0{fill:color-mix(in oklab,var(--kd-tone) 8%,var(--kd-heat-lo))!important}
+.kd-c1{fill:color-mix(in oklab,var(--kd-tone) 13%,var(--kd-heat-lo))!important}
+.kd-c2{fill:color-mix(in oklab,var(--kd-tone) 18%,var(--kd-heat-lo))!important}
+.kd-c3{fill:color-mix(in oklab,var(--kd-tone) 23%,var(--kd-heat-lo))!important}
+.kd-c4{fill:color-mix(in oklab,var(--kd-tone) 27%,var(--kd-heat-lo))!important}
+.kd-c5{fill:color-mix(in oklab,var(--kd-tone) 32%,var(--kd-heat-lo))!important}
+.kd-c6{fill:color-mix(in oklab,var(--kd-tone) 37%,var(--kd-heat-lo))!important}
+.kd-c7{fill:color-mix(in oklab,var(--kd-tone) 42%,var(--kd-heat-lo))!important}
+.kd-c8{fill:color-mix(in oklab,var(--kd-tone) 47%,var(--kd-heat-lo))!important}
+.kd-c9{fill:color-mix(in oklab,var(--kd-tone) 52%,var(--kd-heat-lo))!important}
+.kd-c10{fill:color-mix(in oklab,var(--kd-tone) 56%,var(--kd-heat-lo))!important}
+.kd-c11{fill:color-mix(in oklab,var(--kd-tone) 61%,var(--kd-heat-lo))!important}
+.kd-c12{fill:color-mix(in oklab,var(--kd-tone) 66%,var(--kd-heat-lo))!important}
+.kd-c13{fill:color-mix(in oklab,var(--kd-tone) 71%,var(--kd-heat-lo))!important}
+.kd-c14{fill:color-mix(in oklab,var(--kd-tone) 76%,var(--kd-heat-lo))!important}
+.kd-c15{fill:color-mix(in oklab,var(--kd-tone) 81%,var(--kd-heat-lo))!important}
+.kd-c16{fill:color-mix(in oklab,var(--kd-tone) 85%,var(--kd-heat-lo))!important}
+.kd-c17{fill:color-mix(in oklab,var(--kd-tone) 90%,var(--kd-heat-lo))!important}
+.kd-c18{fill:color-mix(in oklab,var(--kd-tone) 95%,var(--kd-heat-lo))!important}
+.kd-c19{fill:color-mix(in oklab,var(--kd-tone) 100%,var(--kd-heat-lo))!important}

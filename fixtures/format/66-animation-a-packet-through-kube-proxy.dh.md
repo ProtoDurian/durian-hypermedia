@@ -77,7 +77,7 @@ send e1 -> ct1
 highlight ct1
 @step Out of node 1's kernel into the frontend's veth.
 send "from 192.0.2.10" ct1 -> v1
-@step Into the frontend, which sees the service answer. Other networks under a cluster do the middle hop another way: a routed CNI has a route "node 2's pod range → node 2"; an overlay wraps the packet from node IP to node IP. The kube-proxy part stays the same.
+@step The packet goes into the frontend, which sees the service answer. Other networks under a cluster do the middle hop another way: a routed CNI has a route "node 2's pod range → node 2"; an overlay wraps the packet from node IP to node IP. The kube-proxy part stays the same.
 send v1 -> fe
 ```
 

@@ -16,7 +16,7 @@ export async function snapshot(root: string): Promise<Record<string, unknown>> {
   for (const f of files) {
     const rel = f.replace(/^fixtures\//, "");
     if (NEW.test(rel)) continue;
-    const doc = parse(readFileSync(join(root, f), "utf8"), { path: rel });
+    const doc = parse(readFileSync(join(root, f), "utf8"), { path: rel, engine: "old" }); // the snapshot guards the plain charts; animations stay on the old engines it was taken with
     const charts: unknown[] = [];
     const walk = (bs: any[]) => bs.forEach((b) => {
       if (b.type === "chart") charts.push({ controls: b.controls, x: b.initial?.x, series: b.initial?.series, error: b.initial?.error, y: b.initial?.y });

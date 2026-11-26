@@ -5,6 +5,7 @@ import { Pre, type HighlightedCode } from "codehike/code";
 import { mark, add, del, lineTokens } from "../ui/ch";
 import { applyUrlPolicy } from "../safety";
 import { useDh, plainCode } from "./context";
+import { useMediaSrcs, useSeen } from "./media-loader";
 import { inlineText } from "../markdown";
 import { FOLDER_INLINE_COMPONENTS } from "../parts/generated/inline";
 import { ReferenceInline } from "./reference";
@@ -29,6 +30,14 @@ function MouseIcon({ press, badge }: { press: string; badge: string }) {
   );
 }
 
+/** An image in prose: the host's loader is asked first when there is one (react/media-loader.tsx); otherwise the urlPolicy decides, on the render, as in 0.7.0. */
+function MdImage({ src, alt, title }: { src: string | null; alt: string; title?: string }): React.ReactElement {
+  const wait = React.useRef<HTMLSpanElement>(null), seen = useSeen(wait);   // with a loader the image is asked for once it is near the viewport
+  const [st] = useMediaSrcs("markdown", [{ url: src, kind: "image" }], seen);
+  if (st.status !== "ready") return <span ref={wait} className="dh-img-off" {...(st.status === "refused" && st.reason ? { title: st.reason } : {})}>{alt}</span>;
+  return <img src={st.src} alt={alt} title={title} loading="lazy" decoding="async" referrerPolicy="no-referrer" />;
+}
+
 export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
   const { urlPolicy, hostInlines, slots } = useDh();
   return <>{c.map((x, i) => {
@@ -46,10 +55,7 @@ export function Inline({ c }: { c: MdInline[] }): React.ReactElement {
         if (slots.Link) return <slots.Link key={i} href={href} title={x.title} external={external}><Inline c={x.c} /></slots.Link>;
         return <a key={i} href={href} title={x.title} {...(external ? { rel: "noreferrer noopener", target: "_blank" } : {})}><Inline c={x.c} /></a>;
       }
-      case "img": {
-        const src = x.src == null ? null : applyUrlPolicy(x.src, "image", urlPolicy);
-        return src == null ? <span key={i} className="dh-img-off">{x.alt}</span> : <img key={i} src={src} alt={x.alt} title={x.title} loading="lazy" decoding="async" referrerPolicy="no-referrer" />;
-      }
+      case "img": return <MdImage key={i} src={x.src} alt={x.alt} title={x.title} />;
       case "coderef": return <span key={i} className="coderef" tabIndex={0} title={x.ref}><Inline c={x.c} /></span>;
       case "kbd": return (
         <span key={i} className="dh-keys" aria-label={x.label}>

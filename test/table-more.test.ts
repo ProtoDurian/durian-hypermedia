@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { markTable, moreSides } from "../src/react/table-more";
+import { markTable, moreSides, waiting } from "../src/react/table-more";
 
 type Fake = { scrollLeft: number; clientWidth: number; scrollWidth: number; dataset: Record<string, string>; nextElementSibling: any; after: (n: any) => void; getBoundingClientRect: () => { bottom: number }; ownerDocument: any };
 const box = (scrollWidth: number, clientWidth = 600, scrollLeft = 0): Fake => {
@@ -33,6 +33,28 @@ describe("markTable: the fade mark and the swipe line follow the box", () => {
     const w = box(500); markTable(w as any, "x"); expect(w.dataset.more).toBeUndefined(); expect(w.nextElementSibling).toBeNull();
     const g = box(900); markTable(g as any, "x"); g.scrollWidth = 600; markTable(g as any, "x");
     expect(g.dataset.more).toBeUndefined(); expect(g.nextElementSibling).toBeNull();
+  });
+});
+// a fake tree: each node has parentElement, previousElementSibling, classList and attributes
+type N = { cls: string[]; attrs: Set<string>; parentElement: N | null; previousElementSibling: N | null; classList: { contains: (c: string) => boolean }; hasAttribute: (a: string) => boolean };
+const node = (cls: string[] = [], attrs: string[] = []): N => ({ cls, attrs: new Set(attrs), parentElement: null, previousElementSibling: null, classList: { contains: (c) => cls.includes(c) }, hasAttribute(a) { return this.attrs.has(a); } });
+const kids = (parent: N | null, list: N[]) => list.forEach((n, i) => { n.parentElement = parent; n.previousElementSibling = list[i - 1] ?? null; });
+describe("waiting: a table in a part that has not hydrated is left alone (no extra attributes on server HTML React will adopt)", () => {
+  test("the part's marker still has data-wait: its table box (any depth) is waiting; once data-wait goes it is not", () => {
+    const mark = node(["dh-turn"], ["data-wait"]), body = node(), details = node(), wrap = node(["table-wrap"]);
+    const root = node(); kids(root, [mark, body]); kids(body, [details]); kids(details, [wrap]);
+    expect(waiting(wrap as any)).toBe(true);
+    mark.attrs.delete("data-wait"); expect(waiting(wrap as any)).toBe(false);
+  });
+  test("a page with no hydration queue (no marker with data-wait) and a table before any part are never waiting", () => {
+    const mark = node(["dh-turn"]), after = node(["table-wrap"]), first = node(["table-wrap"]);
+    const root = node(); kids(root, [first, mark, after]);
+    expect(waiting(first as any)).toBe(false); expect(waiting(after as any)).toBe(false);
+  });
+  test("the queue sets data-wait on attach and clears it when the part has drawn itself", () => {
+    const src = readFileSync(join(import.meta.dir, "../src/react/turn.tsx"), "utf8");
+    expect(src).toMatch(/mark\.setAttribute\?\.\("data-wait", ""\)/); expect(src).toMatch(/e\.mark\?\.removeAttribute\?\.\("data-wait"\)/);
+    expect(readFileSync(join(import.meta.dir, "../src/react/table-more.ts"), "utf8")).toMatch(/attributeFilter: \["data-wait"\]/);
   });
 });
 describe("wired into every document, styled, and gone in print", () => {

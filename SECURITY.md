@@ -3,6 +3,31 @@
 The input is untrusted: an agent or a stranger may have written it. `parse()` turns it into plain data and the renderer
 draws that data with React, so author text is always a text node or an escaped attribute.
 
+The optional `react/map-tiles` host provider uses DOM-created image tiles, without HTML-string sinks,
+script loading or workers, and is included in the strict Trusted Types import-graph check. The host supplies
+the tile template and required plain-text attribution; Markdown cannot select a server. Before each camera
+is drawn, every expanded URL passes the document's `urlPolicy(url, "image")` and `applyUrlPolicy`, including
+rewritten URLs; a refusal clears all visible tiles and restores the still picture with a reason. At most 64
+tile images are attached. Starts wait for 100 ms of camera quiet; at most 8 image requests remain unfinished
+per provider, including detached images, as measured against a slow server by the browser checker. Detached
+in-flight images keep their sources and handlers until load/error; removing a source does not reliably
+cancel its request. Already-issued requests can finish after fallback or destruction. An image retries at
+most once, then stays blank; only an entirely failed view restores the still picture.
+Per-attempt timeouts default to 12 seconds (`TILE_TIMEOUT_MS`) and include queue time; hosts may lower
+them through `timeoutMs`. A timed-out request keeps its slot until its actual load/error event. Its one
+allowed retry has a separate timeout, which can expire while waiting for a slot. Thus a fully hung view
+can fall back with "Tile server did not answer" while all physical slots remain occupied; it cannot start
+an unbounded replacement loop. Detached late responses never replace the current tile attempt.
+
+The tile service sees viewed coordinates, the reader's IP and timing, and may receive its own cookies on
+ordinary cross-origin image requests. Prefer a host-run tile proxy to limit these disclosures. Optional
+`crossOrigin: "anonymous"` omits cross-origin credentials when the service supports CORS; it does not hide
+IP, timing or coordinates. `referrerPolicy` defaults to `no-referrer`; the host may opt into an origin policy
+for a service that requires a Referer. Keys in a tile template are public, never secrets. Permit only the
+intended image origins in both the image policy and CSP `img-src`; a policy cannot expand the CSP, and a
+broad `img-src https:` also permits all HTTPS Markdown images. No tile service is contacted by default.
+Same-origin tiles over HTTP/1.1 share the browser's six connections per host with the app, so hung tiles can stall the app's requests; serve tiles from another origin or over HTTP/2.
+
 ## What parse() does with hostile input
 
 | Attack | What happens | Fixture |
@@ -198,6 +223,8 @@ relative paths. A remote image is a request to someone else's server when the pa
 pages to people who should not be tracked returns `null` for remote images, or rewrites them to its own proxy. The
 renderer runs the policy again at render time.
 
+**Author text in CSS.** The URL policy sees an address as one string, so an address must never be put into CSS (`url("...")`, `image-set`, a custom property) without its own check: one holding `")` could end the string and start a second value the policy never saw. The only place the package puts an address in CSS is a video's thumbnail sprite, which refuses a name holding a quote, parenthesis, backslash, white space or control character and escapes the rest (0.7.0 did not: fixed in 0.8.0). Colour words go into `var(--word)` only when they are plain lower-case words (`cssWord`), at every place the package writes one. A reference's link goes through the host's `urlPolicy` as a `link`, like every other link.
+
 ## Media
 
 Media addresses are checked by the host's `image` policy. Download cards use its `link` policy.
@@ -220,6 +247,16 @@ Importing the package leaves the host's Lottie globals and timers alone; the Lot
 (`test/media-imports.test.ts`). Browser-managed audio and video playback use the browser's streaming loader.
 A Lottie file is kept inside its part: what the check refuses is named, and the page outside the part is unchanged
 (`test/lottie-host.test.ts`, in a browser under strict Trusted Types).
+
+**A host media loader** (`loadMedia`, ADOPT.md "The host media loader"; 0.8.0) is the one way a `blob:` address, or bytes the author did not name by URL, get into a media part. Who checks what:
+
+- *The host* decides what a claimed address (`media:`, `@path`: the prefixes it lists in `mediaPrefixes`) means, who may read it and what to answer. The package gives the author's text to the loader as it is written (no space or control character, at most 2048 characters). A claimed address is never put in a `src`, `href` or request; it can show as text in a part's error note.
+- *The host must not fetch what it did not claim.* The loader is also asked about every other media address, after the `urlPolicy` and the default rules, so that it can answer `{ useDefault: true }`. An address like that is the author's text: a loader that fetches it (through a daemon, with its credentials and network reach) turns a document into server-side requests. A claimed `@path` is the author's text too: the host must confine it (this package does not clean a path).
+- *The package* checks every answer. `{ objectUrl }` is accepted only when it is a `blob:` URL; `data:`, `javascript:`, `https:` and everything else is a refusal. `{ bytes }` is copied, then held to the kind's cap (`pdfBytes`, `lottieBytes`, the caption, peaks and transcript caps; 32 MiB, 512 MiB and 64 MiB for an image, video and audio source set on an element) and to one document's total of 256 MiB of loader bytes held at once (kept with the document, so a loader function made on each render does not reset it); the loader is told its cap (`maxBytes`) so it can stop reading. A blob made from bytes is revoked when the part unmounts or its address changes. A `blob:` URL the loader returned for `pdf`, `lottie`, captions, peaks or a transcript is fetched under the same byte cap; for an image, video or audio source the browser streams it and its size is the host's to keep (answer `{ bytes }` to have it checked here, or an `objectUrl` for a large video). A loader that throws, rejects or answers in no known shape is a refusal with a fixed message: its own error text is never shown, a refusal reason is cut to 200 characters with control characters removed. A part far from the screen does not ask, and a video or audio file is asked for on Play, so a long page does not read every file at once.
+- *No svg from bytes.* Loader bytes never become an `image/svg+xml` blob: such a blob is a same-origin document, and "open image in new tab" would run its script wherever the page's CSP allows inline script. A host that serves svg answers an `objectUrl` and owns that risk (its CSP should forbid inline script).
+- *The parser* never accepts a `blob:` address an author wrote, with or without a loader (`applyUrlPolicy` refuses it; a prefix list cannot name `blob:`, `data:`, `javascript:`, `file:`, `http:` or `https:`). An address that is not claimed passes the host's `urlPolicy` and the default rules before the loader sees it, so a loader cannot be used to reach what the policy refuses unless the host's own loader fetches it.
+- *A thumbnail sprite name is CSS input.* A video's thumbnail track (a captions-style file the author writes) names sprite images that are drawn as a CSS `background-image`. The `urlPolicy` sees the name as one string, so one like `s.jpg"), url("/x` would add a second image the policy never checked (a request to anywhere: 0.7.0 had this). A sprite address is now refused when it holds a quote, parenthesis, backslash, white space or control character (after the policy and after the loader), and the CSS `url()` escapes it anyway.
+- *Not checked:* what the bytes are. A `pdf` still goes to pdf.js with scripting off, a Lottie file through its structure checks and an image through `<img>`, as for any other source; the loader's bytes get no extra trust.
 
 ## Content-Security-Policy
 
@@ -270,13 +307,74 @@ No module under `src/` sets an HTML string: Markdown, code walk notes and tabs a
   navigation. The page accepts only a height from it; it must answer within 5 s, it stops after 10 minutes, and it is
   stopped if it loads a second page. **A frame may still navigate itself once** (a sandbox cannot forbid it, and the
   frame's own `default-src 'none'` does not cover navigation): that one request leaves before the frame is stopped.
-  A host that turns the part on sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
+  A host using the default srcdoc path sets `frame-src 'none'` in its page's CSP: a srcdoc frame still loads, and every
   navigation of it is refused before any request (`bun run ix` measures 1 request without it, 0 with it). The fallback is
   Markdown of the page, under the page's URL policy, like every resolved part. The checks refuse code that names the network, storage, cookies, `top`,
   `parent`, `location` or `RTCPeerConnection` before it runs. Not covered: a script that hides those names (the
   checks read words, not meaning); the sandbox and the policy are the barrier. A browser's WebRTC is not governed by
   `default-src`: a host that must rule it out serves the frame from an origin of its own with a
   `Permissions-Policy`.
+
+### Host-served interactive frame (`frameSrc`)
+
+`InteractivePart` can load a fixed host page through its `frameSrc` prop. It accepts only same-origin HTTP(S) URLs
+without credentials; it refuses an empty, cross-origin or other-scheme URL before creating a frame. Markdown cannot
+set this option. The parent uses `src`, not `srcdoc`, and does not call the `dh-interactive` Trusted Types policy
+factory. Its own CSP may keep `script-src 'self'`, `require-trusted-types-for 'script'` and `trusted-types 'none'`.
+The external page has its own response CSP rather than inheriting the parent's script restriction.
+
+The host must serve the fixed `interactiveFrame().html`, with `interactiveFrame().csp` as its HTTP CSP header,
+`Content-Type: text/html; charset=utf-8`, and no redirect, user data or author content in that response. The returned
+policy is `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; form-action 'none';
+base-uri 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; sandbox allow-scripts; frame-ancestors 'self'`.
+The response-header sandbox forces an opaque origin even for an iframe without a sandbox attribute, and
+`frame-ancestors 'self'` blocks cross-origin ancestors. These two directives cannot be delivered by meta CSP: the
+HTML repeats only the remaining restrictions. The bootstrap refuses to start unless `window.origin === "null"`;
+every incoming message must have both `event.source === window.parent` and `event.origin === location.origin`
+(the HTTP shell URL's origin). Thus an arbitrary cross-site framer cannot initialize the shell at the host origin,
+even when the iframe attribute is missing; the origin check still refuses it if the ancestor directive is omitted.
+The header itself is mandatory, not replaced by these checks. In particular, the
+host must not broaden network access. The shell's own policy must allow its inline bootstrap and author script,
+and must not require Trusted Types for its DOMParser/script installation. The parent need not allow either.
+The initial shell request is ordinary HTTP and may carry ambient cookies; the sandbox prevents script access to
+cookies and storage, not server access to credentials. Never serve account data from this route.
+Exclude this route from global app CSP/Trusted Types and frame-header middleware; send `X-Content-Type-Options:
+nosniff` and `Cache-Control: no-store` as well as the response CSP. Keep the same fixed response for query strings
+and cookies, with no login redirect or state-changing action (ADOPT.md).
+
+The parent still sets exactly `sandbox="allow-scripts"`, no `allow-same-origin`, with `referrerpolicy="no-referrer"`
+and an empty `allow`. On `{ dhReady: true }` from `frame.contentWindow`, it sends the checked content, mode and theme
+once. The shell accepts initialization only from the same-origin `window.parent` and only once; it also caps the combined HTML,
+CSS and script at 204,800 UTF-8 bytes. The parser's original section checks, code checks, page budget and host byte
+cap run before component dispatch; the shell does not repeat that code checker. `"static"` sends no author script,
+but runs the shell bootstrap to draw the markup and report height. Before installing static markup, the shell adds
+a second meta CSP, `script-src 'none'`, to block author scripts and inline handlers; its already admitted bootstrap
+continues handling theme and height. An inline script probe checks this restriction before installing markup;
+if that script executes, static initialization is refused, no content or height is installed, and the parent stops
+at the 5 second deadline. This static path is **Chromium-measured**, not a cross-browser guarantee: unlike srcdoc
+static's `sandbox=""`, it admits the shell bootstrap, and other engines require host validation. The parent accepts ready or a finite height
+with no extra fields, verifies `event.source === frame.contentWindow` on every reply, clamps heights to 80–1200 px,
+and accepts no action, link, fetch or storage command. Both `"on"` and host-frame `"static"` require a height within
+5 seconds (ready is insufficient), stop at 10 minutes and are removed on a second load. `"off"` makes no shell request.
+Messages use target origin `"*"` because the sandboxed frame has an opaque origin. Theme updates carry only the
+listed CSS tokens and dark flag. Hosts that replace the component take responsibility for these rules themselves.
+Every other message listener on the host page must also validate `event.source` against its own expected sender:
+author code can post arbitrary messages to the parent; shape checks alone cannot authenticate this frame.
+
+The parent's `frame-src` **must list the exact same-origin shell URL**, not the whole origin (`'self'`). This means it
+cannot use `'none'` to rule out all self-navigation as it can for srcdoc. Under a deliberately broad `'self'` test
+policy, the **measured residual is 1 request** to a same-origin destination that completes a second load, with
+0 beacon requests, in
+`bun scripts/interactive-check.ts --frame-src`. This is a measurement, not a universal one-request ceiling: redirects
+or navigations before a load event can make further requests. A 204/205 response or a navigation that never finishes
+fires no second load: with broad `'self'`, author code can loop credentialed same-origin GETs until the 10 minute
+deadline. The exact-path test runs the shell and measures **0 requests** to an off-route destination. Even that
+policy does not match query strings: self-navigation to the allowed shell URL with `?data=...` can put data in
+server/proxy logs. Allowed shell routes must be fixed, secret-free and have no state-changing behavior; hosts must
+account for that query channel. The frame's own `connect-src 'none'` does not prevent its self-navigation. The same check measures script access to
+storage, cookies, the parent, fetch, XHR, WebSocket, beacon and indexedDB as refused, with 0 parent CSP/Trusted Types
+violations. Obfuscated code is still possible; the word checks are not the sandbox. WebRTC remains a residual
+outside CSP network directives as described above. The default srcdoc page is unchanged.
 
 ## Reporting
 

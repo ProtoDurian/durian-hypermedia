@@ -172,3 +172,9 @@ export function utf8Bytes(s: string): number {
   }
   return n;
 }
+
+/** A word an author wrote that is about to become part of a CSS value (`var(--${word})`): a plain lower-case word (letters, digits, "-", at most 31
+ *  characters), else `fallback`. Colour words are checked when a part is parsed too; this is the second check at the place the CSS is written. */
+export function cssWord(word: string, fallback: string): string {
+  return /^[a-z][a-z0-9-]{0,30}$/.test(word) ? word : fallback;
+}

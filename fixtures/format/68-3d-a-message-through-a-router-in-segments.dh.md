@@ -52,3 +52,10 @@ move msg.4 into hb
 @step Host B puts the four segments back in order: the message.
 merge msg
 ```
+
+:::llm
+Animation, 13 steps, 3D (2D flat on a phone or with no WebGL). Host A has one message for host B. A router sits between them, with an input queue, a routing table and port 2.
+
+
+1. Host A has one message for host B. 2. TCP cuts it into four numbered segments. 3. to 7. The camera zooms into the router: the queue takes segments 1 to 3 and drops segment 4, which finds it full. The routing table says host B is behind port 2, and the first two segments leave the queue for port 2. 8. to 9. The camera zooms out; segments 1 and 2 cross to host B, then segment 3. 10. to 12. Host B has 1 to 3 but not 4, so host A sends segment 4 again and it gets through the router to host B. 13. Host B puts the four segments back in order: the message.
+:::

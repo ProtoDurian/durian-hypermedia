@@ -12,6 +12,18 @@ export function moreSides(scrollLeft: number, clientWidth: number, scrollWidth: 
   return (wide && scrollLeft > 2 ? "l" : "") + (wide && scrollLeft + clientWidth < scrollWidth - 2 ? "r" : "");
 }
 
+/**
+ * A table box inside a part that has not hydrated yet: its marker (`.dh-turn[data-wait]`, set by the hydration queue
+ * until the part has drawn itself) is the nearest one before it, going up the tree. Marking such a table would add
+ * `data-more` and a line to server HTML React is still to adopt, and React warns about the extra attributes.
+ */
+export function waiting(w: Element): boolean {
+  for (let n: Element | null = w; n; n = n.parentElement) {
+    for (let s = n.previousElementSibling; s; s = s.previousElementSibling) if (s.classList.contains("dh-turn")) return s.hasAttribute("data-wait");
+  }
+  return false;
+}
+
 /** mark one table box: its faded sides, and the swipe line under it while it scrolls */
 export function markTable(w: HTMLElement, hint: string): void {
   const next = w.nextElementSibling as HTMLElement | null, more = next?.classList.contains("table-more") ? next : null;
@@ -30,18 +42,18 @@ export function useTableMore(root: RefObject<HTMLElement | null>, hint: string):
     const el = root.current, win = el?.ownerDocument.defaultView;
     if (!el || !win) return;
     const seen = new WeakSet<HTMLElement>(), offs: (() => void)[] = [];
-    const ro = typeof win.ResizeObserver === "function" ? new win.ResizeObserver((es) => es.forEach((e) => { const w = (e.target as HTMLElement).closest<HTMLElement>(".table-wrap"); if (w) markTable(w, hint); })) : null;
+    const ro = typeof win.ResizeObserver === "function" ? new win.ResizeObserver((es) => es.forEach((e) => { const w = (e.target as HTMLElement).closest<HTMLElement>(".table-wrap"); if (w && !waiting(w)) markTable(w, hint); })) : null;
     const run = () => el.querySelectorAll<HTMLElement>(".table-wrap").forEach((w) => {
       if (!seen.has(w)) {
         seen.add(w); const on = () => markTable(w, hint); w.addEventListener("scroll", on, { passive: true }); offs.push(() => w.removeEventListener("scroll", on));
         ro?.observe(w); const t = w.querySelector("table"); if (t) ro?.observe(t);
       }
-      markTable(w, hint);
+      if (!waiting(w)) markTable(w, hint);
     });
     let queued = 0;
     const later = () => { if (!queued) queued = win.requestAnimationFrame(() => { queued = 0; run(); }); };
     const mo = typeof win.MutationObserver === "function" ? new win.MutationObserver(later) : null;
-    mo?.observe(el, { childList: true, subtree: true });
+    mo?.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-wait"] }); // a part that has drawn itself: its tables come next
     win.addEventListener("resize", run);
     run();
     return () => { ro?.disconnect(); mo?.disconnect(); win.removeEventListener("resize", run); if (queued) win.cancelAnimationFrame(queued); offs.forEach((f) => f()); el.querySelectorAll(".table-more").forEach((p) => p.remove()); };

@@ -1,13 +1,15 @@
 // The fishbone's layout (format version 11): pure, so the box is the same before and after the script runs. Two
-// shapes: wide, the spine runs left to right; narrow, it runs top to bottom with the head at the bottom.
+// shapes: wide, the spine runs left to right; narrow (a phone), it runs down the left edge, each category a block of causes, the effect at the bottom.
 import type { Budget } from "../../core/budget";
 import { wrap as kitWrap } from "../kit/text";
 import type { Cause, FishSpec } from "./part";
 
 export const FISH = { font: 13, lh: 16, wc: 150, chipH: 40 }; // chipH: room for a two-line category name
+/** the phone form: the viewBox width, the spine, the rail the causes hang on, and where the category name starts */
+export const NARROW = { w: 300, spine: 12, rail: 36, chip: 26 };
 export const chipHeight = (lines: number) => Math.max(24, lines * FISH.lh + 8);
 export interface FCause { x: number; y: number; w: number; lines: string[]; subs: { y: number; lines: string[]; step: number }[]; anchor: "start" | "end"; step: number; tx: number; by: number }
-export interface FBone { cat: number; x0: number; y0: number; x1: number; y1: number; chip: { x: number; y: number; w: number; text: string[] }; causes: FCause[]; side: -1 | 1 }
+export interface FBone { rail?: [number, number, number]; cat: number; x0: number; y0: number; x1: number; y1: number; chip: { x: number; y: number; w: number; text: string[] }; causes: FCause[]; side: -1 | 1 }
 export interface FishLayout { w: number; h: number; mode: "wide" | "narrow"; spine: [number, number, number, number]; head: { x: number; y: number; w: number; h: number; lines: string[] }; bones: FBone[]; minW: number }
 
 function causeBlock(c: Cause, width: number, budget?: Budget) {
@@ -54,31 +56,28 @@ export function layoutFish(s: FishSpec, mode: "wide" | "narrow", budget?: Budget
     });
     return { w, h, mode, spine: [10, spineY, spineEnd, spineY], head: { x: spineEnd, y: spineY - headH / 2, w: headW, h: headH, lines: headLines }, bones, minW: Math.ceil((w * 11) / f) };
   }
-  // narrow: the spine runs down the middle, the head at the bottom; bones go left and right, text on the outside
-  const W = 320, mid = W / 2, tw2 = mid - 30, headLines = wrap(s.effect, W - 60, f, 6), headH = headLines.length * lh + 20;
-  let y = 14;
-  const rowsL: number[] = [], rowsR: number[] = [];
+  // narrow (a phone): the spine runs down the left edge and the effect closes it at the bottom. Each category is a block
+  // hung on the spine: a thick bone out to its name, then a rail of its own colour with the causes listed under the name,
+  // full width, every word written left to right. Nothing is placed on a slant, so nothing is thin or squeezed.
+  const W = NARROW.w, spineX = NARROW.spine, railX = NARROW.rail, chipX = NARROW.chip, textX = railX + 16, tw = W - textX - 10;
+  const headLines = wrap(s.effect, W - 12 - 20, f, 6), headH = headLines.length * lh + 20;
+  let y = 8;
   s.categories.forEach((c, k) => {
-    const side: -1 | 1 = k % 2 === 0 ? -1 : 1;
-    const blocks = c.causes.map((ca) => causeBlock(ca, tw2 - 6, budget));
-    const L = blocks.reduce((a, x) => a + x.h, 0) + 6;
-    // two sides may sit side by side: left and right share a band while their bones do not touch the other's text
-    const band = y;
-    const chipText = wrap(c.name, tw2, f, 2);
-    const chipY = band;
-    let yy = band + chipHeight(chipText.length) + 8;
+    const blocks = c.causes.map((ca) => causeBlock(ca, tw, budget));
+    const chipText = wrap(c.name, W - chipX - 6 - 20, f, 2), ch = chipHeight(chipText.length);
+    const chipW = W - chipX - 6;
+    const mid = y + ch / 2;
+    let yy = y + ch + 6;
     const causes: FCause[] = blocks.map((b, q) => {
-      const fx = side === -1 ? 8 : mid + 22;
-      const out: FCause = { x: fx, y: yy + 2, w: tw2, lines: b.lines, subs: [], anchor: "start", step: c.causes[q].step, tx: side === -1 ? mid - 22 : mid + 22, by: yy + b.h / 2 };
+      const out: FCause = { x: textX, y: yy + 2, w: tw, lines: b.lines, subs: [], anchor: "start", step: c.causes[q].step, tx: railX, by: yy + 2 + 7 };
       let sy = yy + 2 + b.lines.length * lh;
       for (const sb of b.subs) { out.subs.push({ y: sy, lines: sb.lines, step: sb.step }); sy += sb.lines.length * lh + 3; }
       yy += b.h; return out;
     });
-    const end = yy + 6;
-    bones.push({ cat: k, x0: mid, y0: end, x1: side === -1 ? mid - 22 : mid + 22, y1: band + chipHeight(chipText.length), side, chip: { x: side === -1 ? 8 : mid + 22, y: chipY, w: Math.min(tw2, Math.max(...chipText.map((t) => t.length * 7.5), 44) + 18), text: chipText }, causes });
-    (side === -1 ? rowsL : rowsR).push(end);
-    y = end + 4;
+    const end = yy + 2;
+    bones.push({ cat: k, x0: spineX, y0: mid, x1: chipX, y1: mid, side: 1, chip: { x: chipX, y: y, w: chipW, text: chipText }, causes, rail: [railX, y + ch, end - 4] });
+    y = end + 10;
   });
-  const h = y + 14 + headH;
-  return { w: W, h, mode, spine: [mid, 6, mid, y + 6], head: { x: 30, y: y + 14, w: W - 60, h: headH, lines: headLines }, bones, minW: W };
+  const h = y + 6 + headH;
+  return { w: W, h, mode, spine: [spineX, 0, spineX, y + 6], head: { x: 6, y: y + 6, w: W - 12, h: headH, lines: headLines }, bones, minW: W };
 }

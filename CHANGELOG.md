@@ -4,6 +4,24 @@ This package follows [semantic versioning](https://semver.org). Before 1.0.0 a m
 every such change is listed here. The `Document` shape has its own number (`doc.ast`) and the format its own
 (`doc.format`, SPEC.md).
 
+## Unreleased
+
+Host features asked for by a host that runs every page under a strict policy (`script-src 'self'`, `require-trusted-types-for 'script'`). Each is off until the host turns it on; without it, nothing changes.
+
+### Security
+
+- **Video thumbnail sprites could load an address the host's `urlPolicy` never checked.** A sprite name from a video's thumbnails file (VTT, written by the page author) was checked as one string and then written into a CSS `url("...")`; a crafted name could add a second `url()`, so the browser made one extra GET (an image request, no script). Affected: 0.7.0-rc.1 to 0.7.0 (the releases with the video part). Fixed in 0.8.0: sprite addresses with quotes, brackets, backslashes, white space or control characters are refused, and the CSS value is escaped. Upgrade to 0.8.0; until then, a host CSP `img-src` that lists only the origins you allow blocks the extra request. A sweep of the same kind of fault found and fixed three more: colour words written into CSS `var(--...)` (the kit colours, the stage paints, sparklines and compare) now take plain words only, and a reference's link (list and card) now goes through the host's `urlPolicy` as a `link`.
+
+### Added
+
+- **A host media loader.** New document option `loadMedia` (and `mediaPrefixes`, with the matching `parse(text, { mediaPrefixes })` and `checkLocalFiles` option): every media part (Markdown images, gallery, compare-image, video with its poster, captions, transcript and thumbnails, audio with its peaks and transcript, pdf, lottie) asks the host's loader first, and the loader answers `{ bytes }`, `{ objectUrl }` (a `blob:` URL, accepted only from the loader), `{ refused: reason }` or `{ useDefault: true }`. The loader is told each file's cap (`maxBytes`); byte caps apply to what it returns, one page holds at most 256 MiB of loader bytes, bytes never become an svg blob, and a blob a part makes from bytes is revoked when the part unmounts. An author-written `blob:` is still refused. An address form the loader claims (`media:`, `@path`) reaches only the loader, never the `urlPolicy` or a `src`. A part far from the screen does not ask (a printed or static page asks for every image); a video and an audio file are asked for on Play, and when the browser refuses to start it after the answer the part says "Ready: press play". The byte total is kept per document. Types `LoadMedia`, `MediaKind`, `MediaRequest` and `MediaResult` are exported from `durian-markdown` and `durian-markdown/react[/strict]`. Without `loadMedia` nothing changes. See ADOPT.md "The host media loader", SPEC.md section 8b and SECURITY.md.
+- **Interactive parts in a frame the host serves.** `InteractivePart` takes `frameSrc`: the host serves the reference frame page (`interactiveFrame()` returns its HTML and the response CSP it must be sent with, including `sandbox allow-scripts` and `frame-ancestors 'self'`) from its own origin, and the part's content goes in by `postMessage` after the frame says it is ready. The parent page needs no `'unsafe-inline'` script and no Trusted Types policy. The frame stays `sandbox="allow-scripts"` without `allow-same-origin`; only a ready signal and a height are accepted, from that frame and the host's own origin; the 5 s and 10 minute limits, the stop on a second load and the code checks are unchanged. `InteractiveProps` types what `components.interactive` receives. See ADOPT.md, SPEC.md section 8a.2 and SECURITY.md (the response headers a host must send, exact frame paths, and what a frame can still do).
+- **Zoomable maps under strict Trusted Types.** `durian-markdown/react/map-tiles` exports `tileProvider({ tiles, attribution })`: a base map of `<img>` tiles placed with DOM calls only (no HTML strings), following the map part's own pan and zoom. Every tile URL goes through the host's image `urlPolicy`; the attribution is required and drawn as text; there is no default tile server. At most 64 tiles are on the page and 8 requests open at once (a tile that left the view keeps its slot until its request ends); loads wait for the camera to rest 100 ms; a failed tile is retried once and then left blank; a tile that does not answer in 12 s (`TILE_TIMEOUT_MS`) counts as failed; a refused URL, or a view where every tile failed, shows the still picture with the reason. Options: `referrerPolicy`, `crossOrigin`, `timeoutMs`; a template without `{z}`, `{x}` and `{y}` is refused. See ADOPT.md and SECURITY.md (what a tile server learns).
+
+### Docs
+
+- SPEC.md section 7 describes the chart time axis the code draws (`x: { scale: time }`); ADOPT.md no longer names a stale latest release in its install lines; README.md states the MIT licence.
+
 ## 0.7.0
 
 <!-- rename:changelog-sub:begin -->

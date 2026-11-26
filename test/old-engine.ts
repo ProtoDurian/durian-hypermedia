@@ -10,7 +10,8 @@ type Fn = () => void | Promise<unknown>;
 const wrap = (fn: Fn): Fn => () => withEngine("old", fn as () => void | Promise<unknown>);
 function make(base: typeof bunTest) {
   const t = ((name: string, fn: Fn, opt?: number | object) => base(name, wrap(fn), opt as number)) as typeof bunTest;
-  return Object.assign(t, { skip: base.skip, todo: base.todo, only: base.only });
+  // `only` is read when a test asks for it: Bun refuses to hand it out on CI, and reading it here broke every file on CI
+  return Object.defineProperty(Object.assign(t, { skip: base.skip, todo: base.todo }), "only", { get: () => base.only });
 }
 export const test = make(bunTest);
 export const it = make(bunIt);
